@@ -1,0 +1,11 @@
+[MASTER]
+load-plugins=pylint_django
+
+[TYPECHECK]
+generated-members=objects
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring
