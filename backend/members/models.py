@@ -2,6 +2,7 @@ from django.db import models
 
 
 class Member(models.Model):
+    """A member of the gym."""
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
 

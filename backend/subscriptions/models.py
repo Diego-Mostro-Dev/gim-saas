@@ -2,7 +2,7 @@ from django.db import models
 
 from members.models import Member
 from plans.models import MembershipPlan
-
+from datetime import timedelta
 
 class Subscription(models.Model):
 
@@ -19,9 +19,23 @@ class Subscription(models.Model):
 
     start_date = models.DateField()
 
-    end_date = models.DateField()
+    end_date = models.DateField(blank=True)
 
     paid = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
+    def save(self, *args, **kwargs):
+        self.end_date = (
+            self.start_date +
+            timedelta(days=self.plan.duration_days)
+        )
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.member.first_name} "
+            f"{self.member.last_name} - "
+            f"{self.plan.name}"
+        )
