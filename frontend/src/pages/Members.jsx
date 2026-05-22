@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 
-import { Search, Plus } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 
 import BottomNav from "../components/dashboard/BottomNav";
 
 import {
   getMembers,
   createMember,
+  deleteMember,
+  updateMember,
 } from "../services/members.service";
 
 function Members() {
@@ -21,6 +28,9 @@ function Members() {
 
   const [showForm, setShowForm] =
     useState(false);
+
+  const [editingMember, setEditingMember] =
+  useState(null);
 
   const [formData, setFormData] = useState({
     first_name: "",
@@ -53,13 +63,30 @@ function Members() {
   setIsSubmitting(true);
 
   try {
-    const newMember =
-      await createMember(formData);
+    if (editingMember) {
+      const updatedMember =
+        await updateMember(
+          editingMember.id,
+          formData
+        );
 
-    setMembers(prev => [
-      newMember,
-      ...prev,
-    ]);
+      setMembers(prev =>
+        prev.map(member =>
+          member.id ===
+          updatedMember.id
+            ? updatedMember
+            : member
+        )
+      );
+    } else {
+      const newMember =
+        await createMember(formData);
+
+      setMembers(prev => [
+        newMember,
+        ...prev,
+      ]);
+    }
 
     setFormData({
       first_name: "",
@@ -68,12 +95,47 @@ function Members() {
       email: "",
     });
 
+    setEditingMember(null);
+
     setShowForm(false);
   } catch (error) {
     console.error(error);
   } finally {
     setIsSubmitting(false);
   }
+}
+
+async function handleDeleteMember(id) {
+  const confirmed = window.confirm(
+    "¿Eliminar miembro?"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await deleteMember(id);
+
+    setMembers(prev =>
+      prev.filter(
+        member => member.id !== id
+      )
+    );
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function handleEditMember(member) {
+  setEditingMember(member);
+
+  setFormData({
+    first_name: member.first_name,
+    last_name: member.last_name,
+    phone: member.phone,
+    email: member.email,
+  });
+
+  setShowForm(true);
 }
 
   const filteredMembers = members.filter(
@@ -133,74 +195,86 @@ function Members() {
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreateMember}
-          className="mb-6 space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
-        >
-          <input
-            type="text"
-            placeholder="Nombre"
-            value={formData.first_name}
-            onChange={e =>
-              setFormData({
-                ...formData,
-                first_name: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-            required
-          />
+  <form
+    onSubmit={handleCreateMember}
+    className="mb-6 space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+  >
+    <h2 className="text-lg font-semibold text-white">
+      {editingMember
+        ? "Editar miembro"
+        : "Nuevo miembro"}
+    </h2>
 
-          <input
-            type="text"
-            placeholder="Apellido"
-            value={formData.last_name}
-            onChange={e =>
-              setFormData({
-                ...formData,
-                last_name: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-            required
-          />
+    <input
+      type="text"
+      placeholder="Nombre"
+      value={formData.first_name}
+      onChange={e =>
+        setFormData({
+          ...formData,
+          first_name: e.target.value,
+        })
+      }
+      className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+      required
+    />
 
-          <input
-            type="text"
-            placeholder="Teléfono"
-            value={formData.phone}
-            onChange={e =>
-              setFormData({
-                ...formData,
-                phone: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-            required
-          />
+    <input
+      type="text"
+      placeholder="Apellido"
+      value={formData.last_name}
+      onChange={e =>
+        setFormData({
+          ...formData,
+          last_name: e.target.value,
+        })
+      }
+      className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+      required
+    />
 
-          <input
-            type="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={e =>
-              setFormData({
-                ...formData,
-                email: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-          />
+    <input
+      type="text"
+      placeholder="Teléfono"
+      value={formData.phone}
+      onChange={e =>
+        setFormData({
+          ...formData,
+          phone: e.target.value,
+        })
+      }
+      className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+      required
+    />
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-xl bg-blue-500 py-3 font-medium text-white"
-          >
-            {isSubmitting ?"Creando...": "Crear Miembro"}
-          </button>
-        </form>
-      )}
+    <input
+      type="email"
+      placeholder="Email"
+      value={formData.email}
+      onChange={e =>
+        setFormData({
+          ...formData,
+          email: e.target.value,
+        })
+      }
+      className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+    />
+
+    <button
+      type="submit"
+      disabled={isSubmitting}
+      className="w-full rounded-xl bg-blue-500 py-3 font-medium text-white"
+    >
+      {isSubmitting
+        ? editingMember
+          ? "Guardando..."
+          : "Creando..."
+        : editingMember
+        ? "Guardar Cambios"
+        : "Crear Miembro"}
+    </button>
+  </form>
+)}
 
       <div className="space-y-3">
         {filteredMembers.length === 0 ? (
@@ -235,17 +309,36 @@ function Members() {
                 </div>
               </div>
 
-              <div
-                className={`rounded-md px-2 py-1 text-xs ${
-                  member.active
-                    ? "bg-blue-500/10 text-blue-300"
-                    : "bg-red-500/10 text-red-300"
-                }`}
-              >
-                {member.active
-                  ? "Activo"
-                  : "Inactivo"}
-              </div>
+              <div className="flex items-center gap-2">
+  <button
+    onClick={() =>
+      handleEditMember(member)
+    }
+    className="rounded-lg bg-blue-500/10 p-2 text-blue-300 transition hover:bg-blue-500/20"
+  >
+    <Pencil size={16} />
+  </button>
+  <div
+    className={`rounded-md px-2 py-1 text-xs ${
+      member.active
+        ? "bg-blue-500/10 text-blue-300"
+        : "bg-red-500/10 text-red-300"
+    }`}
+  >
+    {member.active
+      ? "Activo"
+      : "Inactivo"}
+  </div>
+
+  <button
+    onClick={() =>
+      handleDeleteMember(member.id)
+    }
+    className="rounded-lg bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
+  >
+    <Trash2 size={16} />
+  </button>
+</div>
             </div>
           ))
         )}

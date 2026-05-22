@@ -32,3 +32,45 @@ export async function createMember(memberData) {
 
   return response.json();
 }
+
+export async function deleteMember(id) {
+  const response = await fetch(
+    `http://localhost:8000/api/members/${id}/`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Error eliminando miembro"
+    );
+  }
+}
+
+export async function updateMember(
+  id,
+  memberData
+) {
+  const response = await fetch(
+    `http://localhost:8000/api/members/${id}/`,
+    {
+      method: "PUT",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify(memberData),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Error actualizando miembro"
+    );
+  }
+
+  return response.json();
+}
