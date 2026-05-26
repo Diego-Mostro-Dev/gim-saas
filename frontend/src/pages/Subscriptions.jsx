@@ -9,6 +9,7 @@ import SubscriptionForm from "../components/subscriptions/SubscriptionForm";
 
 import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useSubscriptionForm } from "../hooks/useSubscriptionForm";
+import { useFilteredSubscriptions } from "../hooks/useFilteredSubscriptions";
 
 import { useSearchParams } from "react-router-dom";
 
@@ -37,7 +38,20 @@ function Subscriptions() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const [paymentFilter, setPaymentFilter] = useState("all");
+
   const [searchParams] = useSearchParams();
+
+  const { filteredSubscriptions } = useFilteredSubscriptions({
+    subscriptions,
+    searchTerm,
+    statusFilter,
+    paymentFilter,
+  });
 
   useEffect(() => {
     const shouldOpenForm = searchParams.get("create");
@@ -123,13 +137,23 @@ function Subscriptions() {
         />
       )}
 
-      {subscriptions.length === 0 ? (
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Buscar miembro o plan..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
+        />
+      </div>
+
+      {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
           No hay subscriptions todavía
         </div>
       ) : (
         <div className="space-y-3">
-          {subscriptions.map((subscription) => (
+          {filteredSubscriptions.map((subscription) => (
             <SubscriptionCard
               key={subscription.id}
               subscription={subscription}
