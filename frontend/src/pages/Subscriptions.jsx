@@ -146,6 +146,27 @@ function Subscriptions() {
           className="w-full rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
         />
       </div>
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
+        >
+          <option value="all">Todos</option>
+          <option value="active">Activas</option>
+          <option value="expired">Vencidas</option>
+        </select>
+
+        <select
+          value={paymentFilter}
+          onChange={(e) => setPaymentFilter(e.target.value)}
+          className="rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
+        >
+          <option value="all">Todos los pagos</option>
+          <option value="paid">Pagadas</option>
+          <option value="pending">Pendientes</option>
+        </select>
+      </div>
 
       {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
