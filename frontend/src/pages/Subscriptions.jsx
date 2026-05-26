@@ -6,10 +6,13 @@ import { Plus } from "lucide-react";
 
 import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
 import SubscriptionForm from "../components/subscriptions/SubscriptionForm";
+import SubscriptionFilters from "../components/subscriptions/SubscriptionFilters";
+import SubscriptionStats from "../components/subscriptions/SubscriptionStats";
 
 import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useSubscriptionForm } from "../hooks/useSubscriptionForm";
 import { useFilteredSubscriptions } from "../hooks/useFilteredSubscriptions";
+import { useSubscriptionStats } from "../hooks/useSubscriptionStats";
 
 import { useSearchParams } from "react-router-dom";
 
@@ -52,6 +55,7 @@ function Subscriptions() {
     statusFilter,
     paymentFilter,
   });
+  const stats = useSubscriptionStats(subscriptions);
 
   useEffect(() => {
     const shouldOpenForm = searchParams.get("create");
@@ -137,36 +141,15 @@ function Subscriptions() {
         />
       )}
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Buscar miembro o plan..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
-        />
-      </div>
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
-        >
-          <option value="all">Todos</option>
-          <option value="active">Activas</option>
-          <option value="expired">Vencidas</option>
-        </select>
-
-        <select
-          value={paymentFilter}
-          onChange={(e) => setPaymentFilter(e.target.value)}
-          className="rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
-        >
-          <option value="all">Todos los pagos</option>
-          <option value="paid">Pagadas</option>
-          <option value="pending">Pendientes</option>
-        </select>
-      </div>
+      <SubscriptionFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        paymentFilter={paymentFilter}
+        setPaymentFilter={setPaymentFilter}
+      />
+      <SubscriptionStats stats={stats} />
 
       {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">

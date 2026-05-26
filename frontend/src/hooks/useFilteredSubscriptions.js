@@ -8,37 +8,40 @@ export function useFilteredSubscriptions({
 }) {
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter((subscription) => {
+      const memberMatch = subscription.member_name
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+      const planMatch = subscription.plan_name
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+      const matchesSearch = memberMatch || planMatch;
+
       const today = new Date();
 
       const endDate = new Date(subscription.end_date);
 
       const isExpired = endDate < today;
 
-      const matchesSearch =
-        subscription.member_name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        subscription.plan_name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
       const matchesStatus =
-        statusFilter === "all"
-          ? true
-          : statusFilter === "active"
-            ? !isExpired
-            : isExpired;
+        statusFilter === "all" ||
+        (statusFilter === "active" && !isExpired) ||
+        (statusFilter === "expired" && isExpired);
 
       const matchesPayment =
-        paymentFilter === "all"
-          ? true
-          : paymentFilter === "paid"
-            ? subscription.paid
-            : !subscription.paid;
+        paymentFilter === "all" ||
+        (paymentFilter === "paid" && subscription.paid) ||
+        (paymentFilter === "pending" && !subscription.paid);
 
       return matchesSearch && matchesStatus && matchesPayment;
     });
-  }, [subscriptions, searchTerm, statusFilter, paymentFilter]);
+  }, [
+    subscriptions,
+    searchTerm,
+    statusFilter,
+    paymentFilter,
+  ]);
 
   return {
     filteredSubscriptions,
