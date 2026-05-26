@@ -1,6 +1,6 @@
 import {
   LayoutGrid,
-  BarChart3,
+  CreditCard,
   Users,
   Settings,
 } from "lucide-react";
@@ -36,15 +36,22 @@ function BottomNav() {
         </span>
       </NavLink>
 
-      <button
-        className={`${baseClass} ${inactiveClass}`}
-      >
-        <BarChart3 size={20} />
+      <NavLink
+  to="/subscriptions"
+  className={({ isActive }) =>
+    `${baseClass} ${
+      isActive
+        ? activeClass
+        : inactiveClass
+    }`
+  }
+>
+  <CreditCard size={20} />
 
-        <span className="text-xs">
-          Métricas
-        </span>
-      </button>
+  <span className="text-xs">
+    Subs
+  </span>
+</NavLink>
 
       <NavLink
         to="/members"

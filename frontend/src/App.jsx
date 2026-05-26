@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
+import Subscriptions from "./pages/Subscriptions";
 
 function App() {
   return (
@@ -20,6 +21,10 @@ function App() {
         path="/members"
         element={<Members />}
       />
+      <Route
+  path="/subscriptions"
+  element={<Subscriptions />}
+/>
     </Routes>
   );
 }
