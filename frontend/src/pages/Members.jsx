@@ -3,55 +3,44 @@ import { useEffect, useState } from "react";
 import { Search, Plus } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import toast from "react-hot-toast";
+
 import BottomNav from "../components/dashboard/BottomNav";
+
 import MemberCard from "../components/members/MemberCard";
 import MemberForm from "../components/members/MemberForm";
 
-import toast from "react-hot-toast";
-
-import {
-  getMembers,
-  createMember,
-  deleteMember,
-  updateMember,
-} from "../services/members.service";
+import { useMembers } from "../hooks/useMembers";
+import { useMemberForm } from "../hooks/useMemberForm";
+import { useFilteredMembers } from "../hooks/useFilteredMembers";
 
 function Members() {
-  const [members, setMembers] = useState([]);
+  const { members, loading, error, createNewMember, editMember, removeMember } =
+    useMembers();
+
+  const {
+    showForm,
+    formData,
+    editingMember,
+    setFormData,
+    openCreateForm,
+    openEditForm,
+    closeForm,
+    resetForm,
+  } = useMemberForm();
 
   const location = useLocation();
+
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editingMember, setEditingMember] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    phone: "",
-    email: "",
+  const { filteredMembers } = useFilteredMembers({
+    members,
+    searchTerm,
   });
-
-  // Cargar miembros
-  useEffect(() => {
-    async function loadMembers() {
-      try {
-        const data = await getMembers();
-
-        setMembers(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadMembers();
-  }, []);
 
   // Abrir form desde query param (?create=true)
   useEffect(() => {
@@ -60,15 +49,13 @@ function Members() {
     const shouldOpenForm = params.get("create");
 
     if (shouldOpenForm === "true") {
-      setShowForm(true);
+      openCreateForm();
 
-      // limpiar URL sin generar loops
       navigate("/members", { replace: true });
     }
-  }, [location.search, navigate]);
+  }, [location.search, navigate, openCreateForm]);
 
-  // CREATE / UPDATE
-  async function handleCreateMember(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
     if (isSubmitting) return;
@@ -77,31 +64,18 @@ function Members() {
 
     try {
       if (editingMember) {
-        const updatedMember = await updateMember(editingMember.id, formData);
-
-        setMembers((prev) =>
-          prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)),
-        );
+        await editMember(editingMember.id, formData);
 
         toast.success("Miembro actualizado correctamente");
       } else {
-        const newMember = await createMember(formData);
-
-        setMembers((prev) => [newMember, ...prev]);
+        await createNewMember(formData);
 
         toast.success("Miembro creado correctamente");
       }
 
-      setFormData({
-        first_name: "",
-        last_name: "",
-        phone: "",
-        email: "",
-      });
+      resetForm();
 
-      setEditingMember(null);
-
-      setShowForm(false);
+      closeForm();
     } catch (error) {
       console.error(error);
 
@@ -111,16 +85,13 @@ function Members() {
     }
   }
 
-  // DELETE
   async function handleDeleteMember(id) {
     const confirmed = window.confirm("¿Eliminar miembro?");
 
     if (!confirmed) return;
 
     try {
-      await deleteMember(id);
-
-      setMembers((prev) => prev.filter((m) => m.id !== id));
+      await removeMember(id);
 
       toast.success("Miembro eliminado");
     } catch (error) {
@@ -129,40 +100,6 @@ function Members() {
       toast.error("No se pudo eliminar el miembro");
     }
   }
-
-  // EDIT
-  function handleEditMember(member) {
-    setEditingMember(member);
-
-    setFormData({
-      first_name: member.first_name,
-      last_name: member.last_name,
-      phone: member.phone,
-      email: member.email,
-    });
-
-    setShowForm(true);
-  }
-
-  // CLOSE FORM
-  function handleCloseForm() {
-    setShowForm(false);
-
-    setEditingMember(null);
-
-    setFormData({
-      first_name: "",
-      last_name: "",
-      phone: "",
-      email: "",
-    });
-  }
-
-  const filteredMembers = members.filter((member) =>
-    `${member.first_name} ${member.last_name}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
 
   if (loading) {
     return (
@@ -185,13 +122,19 @@ function Members() {
         </div>
 
         <button
-          onClick={() => (showForm ? handleCloseForm() : setShowForm(true))}
+          onClick={() => (showForm ? closeForm() : openCreateForm())}
           className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
         >
           <Plus size={18} />
-          Nuevo
+          {showForm ? "Cerrar" : "Nuevo"}
         </button>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {/* SEARCH */}
       <div className="mb-6 flex items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3">
@@ -200,8 +143,8 @@ function Members() {
         <input
           type="text"
           placeholder="Buscar miembro..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
         />
       </div>
@@ -211,7 +154,7 @@ function Members() {
         <MemberForm
           formData={formData}
           setFormData={setFormData}
-          onSubmit={handleCreateMember}
+          onSubmit={handleSubmit}
           editingMember={editingMember}
           isSubmitting={isSubmitting}
         />
@@ -228,7 +171,7 @@ function Members() {
             <MemberCard
               key={member.id}
               member={member}
-              onEdit={handleEditMember}
+              onEdit={openEditForm}
               onDelete={handleDeleteMember}
             />
           ))

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import toast from "react-hot-toast";
 
 import { Plus } from "lucide-react";
 
@@ -6,10 +6,11 @@ import BottomNav from "../components/dashboard/BottomNav";
 
 import PaymentCard from "../components/payments/PaymentCard";
 import PaymentForm from "../components/payments/PaymentForm";
+import PaymentStats from "../components/payments/PaymentStats";
 
 import { usePayments } from "../hooks/usePayments";
-import PaymentStats from "../components/payments/PaymentStats";
 import { usePaymentStats } from "../hooks/usePaymentStats";
+import { usePaymentForm } from "../hooks/usePaymentForm";
 
 function Payments() {
   const {
@@ -24,20 +25,19 @@ function Payments() {
     handleDeletePayment,
   } = usePayments();
 
+  const {
+    showForm,
+    formData,
+    editingPayment,
+    setFormData,
+    openCreateForm,
+    openEditForm,
+    closeForm,
+    resetForm,
+  } = usePaymentForm();
+
   const { totalAmount, totalPayments, cashPayments, transferPayments } =
     usePaymentStats(payments);
-
-  const [showForm, setShowForm] = useState(false);
-
-  const [editingPayment, setEditingPayment] = useState(null);
-
-  const [formData, setFormData] = useState({
-    amount: "",
-    payment_method: "cash",
-    notes: "",
-    member: "",
-    subscription: "",
-  });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -45,13 +45,21 @@ function Payments() {
     try {
       if (editingPayment) {
         await handleUpdatePayment(editingPayment.id, formData);
+
+        toast.success("Pago actualizado");
       } else {
         await handleCreatePayment(formData);
+
+        toast.success("Pago creado");
       }
 
-      handleCloseForm();
+      resetForm();
+
+      closeForm();
     } catch (error) {
       console.error(error);
+
+      toast.error("Ocurrió un error");
     }
   }
 
@@ -62,37 +70,13 @@ function Payments() {
 
     try {
       await handleDeletePayment(id);
+
+      toast.success("Pago eliminado");
     } catch (error) {
       console.error(error);
+
+      toast.error("No se pudo eliminar el pago");
     }
-  }
-
-  function handleEdit(payment) {
-    setEditingPayment(payment);
-
-    setFormData({
-      amount: payment.amount,
-      payment_method: payment.payment_method,
-      notes: payment.notes || "",
-      member: payment.member,
-      subscription: payment.subscription,
-    });
-
-    setShowForm(true);
-  }
-
-  function handleCloseForm() {
-    setShowForm(false);
-
-    setEditingPayment(null);
-
-    setFormData({
-      amount: "",
-      payment_method: "cash",
-      notes: "",
-      member: "",
-      subscription: "",
-    });
   }
 
   if (loading) {
@@ -105,6 +89,7 @@ function Payments() {
 
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
+      {/* HEADER */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Pagos</h1>
@@ -115,19 +100,22 @@ function Payments() {
         </div>
 
         <button
-          onClick={() => {
-            if (showForm) {
-              handleCloseForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
+          onClick={() => (showForm ? closeForm() : openCreateForm())}
+          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
         >
           <Plus size={18} />
-          Nuevo
+          {showForm ? "Cerrar" : "Nuevo"}
         </button>
       </div>
+
+      {/* ERROR */}
+      {error && (
+        <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      {/* STATS */}
       <PaymentStats
         totalAmount={totalAmount}
         totalPayments={totalPayments}
@@ -135,12 +123,7 @@ function Payments() {
         transferPayments={transferPayments}
       />
 
-      {error && (
-        <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
+      {/* FORM */}
       {showForm && (
         <div className="mb-6">
           <PaymentForm
@@ -155,6 +138,7 @@ function Payments() {
         </div>
       )}
 
+      {/* LIST */}
       <div className="space-y-3">
         {payments.length === 0 ? (
           <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
@@ -165,7 +149,7 @@ function Payments() {
             <PaymentCard
               key={payment.id}
               payment={payment}
-              onEdit={handleEdit}
+              onEdit={openEditForm}
               onDelete={handleDelete}
             />
           ))
