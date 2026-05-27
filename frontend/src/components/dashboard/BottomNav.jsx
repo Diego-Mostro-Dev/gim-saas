@@ -2,7 +2,7 @@ import {
   LayoutGrid,
   CreditCard,
   Users,
-  Settings,
+  DollarSign,
   Dumbbell,
 } from "lucide-react";
 
@@ -61,11 +61,16 @@ function BottomNav() {
         <span className="text-xs">Miembros</span>
       </NavLink>
 
-      <button className={`${baseClass} ${inactiveClass}`}>
-        <Settings size={20} />
+      <NavLink
+        to="/payments"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <DollarSign size={20} />
 
-        <span className="text-xs">Config</span>
-      </button>
+        <span className="text-xs">Pagos</span>
+      </NavLink>
     </nav>
   );
 }

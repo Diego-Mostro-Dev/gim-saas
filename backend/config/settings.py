@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'plans',
     'subscriptions',
     'django_filters',
+    "payments",
 ]
 
 MIDDLEWARE = [
