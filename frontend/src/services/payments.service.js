@@ -16,9 +16,12 @@ export async function getPayments() {
 export async function createPayment(data) {
   const response = await fetch(API_URL, {
     method: "POST",
+
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type":
+        "application/json",
     },
+
     body: JSON.stringify(data),
   });
 
@@ -39,9 +42,12 @@ export async function updatePayment(
     `${API_URL}${id}/`,
     {
       method: "PUT",
+
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
       },
+
       body: JSON.stringify(data),
     },
   );

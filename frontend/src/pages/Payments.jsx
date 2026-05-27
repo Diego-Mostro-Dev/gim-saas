@@ -10,6 +10,7 @@ import PaymentForm from "../components/payments/PaymentForm";
 import {
   getPayments,
   createPayment,
+  updatePayment,
   deletePayment,
 } from "../services/payments.service";
 
@@ -29,6 +30,8 @@ function Payments() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+
+  const [editingPayment, setEditingPayment] = useState(null);
 
   const [formData, setFormData] = useState({
     amount: "",
@@ -70,9 +73,19 @@ function Payments() {
     setIsSubmitting(true);
 
     try {
-      const newPayment = await createPayment(formData);
+      if (editingPayment) {
+        const updatedPayment = await updatePayment(editingPayment.id, formData);
 
-      setPayments((prev) => [newPayment, ...prev]);
+        setPayments((prev) =>
+          prev.map((payment) =>
+            payment.id === updatedPayment.id ? updatedPayment : payment,
+          ),
+        );
+      } else {
+        const newPayment = await createPayment(formData);
+
+        setPayments((prev) => [newPayment, ...prev]);
+      }
 
       handleCloseForm();
     } catch (error) {
@@ -96,8 +109,24 @@ function Payments() {
     }
   }
 
+  function handleEditPayment(payment) {
+    setEditingPayment(payment);
+
+    setFormData({
+      amount: payment.amount,
+      payment_method: payment.payment_method,
+      notes: payment.notes || "",
+      member: payment.member,
+      subscription: payment.subscription,
+    });
+
+    setShowForm(true);
+  }
+
   function handleCloseForm() {
     setShowForm(false);
+
+    setEditingPayment(null);
 
     setFormData({
       amount: "",
@@ -149,6 +178,7 @@ function Payments() {
             setFormData={setFormData}
             onSubmit={handleCreatePayment}
             isSubmitting={isSubmitting}
+            editingPayment={editingPayment}
             members={members}
             subscriptions={subscriptions}
           />
@@ -165,6 +195,7 @@ function Payments() {
             <PaymentCard
               key={payment.id}
               payment={payment}
+              onEdit={handleEditPayment}
               onDelete={handleDeletePayment}
             />
           ))
