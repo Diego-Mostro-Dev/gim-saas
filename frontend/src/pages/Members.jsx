@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { Search, Plus, Trash2, Pencil } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import BottomNav from "../components/dashboard/BottomNav";
+import MemberCard from "../components/members/MemberCard";
+import MemberForm from "../components/members/MemberForm";
+
+import toast from "react-hot-toast";
 
 import {
   getMembers,
@@ -37,6 +41,7 @@ function Members() {
     async function loadMembers() {
       try {
         const data = await getMembers();
+
         setMembers(data);
       } catch (error) {
         console.error(error);
@@ -51,6 +56,7 @@ function Members() {
   // Abrir form desde query param (?create=true)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+
     const shouldOpenForm = params.get("create");
 
     if (shouldOpenForm === "true") {
@@ -66,6 +72,7 @@ function Members() {
     e.preventDefault();
 
     if (isSubmitting) return;
+
     setIsSubmitting(true);
 
     try {
@@ -75,9 +82,14 @@ function Members() {
         setMembers((prev) =>
           prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)),
         );
+
+        toast.success("Miembro actualizado correctamente");
       } else {
         const newMember = await createMember(formData);
+
         setMembers((prev) => [newMember, ...prev]);
+
+        toast.success("Miembro creado correctamente");
       }
 
       setFormData({
@@ -88,9 +100,12 @@ function Members() {
       });
 
       setEditingMember(null);
+
       setShowForm(false);
     } catch (error) {
       console.error(error);
+
+      toast.error("Ocurrió un error");
     } finally {
       setIsSubmitting(false);
     }
@@ -99,14 +114,19 @@ function Members() {
   // DELETE
   async function handleDeleteMember(id) {
     const confirmed = window.confirm("¿Eliminar miembro?");
+
     if (!confirmed) return;
 
     try {
       await deleteMember(id);
 
       setMembers((prev) => prev.filter((m) => m.id !== id));
+
+      toast.success("Miembro eliminado");
     } catch (error) {
       console.error(error);
+
+      toast.error("No se pudo eliminar el miembro");
     }
   }
 
@@ -127,6 +147,7 @@ function Members() {
   // CLOSE FORM
   function handleCloseForm() {
     setShowForm(false);
+
     setEditingMember(null);
 
     setFormData({
@@ -157,6 +178,7 @@ function Members() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Miembros</h1>
+
           <p className="mt-1 text-sm text-zinc-400">
             Gestión de miembros del gimnasio
           </p>
@@ -186,83 +208,13 @@ function Members() {
 
       {/* FORM */}
       {showForm && (
-        <form
+        <MemberForm
+          formData={formData}
+          setFormData={setFormData}
           onSubmit={handleCreateMember}
-          className="mb-6 space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
-        >
-          <h2 className="text-lg font-semibold text-white">
-            {editingMember ? "Editar miembro" : "Nuevo miembro"}
-          </h2>
-
-          <input
-            type="text"
-            placeholder="Nombre"
-            value={formData.first_name}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                first_name: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-            required
-          />
-
-          <input
-            type="text"
-            placeholder="Apellido"
-            value={formData.last_name}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                last_name: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-            required
-          />
-
-          <input
-            type="text"
-            placeholder="Teléfono"
-            value={formData.phone}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                phone: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-            required
-          />
-
-          <input
-            type="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                email: e.target.value,
-              })
-            }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-          />
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-xl bg-blue-500 py-3 font-medium text-white"
-          >
-            {isSubmitting
-              ? editingMember
-                ? "Guardando..."
-                : "Creando..."
-              : editingMember
-                ? "Guardar Cambios"
-                : "Crear Miembro"}
-          </button>
-        </form>
+          editingMember={editingMember}
+          isSubmitting={isSubmitting}
+        />
       )}
 
       {/* LIST */}
@@ -273,51 +225,12 @@ function Members() {
           </div>
         ) : (
           filteredMembers.map((member) => (
-            <div
+            <MemberCard
               key={member.id}
-              className="flex items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
-                  {member.first_name[0]}
-                  {member.last_name[0]}
-                </div>
-
-                <div>
-                  <p className="font-medium text-white">
-                    {member.first_name} {member.last_name}
-                  </p>
-                  <p className="text-sm text-zinc-400">{member.phone}</p>
-                  <p className="text-xs text-zinc-500">{member.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleEditMember(member)}
-                  className="rounded-lg bg-blue-500/10 p-2 text-blue-300 hover:bg-blue-500/20"
-                >
-                  <Pencil size={16} />
-                </button>
-
-                <div
-                  className={`rounded-md px-2 py-1 text-xs ${
-                    member.active
-                      ? "bg-blue-500/10 text-blue-300"
-                      : "bg-red-500/10 text-red-300"
-                  }`}
-                >
-                  {member.active ? "Activo" : "Inactivo"}
-                </div>
-
-                <button
-                  onClick={() => handleDeleteMember(member.id)}
-                  className="rounded-lg bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
+              member={member}
+              onEdit={handleEditMember}
+              onDelete={handleDeleteMember}
+            />
           ))
         )}
       </div>

@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-
 import BottomNav from "../components/dashboard/BottomNav";
-
 import { Plus } from "lucide-react";
+import toast from "react-hot-toast";
 
 import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
 import SubscriptionForm from "../components/subscriptions/SubscriptionForm";
@@ -55,6 +54,7 @@ function Subscriptions() {
     statusFilter,
     paymentFilter,
   });
+
   const stats = useSubscriptionStats(subscriptions);
 
   useEffect(() => {
@@ -63,7 +63,7 @@ function Subscriptions() {
     if (shouldOpenForm === "true") {
       openCreateForm();
     }
-  }, [searchParams]);
+  }, [searchParams, openCreateForm]);
 
   async function handleCreateSubscription(e) {
     e.preventDefault();
@@ -75,8 +75,12 @@ function Subscriptions() {
     try {
       if (editingSubscription) {
         await editSubscription(editingSubscription.id, formData);
+
+        toast.success("Subscription actualizada");
       } else {
         await createNewSubscription(formData);
+
+        toast.success("Subscription creada");
       }
 
       resetForm();
@@ -84,6 +88,8 @@ function Subscriptions() {
       closeForm();
     } catch (error) {
       console.error(error);
+
+      toast.error("Ocurrió un error");
     } finally {
       setIsSubmitting(false);
     }
@@ -94,7 +100,15 @@ function Subscriptions() {
 
     if (!confirmed) return;
 
-    await removeSubscription(id);
+    try {
+      await removeSubscription(id);
+
+      toast.success("Subscription eliminada");
+    } catch (error) {
+      console.error(error);
+
+      toast.error("No se pudo eliminar la subscription");
+    }
   }
 
   if (loading) {
@@ -116,7 +130,7 @@ function Subscriptions() {
 
         <button
           onClick={openCreateForm}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
+          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
         >
           <Plus size={18} />
           Nueva
@@ -141,6 +155,8 @@ function Subscriptions() {
         />
       )}
 
+      <SubscriptionStats stats={stats} />
+
       <SubscriptionFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -149,11 +165,10 @@ function Subscriptions() {
         paymentFilter={paymentFilter}
         setPaymentFilter={setPaymentFilter}
       />
-      <SubscriptionStats stats={stats} />
 
       {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
-          No hay subscriptions todavía
+          No hay subscriptions que coincidan con los filtros
         </div>
       ) : (
         <div className="space-y-3">
