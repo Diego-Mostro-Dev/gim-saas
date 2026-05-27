@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import TopBar from "../components/dashboard/TopBar";
 import StatsCards from "../components/dashboard/StatsCards";
 import QuickActions from "../components/dashboard/QuickActions";
@@ -8,28 +6,10 @@ import UpcomingExpirations from "../components/dashboard/UpcomingExpirations";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import BottomNav from "../components/dashboard/BottomNav";
 
-import { getDashboardData } from "../services/dashboard.service";
+import { useDashboard } from "../hooks/useDashboard";
 
 function Dashboard() {
-  const [dashboardData, setDashboardData] = useState(null);
-
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const data = await getDashboardData();
-
-        setDashboardData(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
-  }, []);
+  const { dashboardData, loading, error } = useDashboard();
 
   if (loading) {
     return (
@@ -44,6 +24,12 @@ function Dashboard() {
       <TopBar />
 
       <main className="space-y-6 px-4 pt-20">
+        {error && (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
         <StatsCards data={dashboardData} />
 
         <QuickActions />
@@ -51,15 +37,10 @@ function Dashboard() {
         <WeeklyChart />
 
         <UpcomingExpirations
-  expirations={
-    dashboardData?.upcomingExpirations || []
-  }
-/>
+          expirations={dashboardData?.upcomingExpirations || []}
+        />
 
-        <RecentActivity
-  activity={dashboardData?.recentActivity || []}
-/>
-
+        <RecentActivity activity={dashboardData?.recentActivity || []} />
       </main>
 
       <BottomNav />

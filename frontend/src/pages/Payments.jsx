@@ -100,7 +100,13 @@ function Payments() {
         </div>
 
         <button
-          onClick={() => (showForm ? closeForm() : openCreateForm())}
+          onClick={() => {
+            if (showForm) {
+              closeForm();
+            } else {
+              openCreateForm();
+            }
+          }}
           className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
         >
           <Plus size={18} />

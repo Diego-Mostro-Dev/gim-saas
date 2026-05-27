@@ -53,7 +53,7 @@ function Members() {
 
       navigate("/members", { replace: true });
     }
-  }, [location.search, navigate, openCreateForm]);
+  }, [location.search, navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -122,14 +122,21 @@ function Members() {
         </div>
 
         <button
-          onClick={() => (showForm ? closeForm() : openCreateForm())}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
+          onClick={() => {
+            if (showForm) {
+              closeForm();
+            } else {
+              openCreateForm();
+            }
+          }}
+          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
         >
           <Plus size={18} />
           {showForm ? "Cerrar" : "Nuevo"}
         </button>
       </div>
 
+      {/* ERROR */}
       {error && (
         <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">
           {error}

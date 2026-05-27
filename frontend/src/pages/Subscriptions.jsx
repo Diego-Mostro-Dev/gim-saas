@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import BottomNav from "../components/dashboard/BottomNav";
+
 import { Plus } from "lucide-react";
+
+import { useSearchParams } from "react-router-dom";
+
 import toast from "react-hot-toast";
+
+import BottomNav from "../components/dashboard/BottomNav";
 
 import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
 import SubscriptionForm from "../components/subscriptions/SubscriptionForm";
@@ -12,8 +17,6 @@ import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useSubscriptionForm } from "../hooks/useSubscriptionForm";
 import { useFilteredSubscriptions } from "../hooks/useFilteredSubscriptions";
 import { useSubscriptionStats } from "../hooks/useSubscriptionStats";
-
-import { useSearchParams } from "react-router-dom";
 
 function Subscriptions() {
   const {
@@ -57,15 +60,16 @@ function Subscriptions() {
 
   const stats = useSubscriptionStats(subscriptions);
 
+  // Abrir form desde query param
   useEffect(() => {
     const shouldOpenForm = searchParams.get("create");
 
     if (shouldOpenForm === "true") {
       openCreateForm();
     }
-  }, [searchParams, openCreateForm]);
+  }, [searchParams]);
 
-  async function handleCreateSubscription(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
     if (isSubmitting) return;
@@ -121,6 +125,7 @@ function Subscriptions() {
 
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
+      {/* HEADER */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Subscriptions</h1>
@@ -129,7 +134,13 @@ function Subscriptions() {
         </div>
 
         <button
-          onClick={() => (showForm ? closeForm() : openCreateForm())}
+          onClick={() => {
+            if (showForm) {
+              closeForm();
+            } else {
+              openCreateForm();
+            }
+          }}
           className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
         >
           <Plus size={18} />
@@ -137,17 +148,19 @@ function Subscriptions() {
         </button>
       </div>
 
+      {/* ERROR */}
       {error && (
         <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">
           {error}
         </div>
       )}
 
+      {/* FORM */}
       {showForm && (
         <SubscriptionForm
           formData={formData}
           setFormData={setFormData}
-          onSubmit={handleCreateSubscription}
+          onSubmit={handleSubmit}
           members={members}
           plans={plans}
           editingSubscription={editingSubscription}
@@ -155,8 +168,10 @@ function Subscriptions() {
         />
       )}
 
+      {/* STATS */}
       <SubscriptionStats stats={stats} />
 
+      {/* FILTERS */}
       <SubscriptionFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -166,6 +181,7 @@ function Subscriptions() {
         setPaymentFilter={setPaymentFilter}
       />
 
+      {/* LIST */}
       {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
           No hay subscriptions que coincidan con los filtros
