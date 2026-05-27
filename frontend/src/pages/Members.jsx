@@ -10,6 +10,8 @@ import BottomNav from "../components/dashboard/BottomNav";
 import MemberCard from "../components/members/MemberCard";
 import MemberForm from "../components/members/MemberForm";
 
+import ConfirmModal from "../components/ui/ConfirmModal";
+
 import { useMembers } from "../hooks/useMembers";
 import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
@@ -37,6 +39,10 @@ function Members() {
 
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [memberToDelete, setMemberToDelete] = useState(null);
+
   const { filteredMembers } = useFilteredMembers({
     members,
     searchTerm,
@@ -51,9 +57,11 @@ function Members() {
     if (shouldOpenForm === "true") {
       openCreateForm();
 
-      navigate("/members", { replace: true });
+      navigate("/members", {
+        replace: true,
+      });
     }
-  }, [location.search, navigate]);
+  }, [location.search, navigate, openCreateForm]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -85,13 +93,15 @@ function Members() {
     }
   }
 
-  async function handleDeleteMember(id) {
-    const confirmed = window.confirm("¿Eliminar miembro?");
+  function handleOpenDeleteModal(id) {
+    setMemberToDelete(id);
 
-    if (!confirmed) return;
+    setShowDeleteModal(true);
+  }
 
+  async function handleDeleteMember() {
     try {
-      await removeMember(id);
+      await removeMember(memberToDelete);
 
       toast.success("Miembro eliminado");
     } catch (error) {
@@ -179,11 +189,31 @@ function Members() {
               key={member.id}
               member={member}
               onEdit={openEditForm}
-              onDelete={handleDeleteMember}
+              onDelete={handleOpenDeleteModal}
             />
           ))
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Eliminar miembro"
+        message="Esta acción no se puede deshacer"
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onClose={() => {
+          setShowDeleteModal(false);
+
+          setMemberToDelete(null);
+        }}
+        onConfirm={async () => {
+          await handleDeleteMember();
+
+          setShowDeleteModal(false);
+
+          setMemberToDelete(null);
+        }}
+      />
 
       <BottomNav />
     </div>

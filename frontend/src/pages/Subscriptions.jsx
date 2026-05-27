@@ -67,7 +67,7 @@ function Subscriptions() {
     if (shouldOpenForm === "true") {
       openCreateForm();
     }
-  }, [searchParams]);
+  }, [searchParams, openCreateForm]);
 
   async function handleSubmit(e) {
     e.preventDefault();

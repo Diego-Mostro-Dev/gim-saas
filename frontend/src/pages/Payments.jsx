@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import toast from "react-hot-toast";
 
 import { Plus } from "lucide-react";
@@ -7,6 +9,8 @@ import BottomNav from "../components/dashboard/BottomNav";
 import PaymentCard from "../components/payments/PaymentCard";
 import PaymentForm from "../components/payments/PaymentForm";
 import PaymentStats from "../components/payments/PaymentStats";
+
+import ConfirmModal from "../components/ui/ConfirmModal";
 
 import { usePayments } from "../hooks/usePayments";
 import { usePaymentStats } from "../hooks/usePaymentStats";
@@ -36,6 +40,10 @@ function Payments() {
     resetForm,
   } = usePaymentForm();
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [paymentToDelete, setPaymentToDelete] = useState(null);
+
   const { totalAmount, totalPayments, cashPayments, transferPayments } =
     usePaymentStats(payments);
 
@@ -63,13 +71,15 @@ function Payments() {
     }
   }
 
-  async function handleDelete(id) {
-    const confirmed = window.confirm("¿Eliminar pago?");
+  function handleOpenDeleteModal(id) {
+    setPaymentToDelete(id);
 
-    if (!confirmed) return;
+    setShowDeleteModal(true);
+  }
 
+  async function handleDelete() {
     try {
-      await handleDeletePayment(id);
+      await handleDeletePayment(paymentToDelete);
 
       toast.success("Pago eliminado");
     } catch (error) {
@@ -156,11 +166,31 @@ function Payments() {
               key={payment.id}
               payment={payment}
               onEdit={openEditForm}
-              onDelete={handleDelete}
+              onDelete={handleOpenDeleteModal}
             />
           ))
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Eliminar pago"
+        message="Esta acción no se puede deshacer"
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onClose={() => {
+          setShowDeleteModal(false);
+
+          setPaymentToDelete(null);
+        }}
+        onConfirm={async () => {
+          await handleDelete();
+
+          setShowDeleteModal(false);
+
+          setPaymentToDelete(null);
+        }}
+      />
 
       <BottomNav />
     </div>
