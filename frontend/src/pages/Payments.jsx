@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Plus } from "lucide-react";
 
@@ -7,27 +7,25 @@ import BottomNav from "../components/dashboard/BottomNav";
 import PaymentCard from "../components/payments/PaymentCard";
 import PaymentForm from "../components/payments/PaymentForm";
 
-import {
-  getPayments,
-  createPayment,
-  updatePayment,
-  deletePayment,
-} from "../services/payments.service";
-
-import { getMembers } from "../services/members.service";
-
-import { getSubscriptions } from "../services/subscriptions.service";
+import { usePayments } from "../hooks/usePayments";
+import PaymentStats from "../components/payments/PaymentStats";
+import { usePaymentStats } from "../hooks/usePaymentStats";
 
 function Payments() {
-  const [payments, setPayments] = useState([]);
+  const {
+    payments,
+    members,
+    subscriptions,
+    loading,
+    error,
+    isSubmitting,
+    handleCreatePayment,
+    handleUpdatePayment,
+    handleDeletePayment,
+  } = usePayments();
 
-  const [members, setMembers] = useState([]);
-
-  const [subscriptions, setSubscriptions] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { totalAmount, totalPayments, cashPayments, transferPayments } =
+    usePaymentStats(payments);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -41,75 +39,35 @@ function Payments() {
     subscription: "",
   });
 
-  useEffect(() => {
-    loadPayments();
-  }, []);
-
-  async function loadPayments() {
-    try {
-      const paymentsData = await getPayments();
-
-      const membersData = await getMembers();
-
-      const subscriptionsData = await getSubscriptions();
-
-      setPayments(paymentsData);
-
-      setMembers(membersData);
-
-      setSubscriptions(subscriptionsData);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCreatePayment(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
 
     try {
       if (editingPayment) {
-        const updatedPayment = await updatePayment(editingPayment.id, formData);
-
-        setPayments((prev) =>
-          prev.map((payment) =>
-            payment.id === updatedPayment.id ? updatedPayment : payment,
-          ),
-        );
+        await handleUpdatePayment(editingPayment.id, formData);
       } else {
-        const newPayment = await createPayment(formData);
-
-        setPayments((prev) => [newPayment, ...prev]);
+        await handleCreatePayment(formData);
       }
 
       handleCloseForm();
     } catch (error) {
       console.error(error);
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
-  async function handleDeletePayment(id) {
+  async function handleDelete(id) {
     const confirmed = window.confirm("¿Eliminar pago?");
 
     if (!confirmed) return;
 
     try {
-      await deletePayment(id);
-
-      setPayments((prev) => prev.filter((payment) => payment.id !== id));
+      await handleDeletePayment(id);
     } catch (error) {
       console.error(error);
     }
   }
 
-  function handleEditPayment(payment) {
+  function handleEdit(payment) {
     setEditingPayment(payment);
 
     setFormData({
@@ -170,13 +128,25 @@ function Payments() {
           Nuevo
         </button>
       </div>
+      <PaymentStats
+        totalAmount={totalAmount}
+        totalPayments={totalPayments}
+        cashPayments={cashPayments}
+        transferPayments={transferPayments}
+      />
+
+      {error && (
+        <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {showForm && (
         <div className="mb-6">
           <PaymentForm
             formData={formData}
             setFormData={setFormData}
-            onSubmit={handleCreatePayment}
+            onSubmit={handleSubmit}
             isSubmitting={isSubmitting}
             editingPayment={editingPayment}
             members={members}
@@ -195,8 +165,8 @@ function Payments() {
             <PaymentCard
               key={payment.id}
               payment={payment}
-              onEdit={handleEditPayment}
-              onDelete={handleDeletePayment}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           ))
         )}

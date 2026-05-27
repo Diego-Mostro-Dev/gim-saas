@@ -7,26 +7,54 @@ import {
   deletePayment,
 } from "../services/payments.service";
 
+import { getMembers } from "../services/members.service";
+
+import { getSubscriptions } from "../services/subscriptions.service";
+
 export function usePayments() {
   const [payments, setPayments] = useState([]);
 
-  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState([]);
 
-  const [error, setError] = useState(null);
+  const [subscriptions, setSubscriptions] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState(null);
+
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
 
   useEffect(() => {
-    loadPayments();
+    loadData();
   }, []);
 
-  async function loadPayments() {
+  async function loadData() {
     try {
       setLoading(true);
 
       setError(null);
 
-      const data = await getPayments();
+      const [
+        paymentsData,
+        membersData,
+        subscriptionsData,
+      ] = await Promise.all([
+        getPayments(),
+        getMembers(),
+        getSubscriptions(),
+      ]);
 
-      setPayments(data);
+      setPayments(paymentsData);
+
+      setMembers(membersData);
+
+      setSubscriptions(
+        subscriptionsData,
+      );
     } catch (err) {
       console.error(err);
 
@@ -36,8 +64,12 @@ export function usePayments() {
     }
   }
 
-  async function handleCreatePayment(data) {
+  async function handleCreatePayment(
+    data,
+  ) {
     try {
+      setIsSubmitting(true);
+
       const newPayment =
         await createPayment(data);
 
@@ -49,6 +81,8 @@ export function usePayments() {
       console.error(err);
 
       throw err;
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -57,12 +91,15 @@ export function usePayments() {
     data,
   ) {
     try {
+      setIsSubmitting(true);
+
       const updatedPayment =
         await updatePayment(id, data);
 
       setPayments((prev) =>
         prev.map((payment) =>
-          payment.id === updatedPayment.id
+          payment.id ===
+          updatedPayment.id
             ? updatedPayment
             : payment,
         ),
@@ -71,16 +108,21 @@ export function usePayments() {
       console.error(err);
 
       throw err;
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  async function handleDeletePayment(id) {
+  async function handleDeletePayment(
+    id,
+  ) {
     try {
       await deletePayment(id);
 
       setPayments((prev) =>
         prev.filter(
-          (payment) => payment.id !== id,
+          (payment) =>
+            payment.id !== id,
         ),
       );
     } catch (err) {
@@ -92,8 +134,11 @@ export function usePayments() {
 
   return {
     payments,
+    members,
+    subscriptions,
     loading,
     error,
+    isSubmitting,
     handleCreatePayment,
     handleUpdatePayment,
     handleDeletePayment,
