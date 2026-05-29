@@ -5,11 +5,14 @@ import WeeklyChart from "../components/dashboard/WeeklyChart";
 import UpcomingExpirations from "../components/dashboard/UpcomingExpirations";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import BottomNav from "../components/dashboard/BottomNav";
+import WeeklyOccupancy from "../components/dashboard/WeeklyOccupancy";
+import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
 
 import { useDashboard } from "../hooks/useDashboard";
 
 function Dashboard() {
   const { dashboardData, loading, error } = useDashboard();
+  const { weeklyAttendance } = useWeeklyAttendance();
 
   if (loading) {
     return (
@@ -31,6 +34,7 @@ function Dashboard() {
         )}
 
         <StatsCards data={dashboardData} />
+        <WeeklyOccupancy weeklyAttendance={weeklyAttendance} />
 
         <QuickActions />
 

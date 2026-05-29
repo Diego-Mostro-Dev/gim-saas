@@ -1,6 +1,14 @@
 import { Pencil, Trash2 } from "lucide-react";
 
 function MemberCard({ member, onEdit, onDelete }) {
+  const dayLabels = {
+    monday: "Lun",
+    tuesday: "Mar",
+    wednesday: "Mié",
+    thursday: "Jue",
+    friday: "Vie",
+    saturday: "Sáb",
+  };
   return (
     <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4">
       <div className="flex items-center gap-3">
@@ -18,6 +26,18 @@ function MemberCard({ member, onEdit, onDelete }) {
 
           <p className="text-xs text-zinc-500">{member.email}</p>
         </div>
+        {member.schedule_days?.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {member.schedule_days.map((day) => (
+              <span
+                key={day}
+                className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300"
+              >
+                {dayLabels[day]}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

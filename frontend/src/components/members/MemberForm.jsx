@@ -5,6 +5,33 @@ function MemberForm({
   editingMember,
   isSubmitting,
 }) {
+  const days = [
+    { value: "monday", label: "Lunes" },
+    { value: "tuesday", label: "Martes" },
+    { value: "wednesday", label: "Miércoles" },
+    { value: "thursday", label: "Jueves" },
+    { value: "friday", label: "Viernes" },
+    { value: "saturday", label: "Sábado" },
+  ];
+
+  function toggleDay(day) {
+    const currentDays = formData.schedule_days || [];
+
+    const exists = currentDays.includes(day);
+
+    if (exists) {
+      setFormData({
+        ...formData,
+        schedule_days: currentDays.filter((d) => d !== day),
+      });
+    } else {
+      setFormData({
+        ...formData,
+        schedule_days: [...currentDays, day],
+      });
+    }
+  }
+
   return (
     <form
       onSubmit={onSubmit}
@@ -68,6 +95,29 @@ function MemberForm({
         }
         className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
       />
+
+      <div className="rounded-xl bg-[#2a2a2a] p-4">
+        <p className="mb-3 text-sm font-medium text-zinc-300">
+          Días de asistencia
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          {days.map((day) => (
+            <label
+              key={day.value}
+              className="flex items-center gap-2 text-sm text-white"
+            >
+              <input
+                type="checkbox"
+                checked={formData.schedule_days?.includes(day.value) || false}
+                onChange={() => toggleDay(day.value)}
+              />
+
+              {day.label}
+            </label>
+          ))}
+        </div>
+      </div>
 
       <button
         type="submit"
