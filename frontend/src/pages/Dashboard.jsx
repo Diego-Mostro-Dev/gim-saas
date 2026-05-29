@@ -5,14 +5,12 @@ import WeeklyChart from "../components/dashboard/WeeklyChart";
 import UpcomingExpirations from "../components/dashboard/UpcomingExpirations";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import BottomNav from "../components/dashboard/BottomNav";
-import WeeklyOccupancy from "../components/dashboard/WeeklyOccupancy";
-import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
+import { Link } from "react-router-dom";
 
 import { useDashboard } from "../hooks/useDashboard";
 
 function Dashboard() {
   const { dashboardData, loading, error } = useDashboard();
-  const { weeklyAttendance } = useWeeklyAttendance();
 
   if (loading) {
     return (
@@ -34,7 +32,18 @@ function Dashboard() {
         )}
 
         <StatsCards data={dashboardData} />
-        <WeeklyOccupancy weeklyAttendance={weeklyAttendance} />
+        <Link
+          to="/attendance"
+          className="flex items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4 transition hover:border-blue-500/20"
+        >
+          <div>
+            <p className="font-medium text-white">Asistencia semanal</p>
+
+            <p className="text-sm text-zinc-400">Ver ocupación del gimnasio</p>
+          </div>
+
+          <span className="text-sm text-blue-300">Ver →</span>
+        </Link>
 
         <QuickActions />
 

@@ -5,6 +5,7 @@ import Members from "./pages/Members";
 import Subscriptions from "./pages/Subscriptions";
 import Plans from "./pages/Plans";
 import Payments from "./pages/Payments";
+import Attendance from "./pages/Attendance";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <Route path="/subscriptions" element={<Subscriptions />} />
       <Route path="/plans" element={<Plans />} />
       <Route path="/payments" element={<Payments />} />
+      <Route path="/attendance" element={<Attendance />} />
     </Routes>
   );
 }

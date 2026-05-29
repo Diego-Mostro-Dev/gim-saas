@@ -4,12 +4,13 @@ import {
   Users,
   DollarSign,
   Dumbbell,
+  CalendarDays,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
 
 function BottomNav() {
-  const baseClass = "flex flex-col items-center px-4 py-2 transition";
+  const baseClass = "flex flex-col items-center px-3 py-2 transition";
 
   const activeClass = "rounded-xl bg-purple-500/20 text-blue-300";
 
@@ -26,6 +27,17 @@ function BottomNav() {
         <LayoutGrid size={20} />
 
         <span className="text-xs">Inicio</span>
+      </NavLink>
+
+      <NavLink
+        to="/attendance"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <CalendarDays size={20} />
+
+        <span className="text-xs">Asistencia</span>
       </NavLink>
 
       <NavLink
