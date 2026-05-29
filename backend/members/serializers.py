@@ -5,37 +5,38 @@ from attendance.models import AttendanceSchedule
 
 
 class MemberSerializer(serializers.ModelSerializer):
-    schedule_days = serializers.ListField(
-        child=serializers.CharField(),
-        required=False,
-    )
+    schedules = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
+
         fields = [
             "id",
             "first_name",
             "last_name",
             "phone",
             "email",
-            "schedule_days",
+            "schedules",
         ]
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-
-        data["schedule_days"] = list(
-            instance.schedules.values_list(
-                "day",
-                flat=True,
-            )
-        )
-
-        return data
+    def get_schedules(self, obj):
+        return [
+            {
+                "day": schedule.day,
+                "hour": (
+                    schedule.hour.strftime("%H:%M")
+                    if schedule.hour
+                    else None
+                ),
+            }
+            for schedule in obj.schedules.all()
+        ]
 
     def create(self, validated_data):
-        schedule_days = validated_data.pop(
-            "schedule_days",
+        request = self.context.get("request")
+
+        schedules = request.data.get(
+            "schedules",
             []
         )
 
@@ -47,17 +48,20 @@ class MemberSerializer(serializers.ModelSerializer):
             [
                 AttendanceSchedule(
                     member=member,
-                    day=day,
+                    day=schedule["day"],
+                    hour=schedule.get("hour"),
                 )
-                for day in schedule_days
+                for schedule in schedules
             ]
         )
 
         return member
 
     def update(self, instance, validated_data):
-        schedule_days = validated_data.pop(
-            "schedule_days",
+        request = self.context.get("request")
+
+        schedules = request.data.get(
+            "schedules",
             None
         )
 
@@ -66,7 +70,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
         instance.save()
 
-        if schedule_days is not None:
+        if schedules is not None:
             AttendanceSchedule.objects.filter(
                 member=instance
             ).delete()
@@ -75,9 +79,10 @@ class MemberSerializer(serializers.ModelSerializer):
                 [
                     AttendanceSchedule(
                         member=instance,
-                        day=day,
+                        day=schedule["day"],
+                        hour=schedule.get("hour"),
                     )
-                    for day in schedule_days
+                    for schedule in schedules
                 ]
             )
 

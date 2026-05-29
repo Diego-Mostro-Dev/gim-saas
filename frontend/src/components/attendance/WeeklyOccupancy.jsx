@@ -1,10 +1,4 @@
-import { useState } from "react";
-
-import { ChevronDown, ChevronRight } from "lucide-react";
-
 function WeeklyOccupancy({ weeklyAttendance }) {
-  const [openDay, setOpenDay] = useState(null);
-
   const days = [
     {
       key: "monday",
@@ -32,73 +26,77 @@ function WeeklyOccupancy({ weeklyAttendance }) {
     },
   ];
 
-  function toggleDay(dayKey) {
-    if (openDay === dayKey) {
-      setOpenDay(null);
-    } else {
-      setOpenDay(dayKey);
-    }
+  function groupByHour(schedules) {
+    return schedules.reduce((acc, schedule) => {
+      const hour = schedule.hour || "Sin horario";
+
+      if (!acc[hour]) {
+        acc[hour] = [];
+      }
+
+      acc[hour].push(schedule);
+
+      return acc;
+    }, {});
   }
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-      <h2 className="mb-4 text-lg font-semibold text-white">
-        Ocupación semanal
-      </h2>
+    <div className="space-y-4">
+      {days.map((day) => {
+        const schedules = weeklyAttendance[day.key] || [];
 
-      <div className="space-y-3">
-        {days.map((day) => {
-          const schedules = weeklyAttendance[day.key] || [];
+        const groupedSchedules = groupByHour(schedules);
 
-          const count = schedules.length;
+        return (
+          <div
+            key={day.key}
+            className="rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">{day.label}</h2>
 
-          const peopleLabel = count === 1 ? "persona" : "personas";
-
-          const isOpen = openDay === day.key;
-
-          return (
-            <div key={day.key} className="rounded-xl bg-[#2a2a2a]">
-              <button
-                onClick={() => toggleDay(day.key)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left"
-              >
-                <div className="flex items-center gap-3">
-                  {isOpen ? (
-                    <ChevronDown size={16} className="text-zinc-400" />
-                  ) : (
-                    <ChevronRight size={16} className="text-zinc-400" />
-                  )}
-
-                  <span className="text-sm text-white">{day.label}</span>
-                </div>
-
-                <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
-                  {count} {peopleLabel}
-                </span>
-              </button>
-
-              {isOpen && (
-                <div className="space-y-2 px-4 pb-4">
-                  {schedules.length === 0 ? (
-                    <div className="rounded-lg bg-[#1a1a1a] px-3 py-2 text-xs text-zinc-500">
-                      Sin asistencia registrada
-                    </div>
-                  ) : (
-                    schedules.map((schedule) => (
-                      <div
-                        key={schedule.id}
-                        className="rounded-lg bg-[#1a1a1a] px-3 py-2 text-xs text-zinc-300"
-                      >
-                        {schedule.member_name}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+              <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+                {schedules.length}{" "}
+                {schedules.length === 1 ? "persona" : "personas"}
+              </span>
             </div>
-          );
-        })}
-      </div>
+
+            {schedules.length === 0 ? (
+              <div className="rounded-xl bg-[#2a2a2a] px-4 py-3 text-sm text-zinc-500">
+                Sin asistencia registrada
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Object.entries(groupedSchedules).map(([hour, people]) => (
+                  <div key={hour} className="rounded-xl bg-[#2a2a2a] p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-medium text-white">
+                        {hour}
+                      </span>
+
+                      <span className="text-xs text-zinc-400">
+                        {people.length}{" "}
+                        {people.length === 1 ? "persona" : "personas"}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {people.map((person) => (
+                        <div
+                          key={person.id}
+                          className="rounded-lg bg-[#1a1a1a] px-3 py-2 text-xs text-zinc-300"
+                        >
+                          {person.member_name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

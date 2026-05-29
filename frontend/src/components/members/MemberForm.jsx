@@ -5,6 +5,10 @@ function MemberForm({
   editingMember,
   isSubmitting,
 }) {
+  if (!formData) return null;
+
+  const schedules = formData.schedules || [];
+
   const days = [
     { value: "monday", label: "Lunes" },
     { value: "tuesday", label: "Martes" },
@@ -14,22 +18,54 @@ function MemberForm({
     { value: "saturday", label: "Sábado" },
   ];
 
-  function toggleDay(day) {
-    const currentDays = formData.schedule_days || [];
+  const AVAILABLE_HOURS = [
+    "07:00",
+    "08:00",
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+    "19:00",
+    "20:00",
+    "21:00",
+  ];
 
-    const exists = currentDays.includes(day);
+  function handleToggleDay(day) {
+    const exists = schedules.find((s) => s.day === day);
 
     if (exists) {
       setFormData({
         ...formData,
-        schedule_days: currentDays.filter((d) => d !== day),
+        schedules: schedules.filter((s) => s.day !== day),
       });
-    } else {
-      setFormData({
-        ...formData,
-        schedule_days: [...currentDays, day],
-      });
+      return;
     }
+
+    setFormData({
+      ...formData,
+      schedules: [...schedules, { day, hour: "08:00" }],
+    });
+  }
+
+  function handleHourChange(day, hour) {
+    setFormData({
+      ...formData,
+      schedules: schedules.map((s) => (s.day === day ? { ...s, hour } : s)),
+    });
+  }
+
+  function isSelected(day) {
+    return schedules.some((s) => s.day === day);
+  }
+
+  function getHour(day) {
+    return schedules.find((s) => s.day === day)?.hour || "08:00";
   }
 
   return (
@@ -98,24 +134,48 @@ function MemberForm({
 
       <div className="rounded-xl bg-[#2a2a2a] p-4">
         <p className="mb-3 text-sm font-medium text-zinc-300">
-          Días de asistencia
+          Horarios de asistencia
         </p>
 
-        <div className="grid grid-cols-2 gap-2">
-          {days.map((day) => (
-            <label
-              key={day.value}
-              className="flex items-center gap-2 text-sm text-white"
-            >
-              <input
-                type="checkbox"
-                checked={formData.schedule_days?.includes(day.value) || false}
-                onChange={() => toggleDay(day.value)}
-              />
+        <div className="space-y-3">
+          {days.map((day) => {
+            const selected = isSelected(day.value);
 
-              {day.label}
-            </label>
-          ))}
+            return (
+              <div key={day.value} className="rounded-xl bg-[#1a1a1a] p-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm text-white">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => handleToggleDay(day.value)}
+                    />
+                    {day.label}
+                  </label>
+
+                  {selected && (
+                    <select
+                      value={getHour(day.value)}
+                      onChange={(e) =>
+                        handleHourChange(day.value, e.target.value)
+                      }
+                      className="rounded-lg bg-[#2a2a2a] px-3 py-1 text-sm text-white outline-none"
+                    >
+                      {AVAILABLE_HOURS.map((hour) => (
+                        <option
+                          key={hour}
+                          value={hour}
+                          className="bg-[#2a2a2a] text-white"
+                        >
+                          {hour}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -129,8 +189,8 @@ function MemberForm({
             ? "Guardando..."
             : "Creando..."
           : editingMember
-            ? "Guardar Cambios"
-            : "Crear Miembro"}
+            ? "Guardar cambios"
+            : "Crear miembro"}
       </button>
     </form>
   );

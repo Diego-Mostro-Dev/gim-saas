@@ -5,44 +5,43 @@ const INITIAL_FORM = {
   last_name: "",
   phone: "",
   email: "",
-  attendance_days: [],
+  schedules: [],
 };
 
 export function useMemberForm() {
   const [showForm, setShowForm] = useState(false);
-
   const [editingMember, setEditingMember] = useState(null);
-
   const [formData, setFormData] = useState(INITIAL_FORM);
 
   function resetForm() {
     setFormData(INITIAL_FORM);
-
     setEditingMember(null);
   }
 
   function closeForm() {
     setShowForm(false);
-
     resetForm();
   }
 
   function openCreateForm() {
     resetForm();
-
     setShowForm(true);
   }
 
   function openEditForm(member) {
     setEditingMember(member);
 
-    setFormData({
+    const newFormData = {
       first_name: member.first_name || "",
       last_name: member.last_name || "",
       phone: member.phone || "",
       email: member.email || "",
-      attendance_days: member.attendance_days || [],
-    });
+      schedules: member.schedules || [],
+    };
+
+    console.log("FormData generado:", newFormData);
+
+    setFormData(newFormData);
 
     setShowForm(true);
   }
@@ -51,9 +50,7 @@ export function useMemberForm() {
     showForm,
     formData,
     editingMember,
-
     setFormData,
-
     openCreateForm,
     openEditForm,
     closeForm,

@@ -1,5 +1,6 @@
 import BottomNav from "../components/dashboard/BottomNav";
 
+import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
 import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
@@ -31,6 +32,12 @@ function Attendance() {
         </div>
       )}
 
+      {/* Registro de asistencia */}
+      <div className="mb-6">
+        <AttendanceStatus />
+      </div>
+
+      {/* Vista semanal */}
       <WeeklyOccupancy weeklyAttendance={weeklyAttendance} />
 
       <BottomNav />

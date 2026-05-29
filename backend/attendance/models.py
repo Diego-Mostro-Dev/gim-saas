@@ -1,6 +1,5 @@
-# attendance/models.py
-
 from django.db import models
+
 from members.models import Member
 
 
@@ -25,8 +24,47 @@ class AttendanceSchedule(models.Model):
         choices=DAY_CHOICES,
     )
 
+    hour = models.TimeField()
+
     class Meta:
-        unique_together = ("member", "day")
+        unique_together = (
+            "member",
+            "day",
+            "hour",
+        )
 
     def __str__(self):
-        return f"{self.member} - {self.day}"
+        return f"{self.member} - {self.day} - {self.hour}"
+
+
+class Attendance(models.Model):
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="attendances",
+    )
+
+    schedule = models.ForeignKey(
+        AttendanceSchedule,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendances",
+    )
+
+    date = models.DateField(
+        auto_now_add=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        unique_together = (
+            "member",
+            "date",
+        )
+
+    def __str__(self):
+        return f"{self.member} - {self.date}"

@@ -26,14 +26,14 @@ function MemberCard({ member, onEdit, onDelete }) {
 
           <p className="text-xs text-zinc-500">{member.email}</p>
         </div>
-        {member.schedule_days?.length > 0 && (
+        {member.schedules?.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {member.schedule_days.map((day) => (
+            {member.schedules.map((schedule) => (
               <span
-                key={day}
+                key={`${schedule.day}-${schedule.hour}`}
                 className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300"
               >
-                {dayLabels[day]}
+                {dayLabels[schedule.day]} {schedule.hour}
               </span>
             ))}
           </div>
