@@ -16,12 +16,11 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
-# IMPORTANTE: en producción esto lo maneja Render
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     "192.168.100.89",
-    ".onrender.com",   # 👈 CLAVE para Render
+    ".onrender.com",
 ]
 
 
@@ -55,12 +54,13 @@ INSTALLED_APPS = [
 # =========================
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # 👈 debe ir arriba de CommonMiddleware
-
     "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+
+    "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -77,8 +77,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.100.89:5173",
 ]
 
-# 🔥 IMPORTANTE para deploy rápido (MVP)
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = True  # MVP (luego lo cerramos)
 
 
 # =========================
@@ -104,7 +103,7 @@ DATABASES = {
 
 
 # =========================
-# TEMPLATES
+# ROOT / TEMPLATES
 # =========================
 
 ROOT_URLCONF = "config.urls"
@@ -123,7 +122,6 @@ TEMPLATES = [
         },
     },
 ]
-
 
 WSGI_APPLICATION = "config.wsgi.application"
 
@@ -151,7 +149,10 @@ USE_TZ = True
 
 
 # =========================
-# STATIC
+# STATIC FILES (PRODUCCIÓN)
 # =========================
 
 STATIC_URL = "static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
