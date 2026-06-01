@@ -8,7 +8,7 @@ function PlanCard({ plan, onEdit, onDelete }) {
           <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
 
           <p className="mt-1 text-sm text-zinc-400">
-            {plan.duration_in_days} días
+            {plan.duration_days} días
           </p>
         </div>
 

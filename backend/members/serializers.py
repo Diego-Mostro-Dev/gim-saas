@@ -11,13 +11,14 @@ class MemberSerializer(serializers.ModelSerializer):
         model = Member
 
         fields = [
-            "id",
-            "first_name",
-            "last_name",
-            "phone",
-            "email",
-            "schedules",
-        ]
+    "id",
+    "first_name",
+    "last_name",
+    "phone",
+    "email",
+    "active",
+    "schedules",
+]
 
     def get_schedules(self, obj):
         return [

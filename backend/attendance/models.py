@@ -62,7 +62,7 @@ class Attendance(models.Model):
 
     class Meta:
         unique_together = (
-            "member",
+            "schedule",
             "date",
         )
 

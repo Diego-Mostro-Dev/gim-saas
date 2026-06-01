@@ -55,13 +55,13 @@ class AttendanceSerializer(serializers.ModelSerializer):
         schedule = attrs["schedule"]
 
         already_exists = Attendance.objects.filter(
-            member=schedule.member,
+            schedule=schedule,
             date=date.today(),
         ).exists()
 
         if already_exists:
             raise serializers.ValidationError(
-                "El alumno ya tiene asistencia registrada hoy."
+                "La asistencia ya fue registrada para este horario."
             )
 
         return attrs

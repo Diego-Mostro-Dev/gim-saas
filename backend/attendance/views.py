@@ -83,7 +83,7 @@ def attendance_status(request):
 
     for schedule in schedules:
         attended = Attendance.objects.filter(
-            member=schedule.member,
+            schedule=schedule,
             date=today,
         ).exists()
 
@@ -100,7 +100,6 @@ def attendance_status(request):
         )
 
     return Response(result)
-
 
 class AttendanceCreateView(
     generics.CreateAPIView
