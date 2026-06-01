@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import toast from "react-hot-toast";
 
@@ -44,8 +44,19 @@ function Payments() {
 
   const [paymentToDelete, setPaymentToDelete] = useState(null);
 
+  const formRef = useRef(null);
+
   const { totalAmount, totalPayments, cashPayments, transferPayments } =
     usePaymentStats(payments);
+
+  useEffect(() => {
+    if (showForm && editingPayment && formRef.current) {
+      formRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showForm, editingPayment]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -141,7 +152,7 @@ function Payments() {
 
       {/* FORM */}
       {showForm && (
-        <div className="mb-6">
+        <div ref={formRef} className="mb-6">
           <PaymentForm
             formData={formData}
             setFormData={setFormData}

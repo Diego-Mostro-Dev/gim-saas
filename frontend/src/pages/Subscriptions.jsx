@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 import { Plus } from "lucide-react";
 
@@ -51,6 +51,8 @@ function Subscriptions() {
 
   const [searchParams] = useSearchParams();
 
+  const formRef = useRef(null);
+
   const { filteredSubscriptions } = useFilteredSubscriptions({
     subscriptions,
     searchTerm,
@@ -68,6 +70,15 @@ function Subscriptions() {
       openCreateForm();
     }
   }, [searchParams, openCreateForm]);
+
+  useEffect(() => {
+    if (showForm && editingSubscription && formRef.current) {
+      formRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showForm, editingSubscription]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -157,15 +168,17 @@ function Subscriptions() {
 
       {/* FORM */}
       {showForm && (
-        <SubscriptionForm
-          formData={formData}
-          setFormData={setFormData}
-          onSubmit={handleSubmit}
-          members={members}
-          plans={plans}
-          editingSubscription={editingSubscription}
-          isSubmitting={isSubmitting}
-        />
+        <div ref={formRef}>
+          <SubscriptionForm
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleSubmit}
+            members={members}
+            plans={plans}
+            editingSubscription={editingSubscription}
+            isSubmitting={isSubmitting}
+          />
+        </div>
       )}
 
       {/* STATS */}

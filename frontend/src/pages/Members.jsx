@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 import { Search, Plus } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -35,6 +35,8 @@ function Members() {
 
   const navigate = useNavigate();
 
+  const formRef = useRef(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -62,6 +64,15 @@ function Members() {
       });
     }
   }, [location.search, navigate, openCreateForm]);
+
+  useEffect(() => {
+    if (showForm && editingMember && formRef.current) {
+      formRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showForm, editingMember]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -168,13 +179,15 @@ function Members() {
 
       {/* FORM */}
       {showForm && (
-        <MemberForm
-          formData={formData}
-          setFormData={setFormData}
-          onSubmit={handleSubmit}
-          editingMember={editingMember}
-          isSubmitting={isSubmitting}
-        />
+        <div ref={formRef}>
+          <MemberForm
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleSubmit}
+            editingMember={editingMember}
+            isSubmitting={isSubmitting}
+          />
+        </div>
       )}
 
       {/* LIST */}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import { Plus } from "lucide-react";
 
@@ -21,6 +21,8 @@ function Plans() {
 
   const [showForm, setShowForm] = useState(false);
 
+  const formRef = useRef(null);
+
   const [editingPlan, setEditingPlan] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +32,15 @@ function Plans() {
     price: "",
     duration_days: "",
   });
+
+  useEffect(() => {
+    if (showForm && editingPlan && formRef.current) {
+      formRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showForm, editingPlan]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -124,7 +135,7 @@ function Plans() {
       </div>
 
       {showForm && (
-        <div className="mb-6">
+        <div ref={formRef} className="mb-6">
           <PlanForm
             formData={formData}
             setFormData={setFormData}
