@@ -6,19 +6,19 @@ import Subscriptions from "./pages/Subscriptions";
 import Plans from "./pages/Plans";
 import Payments from "./pages/Payments";
 import Attendance from "./pages/Attendance";
+import Register from "./pages/Register";
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" />} />
-
       <Route path="/dashboard" element={<Dashboard />} />
-
       <Route path="/members" element={<Members />} />
       <Route path="/subscriptions" element={<Subscriptions />} />
       <Route path="/plans" element={<Plans />} />
       <Route path="/payments" element={<Payments />} />
       <Route path="/attendance" element={<Attendance />} />
+      <Route path="/register" element={<Register />} />
     </Routes>
   );
 }

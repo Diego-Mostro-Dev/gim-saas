@@ -32,6 +32,7 @@ DEBUG = os.getenv('DEBUG') == 'True'
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
+    '192.168.100.89',
 ]
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
@@ -71,6 +72,7 @@ MIDDLEWARE = [
 ]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://192.168.100.89:5173",
 ]
 
 
