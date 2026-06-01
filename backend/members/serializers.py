@@ -20,6 +20,25 @@ class MemberSerializer(serializers.ModelSerializer):
             "schedules",
         ]
 
+    def validate_phone(self, value):
+        instance = getattr(self, "instance", None)
+
+        query = Member.objects.filter(
+            phone=value
+        )
+
+        if instance:
+            query = query.exclude(
+                id=instance.id
+            )
+
+        if query.exists():
+            raise serializers.ValidationError(
+                "Ya existe un socio con ese teléfono."
+            )
+
+        return value
+
     def get_schedules(self, obj):
         return [
             {
@@ -30,7 +49,9 @@ class MemberSerializer(serializers.ModelSerializer):
                     else None
                 ),
             }
-            for schedule in obj.schedules.filter(active=True)
+            for schedule in obj.schedules.filter(
+                active=True
+            )
         ]
 
     def create(self, validated_data):
