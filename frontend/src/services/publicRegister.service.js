@@ -1,5 +1,5 @@
 const API_URL =
-  "http://192.168.100.89:8000/api/public/register/";
+  "https://gim-saas.onrender.com/api/public/register/";
 
 export async function registerPublicMember(memberData) {
   const response = await fetch(API_URL, {

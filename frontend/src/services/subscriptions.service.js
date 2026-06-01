@@ -1,5 +1,5 @@
 const API_URL =
-  "http://localhost:8000/api/subscriptions/";
+  "https://gim-saas.onrender.com/api/subscriptions/";
 
 export async function getSubscriptions() {
   const response = await fetch(API_URL);

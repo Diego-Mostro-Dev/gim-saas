@@ -1,5 +1,5 @@
 const API_URL =
-  "http://localhost:8000/api/members/";
+  "https://gim-saas.onrender.com/api/members/";
 
 export async function getMembers() {
   const response = await fetch(API_URL);
@@ -35,7 +35,7 @@ export async function createMember(memberData) {
 
 export async function deleteMember(id) {
   const response = await fetch(
-    `http://localhost:8000/api/members/${id}/`,
+    `https://gim-saas.onrender.com/api/members/${id}/`,
     {
       method: "DELETE",
     }
@@ -53,7 +53,7 @@ export async function updateMember(
   memberData
 ) {
   const response = await fetch(
-    `http://localhost:8000/api/members/${id}/`,
+    `https://gim-saas.onrender.com/api/members/${id}/`,
     {
       method: "PUT",
 

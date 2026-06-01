@@ -1,6 +1,6 @@
 export async function getDashboardData() {
   const response = await fetch(
-    "http://localhost:8000/api/dashboard/"
+    "https://gim-saas.onrender.com/api/dashboard/"
   );
 
   if (!response.ok) {

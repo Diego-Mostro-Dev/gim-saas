@@ -1,5 +1,5 @@
 const API_URL =
-  "http://localhost:8000/api/payments/";
+  "https://gim-saas.onrender.com/api/payments/";
 
 export async function getPayments() {
   const response = await fetch(API_URL);

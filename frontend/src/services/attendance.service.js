@@ -1,5 +1,5 @@
 const API_BASE =
-  "http://localhost:8000/api/attendance";
+  "https://gim-saas.onrender.com/api/attendance";
 
 export async function getWeeklyAttendance() {
   const response = await fetch(
