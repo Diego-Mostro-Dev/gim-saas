@@ -11,14 +11,14 @@ class MemberSerializer(serializers.ModelSerializer):
         model = Member
 
         fields = [
-    "id",
-    "first_name",
-    "last_name",
-    "phone",
-    "email",
-    "active",
-    "schedules",
-]
+            "id",
+            "first_name",
+            "last_name",
+            "phone",
+            "email",
+            "active",
+            "schedules",
+        ]
 
     def get_schedules(self, obj):
         return [
@@ -30,7 +30,7 @@ class MemberSerializer(serializers.ModelSerializer):
                     else None
                 ),
             }
-            for schedule in obj.schedules.all()
+            for schedule in obj.schedules.filter(active=True)
         ]
 
     def create(self, validated_data):
@@ -72,19 +72,45 @@ class MemberSerializer(serializers.ModelSerializer):
         instance.save()
 
         if schedules is not None:
-            AttendanceSchedule.objects.filter(
-                member=instance
-            ).delete()
 
-            AttendanceSchedule.objects.bulk_create(
-                [
-                    AttendanceSchedule(
-                        member=instance,
-                        day=schedule["day"],
-                        hour=schedule.get("hour"),
-                    )
-                    for schedule in schedules
-                ]
-            )
+            existing = {
+                (
+                    schedule.day,
+                    schedule.hour.strftime("%H:%M"),
+                ): schedule
+                for schedule in instance.schedules.all()
+            }
+
+            incoming = {
+                (
+                    schedule["day"],
+                    schedule["hour"],
+                )
+                for schedule in schedules
+            }
+
+            # Reactivar horarios existentes
+            for key in incoming:
+                if key in existing:
+                    schedule = existing[key]
+
+                    if not schedule.active:
+                        schedule.active = True
+                        schedule.save()
+
+            # Crear horarios nuevos
+            for day, hour in incoming - existing.keys():
+                AttendanceSchedule.objects.create(
+                    member=instance,
+                    day=day,
+                    hour=hour,
+                    active=True,
+                )
+
+            # Desactivar horarios eliminados
+            for key, schedule in existing.items():
+                if key not in incoming:
+                    schedule.active = False
+                    schedule.save()
 
         return instance

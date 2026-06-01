@@ -10,6 +10,10 @@ class AttendanceSchedule(models.Model):
         related_name="schedules",
     )
 
+    active = models.BooleanField(
+        default=True,
+    )
+
     DAY_CHOICES = [
         ("monday", "Lunes"),
         ("tuesday", "Martes"),
@@ -34,7 +38,11 @@ class AttendanceSchedule(models.Model):
         )
 
     def __str__(self):
-        return f"{self.member} - {self.day} - {self.hour}"
+        return (
+            f"{self.member} - "
+            f"{self.day} - "
+            f"{self.hour}"
+        )
 
 
 class Attendance(models.Model):
