@@ -55,16 +55,25 @@ class MemberSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        print("=== SERIALIZER CREATE ===")
+        print(validated_data)
+
         request = self.context.get("request")
 
-        schedules = request.data.get(
-            "schedules",
-            []
-        )
+        schedules = []
+
+        if request:
+            schedules = request.data.get(
+                "schedules",
+                []
+            )
 
         member = Member.objects.create(
             **validated_data
         )
+
+        print("GYM GUARDADO:")
+        print(member.gym)
 
         AttendanceSchedule.objects.bulk_create(
             [

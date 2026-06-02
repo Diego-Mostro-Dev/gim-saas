@@ -8,7 +8,8 @@ from .public_views import PublicRegisterView
 router = DefaultRouter()
 router.register(
     r'members',
-    MemberViewSet
+    MemberViewSet,
+    basename="members"
 )
 
 urlpatterns = router.urls + [
