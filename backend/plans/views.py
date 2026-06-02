@@ -1,10 +1,8 @@
-from rest_framework import viewsets
-
+from core.viewsets import GymModelViewSet
 from .models import MembershipPlan
 from .serializers import MembershipPlanSerializer
 
 
-class MembershipPlanViewSet(viewsets.ModelViewSet):
-
+class MembershipPlanViewSet(GymModelViewSet):
     queryset = MembershipPlan.objects.all()
     serializer_class = MembershipPlanSerializer

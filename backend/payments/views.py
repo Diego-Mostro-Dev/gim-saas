@@ -1,9 +1,8 @@
-from rest_framework import viewsets
-
+from core.viewsets import GymModelViewSet
 from .models import Payment
 from .serializers import PaymentSerializer
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.all().order_by("-paid_at")
+class PaymentViewSet(GymModelViewSet):
+    queryset = Payment.objects.all()
     serializer_class = PaymentSerializer

@@ -1,18 +1,8 @@
-from rest_framework import viewsets
-
-from django_filters.rest_framework import DjangoFilterBackend
-
+from core.viewsets import GymModelViewSet
 from .models import Subscription
 from .serializers import SubscriptionSerializer
 
 
-class SubscriptionViewSet(viewsets.ModelViewSet):
-
+class SubscriptionViewSet(GymModelViewSet):
     queryset = Subscription.objects.all()
-
     serializer_class = SubscriptionSerializer
-
-    filter_backends = [DjangoFilterBackend]
-
-    filterset_fields = ['paid']
-    

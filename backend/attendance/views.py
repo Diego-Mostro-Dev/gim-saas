@@ -5,19 +5,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 
-from .models import (
-    AttendanceSchedule,
-    Attendance,
-)
-
-from .serializers import (
-    AttendanceScheduleSerializer,
-    AttendanceSerializer,
-)
+from .models import AttendanceSchedule, Attendance
+from .serializers import AttendanceScheduleSerializer, AttendanceSerializer
 
 
 class WeeklyScheduleView(APIView):
     def get(self, request):
+        gym = request.user.profile.gym
+
         days = [
             "monday",
             "tuesday",
@@ -31,12 +26,13 @@ class WeeklyScheduleView(APIView):
 
         for day in days:
             schedules = AttendanceSchedule.objects.filter(
+                gym=gym,
                 day=day
             ).select_related("member")
 
             result[day] = AttendanceScheduleSerializer(
                 schedules,
-                many=True,
+                many=True
             ).data
 
         return Response(result)
@@ -44,35 +40,36 @@ class WeeklyScheduleView(APIView):
 
 @api_view(["GET"])
 def members_by_schedule(request):
+    gym = request.user.profile.gym
+
     day = request.GET.get("day")
     hour = request.GET.get("hour")
 
     schedules = AttendanceSchedule.objects.filter(
+        gym=gym,
         day=day,
         hour=hour,
     ).select_related("member")
 
-    return Response(
-        [
-            {
-                "schedule_id": schedule.id,
-                "member_id": schedule.member.id,
-                "member_name": (
-                    f"{schedule.member.first_name} "
-                    f"{schedule.member.last_name}"
-                ),
-            }
-            for schedule in schedules
-        ]
-    )
+    return Response([
+        {
+            "schedule_id": s.id,
+            "member_id": s.member.id,
+            "member_name": f"{s.member.first_name} {s.member.last_name}",
+        }
+        for s in schedules
+    ])
 
 
 @api_view(["GET"])
 def attendance_status(request):
+    gym = request.user.profile.gym
+
     day = request.GET.get("day")
     hour = request.GET.get("hour")
 
     schedules = AttendanceSchedule.objects.filter(
+        gym=gym,
         day=day,
         hour=hour,
     ).select_related("member")
@@ -83,26 +80,25 @@ def attendance_status(request):
 
     for schedule in schedules:
         attended = Attendance.objects.filter(
+            gym=gym,
             schedule=schedule,
             date=today,
         ).exists()
 
-        result.append(
-            {
-                "schedule_id": schedule.id,
-                "member_id": schedule.member.id,
-                "member_name": (
-                    f"{schedule.member.first_name} "
-                    f"{schedule.member.last_name}"
-                ),
-                "attended": attended,
-            }
-        )
+        result.append({
+            "schedule_id": schedule.id,
+            "member_id": schedule.member.id,
+            "member_name": f"{schedule.member.first_name} {schedule.member.last_name}",
+            "attended": attended,
+        })
 
     return Response(result)
 
-class AttendanceCreateView(
-    generics.CreateAPIView
-):
+
+class AttendanceCreateView(generics.CreateAPIView):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
+
+    def perform_create(self, serializer):
+        gym = self.request.user.profile.gym
+        serializer.save(gym=gym)

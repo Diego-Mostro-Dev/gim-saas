@@ -21,4 +21,5 @@ class SubscriptionAdmin(admin.ModelAdmin):
         "member__first_name",
         "member__last_name",
     )
+
     readonly_fields = ("end_date",)

@@ -30,52 +30,21 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
-    member_name = serializers.SerializerMethodField()
-
     class Meta:
         model = Attendance
-
-        fields = [
-            "id",
-            "member",
-            "member_name",
-            "schedule",
-            "date",
-            "created_at",
-        ]
-
-        read_only_fields = [
-            "member",
-            "member_name",
-            "date",
-            "created_at",
-        ]
+        fields = "__all__"
+        read_only_fields = ["gym"]
 
     def validate(self, attrs):
-        schedule = attrs["schedule"]
+        request = self.context["request"]
+        gym = request.user.profile.gym
 
-        already_exists = Attendance.objects.filter(
-            schedule=schedule,
-            date=date.today(),
-        ).exists()
+        schedule = attrs.get("schedule")
 
-        if already_exists:
-            raise serializers.ValidationError(
-                "La asistencia ya fue registrada para este horario."
-            )
+        if schedule.gym != gym:
+            raise serializers.ValidationError("Invalid schedule for this gym")
+
+        if schedule.member.gym != gym:
+            raise serializers.ValidationError("Invalid member for this gym")
 
         return attrs
-
-    def create(self, validated_data):
-        schedule = validated_data["schedule"]
-
-        return Attendance.objects.create(
-            member=schedule.member,
-            schedule=schedule,
-        )
-
-    def get_member_name(self, obj):
-        return (
-            f"{obj.member.first_name} "
-            f"{obj.member.last_name}"
-        )

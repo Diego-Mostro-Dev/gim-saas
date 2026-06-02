@@ -1,61 +1,27 @@
 from rest_framework import serializers
-
+from datetime import timedelta
 from .models import Subscription
 
-from datetime import timedelta
 
-
-class SubscriptionSerializer(
-    serializers.ModelSerializer
-):
+class SubscriptionSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
-
-    plan_name = serializers.CharField(
-        source="plan.name",
-        read_only=True
-    )
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
 
     class Meta:
         model = Subscription
-
         fields = "__all__"
+        read_only_fields = ["gym", "end_date"]
 
-        extra_kwargs = {
-            "end_date": {
-                "required": False
-            }
-        }
+    def get_member_name(self, obj):
+        return f"{obj.member.first_name} {obj.member.last_name}"
 
-    def get_member_name(
-        self,
-        obj
-    ):
-        return (
-            f"{obj.member.first_name} "
-            f"{obj.member.last_name}"
-        )
+    def create(self, validated_data):
+        request = self.context["request"]
+        gym = request.user.profile.gym
 
-    def create(
-        self,
-        validated_data
-    ):
         plan = validated_data["plan"]
+        start_date = validated_data["start_date"]
 
-        start_date = validated_data[
-            "start_date"
-        ]
+        validated_data["end_date"] = start_date + timedelta(days=plan.duration_days)
 
-        end_date = (
-            start_date
-            + timedelta(
-                days=plan.duration_days
-            )
-        )
-
-        validated_data[
-            "end_date"
-        ] = end_date
-
-        return super().create(
-            validated_data
-        )
+        return Subscription.objects.create(gym=gym, **validated_data)
