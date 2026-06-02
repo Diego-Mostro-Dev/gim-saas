@@ -1,59 +1,30 @@
-const API_BASE =
-  "https://gim-saas.onrender.com/api/attendance";
+import { apiFetch } from "./api";
 
 export async function getWeeklyAttendance() {
-  const response = await fetch(
-    `${API_BASE}/weekly/`,
+  return apiFetch(
+    "/api/attendance/weekly/"
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error obteniendo asistencia semanal",
-    );
-  }
-
-  return response.json();
 }
 
 export async function getAttendanceStatus(
   day,
   hour,
 ) {
-  const response = await fetch(
-    `${API_BASE}/status/?day=${day}&hour=${hour}`,
+  return apiFetch(
+    `/api/attendance/status/?day=${day}&hour=${hour}`
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error obteniendo estado de asistencia",
-    );
-  }
-
-  return response.json();
 }
 
 export async function registerAttendance(
   scheduleId,
 ) {
-  const response = await fetch(
-    `${API_BASE}/register/`,
+  return apiFetch(
+    "/api/attendance/register/",
     {
       method: "POST",
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
       body: JSON.stringify({
         schedule: scheduleId,
       }),
     },
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error registrando asistencia",
-    );
-  }
-
-  return response.json();
 }

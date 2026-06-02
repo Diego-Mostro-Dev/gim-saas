@@ -7,18 +7,75 @@ import Plans from "./pages/Plans";
 import Payments from "./pages/Payments";
 import Attendance from "./pages/Attendance";
 import Register from "./pages/Register";
+import Login from "./pages/Login";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
     <Routes>
+      {/* Redirección inicial */}
       <Route path="/" element={<Navigate to="/dashboard" />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/members" element={<Members />} />
-      <Route path="/subscriptions" element={<Subscriptions />} />
-      <Route path="/plans" element={<Plans />} />
-      <Route path="/payments" element={<Payments />} />
-      <Route path="/attendance" element={<Attendance />} />
+
+      {/* Públicas */}
+      <Route path="/login" element={<Login />} />
+
       <Route path="/register" element={<Register />} />
+
+      {/* Protegidas */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/members"
+        element={
+          <ProtectedRoute>
+            <Members />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/subscriptions"
+        element={
+          <ProtectedRoute>
+            <Subscriptions />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/plans"
+        element={
+          <ProtectedRoute>
+            <Plans />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payments"
+        element={
+          <ProtectedRoute>
+            <Payments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/attendance"
+        element={
+          <ProtectedRoute>
+            <Attendance />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }

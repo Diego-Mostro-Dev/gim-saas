@@ -1,85 +1,47 @@
-const API_URL =
-  "https://gim-saas.onrender.com/api/subscriptions/";
+import { apiFetch } from "./api";
 
 export async function getSubscriptions() {
-  const response = await fetch(API_URL);
-
-  if (!response.ok) {
-    throw new Error(
-      "Error obteniendo subscriptions"
-    );
-  }
-
-  return response.json();
+  return apiFetch(
+    "/api/subscriptions/",
+  );
 }
+
 export async function createSubscription(
-  subscriptionData
+  subscriptionData,
 ) {
-  const response = await fetch(
-    API_URL,
+  return apiFetch(
+    "/api/subscriptions/",
     {
       method: "POST",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-
       body: JSON.stringify(
-        subscriptionData
+        subscriptionData,
       ),
-    }
+    },
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error creando subscription"
-    );
-  }
-
-  return response.json();
 }
+
 export async function deleteSubscription(
-  id
+  id,
 ) {
-  const response = await fetch(
-    `${API_URL}${id}/`,
+  return apiFetch(
+    `/api/subscriptions/${id}/`,
     {
       method: "DELETE",
-    }
+    },
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error eliminando subscription"
-    );
-  }
 }
+
 export async function updateSubscription(
   id,
-  subscriptionData
+  subscriptionData,
 ) {
-  const response = await fetch(
-    `${API_URL}${id}/`,
+  return apiFetch(
+    `/api/subscriptions/${id}/`,
     {
       method: "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-
       body: JSON.stringify(
-        subscriptionData
+        subscriptionData,
       ),
-    }
+    },
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error actualizando subscription"
-    );
-  }
-
-  return response.json();
 }

@@ -1,77 +1,47 @@
-const API_URL =
-  "https://gim-saas.onrender.com/api/plans/";
+import { apiFetch } from "./api";
 
 export async function getPlans() {
-  const response = await fetch(API_URL);
-
-  if (!response.ok) {
-    throw new Error(
-      "Error obteniendo planes"
-    );
-  }
-
-  return response.json();
+  return apiFetch(
+    "/api/plans/",
+  );
 }
 
-export async function createPlan(data) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-
-    headers: {
-      "Content-Type":
-        "application/json",
+export async function createPlan(
+  data,
+) {
+  return apiFetch(
+    "/api/plans/",
+    {
+      method: "POST",
+      body: JSON.stringify(
+        data,
+      ),
     },
-
-    body: JSON.stringify(data),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      "Error creando plan"
-    );
-  }
-
-  return response.json();
+  );
 }
 
 export async function updatePlan(
   id,
   data,
 ) {
-  const response = await fetch(
-    `${API_URL}${id}/`,
+  return apiFetch(
+    `/api/plans/${id}/`,
     {
       method: "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-
-      body: JSON.stringify(data),
+      body: JSON.stringify(
+        data,
+      ),
     },
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error actualizando plan"
-    );
-  }
-
-  return response.json();
 }
 
-export async function deletePlan(id) {
-  const response = await fetch(
-    `${API_URL}${id}/`,
+export async function deletePlan(
+  id,
+) {
+  return apiFetch(
+    `/api/plans/${id}/`,
     {
       method: "DELETE",
     },
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Error eliminando plan"
-    );
-  }
 }

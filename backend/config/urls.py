@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from config.api.health import health_check
-from config.api.dashboard import dashboard_summary
+from config.api.dashboard import DashboardSummaryView
 
 
 
@@ -12,7 +12,7 @@ urlpatterns = [
     path('api/', include('members.urls')),
     path('api/', include('plans.urls')),
     path('api/', include('subscriptions.urls')),
-    path('api/dashboard/', dashboard_summary),
+    path("api/dashboard/",DashboardSummaryView.as_view()),
     path("api/payments/", include("payments.urls")),
     path("api/attendance/", include("attendance.urls")),
     path("api/auth/", include("accounts.urls")),
