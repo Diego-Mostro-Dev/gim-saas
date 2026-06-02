@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     "payments",
     "attendance",
     "accounts",
+    "gyms",
+    "profiles",
 ]
 
 

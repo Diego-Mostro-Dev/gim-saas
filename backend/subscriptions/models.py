@@ -1,5 +1,5 @@
 from django.db import models
-
+from gyms.models import Gym
 from members.models import Member
 from plans.models import MembershipPlan
 from datetime import timedelta
@@ -11,6 +11,13 @@ class Subscription(models.Model):
         on_delete=models.CASCADE,
         related_name="subscriptions"
     )
+    gym = models.ForeignKey(
+    Gym,
+    on_delete=models.CASCADE,
+    null=True,
+    blank=True,
+    related_name="subscriptions",
+)
 
     plan = models.ForeignKey(
         MembershipPlan,

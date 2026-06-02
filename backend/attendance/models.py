@@ -1,5 +1,5 @@
 from django.db import models
-
+from gyms.models import Gym
 from members.models import Member
 
 
@@ -8,6 +8,14 @@ class AttendanceSchedule(models.Model):
         Member,
         on_delete=models.CASCADE,
         related_name="schedules",
+    )
+
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="attendance_schedules",
     )
 
     active = models.BooleanField(
@@ -49,6 +57,14 @@ class Attendance(models.Model):
     member = models.ForeignKey(
         Member,
         on_delete=models.CASCADE,
+        related_name="attendances",
+    )
+
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="attendances",
     )
 

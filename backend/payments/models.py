@@ -1,5 +1,5 @@
 from django.db import models
-
+from gyms.models import Gym
 from members.models import Member
 from subscriptions.models import Subscription
 
@@ -10,7 +10,13 @@ class Payment(models.Model):
         on_delete=models.CASCADE,
         related_name="payments",
     )
-
+    gym = models.ForeignKey(
+    Gym,
+    on_delete=models.CASCADE,
+    null=True,
+    blank=True,
+    related_name="payments",
+)
     subscription = models.ForeignKey(
         Subscription,
         on_delete=models.SET_NULL,
