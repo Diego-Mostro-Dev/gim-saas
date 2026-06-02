@@ -1,8 +1,8 @@
-/* const API_URL =
-  "https://gim-saas.onrender.com"; */
-
 const API_URL =
-  "http://localhost:8000";
+  "https://gim-saas.onrender.com"; 
+
+/* const API_URL =
+  "http://localhost:8000"; */
 
 export async function apiFetch(
   endpoint,
