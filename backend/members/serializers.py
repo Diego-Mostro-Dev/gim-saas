@@ -29,11 +29,7 @@ class MemberSerializer(serializers.ModelSerializer):
             gym=gym,
         )
 
-        instance = getattr(
-            self,
-            "instance",
-            None,
-        )
+        instance = getattr(self, "instance", None)
 
         if instance:
             qs = qs.exclude(id=instance.id)
@@ -55,29 +51,33 @@ class MemberSerializer(serializers.ModelSerializer):
                     else None
                 ),
             }
-            for s in obj.schedules.filter(
-                active=True
-            )
+            for s in obj.schedules.filter(active=True)
         ]
 
     def create(self, validated_data):
+        request = self.context["request"]
+        gym = request.user.profile.gym
+
         schedules = self.initial_data.get(
             "schedules",
             [],
         )
 
         member = Member.objects.create(
+            gym=gym,
             **validated_data
         )
 
-        AttendanceSchedule.objects.bulk_create([
-            AttendanceSchedule(
-                member=member,
-                gym=member.gym,
-                day=s["day"],
-                hour=s["hour"],
-            )
-            for s in schedules
-        ])
+        AttendanceSchedule.objects.bulk_create(
+            [
+                AttendanceSchedule(
+                    member=member,
+                    gym=gym,
+                    day=s["day"],
+                    hour=s["hour"],
+                )
+                for s in schedules
+            ]
+        )
 
         return member

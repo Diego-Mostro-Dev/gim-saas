@@ -1,5 +1,3 @@
-from datetime import date
-
 from rest_framework import serializers
 
 from .models import (
@@ -41,6 +39,16 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
         member = attrs.get("member")
         schedule = attrs.get("schedule")
+
+        if member is None:
+            raise serializers.ValidationError({
+                "member": "Debe seleccionar un socio."
+            })
+
+        if schedule is None:
+            raise serializers.ValidationError({
+                "schedule": "Debe seleccionar un horario."
+            })
 
         if member.gym != gym:
             raise serializers.ValidationError({

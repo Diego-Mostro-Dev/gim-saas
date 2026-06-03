@@ -5,6 +5,8 @@ from config.api.dashboard import DashboardSummaryView
 
 
 
+
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/health/', health_check),
@@ -16,4 +18,5 @@ urlpatterns = [
     path("api/payments/", include("payments.urls")),
     path("api/attendance/", include("attendance.urls")),
     path("api/auth/", include("accounts.urls")),
+    path("api/gyms/", include("gyms.urls")),
 ]

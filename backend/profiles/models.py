@@ -11,10 +11,12 @@ class UserProfile(models.Model):
     )
 
     gym = models.ForeignKey(
-        Gym,
-        on_delete=models.CASCADE,
-        related_name="users"
-    )
+    Gym,
+    on_delete=models.CASCADE,
+    related_name="users",
+    null=True,
+    blank=True
+)
 
     def __str__(self):
         return self.user.username
