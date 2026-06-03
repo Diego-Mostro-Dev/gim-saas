@@ -39,12 +39,27 @@ class AttendanceSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         gym = request.user.profile.gym
 
+        member = attrs.get("member")
         schedule = attrs.get("schedule")
 
+        if member.gym != gym:
+            raise serializers.ValidationError({
+                "member": "El socio no pertenece a este gimnasio."
+            })
+
         if schedule.gym != gym:
-            raise serializers.ValidationError("Invalid schedule for this gym")
+            raise serializers.ValidationError({
+                "schedule": "El horario no pertenece a este gimnasio."
+            })
 
         if schedule.member.gym != gym:
-            raise serializers.ValidationError("Invalid member for this gym")
+            raise serializers.ValidationError({
+                "schedule": "El socio del horario no pertenece a este gimnasio."
+            })
+
+        if schedule.member != member:
+            raise serializers.ValidationError({
+                "member": "El socio no coincide con el horario seleccionado."
+            })
 
         return attrs
