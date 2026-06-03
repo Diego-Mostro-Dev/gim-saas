@@ -24,14 +24,24 @@ class MemberSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         gym = request.user.profile.gym
 
-        qs = Member.objects.filter(phone=value, gym=gym)
+        qs = Member.objects.filter(
+            phone=value,
+            gym=gym,
+        )
 
-        instance = getattr(self, "instance", None)
+        instance = getattr(
+            self,
+            "instance",
+            None,
+        )
+
         if instance:
             qs = qs.exclude(id=instance.id)
 
         if qs.exists():
-            raise serializers.ValidationError("Ya existe un socio con ese teléfono.")
+            raise serializers.ValidationError(
+                "Ya existe un socio con ese teléfono."
+            )
 
         return value
 
@@ -39,23 +49,31 @@ class MemberSerializer(serializers.ModelSerializer):
         return [
             {
                 "day": s.day,
-                "hour": s.hour.strftime("%H:%M") if s.hour else None,
+                "hour": (
+                    s.hour.strftime("%H:%M")
+                    if s.hour
+                    else None
+                ),
             }
-            for s in obj.schedules.filter(active=True)
+            for s in obj.schedules.filter(
+                active=True
+            )
         ]
 
     def create(self, validated_data):
-        request = self.context["request"]
-        gym = request.user.profile.gym
+        schedules = self.initial_data.get(
+            "schedules",
+            [],
+        )
 
-        schedules = self.initial_data.get("schedules", [])
-
-        member = Member.objects.create(gym=gym, **validated_data)
+        member = Member.objects.create(
+            **validated_data
+        )
 
         AttendanceSchedule.objects.bulk_create([
             AttendanceSchedule(
                 member=member,
-                gym=gym,
+                gym=member.gym,
                 day=s["day"],
                 hour=s["hour"],
             )

@@ -15,13 +15,30 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
 
-    def create(self, validated_data):
-        request = self.context["request"]
-        gym = request.user.profile.gym
+    def validate(self, attrs):
+        gym = self.context["request"].user.profile.gym
 
+        member = attrs["member"]
+        plan = attrs["plan"]
+
+        if member.gym != gym:
+            raise serializers.ValidationError(
+                {"member": "El socio no pertenece a este gimnasio."}
+            )
+
+        if plan.gym != gym:
+            raise serializers.ValidationError(
+                {"plan": "El plan no pertenece a este gimnasio."}
+            )
+
+        return attrs
+
+    def create(self, validated_data):
         plan = validated_data["plan"]
         start_date = validated_data["start_date"]
 
-        validated_data["end_date"] = start_date + timedelta(days=plan.duration_days)
+        validated_data["end_date"] = (
+            start_date + timedelta(days=plan.duration_days)
+        )
 
-        return Subscription.objects.create(gym=gym, **validated_data)
+        return super().create(validated_data)

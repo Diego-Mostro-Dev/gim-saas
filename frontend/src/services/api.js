@@ -1,9 +1,7 @@
 const API_URL =
-  "https://gim-saas.onrender.com"; 
+  import.meta.env.VITE_API_URL;
 
-/* const API_URL =
-  "http://localhost:8000"; */
-
+console.log("API URL:", API_URL);
 export async function apiFetch(
   endpoint,
   options = {},
