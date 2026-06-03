@@ -55,16 +55,12 @@ class MemberSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        request = self.context["request"]
-        gym = request.user.profile.gym
-
         schedules = self.initial_data.get(
             "schedules",
             [],
         )
 
         member = Member.objects.create(
-            gym=gym,
             **validated_data
         )
 
@@ -72,7 +68,7 @@ class MemberSerializer(serializers.ModelSerializer):
             [
                 AttendanceSchedule(
                     member=member,
-                    gym=gym,
+                    gym=member.gym,
                     day=s["day"],
                     hour=s["hour"],
                 )
