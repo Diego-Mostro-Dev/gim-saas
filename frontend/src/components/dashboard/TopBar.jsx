@@ -1,6 +1,9 @@
 import { Menu, LogOut } from "lucide-react";
+import { useGym } from "../../hooks/useGym";
 
 function TopBar() {
+  const { gym } = useGym();
+
   function handleLogout() {
     localStorage.removeItem("token");
     window.location.href = "/login";
@@ -13,7 +16,7 @@ function TopBar() {
       </div>
 
       <h1 className="text-xl font-bold tracking-tight text-blue-300">
-        SINKRO DASHBOARD
+        {gym?.name ? `${gym.name.toUpperCase()} DASHBOARD` : "GYM DASHBOARD"}
       </h1>
 
       <button
