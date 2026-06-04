@@ -8,10 +8,10 @@ class Gym(models.Model):
     active = models.BooleanField(default=True)
 
     onboarding_code = models.UUIDField(
-    default=uuid.uuid4,
-    unique=True,
-    editable=False
-)
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -19,7 +19,13 @@ class Gym(models.Model):
         return self.name
 
     def get_onboarding_url(self):
-        return f"/onboarding/{self.onboarding_code}"
+        return (
+            "https://gim-saas-red.vercel.app"
+            f"/onboarding/{self.onboarding_code}"
+        )
 
     def get_public_register_url(self):
-        return f"/register/{self.onboarding_code}"
+        return (
+            "https://gim-saas-red.vercel.app"
+            f"/register/{self.onboarding_code}"
+        )

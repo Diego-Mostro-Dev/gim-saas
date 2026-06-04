@@ -1,7 +1,10 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+)
 
 from .models import Gym
 from .serializers import GymSerializer
@@ -39,3 +42,19 @@ class GymListView(APIView):
         )
 
         return Response(serializer.data)
+
+
+class GymMeView(APIView):
+
+    permission_classes = [
+        IsAuthenticated
+    ]
+
+    def get(self, request):
+        gym = request.user.profile.gym
+
+        serializer = GymSerializer(gym)
+
+        return Response(
+            serializer.data
+        )
