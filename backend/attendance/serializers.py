@@ -1,3 +1,5 @@
+from datetime import date
+
 from rest_framework import serializers
 
 from .models import (
@@ -31,28 +33,20 @@ class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = "__all__"
-        read_only_fields = ["gym"]
+        read_only_fields = [
+            "gym",
+            "member",
+        ]
 
     def validate(self, attrs):
         request = self.context["request"]
         gym = request.user.profile.gym
 
-        member = attrs.get("member")
         schedule = attrs.get("schedule")
-
-        if member is None:
-            raise serializers.ValidationError({
-                "member": "Debe seleccionar un socio."
-            })
 
         if schedule is None:
             raise serializers.ValidationError({
                 "schedule": "Debe seleccionar un horario."
-            })
-
-        if member.gym != gym:
-            raise serializers.ValidationError({
-                "member": "El socio no pertenece a este gimnasio."
             })
 
         if schedule.gym != gym:
@@ -60,14 +54,27 @@ class AttendanceSerializer(serializers.ModelSerializer):
                 "schedule": "El horario no pertenece a este gimnasio."
             })
 
-        if schedule.member.gym != gym:
-            raise serializers.ValidationError({
-                "schedule": "El socio del horario no pertenece a este gimnasio."
-            })
+        already_registered = Attendance.objects.filter(
+            gym=gym,
+            schedule=schedule,
+            date=date.today(),
+        ).exists()
 
-        if schedule.member != member:
+        if already_registered:
             raise serializers.ValidationError({
-                "member": "El socio no coincide con el horario seleccionado."
+                "schedule": "La asistencia ya fue registrada hoy."
             })
 
         return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        gym = request.user.profile.gym
+
+        schedule = validated_data["schedule"]
+
+        return Attendance.objects.create(
+            gym=gym,
+            member=schedule.member,
+            schedule=schedule,
+        )

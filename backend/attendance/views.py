@@ -98,7 +98,3 @@ def attendance_status(request):
 class AttendanceCreateView(generics.CreateAPIView):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
-
-    def perform_create(self, serializer):
-        gym = self.request.user.profile.gym
-        serializer.save(gym=gym)
