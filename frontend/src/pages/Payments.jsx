@@ -4,8 +4,6 @@ import toast from "react-hot-toast";
 
 import { Plus } from "lucide-react";
 
-import BottomNav from "../components/dashboard/BottomNav";
-
 import PaymentCard from "../components/payments/PaymentCard";
 import PaymentForm from "../components/payments/PaymentForm";
 import PaymentStats from "../components/payments/PaymentStats";
@@ -202,8 +200,6 @@ function Payments() {
           setPaymentToDelete(null);
         }}
       />
-
-      <BottomNav />
     </div>
   );
 }

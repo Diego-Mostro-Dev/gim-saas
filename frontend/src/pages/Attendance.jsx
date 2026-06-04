@@ -1,5 +1,3 @@
-import BottomNav from "../components/dashboard/BottomNav";
-
 import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
@@ -39,8 +37,6 @@ function Attendance() {
 
       {/* Vista semanal */}
       <WeeklyOccupancy weeklyAttendance={weeklyAttendance} />
-
-      <BottomNav />
     </div>
   );
 }

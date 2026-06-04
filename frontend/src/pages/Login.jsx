@@ -1,38 +1,24 @@
 import { useState } from "react";
+import useAuthStore from "../store/auth.store";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
+  const login = useAuthStore((state) => state.login);
+  const loading = useAuthStore((state) => state.loading);
+  const error = useAuthStore((state) => state.error);
+
+  const navigate = useNavigate();
+
   async function handleSubmit(e) {
     e.preventDefault();
 
-    try {
-      const response = await fetch(
-        "https://gim-saas.onrender.com/api/auth/login/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username,
-            password,
-          }),
-        },
-      );
+    const success = await login({ username, password });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error("Credenciales inválidas");
-      }
-
-      localStorage.setItem("token", data.token);
-
-      window.location.href = "/dashboard";
-    } catch (error) {
-      alert(error.message);
+    if (success) {
+      navigate("/dashboard");
     }
   }
 
@@ -45,26 +31,27 @@ export default function Login() {
         <h1 className="mb-4 text-xl text-white">Iniciar sesión</h1>
 
         <input
-          type="text"
+          className="mb-3 w-full rounded bg-zinc-800 p-3 text-white"
           placeholder="Usuario"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="mb-3 w-full rounded bg-zinc-800 p-3 text-white"
         />
 
         <input
           type="password"
+          className="mb-3 w-full rounded bg-zinc-800 p-3 text-white"
           placeholder="Contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mb-3 w-full rounded bg-zinc-800 p-3 text-white"
         />
 
+        {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
+
         <button
-          type="submit"
-          className="w-full rounded bg-blue-600 p-3 text-white"
+          disabled={loading}
+          className="w-full rounded bg-blue-600 p-3 text-white disabled:opacity-50"
         >
-          Entrar
+          {loading ? "Entrando..." : "Entrar"}
         </button>
       </form>
     </div>

@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from .models import Member
+
 from attendance.models import AttendanceSchedule
+
+from .models import Member
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -8,6 +10,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Member
+
         fields = [
             "id",
             "first_name",
@@ -18,11 +21,23 @@ class MemberSerializer(serializers.ModelSerializer):
             "schedules",
             "gym",
         ]
+
         read_only_fields = ["gym"]
 
     def validate_phone(self, value):
-        request = self.context.get("request")
-        gym = request.user.profile.gym
+        gym = self.context.get("gym")
+
+        if gym is None:
+            request = self.context.get("request")
+
+            if (
+                request
+                and hasattr(request.user, "profile")
+            ):
+                gym = request.user.profile.gym
+
+        if gym is None:
+            return value
 
         qs = Member.objects.filter(
             phone=value,

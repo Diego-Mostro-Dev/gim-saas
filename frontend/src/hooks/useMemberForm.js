@@ -31,17 +31,13 @@ export function useMemberForm() {
   function openEditForm(member) {
     setEditingMember(member);
 
-    const newFormData = {
+    setFormData({
       first_name: member.first_name || "",
       last_name: member.last_name || "",
       phone: member.phone || "",
       email: member.email || "",
       schedules: member.schedules || [],
-    };
-
-    console.log("FormData generado:", newFormData);
-
-    setFormData(newFormData);
+    });
 
     setShowForm(true);
   }

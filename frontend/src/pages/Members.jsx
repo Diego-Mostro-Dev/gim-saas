@@ -5,8 +5,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
-import BottomNav from "../components/dashboard/BottomNav";
-
 import MemberCard from "../components/members/MemberCard";
 import MemberForm from "../components/members/MemberForm";
 
@@ -227,8 +225,6 @@ function Members() {
           setMemberToDelete(null);
         }}
       />
-
-      <BottomNav />
     </div>
   );
 }
