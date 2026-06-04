@@ -1,5 +1,5 @@
 const API_BASE =
-  `${import.meta.env.VITE_API_URL}/public/register`;
+  `${import.meta.env.VITE_API_URL}/api/public/register`;
 
 export async function registerPublicMember(
   gymCode,
