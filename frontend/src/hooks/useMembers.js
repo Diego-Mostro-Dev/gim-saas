@@ -1,5 +1,3 @@
-// src/hooks/useMembers.js
-
 import { useEffect, useState } from "react";
 
 import {
@@ -11,72 +9,48 @@ import {
 
 export function useMembers() {
   const [members, setMembers] = useState([]);
-
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    loadMembers();
-  }, []);
 
   async function loadMembers() {
     try {
       setLoading(true);
-
       setError(null);
 
       const data = await getMembers();
-
       setMembers(data);
-    } catch (error) {
-      console.error(error);
-
-      setError("Error al cargar miembros");
+    } catch (err) {
+      setError(err.message || "Error al cargar miembros");
     } finally {
       setLoading(false);
     }
   }
 
-  async function createNewMember(formData) {
+  useEffect(() => {
+    loadMembers();
+  }, []);
+
+  async function createNewMember(data) {
     try {
-      const newMember = await createMember(formData);
-
+      const newMember = await createMember(data);
       setMembers((prev) => [newMember, ...prev]);
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   }
 
-  async function editMember(id, formData) {
+  async function editMember(id, data) {
     try {
-      const updatedMember = await updateMember(id, formData);
+      const updated = await updateMember(id, data);
 
       setMembers((prev) =>
-        prev.map((member) =>
-          member.id === updatedMember.id
-            ? updatedMember
-            : member,
-        ),
+        prev.map((m) => (m.id === updated.id ? updated : m))
       );
 
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   }
 
@@ -84,19 +58,11 @@ export function useMembers() {
     try {
       await deleteMember(id);
 
-      setMembers((prev) =>
-        prev.filter((member) => member.id !== id),
-      );
+      setMembers((prev) => prev.filter((m) => m.id !== id));
 
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   }
 
@@ -104,9 +70,9 @@ export function useMembers() {
     members,
     loading,
     error,
-
     createNewMember,
     editMember,
     removeMember,
+    reload: loadMembers,
   };
 }

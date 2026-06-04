@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from "react";
 
 import { Plus } from "lucide-react";
 
-import BottomNav from "../components/dashboard/BottomNav";
-
 import PlanCard from "../components/plans/PlanCard";
 import PlanForm from "../components/plans/PlanForm";
 
@@ -168,8 +166,6 @@ function Plans() {
           ))
         )}
       </div>
-
-      <BottomNav />
     </div>
   );
 }

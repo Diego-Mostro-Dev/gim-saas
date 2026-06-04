@@ -6,8 +6,6 @@ import { useSearchParams } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
-import BottomNav from "../components/dashboard/BottomNav";
-
 import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
 import SubscriptionForm from "../components/subscriptions/SubscriptionForm";
 import SubscriptionFilters from "../components/subscriptions/SubscriptionFilters";
@@ -211,8 +209,6 @@ function Subscriptions() {
           ))}
         </div>
       )}
-
-      <BottomNav />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import MemberForm from "../components/members/MemberForm";
@@ -13,6 +14,8 @@ const INITIAL_FORM = {
 };
 
 function Register() {
+  const { gymCode } = useParams();
+
   const [formData, setFormData] = useState(INITIAL_FORM);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,7 +28,7 @@ function Register() {
     try {
       setIsSubmitting(true);
 
-      await registerPublicMember(formData);
+      await registerPublicMember(gymCode, formData);
 
       setSuccess(true);
 

@@ -7,14 +7,14 @@ from .public_views import PublicRegisterView
 
 router = DefaultRouter()
 router.register(
-    r'members',
+    r"members",
     MemberViewSet,
-    basename="members"
+    basename="members",
 )
 
 urlpatterns = router.urls + [
     path(
-        "public/register/",
+        "public/register/<uuid:gym_code>/",
         PublicRegisterView.as_view(),
         name="public-register",
     ),
