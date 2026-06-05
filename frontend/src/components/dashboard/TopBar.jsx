@@ -1,4 +1,5 @@
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, Settings } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useGym } from "../../hooks/useGym";
 
 function TopBar() {
@@ -19,13 +20,22 @@ function TopBar() {
         {gym?.name ? `${gym.name.toUpperCase()} DASHBOARD` : "GYM DASHBOARD"}
       </h1>
 
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
-      >
-        <LogOut size={16} />
-        Salir
-      </button>
+      <div className="flex items-center gap-2">
+        <Link
+          to="/settings"
+          className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/5"
+        >
+          <Settings size={18} />
+        </Link>
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+        >
+          <LogOut size={16} />
+          Salir
+        </button>
+      </div>
     </header>
   );
 }
