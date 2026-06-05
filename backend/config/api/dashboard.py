@@ -1,10 +1,13 @@
-from django.utils.timezone import now
 from datetime import timedelta
 
-from rest_framework.views import APIView
+from django.db.models import Sum
+from django.utils.timezone import now
+
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from members.models import Member
+from payments.models import Payment
 from subscriptions.models import Subscription
 
 
@@ -25,17 +28,13 @@ class DashboardSummaryView(APIView):
             end_date__lte=today + timedelta(days=7)
         ).count()
 
-        subscriptions = Subscription.objects.filter(
-            gym=gym,
-            paid=True
-        ).select_related(
-            "plan",
-            "member"
-        )
-
-        total_revenue = sum(
-            sub.plan.price
-            for sub in subscriptions
+        total_revenue = (
+            Payment.objects.filter(
+                gym=gym
+            ).aggregate(
+                total=Sum("amount")
+            )["total"]
+            or 0
         )
 
         upcoming_expirations = Subscription.objects.filter(

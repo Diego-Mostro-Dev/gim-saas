@@ -1,8 +1,10 @@
 from datetime import timedelta
 
+from django.utils.timezone import now
+
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import status
 
 from core.viewsets import GymModelViewSet
 
@@ -21,10 +23,15 @@ class SubscriptionViewSet(GymModelViewSet):
     def renew(self, request, pk=None):
         subscription = self.get_object()
 
-        start_date = (
-            subscription.end_date +
-            timedelta(days=1)
-        )
+        today = now().date()
+
+        if subscription.end_date < today:
+            start_date = today
+        else:
+            start_date = (
+                subscription.end_date +
+                timedelta(days=1)
+            )
 
         end_date = (
             start_date +
