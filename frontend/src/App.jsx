@@ -14,6 +14,7 @@ import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
+import Settings from "./pages/Settings";
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
         <Route path="/attendance" element={<Attendance />} />
         <Route path="/registration" element={<Registration />} />
         <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>
   );

@@ -58,3 +58,22 @@ class GymMeView(APIView):
         return Response(
             serializer.data
         )
+
+    def patch(self, request):
+        gym = request.user.profile.gym
+
+        serializer = GymSerializer(
+            gym,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            serializer.data
+        )
