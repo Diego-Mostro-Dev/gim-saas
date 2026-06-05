@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from .models import Payment
 
 
@@ -17,3 +18,14 @@ class PaymentSerializer(serializers.ModelSerializer):
             )
 
         return subscription
+
+    def create(self, validated_data):
+        payment = super().create(validated_data)
+
+        subscription = payment.subscription
+
+        if not subscription.paid:
+            subscription.paid = True
+            subscription.save(update_fields=["paid"])
+
+        return payment
