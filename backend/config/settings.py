@@ -136,6 +136,11 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
+
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+
+if not FRONTEND_URL:
+    raise Exception("FRONTEND_URL environment variable is required")
 # =========================
 # PASSWORD VALIDATION
 # =========================

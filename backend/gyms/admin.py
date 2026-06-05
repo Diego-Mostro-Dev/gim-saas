@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.conf import settings
 
 from .models import Gym
 
@@ -43,8 +44,8 @@ class GymAdmin(admin.ModelAdmin):
             return "-"
 
         url = (
-            f"https://gim-saas-red.vercel.app/"
-            f"register/{obj.onboarding_code}"
+            settings.FRONTEND_URL +
+            f"/register/{obj.onboarding_code}"
         )
 
         return format_html(
