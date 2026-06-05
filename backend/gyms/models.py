@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 
 
 class Gym(models.Model):
@@ -20,12 +21,12 @@ class Gym(models.Model):
 
     def get_onboarding_url(self):
         return (
-            "https://gim-saas-red.vercel.app"
+            settings.FRONTEND_URL+
             f"/onboarding/{self.onboarding_code}"
         )
 
     def get_public_register_url(self):
         return (
-            "https://gim-saas-red.vercel.app"
+            settings.FRONTEND_URL+
             f"/register/{self.onboarding_code}"
         )
