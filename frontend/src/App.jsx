@@ -13,6 +13,7 @@ import Attendance from "./pages/Attendance";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Registration from "./pages/Registration";
+import ChangePassword from "./pages/ChangePassword";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
         <Route path="/payments" element={<Payments />} />
         <Route path="/attendance" element={<Attendance />} />
         <Route path="/registration" element={<Registration />} />
+        <Route path="/change-password" element={<ChangePassword />} />
       </Route>
     </Routes>
   );

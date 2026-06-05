@@ -7,7 +7,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 
 from gyms.models import Gym
-from .serializers import LoginSerializer
+from .serializers import (
+    LoginSerializer,
+    ChangePasswordSerializer,
+)
 
 
 # -------------------------
@@ -28,6 +31,9 @@ class LoginView(APIView):
             {
                 "token": token.key,
                 "username": user.username,
+                "must_change_password": (
+                    user.profile.must_change_password
+                ),
             },
             status=status.HTTP_200_OK,
         )
@@ -47,8 +53,47 @@ class MeView(APIView):
                 "id": request.user.id,
                 "username": request.user.username,
                 "email": request.user.email,
-                "gym": profile.gym.name if profile and profile.gym else None,
-                "gym_id": profile.gym.id if profile and profile.gym else None,
+                "gym": (
+                    profile.gym.name
+                    if profile and profile.gym
+                    else None
+                ),
+                "gym_id": (
+                    profile.gym.id
+                    if profile and profile.gym
+                    else None
+                ),
+                "must_change_password": (
+                    profile.must_change_password
+                    if profile
+                    else False
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# -------------------------
+# CHANGE PASSWORD
+# -------------------------
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            {
+                "success": True,
             },
             status=status.HTTP_200_OK,
         )
@@ -109,7 +154,7 @@ class CreateGymOwnerView(APIView):
         user = User.objects.create_user(
             username=username,
             email=email,
-            password=password
+            password=password,
         )
 
         # 2. link con profile (creado por signal)
