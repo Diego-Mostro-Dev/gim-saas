@@ -45,3 +45,14 @@ export async function updateSubscription(
     },
   );
 }
+
+export async function renewSubscription(
+  id,
+) {
+  return apiFetch(
+    `/api/subscriptions/${id}/renew/`,
+    {
+      method: "POST",
+    },
+  );
+}
