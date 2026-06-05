@@ -64,6 +64,15 @@ export function usePayments() {
     }
   }
 
+  async function refreshSubscriptions() {
+    const subscriptionsData =
+      await getSubscriptions();
+
+    setSubscriptions(
+      subscriptionsData,
+    );
+  }
+
   async function handleCreatePayment(
     data,
   ) {
@@ -77,6 +86,8 @@ export function usePayments() {
         newPayment,
         ...prev,
       ]);
+
+      await refreshSubscriptions();
     } catch (err) {
       console.error(err);
 
@@ -125,6 +136,8 @@ export function usePayments() {
             payment.id !== id,
         ),
       );
+
+      await refreshSubscriptions();
     } catch (err) {
       console.error(err);
 

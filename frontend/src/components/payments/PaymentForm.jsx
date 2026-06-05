@@ -8,8 +8,12 @@ function PaymentForm({
   subscriptions,
 }) {
   const filteredSubscriptions = subscriptions.filter(
-    (subscription) => String(subscription.member) === String(formData.member),
+    (subscription) =>
+      String(subscription.member) === String(formData.member) &&
+      !subscription.paid,
   );
+
+  const today = new Date();
 
   return (
     <form
@@ -59,11 +63,18 @@ function PaymentForm({
             : "Seleccionar suscripción"}
         </option>
 
-        {filteredSubscriptions.map((subscription) => (
-          <option key={subscription.id} value={subscription.id}>
-            {subscription.plan_name}
-          </option>
-        ))}
+        {filteredSubscriptions.map((subscription) => {
+          const expired = new Date(subscription.end_date) < today;
+
+          return (
+            <option key={subscription.id} value={subscription.id}>
+              {expired ? "[VENCIDA] " : ""}
+              {subscription.plan_name} •{" "}
+              {new Date(subscription.start_date).toLocaleDateString("es-AR")} →{" "}
+              {new Date(subscription.end_date).toLocaleDateString("es-AR")}
+            </option>
+          );
+        })}
       </select>
 
       <input
