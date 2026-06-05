@@ -4,7 +4,6 @@ const INITIAL_FORM = {
   member: "",
   plan: "",
   start_date: "",
-  paid: false,
 };
 
 export function useSubscriptionForm() {
@@ -31,7 +30,6 @@ export function useSubscriptionForm() {
       member: subscription.member,
       plan: subscription.plan,
       start_date: subscription.start_date,
-      paid: subscription.paid,
     });
 
     setShowForm(true);
