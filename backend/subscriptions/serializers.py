@@ -5,15 +5,33 @@ from .models import Subscription
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
-    plan_name = serializers.CharField(source="plan.name", read_only=True)
+    plan_name = serializers.CharField(
+        source="plan.name",
+        read_only=True,
+    )
+
+    plan_price = serializers.DecimalField(
+        source="plan.price",
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+    )
 
     class Meta:
         model = Subscription
+
         fields = "__all__"
-        read_only_fields = ["gym", "end_date"]
+
+        read_only_fields = [
+            "gym",
+            "end_date",
+        ]
 
     def get_member_name(self, obj):
-        return f"{obj.member.first_name} {obj.member.last_name}"
+        return (
+            f"{obj.member.first_name} "
+            f"{obj.member.last_name}"
+        )
 
     def validate(self, attrs):
         gym = self.context["request"].user.profile.gym
@@ -23,12 +41,18 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
         if member.gym != gym:
             raise serializers.ValidationError(
-                {"member": "El socio no pertenece a este gimnasio."}
+                {
+                    "member":
+                    "El socio no pertenece a este gimnasio."
+                }
             )
 
         if plan.gym != gym:
             raise serializers.ValidationError(
-                {"plan": "El plan no pertenece a este gimnasio."}
+                {
+                    "plan":
+                    "El plan no pertenece a este gimnasio."
+                }
             )
 
         return attrs
@@ -38,7 +62,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         start_date = validated_data["start_date"]
 
         validated_data["end_date"] = (
-            start_date + timedelta(days=plan.duration_days)
+            start_date
+            + timedelta(days=plan.duration_days)
         )
 
         return super().create(validated_data)
