@@ -6,6 +6,8 @@ const useAuthStore = create((set, get) => ({
   user: null,
   gym: null,
 
+  must_change_password: false,
+
   loading: false,
   error: null,
 
@@ -30,7 +32,6 @@ const useAuthStore = create((set, get) => ({
         }),
       });
 
-      // 🔥 persistencia
       localStorage.setItem("token", data.token);
 
       set({
@@ -39,6 +40,10 @@ const useAuthStore = create((set, get) => ({
           username: data.username,
         },
         gym: data.gym || null,
+
+        must_change_password:
+          data.must_change_password || false,
+
         loading: false,
       });
 
@@ -60,7 +65,14 @@ const useAuthStore = create((set, get) => ({
       token: null,
       user: null,
       gym: null,
+      must_change_password: false,
       error: null,
+    });
+  },
+
+  clearMustChangePassword: () => {
+    set({
+      must_change_password: false,
     });
   },
 
