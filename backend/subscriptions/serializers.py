@@ -23,9 +23,10 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
         read_only_fields = [
-            "gym",
-            "end_date",
-        ]
+        "gym",
+        "end_date",
+        "paid",
+    ]
 
     def get_member_name(self, obj):
         return (
@@ -36,10 +37,17 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         gym = self.context["request"].user.profile.gym
 
-        member = attrs["member"]
-        plan = attrs["plan"]
+        member = attrs.get(
+            "member",
+            self.instance.member if self.instance else None,
+        )
 
-        if member.gym != gym:
+        plan = attrs.get(
+            "plan",
+            self.instance.plan if self.instance else None,
+        )
+
+        if member and member.gym != gym:
             raise serializers.ValidationError(
                 {
                     "member":
@@ -47,7 +55,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
                 }
             )
 
-        if plan.gym != gym:
+        if plan and plan.gym != gym:
             raise serializers.ValidationError(
                 {
                     "plan":

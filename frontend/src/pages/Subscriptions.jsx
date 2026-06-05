@@ -1,9 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-
 import { Plus } from "lucide-react";
-
 import { useSearchParams } from "react-router-dom";
-
 import toast from "react-hot-toast";
 
 import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
@@ -26,6 +23,7 @@ function Subscriptions() {
     createNewSubscription,
     editSubscription,
     removeSubscription,
+    renewExistingSubscription,
   } = useSubscriptions();
 
   const {
@@ -42,9 +40,7 @@ function Subscriptions() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
-
   const [statusFilter, setStatusFilter] = useState("all");
-
   const [paymentFilter, setPaymentFilter] = useState("all");
 
   const [searchParams] = useSearchParams();
@@ -60,7 +56,6 @@ function Subscriptions() {
 
   const stats = useSubscriptionStats(subscriptions);
 
-  // Abrir form desde query param
   useEffect(() => {
     const shouldOpenForm = searchParams.get("create");
 
@@ -86,18 +81,27 @@ function Subscriptions() {
     setIsSubmitting(true);
 
     try {
+      let result;
+
       if (editingSubscription) {
-        await editSubscription(editingSubscription.id, formData);
+        result = await editSubscription(editingSubscription.id, formData);
+
+        if (!result.success) {
+          throw new Error();
+        }
 
         toast.success("Subscription actualizada");
       } else {
-        await createNewSubscription(formData);
+        result = await createNewSubscription(formData);
+
+        if (!result.success) {
+          throw new Error();
+        }
 
         toast.success("Subscription creada");
       }
 
       resetForm();
-
       closeForm();
     } catch (error) {
       console.error(error);
@@ -114,13 +118,37 @@ function Subscriptions() {
     if (!confirmed) return;
 
     try {
-      await removeSubscription(id);
+      const result = await removeSubscription(id);
+
+      if (!result.success) {
+        throw new Error();
+      }
 
       toast.success("Subscription eliminada");
     } catch (error) {
       console.error(error);
 
       toast.error("No se pudo eliminar la subscription");
+    }
+  }
+
+  async function handleRenewSubscription(id) {
+    const confirmed = window.confirm("¿Renovar esta suscripción?");
+
+    if (!confirmed) return;
+
+    try {
+      const result = await renewExistingSubscription(id);
+
+      if (!result.success) {
+        throw new Error();
+      }
+
+      toast.success("Subscription renovada");
+    } catch (error) {
+      console.error(error);
+
+      toast.error("No se pudo renovar");
     }
   }
 
@@ -131,10 +159,9 @@ function Subscriptions() {
       </div>
     );
   }
-
+  console.log(filteredSubscriptions);
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
-      {/* HEADER */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Subscriptions</h1>
@@ -157,14 +184,12 @@ function Subscriptions() {
         </button>
       </div>
 
-      {/* ERROR */}
       {error && (
         <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">
           {error}
         </div>
       )}
 
-      {/* FORM */}
       {showForm && (
         <div ref={formRef}>
           <SubscriptionForm
@@ -179,10 +204,8 @@ function Subscriptions() {
         </div>
       )}
 
-      {/* STATS */}
       <SubscriptionStats stats={stats} />
 
-      {/* FILTERS */}
       <SubscriptionFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -192,7 +215,6 @@ function Subscriptions() {
         setPaymentFilter={setPaymentFilter}
       />
 
-      {/* LIST */}
       {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
           No hay subscriptions que coincidan con los filtros
@@ -205,6 +227,7 @@ function Subscriptions() {
               subscription={subscription}
               onEdit={openEditForm}
               onDelete={handleDeleteSubscription}
+              onRenew={handleRenewSubscription}
             />
           ))}
         </div>

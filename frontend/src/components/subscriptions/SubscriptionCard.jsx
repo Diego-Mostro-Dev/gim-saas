@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, RefreshCw } from "lucide-react";
 
 import {
   calculateRemainingDays,
@@ -6,7 +6,7 @@ import {
   getMemberInitials,
 } from "../../utils/subscription.utils";
 
-function SubscriptionCard({ subscription, onEdit, onDelete }) {
+function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
   const isExpired = isSubscriptionExpired(subscription.end_date);
 
   const daysRemaining = calculateRemainingDays(subscription.end_date);
@@ -29,6 +29,16 @@ function SubscriptionCard({ subscription, onEdit, onDelete }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {isExpired && (
+            <button
+              onClick={() => onRenew(subscription.id)}
+              className="rounded-lg bg-green-500/10 p-2 text-green-300 transition hover:bg-green-500/20"
+              title="Renovar"
+            >
+              <RefreshCw size={16} />
+            </button>
+          )}
+
           <button
             onClick={() => onEdit(subscription)}
             className="rounded-lg bg-blue-500/10 p-2 text-blue-300 transition hover:bg-blue-500/20"
@@ -83,6 +93,14 @@ function SubscriptionCard({ subscription, onEdit, onDelete }) {
         >
           {subscription.paid ? "Pago" : "Pendiente"}
         </div>
+      </div>
+
+      <div className="mt-3 border-t border-white/5 pt-3">
+        <p className="text-xs text-zinc-500">Valor del plan</p>
+
+        <p className="text-sm font-semibold text-white">
+          ${Number(subscription.plan_price).toLocaleString("es-AR")}
+        </p>
       </div>
     </div>
   );

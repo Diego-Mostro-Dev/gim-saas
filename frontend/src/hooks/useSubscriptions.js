@@ -5,6 +5,7 @@ import {
   createSubscription,
   deleteSubscription,
   updateSubscription,
+  renewSubscription,
 } from "../services/subscriptions.service";
 
 import { getMembers } from "../services/members.service";
@@ -133,6 +134,30 @@ export function useSubscriptions() {
     }
   }
 
+  async function renewExistingSubscription(
+    id,
+  ) {
+    try {
+      const newSubscription =
+        await renewSubscription(id);
+
+      setSubscriptions((prev) => [
+        newSubscription,
+        ...prev,
+      ]);
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error(error);
+
+      return {
+        success: false,
+      };
+    }
+  }
+
   return {
     subscriptions,
     members,
@@ -143,5 +168,6 @@ export function useSubscriptions() {
     createNewSubscription,
     editSubscription,
     removeSubscription,
+    renewExistingSubscription,
   };
 }
