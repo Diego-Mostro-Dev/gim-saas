@@ -6,9 +6,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import RoutineAssignment
 from members.models import Member
-
+from django.shortcuts import get_object_or_404
 from .serializers import MemberRoutineSerializer
-
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -262,3 +261,44 @@ class BulkAssignRoutineView(APIView):
             "assigned_members": created,
             "routine": routine.name,
         })
+
+
+class PublicRoutineView(APIView):
+    permission_classes = []
+
+    def get(self, request, token):
+        member = get_object_or_404(
+            Member,
+            access_token=token,
+            active=True,
+        )
+
+        assignment = (
+            RoutineAssignment.objects
+            .select_related(
+                "member",
+                "routine_template",
+            )
+            .prefetch_related(
+                "routine_template__routine_exercises__exercise"
+            )
+            .filter(
+                member=member,
+                active=True,
+            )
+            .first()
+        )
+
+        if not assignment:
+            return Response(
+                {
+                    "detail": "No active routine assigned"
+                },
+                status=404,
+            )
+
+        serializer = MemberRoutineSerializer(
+            assignment
+        )
+
+        return Response(serializer.data)

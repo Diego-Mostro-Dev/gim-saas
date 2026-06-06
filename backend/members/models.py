@@ -1,10 +1,18 @@
+import secrets
+
 from django.db import models
+
 from gyms.models import Gym
 
 
 class Member(models.Model):
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    first_name = models.CharField(
+        max_length=100
+    )
+
+    last_name = models.CharField(
+        max_length=100
+    )
 
     gym = models.ForeignKey(
         Gym,
@@ -12,12 +20,42 @@ class Member(models.Model):
         related_name="members",
     )
 
-    phone = models.CharField(max_length=30)
-    email = models.EmailField(blank=True)
+    phone = models.CharField(
+        max_length=30
+    )
 
-    active = models.BooleanField(default=True)
+    email = models.EmailField(
+        blank=True
+    )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    access_token = models.CharField(
+    max_length=64,
+    unique=True,
+    blank=True,
+    null=True,
+)
+
+    active = models.BooleanField(
+        default=True
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def save(self, *args, **kwargs):
+        if not self.access_token:
+            self.access_token = (
+                secrets.token_urlsafe(32)
+            )
+
+        super().save(
+            *args,
+            **kwargs,
+        )
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+        return (
+            f"{self.first_name} "
+            f"{self.last_name}"
+        )

@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
 import Settings from "./pages/Settings";
+import PublicRoutine from "./pages/PublicRoutine";
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
       {/* public */}
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymCode" element={<Register />} />
+      <Route path="/routine/:token" element={<PublicRoutine />} />
 
       {/* protected layout */}
       <Route

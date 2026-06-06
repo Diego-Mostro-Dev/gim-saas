@@ -9,6 +9,7 @@ from .views import (
     MemberRoutineWhatsappView,
     ActiveRoutinesView,
     BulkAssignRoutineView,
+    PublicRoutineView,
 )
 router = DefaultRouter()
 from django.urls import path
@@ -56,5 +57,10 @@ urlpatterns = router.urls + [
         "bulk-assign/",
         BulkAssignRoutineView.as_view(),
         name="bulk-assign-routine",
+    ),
+    path(
+    "public/<str:token>/",
+    PublicRoutineView.as_view(),
+    name="public-routine",
     ),
 ]
