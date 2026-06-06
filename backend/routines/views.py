@@ -119,28 +119,36 @@ class MemberRoutineWhatsappView(APIView):
             )
 
         lines = [
-            f"🏋️ {gym.name}",
+            f"🏋️‍♂️ *{gym.name}*",
             "",
-            f"Hola {assignment.member.first_name} 👋",
+            f"Hola *{assignment.member.first_name}* 👋",
             "",
-            f"Tu rutina actual es:",
-            f"💪 {assignment.routine_template.name}",
+            "Te compartimos tu rutina actual:",
+            "",
+            f"📋 *{assignment.routine_template.name}*",
             "",
         ]
 
-        for item in assignment.routine_template.routine_exercises.all():
+        exercises = (
+            assignment
+            .routine_template
+            .routine_exercises
+            .all()
+            .order_by("order")
+        )
 
+        for item in exercises:
             lines.append(
-                f"🔹 {item.exercise.name}"
+                f"🔹 *{item.exercise.name}*"
             )
 
             lines.append(
-                f"   {item.sets} series x {item.reps}"
+                f"   {item.sets} series × {item.reps}"
             )
 
             if item.weight:
                 lines.append(
-                    f"   🏋️ Peso: {item.weight}"
+                    f"   🏋️ Peso: {item.weight} kg"
                 )
 
             if item.notes:
@@ -151,15 +159,15 @@ class MemberRoutineWhatsappView(APIView):
             lines.append("")
 
         lines.extend([
-            "🔥 ¡A darlo todo!",
+            "🔥 ¡A entrenar fuerte!",
             "",
-            f"Nos vemos en {gym.name}",
+            f"Nos vemos en *{gym.name}* 💪",
         ])
 
         return Response({
-            "message": "\n".join(lines)
+            "phone": assignment.member.phone,
+            "message": "\n".join(lines),
         })
-
 class ActiveRoutinesView(APIView):
     permission_classes = [IsAuthenticated]
 
