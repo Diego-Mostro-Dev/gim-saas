@@ -28,7 +28,7 @@ function TemplateForm({ onSubmit }) {
       onSubmit={handleSubmit}
       className="space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
     >
-      <h2 className="text-lg font-semibold text-white">Nueva plantilla</h2>
+      <h2 className="text-lg font-semibold text-white">Nueva rutina</h2>
 
       <input
         type="text"
@@ -44,7 +44,7 @@ function TemplateForm({ onSubmit }) {
         disabled={loading}
         className="w-full rounded-xl bg-blue-500 py-3 font-medium text-white"
       >
-        {loading ? "Guardando..." : "Guardar plantilla"}
+        {loading ? "Guardando..." : "Guardar rutina"}
       </button>
     </form>
   );

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Dumbbell, ClipboardList, Users, Activity, Wrench } from "lucide-react";
+import { Dumbbell, ClipboardList, Users, Activity } from "lucide-react";
 
 import { useExercises } from "../hooks/useExercises";
 import { useRoutineTemplates } from "../hooks/useRoutineTemplates";
+import { useRoutineExercises } from "../hooks/useRoutineExercises";
 
 import ExerciseForm from "../components/routines/ExerciseForm";
 import ExerciseList from "../components/routines/ExerciseList";
@@ -10,13 +11,15 @@ import ExerciseList from "../components/routines/ExerciseList";
 import RoutineTemplateForm from "../components/routines/RoutineTemplateForm";
 import RoutineTemplateList from "../components/routines/RoutineTemplateList";
 
-import { useRoutineExercises } from "../hooks/useRoutineExercises";
-import RoutineBuilder from "../components/routines/RoutineBuilder";
 import RoutineAssignment from "../components/routines/RoutineAssignment";
 import ActiveRoutines from "../components/routines/ActiveRoutines";
 
+import TemplateDetails from "../components/routines/TemplateDetails";
+
 function Routines() {
   const [activeTab, setActiveTab] = useState("exercises");
+
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
 
   const {
     exercises,
@@ -30,9 +33,12 @@ function Routines() {
     loading: templatesLoading,
     error: templatesError,
     addTemplate,
+    editTemplate,
+    removeTemplate,
   } = useRoutineTemplates();
 
-  const { routineExercises, addRoutineExercise } = useRoutineExercises();
+  const { routineExercises, addRoutineExercise, removeRoutineExercise } =
+    useRoutineExercises();
 
   const tabs = [
     {
@@ -42,13 +48,8 @@ function Routines() {
     },
     {
       id: "templates",
-      label: "Plantillas",
+      label: "Rutinas",
       icon: ClipboardList,
-    },
-    {
-      id: "builder",
-      label: "Constructor",
-      icon: Wrench,
     },
     {
       id: "assignments",
@@ -72,7 +73,7 @@ function Routines() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {tabs.map((tab) => {
           const Icon = tab.icon;
 
@@ -95,6 +96,7 @@ function Routines() {
       </div>
 
       <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-5">
+        {/* EJERCICIOS */}
         {activeTab === "exercises" && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-white">Ejercicios</h2>
@@ -117,15 +119,16 @@ function Routines() {
           </div>
         )}
 
+        {/* RUTINAS */}
         {activeTab === "templates" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Plantillas</h2>
+            <h2 className="text-lg font-semibold text-white">Rutinas</h2>
 
             <RoutineTemplateForm onSubmit={addTemplate} />
 
             {templatesLoading && (
               <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
-                Cargando plantillas...
+                Cargando rutinas...
               </div>
             )}
 
@@ -135,19 +138,38 @@ function Routines() {
               </div>
             )}
 
-            {!templatesLoading && <RoutineTemplateList templates={templates} />}
+            {!templatesLoading && (
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* LISTA DE RUTINAS */}
+                <div>
+                  <RoutineTemplateList
+                    templates={templates}
+                    selectedTemplate={selectedTemplate}
+                    onSelectTemplate={setSelectedTemplate}
+                  />
+                </div>
+
+                {/* DETALLE DE LA RUTINA  */}
+                <div>
+                  <TemplateDetails
+                    template={selectedTemplate}
+                    exercises={routineExercises.filter(
+                      (item) => item.routine_template === selectedTemplate?.id,
+                    )}
+                    allExercises={exercises}
+                    addRoutineExercise={addRoutineExercise}
+                    removeRoutineExercise={removeRoutineExercise}
+                    editTemplate={editTemplate}
+                    removeTemplate={removeTemplate}
+                    onTemplateDeleted={() => setSelectedTemplate(null)}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {activeTab === "builder" && (
-          <RoutineBuilder
-            templates={templates}
-            exercises={exercises}
-            routineExercises={routineExercises}
-            addRoutineExercise={addRoutineExercise}
-          />
-        )}
-
+        {/* ASIGNACIONES */}
         {activeTab === "assignments" && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-white">
@@ -158,6 +180,7 @@ function Routines() {
           </div>
         )}
 
+        {/* ACTIVAS */}
         {activeTab === "active" && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-white">

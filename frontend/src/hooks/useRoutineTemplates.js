@@ -84,14 +84,14 @@ export function useRoutineTemplates() {
     );
   }
 
-  return {
-    templates,
-    loading,
-    error,
-    addTemplate,
-    editTemplate,
-    removeTemplate,
-    reloadTemplates:
-      loadTemplates,
-  };
+ return {
+  templates,
+  loading,
+  error,
+  addTemplate,
+  editTemplate,
+  removeTemplate,
+  reloadTemplates:
+    loadTemplates,
+};
 }

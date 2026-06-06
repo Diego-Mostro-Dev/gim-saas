@@ -4,7 +4,7 @@ function TemplateList({ templates }) {
   if (!templates.length) {
     return (
       <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
-        No hay plantillas cargadas
+        No hay rutinas cargadas
       </div>
     );
   }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getRoutineExercises,
   createRoutineExercise,
+  deleteRoutineExercise,
 } from "../services/routines.service";
 
 export function useRoutineExercises() {
@@ -54,11 +55,20 @@ export function useRoutineExercises() {
     return created;
   }
 
+  async function removeRoutineExercise(id) {
+    await deleteRoutineExercise(id);
+
+    setRoutineExercises((prev) =>
+      prev.filter((item) => item.id !== id)
+    );
+  }
+
   return {
     routineExercises,
     loading,
     error,
     addRoutineExercise,
+    removeRoutineExercise,
     reloadRoutineExercises:
       loadRoutineExercises,
   };
