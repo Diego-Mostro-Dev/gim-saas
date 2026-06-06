@@ -87,10 +87,7 @@ class MemberRoutineSerializer(serializers.ModelSerializer):
 # routines/serializers.py
 
 class ActiveRoutineSerializer(serializers.ModelSerializer):
-    member_name = serializers.CharField(
-        source="member.full_name",
-        read_only=True,
-    )
+    member_name = serializers.SerializerMethodField()
 
     routine_name = serializers.CharField(
         source="routine_template.name",
@@ -116,3 +113,6 @@ class ActiveRoutineSerializer(serializers.ModelSerializer):
             "routine_id",
             "routine_name",
         ]
+
+    def get_member_name(self, obj):
+        return f"{obj.member.first_name} {obj.member.last_name}"
