@@ -20,7 +20,7 @@ function RoutineTemplateForm({ onSubmit }) {
       onSubmit={handleSubmit}
       className="space-y-3 rounded-2xl border border-white/5 bg-[#1a1a1a] p-4"
     >
-      <h3 className="text-white font-medium">Nueva plantilla</h3>
+      <h3 className="text-white font-medium">Nueva rutina</h3>
 
       <input
         type="text"
@@ -34,7 +34,7 @@ function RoutineTemplateForm({ onSubmit }) {
         type="submit"
         className="w-full rounded-xl bg-blue-500 py-3 font-medium text-white"
       >
-        Guardar plantilla
+        Guardar rutina
       </button>
     </form>
   );
