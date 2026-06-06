@@ -130,3 +130,9 @@ export async function getMemberWhatsapp(memberId) {
     `/api/routines/member/${memberId}/whatsapp/`
   );
 }
+
+export async function getPublicRoutine(token) {
+  return apiFetch(
+    `/api/routines/public/${token}/`,
+  );
+}
