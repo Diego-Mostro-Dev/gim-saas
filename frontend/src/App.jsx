@@ -1,15 +1,13 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-
 import AppLayout from "./layouts/AppLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
-
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import Subscriptions from "./pages/Subscriptions";
 import Plans from "./pages/Plans";
 import Payments from "./pages/Payments";
 import Attendance from "./pages/Attendance";
-
+import Routines from "./pages/Routines";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Registration from "./pages/Registration";
@@ -43,6 +41,7 @@ function App() {
         <Route path="/registration" element={<Registration />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/routines" element={<Routines />} />
       </Route>
     </Routes>
   );
