@@ -1,8 +1,38 @@
 import { useState } from "react";
-import { Dumbbell, ClipboardList, Users, Activity } from "lucide-react";
+import { Dumbbell, ClipboardList, Users, Activity, Wrench } from "lucide-react";
+
+import { useExercises } from "../hooks/useExercises";
+import { useRoutineTemplates } from "../hooks/useRoutineTemplates";
+
+import ExerciseForm from "../components/routines/ExerciseForm";
+import ExerciseList from "../components/routines/ExerciseList";
+
+import RoutineTemplateForm from "../components/routines/RoutineTemplateForm";
+import RoutineTemplateList from "../components/routines/RoutineTemplateList";
+
+import { useRoutineExercises } from "../hooks/useRoutineExercises";
+import RoutineBuilder from "../components/routines/RoutineBuilder";
+import RoutineAssignment from "../components/routines/RoutineAssignment";
+import ActiveRoutines from "../components/routines/ActiveRoutines";
 
 function Routines() {
   const [activeTab, setActiveTab] = useState("exercises");
+
+  const {
+    exercises,
+    loading: exercisesLoading,
+    error: exercisesError,
+    addExercise,
+  } = useExercises();
+
+  const {
+    templates,
+    loading: templatesLoading,
+    error: templatesError,
+    addTemplate,
+  } = useRoutineTemplates();
+
+  const { routineExercises, addRoutineExercise } = useRoutineExercises();
 
   const tabs = [
     {
@@ -14,6 +44,11 @@ function Routines() {
       id: "templates",
       label: "Plantillas",
       icon: ClipboardList,
+    },
+    {
+      id: "builder",
+      label: "Constructor",
+      icon: Wrench,
     },
     {
       id: "assignments",
@@ -37,7 +72,7 @@ function Routines() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
 
@@ -52,6 +87,7 @@ function Routines() {
               }`}
             >
               <Icon size={18} />
+
               <span className="text-sm font-medium">{tab.label}</span>
             </button>
           );
@@ -60,27 +96,56 @@ function Routines() {
 
       <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-5">
         {activeTab === "exercises" && (
-          <div>
-            <h2 className="mb-4 text-lg font-semibold text-white">
-              Ejercicios
-            </h2>
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-white">Ejercicios</h2>
 
-            <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
-              Próximamente listado de ejercicios
-            </div>
+            <ExerciseForm onSubmit={addExercise} />
+
+            {exercisesLoading && (
+              <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
+                Cargando ejercicios...
+              </div>
+            )}
+
+            {exercisesError && (
+              <div className="rounded-xl bg-red-500/10 p-4 text-red-300">
+                {exercisesError}
+              </div>
+            )}
+
+            {!exercisesLoading && <ExerciseList exercises={exercises} />}
           </div>
         )}
 
         {activeTab === "templates" && (
-          <div>
-            <h2 className="mb-4 text-lg font-semibold text-white">
-              Plantillas
-            </h2>
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-white">Plantillas</h2>
 
-            <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
-              Próximamente listado de plantillas
-            </div>
+            <RoutineTemplateForm onSubmit={addTemplate} />
+
+            {templatesLoading && (
+              <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
+                Cargando plantillas...
+              </div>
+            )}
+
+            {templatesError && (
+              <div className="rounded-xl bg-red-500/10 p-4 text-red-300">
+                {templatesError}
+              </div>
+            )}
+
+            {!templatesLoading && <RoutineTemplateList templates={templates} />}
           </div>
+        )}
+
+        {activeTab === "builder" && (
+          <RoutineBuilder
+            templates={templates}
+            exercises={exercises}
+            routineExercises={routineExercises}
+            addRoutineExercise={addRoutineExercise}
+          />
         )}
 
         {activeTab === "assignments" && (
@@ -89,9 +154,7 @@ function Routines() {
               Asignaciones
             </h2>
 
-            <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
-              Próximamente asignación masiva de rutinas
-            </div>
+            <RoutineAssignment />
           </div>
         )}
 
@@ -101,9 +164,7 @@ function Routines() {
               Rutinas activas
             </h2>
 
-            <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
-              Próximamente listado de rutinas activas
-            </div>
+            <ActiveRoutines />
           </div>
         )}
       </div>
