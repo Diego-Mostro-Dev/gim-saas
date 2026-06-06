@@ -41,6 +41,11 @@ class RoutineExerciseSerializer(serializers.ModelSerializer):
 
 
 class MemberRoutineSerializer(serializers.ModelSerializer):
+    member_id = serializers.IntegerField(
+        source="member.id",
+        read_only=True,
+    )
+
     member_name = serializers.SerializerMethodField()
 
     routine_name = serializers.CharField(
@@ -52,8 +57,10 @@ class MemberRoutineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RoutineAssignment
+
         fields = [
             "id",
+            "member_id",
             "member",
             "member_name",
             "routine_template",
@@ -84,8 +91,6 @@ class MemberRoutineSerializer(serializers.ModelSerializer):
         ]
 
 
-# routines/serializers.py
-
 class ActiveRoutineSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
 
@@ -115,4 +120,7 @@ class ActiveRoutineSerializer(serializers.ModelSerializer):
         ]
 
     def get_member_name(self, obj):
-        return f"{obj.member.first_name} {obj.member.last_name}"
+        return (
+            f"{obj.member.first_name} "
+            f"{obj.member.last_name}"
+        )

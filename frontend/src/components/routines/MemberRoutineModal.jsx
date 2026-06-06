@@ -1,5 +1,34 @@
+import { useState } from "react";
+import { useMemberRoutine } from "../../hooks/useMemberRoutine";
+
 function MemberRoutineModal({ open, onClose, routine }) {
+  const { loadWhatsapp } = useMemberRoutine();
+
+  const [sending, setSending] = useState(false);
+
   if (!open || !routine) return null;
+
+  async function handleWhatsapp() {
+    try {
+      setSending(true);
+
+      const data = await loadWhatsapp(routine.member_id);
+
+      const phone = data.phone.replace(/\D/g, "");
+
+      const url = `https://wa.me/54${phone}?text=${encodeURIComponent(
+        data.message,
+      )}`;
+
+      window.open(url, "_blank");
+    } catch (error) {
+      console.error(error);
+
+      alert("No se pudo generar el mensaje");
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -11,6 +40,16 @@ function MemberRoutineModal({ open, onClose, routine }) {
 
           <button onClick={onClose} className="text-zinc-400 hover:text-white">
             ✕
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <button
+            onClick={handleWhatsapp}
+            disabled={sending}
+            className="w-full rounded-xl bg-green-600 py-3 font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {sending ? "Generando mensaje..." : "📲 Abrir WhatsApp"}
           </button>
         </div>
 
