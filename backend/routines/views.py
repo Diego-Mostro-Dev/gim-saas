@@ -117,6 +117,11 @@ class MemberRoutineWhatsappView(APIView):
                 status=404,
             )
 
+        routine_url = (
+            f"http://localhost:5173/routine/"
+            f"{assignment.member.access_token}"
+        )
+
         lines = [
             f"🏋️‍♂️ *{gym.name}*",
             "",
@@ -160,6 +165,9 @@ class MemberRoutineWhatsappView(APIView):
         lines.extend([
             "🔥 ¡A entrenar fuerte!",
             "",
+            "📲 Ver rutina online:",
+            routine_url,
+            "",
             f"Nos vemos en *{gym.name}* 💪",
         ])
 
@@ -167,6 +175,8 @@ class MemberRoutineWhatsappView(APIView):
             "phone": assignment.member.phone,
             "message": "\n".join(lines),
         })
+
+    
 class ActiveRoutinesView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -278,6 +288,7 @@ class PublicRoutineView(APIView):
             .select_related(
                 "member",
                 "routine_template",
+                "gym",
             )
             .prefetch_related(
                 "routine_template__routine_exercises__exercise"
@@ -292,7 +303,7 @@ class PublicRoutineView(APIView):
         if not assignment:
             return Response(
                 {
-                    "detail": "No active routine assigned"
+                    "detail": "No active routine assigned",
                 },
                 status=404,
             )
@@ -301,4 +312,17 @@ class PublicRoutineView(APIView):
             assignment
         )
 
-        return Response(serializer.data)
+        return Response({
+            "member": {
+                "id": member.id,
+                "first_name": member.first_name,
+                "last_name": member.last_name,
+                "phone": member.phone,
+                "email": member.email,
+            },
+            "gym": {
+                "id": assignment.gym.id,
+                "name": assignment.gym.name,
+            },
+            "routine": serializer.data,
+        })
