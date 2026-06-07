@@ -15,6 +15,15 @@ import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
 import { getMemberWhatsapp } from "../services/routines.service";
 
+import {
+  getMember,
+  getMembers,
+  createMember,
+  deleteMember,
+  updateMember,
+  getMemberPayments,
+} from "../services/members.service";
+
 function Members() {
   const { members, loading, error, createNewMember, editMember, removeMember } =
     useMembers();
@@ -48,6 +57,12 @@ function Members() {
     members,
     searchTerm,
   });
+
+  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+
+  const [memberPayments, setMemberPayments] = useState([]);
+
+  const [paymentsMemberName, setPaymentsMemberName] = useState("");
 
   // Abrir form desde query param (?create=true)
   useEffect(() => {
@@ -118,6 +133,22 @@ function Members() {
       console.error(error);
 
       toast.error("No se pudo eliminar el miembro");
+    }
+  }
+
+  async function handleViewPayments(member) {
+    try {
+      const data = await getMemberPayments(member.id);
+
+      setMemberPayments(data);
+
+      setPaymentsMemberName(`${member.first_name} ${member.last_name}`);
+
+      setShowPaymentsModal(true);
+    } catch (error) {
+      console.error(error);
+
+      toast.error("No se pudo cargar el historial");
     }
   }
 
@@ -236,6 +267,7 @@ function Members() {
               onDelete={handleOpenDeleteModal}
               onSharePortal={handleSharePortal}
               onCopyPortalLink={handleCopyPortalLink}
+              onViewPayments={handleViewPayments}
             />
           ))
         )}
@@ -260,6 +292,45 @@ function Members() {
           setMemberToDelete(null);
         }}
       />
+
+      {showPaymentsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-full max-w-2xl rounded-2xl bg-[#201f1f] p-6">
+            <h2 className="mb-4 text-xl font-bold">
+              Pagos de {paymentsMemberName}
+            </h2>
+
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {memberPayments.length === 0 ? (
+                <p className="text-zinc-400">No hay pagos registrados</p>
+              ) : (
+                memberPayments.map((payment) => (
+                  <div key={payment.id} className="rounded-xl bg-[#2a2a2a] p-3">
+                    <p>Plan: {payment.plan_name}</p>
+
+                    <p>
+                      Monto: ${Number(payment.amount).toLocaleString("es-AR")}
+                    </p>
+
+                    <p>
+                      Fecha: {new Date(payment.paid_at).toLocaleDateString()}
+                    </p>
+
+                    <p>Vencimiento: {payment.subscription_end_date ?? "-"}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowPaymentsModal(false)}
+              className="mt-4 w-full rounded-xl bg-blue-500 py-2"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

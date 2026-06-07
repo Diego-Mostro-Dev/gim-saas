@@ -8,6 +8,10 @@ export async function getMember(id) {
   return apiFetch(`/api/members/${id}/`);
 }
 
+export async function getMemberPayments(id) {
+  return apiFetch(`/api/members/${id}/payments/`);
+}
+
 export async function createMember(memberData) {
   return apiFetch("/api/members/", {
     method: "POST",
