@@ -350,6 +350,11 @@ class PublicRoutineView(APIView):
             "gym": {
                 "id": assignment.gym.id,
                 "name": assignment.gym.name,
+                "logo_url": (
+                    assignment.gym.logo.url
+                    if assignment.gym.logo
+                    else None
+                ),
             },
             "subscription": (
                 {

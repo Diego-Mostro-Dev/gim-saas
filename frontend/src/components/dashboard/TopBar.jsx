@@ -16,9 +16,27 @@ function TopBar() {
         <Menu className="text-blue-400" size={22} />
       </div>
 
-      <h1 className="text-xl font-bold tracking-tight text-blue-300">
-        {gym?.name ? `${gym.name.toUpperCase()} DASHBOARD` : "GYM DASHBOARD"}
-      </h1>
+      <div className="flex items-center gap-3">
+        {gym?.logo_url ? (
+          <img
+            src={gym.logo_url}
+            alt={gym.name}
+            className="h-10 w-10 rounded-xl object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500 font-bold text-white">
+            {gym?.name?.charAt(0)?.toUpperCase() || "G"}
+          </div>
+        )}
+
+        <div>
+          <h1 className="text-sm font-bold tracking-wider text-white">
+            {gym?.name?.toUpperCase() || "GYM"}
+          </h1>
+
+          <p className="text-xs text-zinc-500">Dashboard</p>
+        </div>
+      </div>
 
       <div className="flex items-center gap-2">
         <Link

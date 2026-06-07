@@ -6,6 +6,7 @@ from .models import Gym
 class GymSerializer(serializers.ModelSerializer):
     onboarding_url = serializers.SerializerMethodField()
     register_url = serializers.SerializerMethodField()
+    logo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Gym
@@ -13,6 +14,8 @@ class GymSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "slug",
+            "logo",
+            "logo_url",
             "active",
             "onboarding_code",
             "onboarding_url",
@@ -25,3 +28,9 @@ class GymSerializer(serializers.ModelSerializer):
 
     def get_register_url(self, obj):
         return obj.get_public_register_url()
+
+    def get_logo_url(self, obj):
+        if not obj.logo:
+            return None
+
+        return obj.logo.url

@@ -64,10 +64,22 @@ function PublicRoutine() {
   return (
     <div className="min-h-screen bg-[#161616] p-4">
       <div className="mx-auto max-w-2xl space-y-4">
-        <div className="rounded-2xl bg-[#201f1f] p-6">
-          <p className="text-sm text-zinc-500">{gym.name}</p>
+        <div className="rounded-2xl bg-[#201f1f] p-6 text-center">
+          {gym.logo_url ? (
+            <img
+              src={gym.logo_url}
+              alt={gym.name}
+              className="mx-auto mb-4 h-24 w-24 rounded-3xl object-cover"
+            />
+          ) : (
+            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-3xl bg-pink-500 text-3xl font-bold text-white">
+              {gym.name?.charAt(0)?.toUpperCase()}
+            </div>
+          )}
 
-          <h1 className="mt-1 text-2xl font-bold text-white">
+          <p className="text-lg font-semibold text-zinc-300">{gym.name}</p>
+
+          <h1 className="mt-2 text-3xl font-bold text-white">
             {member.first_name} {member.last_name}
           </h1>
         </div>

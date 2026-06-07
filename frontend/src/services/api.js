@@ -4,9 +4,14 @@ export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem("token");
 
   const headers = {
-    "Content-Type": "application/json",
     ...options.headers,
   };
+
+  const isFormData = options.body instanceof FormData;
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Token ${token}`;
@@ -17,7 +22,6 @@ export async function apiFetch(endpoint, options = {}) {
     headers,
   });
 
-  // 🔥 interceptor base (listo para expandir)
   if (res.status === 401) {
     localStorage.removeItem("token");
     window.location.href = "/login";
@@ -32,11 +36,15 @@ export async function apiFetch(endpoint, options = {}) {
     } catch {}
 
     throw new Error(
-      error.detail || error.message || "Error en la petición"
+      error.detail ||
+      error.message ||
+      "Error en la petición"
     );
   }
 
-  if (res.status === 204) return null;
+  if (res.status === 204) {
+    return null;
+  }
 
   const contentType = res.headers.get("content-type");
 
