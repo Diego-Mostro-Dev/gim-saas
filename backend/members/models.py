@@ -1,6 +1,7 @@
 import secrets
 
 from django.db import models
+from cloudinary.models import CloudinaryField
 
 from gyms.models import Gym
 
@@ -20,6 +21,12 @@ class Member(models.Model):
         related_name="members",
     )
 
+    photo = CloudinaryField(
+        "member_photo",
+        blank=True,
+        null=True,
+    )
+
     phone = models.CharField(
         max_length=30
     )
@@ -29,11 +36,11 @@ class Member(models.Model):
     )
 
     access_token = models.CharField(
-    max_length=64,
-    unique=True,
-    blank=True,
-    null=True,
-)
+        max_length=64,
+        unique=True,
+        blank=True,
+        null=True,
+    )
 
     active = models.BooleanField(
         default=True
