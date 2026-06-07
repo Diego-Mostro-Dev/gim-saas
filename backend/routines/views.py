@@ -286,7 +286,6 @@ class PublicRoutineView(APIView):
         member = get_object_or_404(
             Member,
             access_token=token,
-            active=True,
         )
 
         assignment = (
