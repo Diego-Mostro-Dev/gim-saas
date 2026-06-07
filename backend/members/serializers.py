@@ -93,6 +93,9 @@ class MemberSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
+        if isinstance(schedules, str):
+            schedules = []
+
         AttendanceSchedule.objects.bulk_create(
             [
                 AttendanceSchedule(

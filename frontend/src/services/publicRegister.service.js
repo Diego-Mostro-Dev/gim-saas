@@ -5,14 +5,47 @@ export async function registerPublicMember(
   gymCode,
   memberData
 ) {
+  const formData = new FormData();
+
+  formData.append(
+    "first_name",
+    memberData.first_name
+  );
+
+  formData.append(
+    "last_name",
+    memberData.last_name
+  );
+
+  formData.append(
+    "phone",
+    memberData.phone
+  );
+
+  formData.append(
+    "email",
+    memberData.email || ""
+  );
+
+  formData.append(
+    "schedules",
+    JSON.stringify(
+      memberData.schedules || []
+    )
+  );
+
+  if (memberData.photo) {
+    formData.append(
+      "photo",
+      memberData.photo
+    );
+  }
+
   const response = await fetch(
     `${API_BASE}/${gymCode}/`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(memberData),
+      body: formData,
     }
   );
 
