@@ -13,6 +13,14 @@ class MemberViewSet(GymModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
 
+    def update(self, request, *args, **kwargs):
+
+        return super().update(
+            request,
+            *args,
+            **kwargs,
+        )
+
     @action(
         detail=True,
         methods=["get"],

@@ -21,9 +21,19 @@ function MemberCard({
     <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
-            {member.first_name[0]}
-            {member.last_name[0]}
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
+            {member.photo ? (
+              <img
+                src={member.photo}
+                alt={`${member.first_name} ${member.last_name}`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <>
+                {member.first_name[0]}
+                {member.last_name[0]}
+              </>
+            )}
           </div>
 
           <div>
