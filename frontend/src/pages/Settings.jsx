@@ -12,6 +12,8 @@ function Settings() {
     slug: "",
   });
 
+  const [logoFile, setLogoFile] = useState(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -29,12 +31,20 @@ function Settings() {
     try {
       setIsSubmitting(true);
 
-      await updateGym({
-        name: formData.name,
-        slug: formData.slug,
-      });
+      const data = new FormData();
+
+      data.append("name", formData.name);
+      data.append("slug", formData.slug);
+
+      if (logoFile) {
+        data.append("logo", logoFile);
+      }
+
+      await updateGym(data);
 
       toast.success("Configuración actualizada correctamente");
+
+      window.location.reload();
     } catch (error) {
       toast.error(error.message || "No se pudo actualizar la configuración");
     } finally {
@@ -56,6 +66,38 @@ function Settings() {
         onSubmit={handleSubmit}
         className="rounded-2xl border border-white/10 bg-[#201f1f] p-6"
       >
+        <div className="mb-8 flex flex-col items-center">
+          <div className="mb-4">
+            {logoFile ? (
+              <img
+                src={URL.createObjectURL(logoFile)}
+                alt="Preview"
+                className="h-32 w-32 rounded-3xl border border-white/10 object-cover"
+              />
+            ) : gym.logo_url ? (
+              <img
+                src={gym.logo_url}
+                alt={gym.name}
+                className="h-32 w-32 rounded-3xl border border-white/10 object-cover"
+              />
+            ) : (
+              <div className="flex h-32 w-32 items-center justify-center rounded-3xl border border-white/10 bg-pink-500 text-5xl font-bold text-white">
+                {gym?.name?.charAt(0)?.toUpperCase() || "G"}
+              </div>
+            )}
+          </div>
+
+          <label className="cursor-pointer rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
+            Cambiar logo
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+          </label>
+        </div>
+
         <div className="mb-4">
           <label className="mb-2 block text-sm text-zinc-300">Nombre</label>
 
