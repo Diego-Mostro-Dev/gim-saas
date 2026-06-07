@@ -13,25 +13,19 @@ function Dashboard() {
   if (loading) {
     return <div className="text-white">Cargando dashboard...</div>;
   }
-
+  console.log("DASHBOARD DATA", dashboardData);
   return (
     <div className="space-y-6">
       {error && (
         <div className="rounded-xl bg-red-500/10 p-4 text-red-300">{error}</div>
       )}
-
       <StatsCards data={dashboardData} />
-
       <QuickActions />
-
-      <WeeklyChart />
-
+      <WeeklyChart data={dashboardData?.weeklyAttendance || []} />
       <UpcomingExpirations
         expirations={dashboardData?.upcomingExpirations || []}
       />
-
       <PendingPayments pendingPayments={dashboardData?.pendingPayments || []} />
-
       <RecentActivity activity={dashboardData?.recentActivity || []} />
     </div>
   );
