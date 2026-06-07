@@ -13,8 +13,21 @@ class PaymentViewSet(GymModelViewSet):
 
         instance.delete()
 
-        has_payments = subscription.payments.exists()
+        if not subscription:
+            return
 
-        if not has_payments and subscription.paid:
+        has_payments = (
+            Payment.objects.filter(
+                subscription=subscription
+            ).exists()
+        )
+
+        if (
+            not has_payments
+            and subscription.paid
+        ):
             subscription.paid = False
-            subscription.save(update_fields=["paid"])
+
+            subscription.save(
+                update_fields=["paid"]
+            )

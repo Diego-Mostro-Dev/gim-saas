@@ -20,12 +20,26 @@ class PaymentSerializer(serializers.ModelSerializer):
         return subscription
 
     def create(self, validated_data):
-        payment = super().create(validated_data)
+        subscription = validated_data["subscription"]
 
-        subscription = payment.subscription
+        validated_data["member_name"] = (
+            f"{subscription.member.first_name} "
+            f"{subscription.member.last_name}"
+        )
+
+        validated_data["plan_name"] = (
+            subscription.plan.name
+        )
+        validated_data["subscription_end_date"] = (
+            subscription.end_date
+        )
+
+        payment = super().create(validated_data)
 
         if not subscription.paid:
             subscription.paid = True
-            subscription.save(update_fields=["paid"])
+            subscription.save(
+                update_fields=["paid"]
+            )
 
         return payment

@@ -19,9 +19,21 @@ class Payment(models.Model):
     )
 
     subscription = models.ForeignKey(
-        Subscription,
-        on_delete=models.CASCADE,
-        related_name="payments",
+    Subscription,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name="payments",
+    )
+
+    member_name = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    plan_name = models.CharField(
+        max_length=255,
+        blank=True,
     )
 
     amount = models.DecimalField(
@@ -44,9 +56,13 @@ class Payment(models.Model):
         auto_now_add=True,
     )
 
+    subscription_end_date = models.DateField(
+    null=True,
+    blank=True,
+)
+
     def __str__(self):
         return (
-            f"{self.subscription.member} - "
+            f"{self.member_name} - "
             f"${self.amount}"
         )
-    
