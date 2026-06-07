@@ -51,14 +51,16 @@ function PublicRoutine() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 rounded-2xl bg-[#201f1f] p-6">
           <h1 className="text-2xl font-bold text-white">
-            {routine.member_name}
+            {routine.member.first_name} {routine.member.last_name}
           </h1>
 
-          <p className="mt-2 text-zinc-400">{routine.routine_name}</p>
+          <p className="mt-2 text-zinc-400">{routine.gym.name}</p>
+
+          <p className="mt-1 text-zinc-500">{routine.routine.routine_name}</p>
         </div>
 
         <div className="space-y-3">
-          {routine.exercises?.map((exercise) => (
+          {routine.routine.exercises?.map((exercise) => (
             <div key={exercise.id} className="rounded-2xl bg-[#201f1f] p-4">
               <h2 className="font-semibold text-white">{exercise.name}</h2>
 
