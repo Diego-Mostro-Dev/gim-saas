@@ -132,4 +132,7 @@ class MemberPortalSerializer(serializers.Serializer):
         allow_null=True
     )
     schedules = serializers.ListField()
+    attendance_history = serializers.ListField(
+        required=False
+    )
     routine = serializers.DictField()
