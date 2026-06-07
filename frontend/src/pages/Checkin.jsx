@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { apiFetch } from "../services/api";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function Checkin() {
   const { gymCode } = useParams();
@@ -14,13 +14,20 @@ export default function Checkin() {
       return;
     }
 
-    registerAttendance(gymCode);
+    const memberToken = localStorage.getItem("member_token");
+
+    if (!memberToken) {
+      setMessage("No pudimos identificarte. Abrí primero tu Portal del Socio.");
+      return;
+    }
+
+    registerAttendance(memberToken);
   }, [gymCode]);
 
-  async function registerAttendance(token) {
+  async function registerAttendance(memberToken) {
     try {
       const res = await fetch(
-        `http://localhost:8000/api/attendance/checkin/${token}/`,
+        `${API_URL}/api/attendance/checkin/${memberToken}/`,
         {
           method: "POST",
           headers: {

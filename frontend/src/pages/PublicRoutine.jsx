@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import { getPublicRoutine } from "../services/routines.service";
 
@@ -14,7 +14,6 @@ const DAY_NAMES = {
 
 function PublicRoutine() {
   const { token } = useParams();
-  const navigate = useNavigate();
 
   const [routine, setRoutine] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +64,6 @@ function PublicRoutine() {
   return (
     <div className="min-h-screen bg-[#161616] p-4">
       <div className="mx-auto max-w-2xl space-y-4">
-        {/* GYM HEADER */}
         <div className="rounded-2xl bg-[#201f1f] p-6">
           <p className="text-sm text-zinc-500">{gym.name}</p>
 
@@ -74,7 +72,6 @@ function PublicRoutine() {
           </h1>
         </div>
 
-        {/* SUBSCRIPTION */}
         <div className="rounded-2xl bg-[#201f1f] p-4">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Suscripción
@@ -84,19 +81,16 @@ function PublicRoutine() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400">Plan</span>
-
                 <span className="text-white">{subscription.plan}</span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400">Inicio</span>
-
                 <span className="text-white">{subscription.start_date}</span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400">Vencimiento</span>
-
                 <span className="text-white">{subscription.end_date}</span>
               </div>
 
@@ -119,7 +113,6 @@ function PublicRoutine() {
           )}
         </div>
 
-        {/* SCHEDULES */}
         <div className="rounded-2xl bg-[#201f1f] p-4">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Horarios
@@ -141,21 +134,6 @@ function PublicRoutine() {
           )}
         </div>
 
-        {/* ATTENDANCE QR ACCESS */}
-        <div className="rounded-2xl bg-[#201f1f] p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Acceso al gimnasio
-          </h2>
-
-          <button
-            onClick={() => navigate("/attendance-qr")}
-            className="w-full rounded-xl bg-pink-500 px-4 py-3 font-medium text-white transition active:scale-95"
-          >
-            Mi QR de ingreso
-          </button>
-        </div>
-
-        {/* ROUTINE */}
         {routine.routine && (
           <div className="rounded-2xl bg-[#201f1f] p-4">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
