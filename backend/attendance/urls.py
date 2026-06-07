@@ -7,6 +7,10 @@ from .views import (
     AttendanceCreateView,
 )
 
+from .public_views import (
+    PublicCheckinView,
+)
+
 urlpatterns = [
     path(
         "weekly/",
@@ -30,5 +34,11 @@ urlpatterns = [
         "register/",
         AttendanceCreateView.as_view(),
         name="attendance-register",
+    ),
+
+    path(
+        "checkin/<str:token>/",
+        PublicCheckinView.as_view(),
+        name="attendance-checkin",
     ),
 ]

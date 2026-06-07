@@ -1,4 +1,11 @@
-import { UserPlus, CreditCard, RefreshCw, QrCode } from "lucide-react";
+import {
+  UserPlus,
+  CreditCard,
+  RefreshCw,
+  QrCode,
+  Dumbbell,
+  CheckCircle,
+} from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
 
@@ -47,6 +54,26 @@ function QuickActions() {
         <QrCode size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">Registro</span>
+      </button>
+
+      <button
+        onClick={() => navigate("/checkin-qr")}
+        className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3 transition active:scale-95"
+      >
+        <CheckCircle size={18} className="text-green-400" />
+
+        <span className="whitespace-nowrap text-sm text-white">
+          QR Asistencia
+        </span>
+      </button>
+
+      <button
+        onClick={() => navigate("/routines")}
+        className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3 transition active:scale-95"
+      >
+        <Dumbbell size={18} className="text-pink-300" />
+
+        <span className="whitespace-nowrap text-sm text-white">Rutinas</span>
       </button>
     </section>
   );
