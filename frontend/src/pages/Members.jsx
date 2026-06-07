@@ -13,6 +13,7 @@ import ConfirmModal from "../components/ui/ConfirmModal";
 import { useMembers } from "../hooks/useMembers";
 import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
+import { getMemberWhatsapp } from "../services/routines.service";
 
 function Members() {
   const { members, loading, error, createNewMember, editMember, removeMember } =
@@ -120,6 +121,38 @@ function Members() {
     }
   }
 
+  async function handleSharePortal(memberId) {
+    try {
+      const data = await getMemberWhatsapp(memberId);
+
+      const phone = data.phone.replace(/\D/g, "");
+
+      const url = `https://wa.me/54${phone}?text=${encodeURIComponent(
+        data.message,
+      )}`;
+
+      window.open(url, "_blank");
+    } catch {
+      toast.error("El socio no tiene una rutina activa");
+    }
+  }
+
+  async function handleCopyPortalLink(memberId) {
+    try {
+      const data = await getMemberWhatsapp(memberId);
+
+      const urlMatch = data.message.match(/https?:\/\/[^\s]+/);
+
+      if (urlMatch) {
+        await navigator.clipboard.writeText(urlMatch[0]);
+
+        toast.success("Link copiado al portapapeles");
+      }
+    } catch {
+      toast.error("El socio no tiene una rutina activa");
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
@@ -201,6 +234,8 @@ function Members() {
               member={member}
               onEdit={openEditForm}
               onDelete={handleOpenDeleteModal}
+              onSharePortal={handleSharePortal}
+              onCopyPortalLink={handleCopyPortalLink}
             />
           ))
         )}

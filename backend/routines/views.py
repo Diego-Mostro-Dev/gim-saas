@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from rest_framework import viewsets
 
 from core.viewsets import GymModelViewSet
@@ -8,6 +10,9 @@ from .models import RoutineAssignment
 from members.models import Member
 from django.shortcuts import get_object_or_404
 from .serializers import MemberRoutineSerializer
+
+from subscriptions.models import Subscription
+from attendance.models import AttendanceSchedule
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -22,6 +27,8 @@ from .serializers import (
     RoutineAssignmentSerializer,
     RoutineExerciseSerializer,
     ActiveRoutineSerializer,
+    MemberRoutineSerializer,
+    MemberPortalSerializer,
 )
 
 
@@ -118,7 +125,7 @@ class MemberRoutineWhatsappView(APIView):
             )
 
         routine_url = (
-            f"http://localhost:5173/routine/"
+            f"{settings.FRONTEND_URL}/routine/"
             f"{assignment.member.access_token}"
         )
 
@@ -127,7 +134,10 @@ class MemberRoutineWhatsappView(APIView):
             "",
             f"Hola *{assignment.member.first_name}* 👋",
             "",
-            "Te compartimos tu rutina actual:",
+            "Te damos la bienvenida a tu portal de socio.",
+            "",
+            "📲 *Accedé a tu información acá:*",
+            routine_url,
             "",
             f"📋 *{assignment.routine_template.name}*",
             "",
@@ -164,10 +174,6 @@ class MemberRoutineWhatsappView(APIView):
 
         lines.extend([
             "🔥 ¡A entrenar fuerte!",
-            "",
-            "📲 Ver rutina online:",
-            routine_url,
-            "",
             f"Nos vemos en *{gym.name}* 💪",
         ])
 
@@ -308,11 +314,32 @@ class PublicRoutineView(APIView):
                 status=404,
             )
 
-        serializer = MemberRoutineSerializer(
+        routine_serializer = MemberRoutineSerializer(
             assignment
         )
 
-        return Response({
+        subscription = (
+            Subscription.objects
+            .filter(
+                member=member,
+            )
+            .order_by("-end_date")
+            .first()
+        )
+
+        schedules = (
+            AttendanceSchedule.objects
+            .filter(
+                member=member,
+                active=True,
+            )
+            .order_by(
+                "day",
+                "hour",
+            )
+        )
+
+        data = {
             "member": {
                 "id": member.id,
                 "first_name": member.first_name,
@@ -324,5 +351,30 @@ class PublicRoutineView(APIView):
                 "id": assignment.gym.id,
                 "name": assignment.gym.name,
             },
-            "routine": serializer.data,
-        })
+            "subscription": (
+                {
+                    "plan": subscription.plan.name,
+                    "start_date": subscription.start_date,
+                    "end_date": subscription.end_date,
+                    "paid": subscription.paid,
+                }
+                if subscription
+                else None
+            ),
+            "schedules": [
+                {
+                    "day": schedule.day,
+                    "hour": schedule.hour.strftime("%H:%M"),
+                }
+                for schedule in schedules
+            ],
+            "routine": routine_serializer.data,
+        }
+
+        serializer = MemberPortalSerializer(
+            data
+        )
+
+        return Response(
+            serializer.data
+        )

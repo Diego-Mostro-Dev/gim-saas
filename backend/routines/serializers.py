@@ -124,3 +124,12 @@ class ActiveRoutineSerializer(serializers.ModelSerializer):
             f"{obj.member.first_name} "
             f"{obj.member.last_name}"
         )
+
+class MemberPortalSerializer(serializers.Serializer):
+    member = serializers.DictField()
+    gym = serializers.DictField()
+    subscription = serializers.DictField(
+        allow_null=True
+    )
+    schedules = serializers.ListField()
+    routine = serializers.DictField()

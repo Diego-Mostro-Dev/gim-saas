@@ -14,6 +14,8 @@ import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
 import Settings from "./pages/Settings";
 import PublicRoutine from "./pages/PublicRoutine";
+import Checkin from "./pages/Checkin";
+import AttendanceQR from "./pages/AttendanceQR";
 
 function App() {
   return (
@@ -25,6 +27,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymCode" element={<Register />} />
       <Route path="/routine/:token" element={<PublicRoutine />} />
+      <Route path="/checkin/:gymCode" element={<Checkin />} />
 
       {/* protected layout */}
       <Route
@@ -44,6 +47,7 @@ function App() {
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/routines" element={<Routines />} />
+        <Route path="/attendance-qr" element={<AttendanceQR />} />
       </Route>
     </Routes>
   );
