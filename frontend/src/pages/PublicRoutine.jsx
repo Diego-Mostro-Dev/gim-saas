@@ -12,6 +12,10 @@ const DAY_NAMES = {
   saturday: "Sábado",
 };
 
+function formatDate(date) {
+  return new Date(date).toLocaleDateString("es-AR");
+}
+
 function PublicRoutine() {
   const { token } = useParams();
 
@@ -59,72 +63,86 @@ function PublicRoutine() {
     );
   }
 
-  const { member, gym, subscription, schedules } = routine;
+  const { member, gym, subscription, schedules, attendance_history } = routine;
 
   return (
     <div className="min-h-screen bg-[#161616] p-4">
       <div className="mx-auto max-w-2xl space-y-4">
-        <div className="rounded-2xl bg-[#201f1f] p-6 text-center">
-          {gym.logo_url ? (
-            <img
-              src={gym.logo_url}
-              alt={gym.name}
-              className="mx-auto mb-4 h-24 w-24 rounded-3xl object-cover"
-            />
-          ) : (
-            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-3xl bg-pink-500 text-3xl font-bold text-white">
-              {gym.name?.charAt(0)?.toUpperCase()}
+        {/* HEADER */}
+        <div className="rounded-2xl bg-[#201f1f] p-6">
+          <div className="flex items-center gap-4">
+            {gym.logo_url ? (
+              <img
+                src={gym.logo_url}
+                alt={gym.name}
+                className="h-16 w-16 rounded-2xl object-cover"
+              />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pink-500 text-2xl font-bold text-white">
+                {gym.name?.charAt(0)?.toUpperCase()}
+              </div>
+            )}
+
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                {member.first_name} {member.last_name}
+              </h1>
+
+              <p className="text-zinc-400">Socio de {gym.name}</p>
             </div>
-          )}
-
-          <p className="text-lg font-semibold text-zinc-300">{gym.name}</p>
-
-          <h1 className="mt-2 text-3xl font-bold text-white">
-            {member.first_name} {member.last_name}
-          </h1>
+          </div>
         </div>
 
+        {/* SUSCRIPCIÓN */}
         <div className="rounded-2xl bg-[#201f1f] p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Suscripción
           </h2>
 
           {subscription ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Plan</span>
-                <span className="text-white">{subscription.plan}</span>
+            <>
+              <div className="mb-4">
+                {subscription.paid ? (
+                  <span className="rounded-xl bg-green-500/15 px-3 py-1 text-sm font-semibold text-green-400">
+                    ✓ Cuota al día
+                  </span>
+                ) : (
+                  <span className="rounded-xl bg-yellow-500/15 px-3 py-1 text-sm font-semibold text-yellow-300">
+                    ⚠ Pendiente de pago
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Inicio</span>
-                <span className="text-white">{subscription.start_date}</span>
-              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Plan</span>
 
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Vencimiento</span>
-                <span className="text-white">{subscription.end_date}</span>
-              </div>
+                  <span className="text-white">{subscription.plan}</span>
+                </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Estado</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Inicio</span>
 
-                <span
-                  className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                    subscription.paid
-                      ? "bg-green-500/10 text-green-400"
-                      : "bg-yellow-500/10 text-yellow-300"
-                  }`}
-                >
-                  {subscription.paid ? "Pagado" : "Pendiente"}
-                </span>
+                  <span className="text-white">
+                    {formatDate(subscription.start_date)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Vencimiento</span>
+
+                  <span className="text-white">
+                    {formatDate(subscription.end_date)}
+                  </span>
+                </div>
               </div>
-            </div>
+            </>
           ) : (
             <p className="text-sm text-zinc-500">Sin suscripción activa</p>
           )}
         </div>
 
+        {/* HORARIOS */}
         <div className="rounded-2xl bg-[#201f1f] p-4">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Horarios
@@ -146,14 +164,53 @@ function PublicRoutine() {
           )}
         </div>
 
+        {/* ASISTENCIAS */}
+        <div className="rounded-2xl bg-[#201f1f] p-4">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Asistencias recientes
+          </h2>
+
+          <p className="mb-4 text-sm text-zinc-400">
+            Total registradas: {attendance_history?.length || 0}
+          </p>
+
+          {attendance_history?.length > 0 ? (
+            <div className="space-y-2">
+              {attendance_history.map((attendance, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
+                >
+                  <span className="font-medium text-green-400">
+                    ✓ Asistencia
+                  </span>
+
+                  <span className="text-zinc-300">
+                    {formatDate(attendance.date)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              Todavía no hay asistencias registradas.
+            </p>
+          )}
+        </div>
+
+        {/* RUTINA */}
         {routine.routine && (
           <div className="rounded-2xl bg-[#201f1f] p-4">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              Rutina
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              💪 Rutina actual
             </h2>
 
-            <p className="mb-4 text-lg font-semibold text-white">
+            <p className="text-xl font-bold text-white">
               {routine.routine.routine_name}
+            </p>
+
+            <p className="mb-4 text-sm text-zinc-400">
+              {routine.routine.exercises?.length || 0} ejercicios
             </p>
 
             <div className="space-y-3">
@@ -168,12 +225,12 @@ function PublicRoutine() {
 
                   {exercise.weight && (
                     <p className="mt-1 text-blue-300">
-                      Peso: {exercise.weight} kg
+                      Peso: {exercise.weight}
                     </p>
                   )}
 
                   {exercise.notes && (
-                    <p className="mt-1 text-zinc-500">{exercise.notes}</p>
+                    <p className="mt-2 text-zinc-500">{exercise.notes}</p>
                   )}
                 </div>
               ))}

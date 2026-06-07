@@ -10,7 +10,7 @@ from .models import RoutineAssignment
 from members.models import Member
 from django.shortcuts import get_object_or_404
 from .serializers import MemberRoutineSerializer
-
+from attendance.models import Attendance
 from subscriptions.models import Subscription
 from attendance.models import AttendanceSchedule
 from .models import (
@@ -338,6 +338,11 @@ class PublicRoutineView(APIView):
                 "hour",
             )
         )
+        attendances = (
+            Attendance.objects
+            .filter(member=member)
+            .order_by("-date")[:15]
+        )
 
         data = {
             "member": {
@@ -372,6 +377,12 @@ class PublicRoutineView(APIView):
                     "hour": schedule.hour.strftime("%H:%M"),
                 }
                 for schedule in schedules
+            ],
+            "attendance_history": [
+                {
+                    "date": attendance.date,
+                }
+                for attendance in attendances
             ],
             "routine": routine_serializer.data,
         }
