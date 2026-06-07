@@ -10,6 +10,7 @@ const INITIAL_FORM = {
   last_name: "",
   phone: "",
   email: "",
+  photo: null,
   schedules: [],
 };
 
@@ -28,7 +29,20 @@ function Register() {
     try {
       setIsSubmitting(true);
 
-      await registerPublicMember(gymCode, formData);
+      const form = new FormData();
+
+      form.append("first_name", formData.first_name);
+      form.append("last_name", formData.last_name);
+      form.append("phone", formData.phone);
+      form.append("email", formData.email || "");
+
+      if (formData.photo) {
+        form.append("photo", formData.photo);
+      }
+
+      form.append("schedules", JSON.stringify(formData.schedules || []));
+
+      await registerPublicMember(gymCode, form);
 
       setSuccess(true);
 
