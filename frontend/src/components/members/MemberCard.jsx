@@ -1,6 +1,13 @@
 import { Pencil, Trash2, Share2, Link } from "lucide-react";
 
-function MemberCard({ member, onEdit, onDelete, onSharePortal, onCopyPortalLink }) {
+function MemberCard({
+  member,
+  onEdit,
+  onDelete,
+  onSharePortal,
+  onCopyPortalLink,
+  onViewPayments,
+}) {
   const dayLabels = {
     monday: "Lun",
     tuesday: "Mar",
@@ -9,6 +16,7 @@ function MemberCard({ member, onEdit, onDelete, onSharePortal, onCopyPortalLink 
     friday: "Vie",
     saturday: "Sáb",
   };
+
   return (
     <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
       <div className="flex items-center justify-between">
@@ -69,7 +77,14 @@ function MemberCard({ member, onEdit, onDelete, onSharePortal, onCopyPortalLink 
         </div>
       )}
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={() => onViewPayments(member)}
+          className="flex items-center gap-1.5 rounded-lg bg-blue-600/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-600/30"
+        >
+          Historial
+        </button>
+
         <button
           onClick={() => onSharePortal(member.id)}
           className="flex items-center gap-1.5 rounded-lg bg-green-600/20 px-3 py-1.5 text-xs font-medium text-green-400 transition hover:bg-green-600/30"
