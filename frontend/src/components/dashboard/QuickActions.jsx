@@ -57,13 +57,13 @@ function QuickActions() {
       </button>
 
       <button
-        onClick={() => navigate("/checkin-qr")}
+        onClick={() => navigate("/attendance-qr")}
         className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3 transition active:scale-95"
       >
         <CheckCircle size={18} className="text-green-400" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          QR Asistencia
+          Asistencia QR
         </span>
       </button>
 
