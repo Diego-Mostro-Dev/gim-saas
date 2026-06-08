@@ -131,8 +131,8 @@ function PaymentForm({
             ? "Guardando..."
             : "Registrando..."
           : editingPayment
-            ? "Guardar Cambios"
-            : "Registrar Pago"}
+            ? "Guardar cambios"
+            : "Registrar pago"}
       </button>
     </form>
   );

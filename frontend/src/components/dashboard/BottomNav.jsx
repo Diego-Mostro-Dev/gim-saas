@@ -48,7 +48,7 @@ function BottomNav() {
       >
         <CreditCard size={20} />
 
-        <span className="text-xs">Subs</span>
+        <span className="text-xs">Suscrip.</span>
       </NavLink>
 
       <NavLink

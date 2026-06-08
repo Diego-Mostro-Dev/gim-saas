@@ -13,7 +13,7 @@ function SubscriptionForm({
       className="mb-6 space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
     >
       <h2 className="text-lg font-semibold text-white">
-        {editingSubscription ? "Editar Subscription" : "Nueva Subscription"}
+        {editingSubscription ? "Editar suscripción" : "Nueva suscripción"}
       </h2>
 
       <select
@@ -79,8 +79,8 @@ function SubscriptionForm({
             ? "Guardando..."
             : "Creando..."
           : editingSubscription
-            ? "Guardar Cambios"
-            : "Crear Subscription"}
+            ? "Guardar cambios"
+            : "Crear suscripción"}
       </button>
     </form>
   );

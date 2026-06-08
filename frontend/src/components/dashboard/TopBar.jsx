@@ -34,7 +34,7 @@ function TopBar() {
             {gym?.name?.toUpperCase() || "GYM"}
           </h1>
 
-          <p className="text-xs text-zinc-500">Dashboard</p>
+          <p className="text-xs text-zinc-500">Panel</p>
         </div>
       </div>
 
