@@ -15,9 +15,9 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
 
   return (
     <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
             {initials}
           </div>
 

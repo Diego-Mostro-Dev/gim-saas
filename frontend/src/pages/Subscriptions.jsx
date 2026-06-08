@@ -162,7 +162,7 @@ function Subscriptions() {
   console.log(filteredSubscriptions);
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Subscriptions</h1>
 

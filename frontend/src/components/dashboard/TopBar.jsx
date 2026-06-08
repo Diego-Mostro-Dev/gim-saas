@@ -16,21 +16,21 @@ function TopBar() {
         <Menu className="text-blue-400" size={22} />
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {gym?.logo_url ? (
           <img
             src={gym.logo_url}
             alt={gym.name}
-            className="h-10 w-10 rounded-xl object-cover"
+            className="h-10 w-10 shrink-0 rounded-xl object-cover"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500 font-bold text-white">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-500 font-bold text-white">
             {gym?.name?.charAt(0)?.toUpperCase() || "G"}
           </div>
         )}
 
-        <div>
-          <h1 className="text-sm font-bold tracking-wider text-white">
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-bold tracking-wider text-white">
             {gym?.name?.toUpperCase() || "GYM"}
           </h1>
 
