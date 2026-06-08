@@ -1,4 +1,4 @@
-import { Menu, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useGym } from "../../hooks/useGym";
 
@@ -12,10 +12,6 @@ function TopBar() {
 
   return (
     <header className="fixed top-0 z-50 flex h-16 w-full items-center justify-between border-b border-white/10 bg-[#131313]/80 px-4 backdrop-blur-xl">
-      <div className="flex items-center gap-2">
-        <Menu className="text-blue-400" size={22} />
-      </div>
-
       <div className="flex min-w-0 items-center gap-3">
         {gym?.logo_url ? (
           <img

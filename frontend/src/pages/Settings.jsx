@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useGym } from "../hooks/useGym";
 import { updateGym } from "../services/gym.service";
 
 function Settings() {
+  const navigate = useNavigate();
   const { gym } = useGym();
 
   const [formData, setFormData] = useState({
@@ -58,6 +61,14 @@ function Settings() {
 
   return (
     <div className="mx-auto max-w-xl">
+      <button
+        onClick={() => navigate("/dashboard")}
+        className="mb-4 flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+      >
+        <ArrowLeft size={18} />
+        Volver
+      </button>
+
       <h1 className="mb-2 text-3xl font-bold text-white">Configuración</h1>
 
       <p className="mb-6 text-zinc-400">Información básica del gimnasio.</p>
