@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Search } from "lucide-react";
 import { useAttendanceStatus } from "../../hooks/useAttendanceStatus";
 
 function AttendanceStatus() {
@@ -11,6 +13,12 @@ function AttendanceStatus() {
     error,
     markAttendance,
   } = useAttendanceStatus();
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredMembers = members.filter((member) =>
+    member.member_name.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
 
   return (
     <div className="space-y-4 rounded-2xl border border-white/5 bg-[#201f1f] p-4">
@@ -48,9 +56,23 @@ function AttendanceStatus() {
         </div>
       )}
 
-      {!loading && members.length === 0 && (
+      <div className="flex items-center gap-2 rounded-lg border border-white/5 bg-[#2a2a2a] px-3 py-2">
+        <Search size={16} className="text-zinc-500" />
+
+        <input
+          type="text"
+          placeholder="Buscar miembro..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
+        />
+      </div>
+
+      {!loading && filteredMembers.length === 0 && (
         <div className="rounded-lg bg-[#2a2a2a] p-3 text-sm text-zinc-500">
-          No hay miembros registrados para este horario.
+          {searchTerm
+            ? "No se encontraron miembros con ese nombre."
+            : "No hay miembros registrados para este horario."}
         </div>
       )}
 
@@ -61,7 +83,7 @@ function AttendanceStatus() {
       </p>
 
       <div className="space-y-2">
-        {members.map((member) => (
+        {filteredMembers.map((member) => (
           <div
             key={member.schedule_id}
             className="flex flex-col gap-2 rounded-lg bg-[#2a2a2a] px-3 py-2 md:flex-row md:items-center md:justify-between"
