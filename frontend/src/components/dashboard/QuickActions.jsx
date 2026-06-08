@@ -21,7 +21,7 @@ function QuickActions() {
         <UserPlus size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Agregar Miembro
+          Agregar miembro
         </span>
       </button>
 
@@ -32,7 +32,7 @@ function QuickActions() {
         <CreditCard size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Registrar Pago
+          Registrar pago
         </span>
       </button>
 
@@ -43,7 +43,7 @@ function QuickActions() {
         <RefreshCw size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Crear Suscripción
+          Crear suscripción
         </span>
       </button>
 

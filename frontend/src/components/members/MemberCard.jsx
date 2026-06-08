@@ -100,7 +100,7 @@ function MemberCard({
           className="flex items-center gap-1.5 rounded-lg bg-green-600/20 px-3 py-1.5 text-xs font-medium text-green-400 transition hover:bg-green-600/30"
         >
           <Share2 size={14} />
-          Compartir Portal
+          Compartir acceso
         </button>
 
         <button
@@ -108,7 +108,7 @@ function MemberCard({
           className="flex items-center gap-1.5 rounded-lg bg-zinc-600/20 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-600/30"
         >
           <Link size={14} />
-          Copiar Link
+          Copiar enlace
         </button>
       </div>
     </div>

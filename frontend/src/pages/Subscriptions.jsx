@@ -90,7 +90,7 @@ function Subscriptions() {
           throw new Error();
         }
 
-        toast.success("Subscription actualizada");
+        toast.success("Suscripción actualizada");
       } else {
         result = await createNewSubscription(formData);
 
@@ -98,7 +98,7 @@ function Subscriptions() {
           throw new Error();
         }
 
-        toast.success("Subscription creada");
+        toast.success("Suscripción creada");
       }
 
       resetForm();
@@ -113,7 +113,7 @@ function Subscriptions() {
   }
 
   async function handleDeleteSubscription(id) {
-    const confirmed = window.confirm("¿Eliminar subscription?");
+    const confirmed = window.confirm("¿Eliminar suscripción?");
 
     if (!confirmed) return;
 
@@ -124,11 +124,11 @@ function Subscriptions() {
         throw new Error();
       }
 
-      toast.success("Subscription eliminada");
+      toast.success("Suscripción eliminada");
     } catch (error) {
       console.error(error);
 
-      toast.error("No se pudo eliminar la subscription");
+      toast.error("No se pudo eliminar la suscripción");
     }
   }
 
@@ -144,7 +144,7 @@ function Subscriptions() {
         throw new Error();
       }
 
-      toast.success("Subscription renovada");
+      toast.success("Suscripción renovada");
     } catch (error) {
       console.error(error);
 
@@ -155,7 +155,7 @@ function Subscriptions() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
-        Cargando subscriptions...
+        Cargando suscripciones...
       </div>
     );
   }
@@ -164,7 +164,7 @@ function Subscriptions() {
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Subscriptions</h1>
+          <h1 className="text-3xl font-bold">Suscripciones</h1>
 
           <p className="mt-1 text-sm text-zinc-400">Gestión de membresías</p>
         </div>
@@ -217,7 +217,7 @@ function Subscriptions() {
 
       {filteredSubscriptions.length === 0 ? (
         <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
-          No hay subscriptions que coincidan con los filtros
+          No hay suscripciones que coincidan con los filtros
         </div>
       ) : (
         <div className="space-y-3">
