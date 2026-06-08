@@ -136,3 +136,26 @@ export async function getPublicRoutine(token) {
     `/api/routines/public/${token}/`,
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC MEMBER PHOTO
+|--------------------------------------------------------------------------
+*/
+
+export async function updatePublicMemberPhoto(
+  token,
+  file
+) {
+  const formData = new FormData();
+
+  formData.append("photo", file);
+
+  return apiFetch(
+    `/api/public/${token}/photo/`,
+    {
+      method: "PATCH",
+      body: formData,
+    }
+  );
+}

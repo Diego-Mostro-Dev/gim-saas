@@ -4,6 +4,8 @@ from attendance.models import AttendanceSchedule
 
 from .models import Member
 
+import json
+
 
 class MemberSerializer(serializers.ModelSerializer):
     schedules = serializers.SerializerMethodField()
@@ -89,12 +91,15 @@ class MemberSerializer(serializers.ModelSerializer):
             [],
         )
 
+        if isinstance(schedules, str):
+            try:
+                schedules = json.loads(schedules)
+            except Exception:
+                schedules = []
+
         member = Member.objects.create(
             **validated_data
         )
-
-        if isinstance(schedules, str):
-            schedules = []
 
         AttendanceSchedule.objects.bulk_create(
             [
@@ -117,3 +122,23 @@ class MemberSerializer(serializers.ModelSerializer):
         instance.save()
 
         return instance
+
+
+class MemberPhotoSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Member
+        fields = ["photo"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.photo:
+            try:
+                data["photo"] = instance.photo.url
+            except Exception:
+                data["photo"] = str(instance.photo)
+        else:
+            data["photo"] = None
+
+        return data
