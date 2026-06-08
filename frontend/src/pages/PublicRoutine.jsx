@@ -28,6 +28,7 @@ function PublicRoutine() {
   const [error, setError] = useState("");
 
   const [photoFile, setPhotoFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
@@ -71,6 +72,7 @@ function PublicRoutine() {
       }));
 
       setPhotoFile(null);
+      setPreview(null);
 
       toast.success("Foto actualizada correctamente");
     } catch (error) {
@@ -136,9 +138,31 @@ function PublicRoutine() {
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+
+                setPhotoFile(file);
+
+                if (file) {
+                  setPreview(URL.createObjectURL(file));
+                } else {
+                  setPreview(null);
+                }
+              }}
               className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2 text-sm text-white"
             />
+
+            {preview && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm text-zinc-400">Vista previa</p>
+
+                <img
+                  src={preview}
+                  alt="Preview"
+                  className="h-24 w-24 rounded-full border border-white/10 object-cover"
+                />
+              </div>
+            )}
 
             {photoFile && (
               <button
