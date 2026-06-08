@@ -20,7 +20,7 @@ function AttendanceStatus() {
         <select
           value={day}
           onChange={(e) => setDay(e.target.value)}
-          className="rounded-lg bg-[#2a2a2a] p-2 text-white"
+          className="w-full rounded-lg bg-[#2a2a2a] p-2 text-white"
         >
           <option value="monday">Lunes</option>
           <option value="tuesday">Martes</option>
@@ -34,7 +34,7 @@ function AttendanceStatus() {
           type="time"
           value={hour}
           onChange={(e) => setHour(e.target.value)}
-          className="rounded-lg bg-[#2a2a2a] p-2 text-white"
+          className="w-full rounded-lg bg-[#2a2a2a] p-2 text-white"
         />
       </div>
 
@@ -64,7 +64,7 @@ function AttendanceStatus() {
         {members.map((member) => (
           <div
             key={member.schedule_id}
-            className="flex items-center justify-between rounded-lg bg-[#2a2a2a] px-3 py-2"
+            className="flex flex-col gap-2 rounded-lg bg-[#2a2a2a] px-3 py-2 md:flex-row md:items-center md:justify-between"
           >
             <span className="text-sm text-white">{member.member_name}</span>
 

@@ -69,12 +69,13 @@ function AttendanceQR() {
       </p>
 
       {QRCode && (
-        <div ref={qrRef} className="rounded-3xl bg-white p-5 shadow-lg">
+        <div ref={qrRef} className="max-w-full rounded-3xl bg-white p-5 shadow-lg">
           <QRCode
             value={checkinUrl}
             size={320}
             bgColor="#FFFFFF"
             fgColor="#000000"
+            style={{ maxWidth: "100%", height: "auto" }}
           />
         </div>
       )}

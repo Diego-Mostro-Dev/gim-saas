@@ -16,11 +16,11 @@ function SubscriptionFilters({
         className="w-full rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
       />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
+          className="w-full rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
         >
           <option value="all">Todas</option>
           <option value="active">Activas</option>
@@ -30,7 +30,7 @@ function SubscriptionFilters({
         <select
           value={paymentFilter}
           onChange={(e) => setPaymentFilter(e.target.value)}
-          className="rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
+          className="w-full rounded-xl bg-[#201f1f] px-4 py-3 text-white outline-none"
         >
           <option value="all">Todos los pagos</option>
           <option value="paid">Pagadas</option>
