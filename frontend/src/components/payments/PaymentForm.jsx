@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 function PaymentForm({
   formData,
   setFormData,
@@ -14,6 +16,21 @@ function PaymentForm({
   );
 
   const today = new Date();
+
+  useEffect(() => {
+    if (editingPayment) return;
+
+    if (
+      formData.member &&
+      filteredSubscriptions.length === 1 &&
+      String(filteredSubscriptions[0].id) !== formData.subscription
+    ) {
+      setFormData({
+        ...formData,
+        subscription: String(filteredSubscriptions[0].id),
+      });
+    }
+  }, [formData.member, filteredSubscriptions]);
 
   return (
     <form
@@ -45,37 +62,41 @@ function PaymentForm({
         ))}
       </select>
 
-      <select
-        value={formData.subscription}
-        onChange={(e) =>
-          setFormData({
-            ...formData,
-            subscription: e.target.value,
-          })
-        }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
-        required
-        disabled={!formData.member}
-      >
-        <option value="">
-          {!formData.member
-            ? "Primero seleccioná un miembro"
-            : "Seleccionar suscripción"}
-        </option>
+      {(!formData.member || filteredSubscriptions.length !== 1) && (
+        <select
+          value={formData.subscription}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              subscription: e.target.value,
+            })
+          }
+          className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+          required
+          disabled={!formData.member}
+        >
+          <option value="">
+            {!formData.member
+              ? "Primero seleccioná un miembro"
+              : filteredSubscriptions.length === 0
+                ? "Sin suscripciones pendientes"
+                : "Seleccionar suscripción"}
+          </option>
 
-        {filteredSubscriptions.map((subscription) => {
-          const expired = new Date(subscription.end_date) < today;
+          {filteredSubscriptions.map((subscription) => {
+            const expired = new Date(subscription.end_date) < today;
 
-          return (
-            <option key={subscription.id} value={subscription.id}>
-              {expired ? "[VENCIDA] " : ""}
-              {subscription.plan_name} •{" "}
-              {new Date(subscription.start_date).toLocaleDateString("es-AR")} →{" "}
-              {new Date(subscription.end_date).toLocaleDateString("es-AR")}
-            </option>
-          );
-        })}
-      </select>
+            return (
+              <option key={subscription.id} value={subscription.id}>
+                {expired ? "[VENCIDA] " : ""}
+                {subscription.plan_name} •{" "}
+                {new Date(subscription.start_date).toLocaleDateString("es-AR")} →{" "}
+                {new Date(subscription.end_date).toLocaleDateString("es-AR")}
+              </option>
+            );
+          })}
+        </select>
+      )}
 
       <input
         type="number"

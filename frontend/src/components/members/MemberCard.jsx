@@ -44,6 +44,28 @@ function MemberCard({
             <p className="text-sm text-zinc-400">{member.phone}</p>
 
             <p className="text-xs text-zinc-500">{member.email}</p>
+
+            {member.plan_name && (
+              <div className="mt-1 flex items-center gap-2">
+                <span className="rounded-md bg-green-500/10 px-2 py-0.5 text-xs text-green-300">
+                  {member.plan_name}
+                </span>
+
+                {member.subscription_end_date && (
+                  <span className="text-xs text-zinc-500">
+                    {member.subscription_days_remaining != null
+                      ? `${
+                          member.subscription_days_remaining === 1
+                            ? "1 día restante"
+                            : `${member.subscription_days_remaining} días restantes`
+                        }`
+                      : `hasta ${new Date(
+                          member.subscription_end_date,
+                        ).toLocaleDateString("es-AR")}`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

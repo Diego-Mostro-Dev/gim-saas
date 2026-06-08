@@ -5,6 +5,7 @@ import {
   DollarSign,
   Dumbbell,
   CalendarDays,
+  ClipboardList,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -49,6 +50,17 @@ function BottomNav() {
         <CreditCard size={20} />
 
         <span className="text-xs">Suscrip.</span>
+      </NavLink>
+
+      <NavLink
+        to="/routines"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <ClipboardList size={20} />
+
+        <span className="text-xs">Rutinas</span>
       </NavLink>
 
       <NavLink

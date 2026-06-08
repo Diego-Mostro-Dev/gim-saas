@@ -50,7 +50,7 @@ function Routines() {
     },
     {
       id: "templates",
-      label: "Rutinas",
+      label: "Plantillas",
       icon: ClipboardList,
     },
     {
@@ -60,7 +60,7 @@ function Routines() {
     },
     {
       id: "active",
-      label: "Activas",
+      label: "Asignadas",
       icon: Activity,
     },
   ];
@@ -134,7 +134,7 @@ function Routines() {
         {/* RUTINAS */}
         {activeTab === "templates" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Rutinas</h2>
+            <h2 className="text-lg font-semibold text-white">Plantillas</h2>
 
             <RoutineTemplateForm onSubmit={addTemplate} />
 
@@ -196,7 +196,7 @@ function Routines() {
         {activeTab === "active" && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-white">
-              Rutinas activas
+              Rutinas asignadas
             </h2>
 
             <ActiveRoutines />
