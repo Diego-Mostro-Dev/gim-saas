@@ -1,12 +1,14 @@
 import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import * as QRModule from "react-qr-code";
-import { Download } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 
 import { useGym } from "../hooks/useGym";
 
 const QRCode = QRModule.QRCode || QRModule.default?.QRCode;
 
 function AttendanceQR() {
+  const navigate = useNavigate();
   const { gym } = useGym();
 
   const qrRef = useRef(null);
@@ -60,6 +62,16 @@ function AttendanceQR() {
 
   return (
     <div className="flex min-h-full flex-col items-center p-6 text-white">
+      <div className="mb-4 self-start">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+        >
+          <ArrowLeft size={18} />
+          Volver al inicio
+        </button>
+      </div>
+
       <h1 className="mb-2 text-2xl font-semibold">Check-In de Asistencia</h1>
 
       <p className="mb-6 max-w-md text-center text-sm text-zinc-400">
