@@ -345,12 +345,17 @@ class PublicRoutineView(APIView):
 
         data = {
             "member": {
-                "id": member.id,
-                "first_name": member.first_name,
-                "last_name": member.last_name,
-                "phone": member.phone,
-                "email": member.email,
-            },
+                    "id": member.id,
+                    "first_name": member.first_name,
+                    "last_name": member.last_name,
+                    "phone": member.phone,
+                    "email": member.email,
+                    "photo": (
+                        member.photo.url
+                        if member.photo
+                        else None
+                    ),
+                },
             "gym": {
                 "id": assignment.gym.id,
                 "name": assignment.gym.name,
