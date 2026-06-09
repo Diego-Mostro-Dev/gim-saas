@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
@@ -15,6 +16,8 @@ import { usePaymentStats } from "../hooks/usePaymentStats";
 import { usePaymentForm } from "../hooks/usePaymentForm";
 
 function Payments() {
+  const location = useLocation();
+
   const {
     payments,
     members,
@@ -46,6 +49,24 @@ function Payments() {
 
   const { totalAmount, totalPayments, cashPayments, transferPayments } =
     usePaymentStats(payments);
+
+  useEffect(() => {
+    const state = location.state;
+
+    if (!loading && state?.prefillMemberId && state?.prefillSubscriptionId) {
+      openCreateForm();
+
+      setFormData({
+        member: String(state.prefillMemberId),
+        subscription: String(state.prefillSubscriptionId),
+        amount: "",
+        payment_method: "cash",
+        notes: "",
+      });
+
+      window.history.replaceState({}, "");
+    }
+  }, [loading, location.state]);
 
   useEffect(() => {
     if (showForm && editingPayment && formRef.current) {
@@ -109,7 +130,7 @@ function Payments() {
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
       {/* HEADER */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Pagos</h1>
 

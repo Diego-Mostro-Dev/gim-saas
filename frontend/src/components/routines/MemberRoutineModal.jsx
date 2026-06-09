@@ -33,12 +33,12 @@ function MemberRoutineModal({ open, onClose, routine }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="max-h-[80vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-[#201f1f] p-6">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
           <h2 className="text-xl font-bold text-white">
             {routine.routine_name}
           </h2>
 
-          <button onClick={onClose} className="text-zinc-400 hover:text-white">
+          <button onClick={onClose} className="self-end text-zinc-400 hover:text-white md:self-auto">
             ✕
           </button>
         </div>

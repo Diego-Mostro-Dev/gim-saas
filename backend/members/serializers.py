@@ -4,6 +4,8 @@ from attendance.models import AttendanceSchedule
 
 from .models import Member
 
+import json
+
 
 class MemberSerializer(serializers.ModelSerializer):
     schedules = serializers.SerializerMethodField()
@@ -20,6 +22,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "active",
             "schedules",
             "gym",
+            "photo",
         ]
 
         read_only_fields = ["gym"]
@@ -69,11 +72,30 @@ class MemberSerializer(serializers.ModelSerializer):
             for s in obj.schedules.filter(active=True)
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.photo:
+            try:
+                data["photo"] = instance.photo.url
+            except Exception:
+                data["photo"] = str(instance.photo)
+        else:
+            data["photo"] = None
+
+        return data
+
     def create(self, validated_data):
         schedules = self.initial_data.get(
             "schedules",
             [],
         )
+
+        if isinstance(schedules, str):
+            try:
+                schedules = json.loads(schedules)
+            except Exception:
+                schedules = []
 
         member = Member.objects.create(
             **validated_data
@@ -92,3 +114,31 @@ class MemberSerializer(serializers.ModelSerializer):
         )
 
         return member
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+
+        return instance
+
+
+class MemberPhotoSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Member
+        fields = ["photo"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.photo:
+            try:
+                data["photo"] = instance.photo.url
+            except Exception:
+                data["photo"] = str(instance.photo)
+        else:
+            data["photo"] = None
+
+        return data

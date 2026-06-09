@@ -8,7 +8,7 @@ function PaymentCard({ payment, onEdit, onDelete }) {
   };
 
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4 md:flex-row md:items-center md:justify-between">
       <div>
         <p className="font-medium text-white">{payment.member_name}</p>
 

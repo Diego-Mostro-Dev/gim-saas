@@ -132,6 +132,22 @@ function MemberForm({
         className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
       />
 
+      <div>
+        <label className="mb-1 block text-sm text-zinc-400">Foto</label>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              photo: e.target.files[0],
+            })
+          }
+          className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+        />
+      </div>
+
       <div className="rounded-xl bg-[#2a2a2a] p-4">
         <p className="mb-3 text-sm font-medium text-zinc-300">
           Horarios de asistencia

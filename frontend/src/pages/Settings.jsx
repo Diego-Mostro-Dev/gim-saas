@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, QrCode } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useGym } from "../hooks/useGym";
 import { updateGym } from "../services/gym.service";
 
 function Settings() {
+  const navigate = useNavigate();
   const { gym } = useGym();
 
   const [formData, setFormData] = useState({
@@ -58,6 +61,14 @@ function Settings() {
 
   return (
     <div className="mx-auto max-w-xl">
+      <button
+        onClick={() => navigate("/dashboard")}
+        className="mb-4 flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+      >
+        <ArrowLeft size={18} />
+        Volver
+      </button>
+
       <h1 className="mb-2 text-3xl font-bold text-white">Configuración</h1>
 
       <p className="mb-6 text-zinc-400">Información básica del gimnasio.</p>
@@ -140,6 +151,30 @@ function Settings() {
           {isSubmitting ? "Guardando..." : "Guardar cambios"}
         </button>
       </form>
+
+      <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-[#201f1f] p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Códigos QR
+        </h2>
+
+        <button
+          onClick={() => navigate("/registration")}
+          className="flex w-full items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm text-white transition hover:bg-white/5"
+        >
+          <QrCode size={18} className="text-pink-300" />
+
+          <span>Registro de miembros</span>
+        </button>
+
+        <button
+          onClick={() => navigate("/attendance-qr")}
+          className="flex w-full items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm text-white transition hover:bg-white/5"
+        >
+          <QrCode size={18} className="text-green-400" />
+
+          <span>Asistencia QR</span>
+        </button>
+      </div>
     </div>
   );
 }

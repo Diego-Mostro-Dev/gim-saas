@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Dumbbell, ClipboardList, Users, Activity } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Dumbbell, ClipboardList, Users, Activity } from "lucide-react";
 
 import { useExercises } from "../hooks/useExercises";
 import { useRoutineTemplates } from "../hooks/useRoutineTemplates";
@@ -17,6 +18,7 @@ import ActiveRoutines from "../components/routines/ActiveRoutines";
 import TemplateDetails from "../components/routines/TemplateDetails";
 
 function Routines() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("exercises");
 
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -48,7 +50,7 @@ function Routines() {
     },
     {
       id: "templates",
-      label: "Rutinas",
+      label: "Plantillas",
       icon: ClipboardList,
     },
     {
@@ -58,19 +60,29 @@ function Routines() {
     },
     {
       id: "active",
-      label: "Activas",
+      label: "Asignadas",
       icon: Activity,
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Rutinas</h1>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+        >
+          <ArrowLeft size={18} />
+          Volver al inicio
+        </button>
 
-        <p className="mt-1 text-sm text-zinc-400">
-          Gestiona ejercicios, plantillas y asignaciones.
-        </p>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Rutinas</h1>
+
+          <p className="mt-1 text-sm text-zinc-400">
+            Gestiona ejercicios, plantillas y asignaciones.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -122,7 +134,7 @@ function Routines() {
         {/* RUTINAS */}
         {activeTab === "templates" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Rutinas</h2>
+            <h2 className="text-lg font-semibold text-white">Plantillas</h2>
 
             <RoutineTemplateForm onSubmit={addTemplate} />
 
@@ -184,7 +196,7 @@ function Routines() {
         {activeTab === "active" && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-white">
-              Rutinas activas
+              Rutinas asignadas
             </h2>
 
             <ActiveRoutines />

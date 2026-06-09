@@ -5,7 +5,7 @@ function PaymentStats({
   transferPayments,
 }) {
   return (
-    <section className="mb-6 grid grid-cols-2 gap-3">
+    <section className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
       <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
         <p className="text-sm text-zinc-400">Total recaudado</p>
 

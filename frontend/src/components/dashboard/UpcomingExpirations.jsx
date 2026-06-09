@@ -1,4 +1,8 @@
+import { useNavigate } from "react-router-dom";
+
 function UpcomingExpirations({ expirations = [] }) {
+  const navigate = useNavigate();
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -6,7 +10,12 @@ function UpcomingExpirations({ expirations = [] }) {
           Próximos Vencimientos
         </h3>
 
-        <button className="text-sm text-blue-400">Ver Todos</button>
+        <button
+          onClick={() => navigate("/subscriptions?status=active")}
+          className="text-sm text-blue-400"
+        >
+          Ver Todos
+        </button>
       </div>
 
       <div className="space-y-3">

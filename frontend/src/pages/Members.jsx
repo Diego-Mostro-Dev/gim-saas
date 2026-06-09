@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, DollarSign } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
@@ -63,6 +63,8 @@ function Members() {
   const [memberPayments, setMemberPayments] = useState([]);
 
   const [paymentsMemberName, setPaymentsMemberName] = useState("");
+
+  const [paymentsMemberId, setPaymentsMemberId] = useState(null);
 
   // Abrir form desde query param (?create=true)
   useEffect(() => {
@@ -144,6 +146,8 @@ function Members() {
 
       setPaymentsMemberName(`${member.first_name} ${member.last_name}`);
 
+      setPaymentsMemberId(member.id);
+
       setShowPaymentsModal(true);
     } catch (error) {
       console.error(error);
@@ -195,7 +199,7 @@ function Members() {
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
       {/* HEADER */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Miembros</h1>
 
@@ -322,12 +326,31 @@ function Members() {
               )}
             </div>
 
-            <button
-              onClick={() => setShowPaymentsModal(false)}
-              className="mt-4 w-full rounded-xl bg-blue-500 py-2"
-            >
-              Cerrar
-            </button>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setShowPaymentsModal(false)}
+                className="flex-1 rounded-xl bg-zinc-700 py-2 text-sm font-medium text-white transition hover:bg-zinc-600"
+              >
+                Cerrar
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowPaymentsModal(false);
+
+                  navigate("/payments", {
+                    state: {
+                      prefillMemberId: paymentsMemberId,
+                    },
+                  });
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                <DollarSign size={16} />
+
+                Registrar pago
+              </button>
+            </div>
           </div>
         </div>
       )}

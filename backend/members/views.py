@@ -1,17 +1,31 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+
+from django.shortcuts import get_object_or_404
 
 from core.viewsets import GymModelViewSet
-
 from payments.models import Payment
 
 from .models import Member
-from .serializers import MemberSerializer
+from .serializers import (
+    MemberSerializer,
+    MemberPhotoSerializer,
+)
 
 
 class MemberViewSet(GymModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
+
+    def update(self, request, *args, **kwargs):
+
+        return super().update(
+            request,
+            *args,
+            **kwargs,
+        )
 
     @action(
         detail=True,
@@ -41,3 +55,30 @@ class MemberViewSet(GymModelViewSet):
         )
 
         return Response(payments)
+
+
+class PublicMemberPhotoView(APIView):
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def patch(self, request, token):
+
+        member = get_object_or_404(
+        Member,
+        access_token=token,
+    )
+
+        serializer = MemberPhotoSerializer(
+            member,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        serializer.save()
+
+        return Response(serializer.data)

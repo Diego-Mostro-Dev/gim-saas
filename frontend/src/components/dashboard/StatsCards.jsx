@@ -25,11 +25,12 @@ function StatsCards({ data }) {
         </div>
 
         <h2 className="mt-2 text-3xl font-bold text-white">
-          ${Number(data?.monthlyRevenue ?? 0).toLocaleString("es-AR")}
+          ${Number(data?.currentMonthRevenue ?? 0).toLocaleString("es-AR")}
         </h2>
 
         <p className="mt-2 text-sm text-green-400">
-          Cobros registrados este mes
+          Mes anterior: $
+          {Number(data?.previousMonthRevenue ?? 0).toLocaleString("es-AR")}
         </p>
       </div>
 

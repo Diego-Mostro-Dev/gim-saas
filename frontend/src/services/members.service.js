@@ -13,9 +13,38 @@ export async function getMemberPayments(id) {
 }
 
 export async function createMember(memberData) {
+  const formData = new FormData();
+
+  formData.append(
+    "first_name",
+    memberData.first_name,
+  );
+
+  formData.append(
+    "last_name",
+    memberData.last_name,
+  );
+
+  formData.append(
+    "phone",
+    memberData.phone,
+  );
+
+  formData.append(
+    "email",
+    memberData.email || "",
+  );
+
+  if (memberData.photo) {
+    formData.append(
+      "photo",
+      memberData.photo,
+    );
+  }
+
   return apiFetch("/api/members/", {
     method: "POST",
-    body: JSON.stringify(memberData),
+    body: formData,
   });
 }
 
@@ -29,13 +58,40 @@ export async function updateMember(
   id,
   memberData,
 ) {
+  const formData = new FormData();
+
+  formData.append(
+    "first_name",
+    memberData.first_name,
+  );
+
+  formData.append(
+    "last_name",
+    memberData.last_name,
+  );
+
+  formData.append(
+    "phone",
+    memberData.phone,
+  );
+
+  formData.append(
+    "email",
+    memberData.email || "",
+  );
+
+  if (memberData.photo) {
+    formData.append(
+      "photo",
+      memberData.photo,
+    );
+  }
+
   return apiFetch(
     `/api/members/${id}/`,
     {
-      method: "PUT",
-      body: JSON.stringify(
-        memberData,
-      ),
+      method: "PATCH",
+      body: formData,
     },
   );
 }
