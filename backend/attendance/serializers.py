@@ -13,6 +13,8 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
     slot_id = serializers.IntegerField(read_only=True)
     capacity = serializers.SerializerMethodField()
+    day = serializers.SerializerMethodField()
+    hour = serializers.SerializerMethodField()
 
     class Meta:
         model = AttendanceSchedule
@@ -38,6 +40,12 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             return obj.slot.capacity
 
         return obj.gym.default_schedule_capacity
+
+    def get_day(self, obj):
+        return obj.slot.day
+
+    def get_hour(self, obj):
+        return obj.slot.hour
 
 
 class ScheduleSlotSerializer(serializers.ModelSerializer):

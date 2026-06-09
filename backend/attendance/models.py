@@ -50,22 +50,21 @@ class AttendanceSchedule(models.Model):
 
     slot = models.ForeignKey(
         ScheduleSlot,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
         related_name="attendance_schedules",
     )
-
-    day = models.CharField(max_length=20, choices=DAY_CHOICES)
-    hour = models.TimeField()
 
     active = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ("gym", "member", "day", "hour")
+        unique_together = ("gym", "member", "slot")
 
     def __str__(self):
-        return f"{self.member} - {self.day} - {self.hour}"
+        return (
+            f"{self.member} - "
+            f"{self.slot.day} - "
+            f"{self.slot.hour}"
+        )
 
 
 class Attendance(models.Model):
