@@ -142,30 +142,49 @@ class MemberSerializer(serializers.ModelSerializer):
                 except Exception:
                     schedules = []
 
-            AttendanceSchedule.objects.filter(
-                member=instance,
-            ).delete()
-
-            schedule_slots = []
-
-            for s in schedules:
-                slot, _ = ScheduleSlot.objects.get_or_create(
-                    gym=instance.gym,
-                    day=s["day"],
-                    hour=s["hour"],
+            current = {
+                (s.day, s.hour.strftime("%H:%M")): s
+                for s in AttendanceSchedule.objects.filter(
+                    member=instance,
                 )
+            }
 
-                schedule_slots.append(
-                    AttendanceSchedule(
+            new_set = {
+                (s["day"], s["hour"])
+                for s in schedules
+            }
+
+            # Soft-delete removed active schedules
+            for key, schedule in current.items():
+                if schedule.active and key not in new_set:
+                    schedule.active = False
+                    schedule.save(update_fields=["active"])
+
+            # Create or reactivate
+            for day, hour in new_set:
+                key = (day, hour)
+
+                if key in current:
+                    schedule = current[key]
+
+                    if not schedule.active:
+                        schedule.active = True
+                        schedule.save(update_fields=["active"])
+                else:
+                    slot, _ = ScheduleSlot.objects.get_or_create(
+                        gym=instance.gym,
+                        day=day,
+                        hour=hour,
+                    )
+
+                    AttendanceSchedule.objects.create(
                         member=instance,
                         gym=instance.gym,
                         slot=slot,
-                        day=s["day"],
-                        hour=s["hour"],
+                        day=day,
+                        hour=hour,
+                        active=True,
                     )
-                )
-
-            AttendanceSchedule.objects.bulk_create(schedule_slots)
 
         return instance
 
