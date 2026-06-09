@@ -404,6 +404,9 @@ class PublicRoutineView(APIView):
                     if assignment.gym.logo
                     else None
                 ),
+                "whatsapp": assignment.gym.whatsapp,
+                "phone": assignment.gym.phone,
+                "email": assignment.gym.email,
             },
             "subscription": subscription_data,
             "schedules": [

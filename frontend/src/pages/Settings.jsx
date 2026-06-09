@@ -13,6 +13,9 @@ function Settings() {
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
+    whatsapp: "",
+    phone: "",
+    email: "",
     default_schedule_capacity: "",
   });
 
@@ -26,6 +29,9 @@ function Settings() {
     setFormData({
       name: gym.name || "",
       slug: gym.slug || "",
+      whatsapp: gym.whatsapp || "",
+      phone: gym.phone || "",
+      email: gym.email || "",
       default_schedule_capacity:
         gym.default_schedule_capacity ?? "",
     });
@@ -41,6 +47,9 @@ function Settings() {
 
       data.append("name", formData.name);
       data.append("slug", formData.slug);
+      data.append("whatsapp", formData.whatsapp);
+      data.append("phone", formData.phone);
+      data.append("email", formData.email);
 
       if (formData.default_schedule_capacity !== "") {
         data.append(
@@ -150,6 +159,63 @@ function Settings() {
             }
             className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
             required
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-zinc-300">
+            WhatsApp
+          </label>
+
+          <input
+            type="text"
+            value={formData.whatsapp}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                whatsapp: e.target.value,
+              })
+            }
+            placeholder="Ej: 541234567890"
+            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-zinc-300">
+            Teléfono
+          </label>
+
+          <input
+            type="text"
+            value={formData.phone}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                phone: e.target.value,
+              })
+            }
+            placeholder="Ej: 11 2345-6789"
+            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-zinc-300">
+            Email
+          </label>
+
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                email: e.target.value,
+              })
+            }
+            placeholder="Ej: info@gimnasio.com"
+            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
           />
         </div>
 

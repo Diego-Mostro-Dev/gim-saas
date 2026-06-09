@@ -121,6 +121,34 @@ class MemberSerializer(serializers.ModelSerializer):
 
         instance.save()
 
+        if "schedules" in self.initial_data:
+            schedules = self.initial_data.get(
+                "schedules",
+                [],
+            )
+
+            if isinstance(schedules, str):
+                try:
+                    schedules = json.loads(schedules)
+                except Exception:
+                    schedules = []
+
+            AttendanceSchedule.objects.filter(
+                member=instance,
+            ).delete()
+
+            AttendanceSchedule.objects.bulk_create(
+                [
+                    AttendanceSchedule(
+                        member=instance,
+                        gym=instance.gym,
+                        day=s["day"],
+                        hour=s["hour"],
+                    )
+                    for s in schedules
+                ]
+            )
+
         return instance
 
 
