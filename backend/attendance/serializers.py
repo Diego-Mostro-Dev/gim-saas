@@ -11,10 +11,7 @@ from .models import (
 
 class AttendanceScheduleSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
-    slot_id = serializers.IntegerField(
-        source="slot_id",
-        read_only=True,
-    )
+    slot_id = serializers.IntegerField(read_only=True)
     capacity = serializers.SerializerMethodField()
 
     class Meta:
@@ -41,6 +38,33 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             return obj.slot.capacity
 
         return obj.gym.default_schedule_capacity
+
+
+class ScheduleSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ScheduleSlot
+        fields = ["id", "day", "hour", "capacity", "gym"]
+        read_only_fields = ["gym"]
+        validators = []
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        gym = request.user.profile.gym if request else None
+
+        if gym:
+            qs = ScheduleSlot.objects.filter(
+                gym=gym,
+                day=attrs.get("day"),
+                hour=attrs.get("hour"),
+            )
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    "Ya existe un horario con ese día y hora."
+                )
+
+        return attrs
 
 
 class AttendanceSerializer(serializers.ModelSerializer):

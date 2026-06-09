@@ -5,6 +5,8 @@ from .views import (
     members_by_schedule,
     attendance_status,
     AttendanceCreateView,
+    ScheduleSlotListCreateView,
+    ScheduleSlotDetailView,
 )
 
 from .public_views import (
@@ -40,5 +42,15 @@ urlpatterns = [
         "checkin/<str:token>/",
         PublicCheckinView.as_view(),
         name="attendance-checkin",
+    ),
+    path(
+        "slots/",
+        ScheduleSlotListCreateView.as_view(),
+        name="slot-list-create",
+    ),
+    path(
+        "slots/<int:pk>/",
+        ScheduleSlotDetailView.as_view(),
+        name="slot-detail",
     ),
 ]

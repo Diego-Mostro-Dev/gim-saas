@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, QrCode } from "lucide-react";
+import { ArrowLeft, QrCode, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useGym } from "../hooks/useGym";
 import { updateGym } from "../services/gym.service";
+import {
+  getSlots,
+  createSlot,
+  updateSlot,
+  deleteSlot,
+} from "../services/attendance.service";
 
 function Settings() {
   const navigate = useNavigate();
@@ -22,6 +28,101 @@ function Settings() {
   const [logoFile, setLogoFile] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [slots, setSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newSlot, setNewSlot] = useState({
+    day: "monday",
+    hour: "08:00",
+    capacity: "",
+  });
+  const [editingSlotId, setEditingSlotId] = useState(null);
+  const [editCapacity, setEditCapacity] = useState("");
+
+  const DAY_LABELS = {
+    monday: "Lunes",
+    tuesday: "Martes",
+    wednesday: "Miércoles",
+    thursday: "Jueves",
+    friday: "Viernes",
+    saturday: "Sábado",
+  };
+
+  const AVAILABLE_HOURS = [
+    "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+    "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
+    "19:00", "20:00", "21:00",
+  ];
+
+  useEffect(() => {
+    loadSlots();
+  }, []);
+
+  async function loadSlots() {
+    try {
+      setLoadingSlots(true);
+      const data = await getSlots();
+      setSlots(data);
+    } catch {
+      toast.error("Error al cargar horarios");
+    } finally {
+      setLoadingSlots(false);
+    }
+  }
+
+  async function handleCreateSlot(e) {
+    e.preventDefault();
+    try {
+      const data = {
+        day: newSlot.day,
+        hour: newSlot.hour,
+      };
+      if (newSlot.capacity !== "") {
+        data.capacity = Number(newSlot.capacity);
+      }
+      await createSlot(data);
+      toast.success("Horario creado");
+      setShowCreateForm(false);
+      setNewSlot({ day: "monday", hour: "08:00", capacity: "" });
+      loadSlots();
+    } catch (error) {
+      toast.error(error.message || "Error al crear horario");
+    }
+  }
+
+  async function handleUpdateCapacity(id) {
+    try {
+      const data = {};
+      if (editCapacity !== "") {
+        data.capacity = Number(editCapacity);
+      } else {
+        data.capacity = null;
+      }
+      await updateSlot(id, data);
+      toast.success("Capacidad actualizada");
+      setEditingSlotId(null);
+      loadSlots();
+    } catch (error) {
+      toast.error(error.message || "Error al actualizar capacidad");
+    }
+  }
+
+  async function handleDeleteSlot(id) {
+    if (!window.confirm("¿Eliminar este horario?")) return;
+    try {
+      await deleteSlot(id);
+      toast.success("Horario eliminado");
+      loadSlots();
+    } catch (error) {
+      toast.error(error.message || "Error al eliminar horario");
+    }
+  }
+
+  function startEdit(slot) {
+    setEditingSlotId(slot.id);
+    setEditCapacity(slot.capacity ?? "");
+  }
 
   useEffect(() => {
     if (!gym) return;
@@ -270,6 +371,166 @@ function Settings() {
 
           <span>Asistencia QR</span>
         </button>
+      </div>
+
+      {/* Horarios disponibles */}
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#201f1f] p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Horarios disponibles
+          </h2>
+
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="flex items-center gap-1 rounded-xl bg-pink-500 px-3 py-1.5 text-xs font-medium text-white transition active:scale-95"
+          >
+            <Plus size={14} />
+            Agregar
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <form
+            onSubmit={handleCreateSlot}
+            className="mb-4 rounded-xl border border-white/10 bg-[#2a2a2a] p-3"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <select
+                value={newSlot.day}
+                onChange={(e) =>
+                  setNewSlot({ ...newSlot, day: e.target.value })
+                }
+                className="flex-1 rounded-lg bg-[#141414] px-3 py-2 text-sm text-white outline-none"
+              >
+                {Object.entries(DAY_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={newSlot.hour}
+                onChange={(e) =>
+                  setNewSlot({ ...newSlot, hour: e.target.value })
+                }
+                className="rounded-lg bg-[#141414] px-3 py-2 text-sm text-white outline-none"
+              >
+                {AVAILABLE_HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                min="1"
+                placeholder="Capacidad"
+                value={newSlot.capacity}
+                onChange={(e) =>
+                  setNewSlot({ ...newSlot, capacity: e.target.value })
+                }
+                className="w-24 rounded-lg bg-[#141414] px-3 py-2 text-sm text-white outline-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-white/5"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition active:scale-95"
+              >
+                Crear
+              </button>
+            </div>
+          </form>
+        )}
+
+        {loadingSlots ? (
+          <div className="py-4 text-center text-sm text-zinc-500">
+            Cargando horarios...
+          </div>
+        ) : slots.length === 0 ? (
+          <div className="rounded-xl bg-[#2a2a2a] px-4 py-3 text-sm text-zinc-500">
+            No hay horarios configurados
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {slots.map((slot) => (
+              <div
+                key={slot.id}
+                className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-white">
+                    {DAY_LABELS[slot.day]}
+                  </span>
+
+                  <span className="text-sm text-zinc-300">
+                    {slot.hour.slice(0, 5)}
+                  </span>
+
+                  {editingSlotId === slot.id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Cap."
+                        value={editCapacity}
+                        onChange={(e) => setEditCapacity(e.target.value)}
+                        className="w-16 rounded-lg bg-[#141414] px-2 py-1 text-xs text-white outline-none"
+                      />
+
+                      <button
+                        onClick={() => handleUpdateCapacity(slot.id)}
+                        className="rounded-lg bg-green-500/20 p-1 text-green-400 transition hover:bg-green-500/30"
+                      >
+                        <Check size={14} />
+                      </button>
+
+                      <button
+                        onClick={() => setEditingSlotId(null)}
+                        className="rounded-lg bg-red-500/20 p-1 text-red-400 transition hover:bg-red-500/30"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-zinc-400">
+                      {slot.capacity !== null && slot.capacity !== undefined
+                        ? `Cap: ${slot.capacity}`
+                        : "(usar capacidad por defecto)"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => startEdit(slot)}
+                    className="rounded-lg bg-blue-500/20 p-1.5 text-blue-400 transition hover:bg-blue-500/30"
+                  >
+                    <Pencil size={14} />
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteSlot(slot.id)}
+                    className="rounded-lg bg-red-500/20 p-1.5 text-red-400 transition hover:bg-red-500/30"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
