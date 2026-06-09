@@ -1,12 +1,12 @@
-const API_BASE =
-  `${import.meta.env.VITE_API_URL}/api/public/register`;
+const API_PUBLIC =
+  `${import.meta.env.VITE_API_URL}/api/public`;
 
 export async function registerPublicMember(
   gymCode,
   formData
 ) {
   const response = await fetch(
-    `${API_BASE}/${gymCode}/`,
+    `${API_PUBLIC}/register/${gymCode}/`,
     {
       method: "POST",
       body: formData,
@@ -24,4 +24,16 @@ export async function registerPublicMember(
   }
 
   return data;
+}
+
+export async function getPublicSlots(gymCode) {
+  const response = await fetch(
+    `${API_PUBLIC}/slots/${gymCode}/`,
+  );
+
+  if (!response.ok) {
+    throw new Error("Error al cargar horarios disponibles");
+  }
+
+  return response.json();
 }

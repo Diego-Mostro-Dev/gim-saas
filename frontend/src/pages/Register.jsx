@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import MemberForm from "../components/members/MemberForm";
-import { registerPublicMember } from "../services/publicRegister.service";
+import {
+  registerPublicMember,
+  getPublicSlots,
+} from "../services/publicRegister.service";
 
 const INITIAL_FORM = {
   first_name: "",
@@ -22,6 +25,23 @@ function Register() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [success, setSuccess] = useState(false);
+
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getPublicSlots(gymCode);
+        setAvailableSlots(data);
+      } catch {
+        toast.error("Error al cargar horarios disponibles");
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+    load();
+  }, [gymCode]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -96,6 +116,8 @@ function Register() {
           onSubmit={handleSubmit}
           editingMember={null}
           isSubmitting={isSubmitting}
+          availableSlots={availableSlots}
+          loadingSlots={loadingSlots}
         />
       </div>
     </div>
