@@ -3,7 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 function PlanCard({ plan, onEdit, onDelete }) {
   return (
     <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
 

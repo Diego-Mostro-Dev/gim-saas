@@ -19,11 +19,21 @@ function MemberCard({
 
   return (
     <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
-            {member.first_name[0]}
-            {member.last_name[0]}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
+            {member.photo ? (
+              <img
+                src={member.photo}
+                alt={`${member.first_name} ${member.last_name}`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <>
+                {member.first_name[0]}
+                {member.last_name[0]}
+              </>
+            )}
           </div>
 
           <div>
@@ -34,6 +44,28 @@ function MemberCard({
             <p className="text-sm text-zinc-400">{member.phone}</p>
 
             <p className="text-xs text-zinc-500">{member.email}</p>
+
+            {member.plan_name && (
+              <div className="mt-1 flex items-center gap-2">
+                <span className="rounded-md bg-green-500/10 px-2 py-0.5 text-xs text-green-300">
+                  {member.plan_name}
+                </span>
+
+                {member.subscription_end_date && (
+                  <span className="text-xs text-zinc-500">
+                    {member.subscription_days_remaining != null
+                      ? `${
+                          member.subscription_days_remaining === 1
+                            ? "1 día restante"
+                            : `${member.subscription_days_remaining} días restantes`
+                        }`
+                      : `hasta ${new Date(
+                          member.subscription_end_date,
+                        ).toLocaleDateString("es-AR")}`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -44,16 +76,6 @@ function MemberCard({
           >
             <Pencil size={16} />
           </button>
-
-          <div
-            className={`rounded-md px-2 py-1 text-xs ${
-              member.active
-                ? "bg-blue-500/10 text-blue-300"
-                : "bg-red-500/10 text-red-300"
-            }`}
-          >
-            {member.active ? "Activo" : "Inactivo"}
-          </div>
 
           <button
             onClick={() => onDelete(member.id)}
@@ -90,7 +112,7 @@ function MemberCard({
           className="flex items-center gap-1.5 rounded-lg bg-green-600/20 px-3 py-1.5 text-xs font-medium text-green-400 transition hover:bg-green-600/30"
         >
           <Share2 size={14} />
-          Compartir Portal
+          Compartir acceso
         </button>
 
         <button
@@ -98,7 +120,7 @@ function MemberCard({
           className="flex items-center gap-1.5 rounded-lg bg-zinc-600/20 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-600/30"
         >
           <Link size={14} />
-          Copiar Link
+          Copiar enlace
         </button>
       </div>
     </div>

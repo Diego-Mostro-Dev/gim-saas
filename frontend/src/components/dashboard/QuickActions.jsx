@@ -4,6 +4,7 @@ import {
   RefreshCw,
   QrCode,
   Dumbbell,
+  DollarSign,
   CheckCircle,
 } from "lucide-react";
 
@@ -21,7 +22,7 @@ function QuickActions() {
         <UserPlus size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Agregar Miembro
+          Agregar miembro
         </span>
       </button>
 
@@ -32,7 +33,7 @@ function QuickActions() {
         <CreditCard size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Registrar Pago
+          Registrar pago
         </span>
       </button>
 
@@ -43,28 +44,28 @@ function QuickActions() {
         <RefreshCw size={18} className="text-pink-300" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Crear Suscripción
+          Crear suscripción
         </span>
       </button>
 
       <button
-        onClick={() => navigate("/registration")}
-        className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3 transition active:scale-95"
-      >
-        <QrCode size={18} className="text-pink-300" />
-
-        <span className="whitespace-nowrap text-sm text-white">Registro</span>
-      </button>
-
-      <button
-        onClick={() => navigate("/attendance-qr")}
+        onClick={() => navigate("/attendance")}
         className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3 transition active:scale-95"
       >
         <CheckCircle size={18} className="text-green-400" />
 
         <span className="whitespace-nowrap text-sm text-white">
-          Asistencia QR
+          Marcar asistencia
         </span>
+      </button>
+
+      <button
+        onClick={() => navigate("/payments")}
+        className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3 transition active:scale-95"
+      >
+        <DollarSign size={18} className="text-green-400" />
+
+        <span className="whitespace-nowrap text-sm text-white">Ver pagos</span>
       </button>
 
       <button

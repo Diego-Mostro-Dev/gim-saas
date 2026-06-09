@@ -1,5 +1,6 @@
-import { Copy, Check, Download } from "lucide-react";
+import { ArrowLeft, Copy, Check, Download } from "lucide-react";
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import * as QRModule from "react-qr-code";
 
 import { useGym } from "../hooks/useGym";
@@ -7,6 +8,7 @@ import { useGym } from "../hooks/useGym";
 const QRCode = QRModule.QRCode || QRModule.default?.QRCode;
 
 function Registration() {
+  const navigate = useNavigate();
   const { gym } = useGym();
 
   const [copied, setCopied] = useState(false);
@@ -72,6 +74,16 @@ function Registration() {
 
   return (
     <div className="flex min-h-full flex-col items-center p-6 text-white">
+      <div className="mb-4 self-start">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+        >
+          <ArrowLeft size={18} />
+          Volver al inicio
+        </button>
+      </div>
+
       <h1 className="mb-2 text-2xl font-semibold">Registro de miembros</h1>
 
       <p className="mb-6 text-center text-sm text-zinc-400">
@@ -80,12 +92,13 @@ function Registration() {
       </p>
 
       {QRCode && (
-        <div ref={qrRef} className="rounded-3xl bg-white p-5 shadow-lg">
+        <div ref={qrRef} className="max-w-full rounded-3xl bg-white p-5 shadow-lg">
           <QRCode
             value={gym.register_url}
             size={320}
             bgColor="#FFFFFF"
             fgColor="#000000"
+            style={{ maxWidth: "100%", height: "auto" }}
           />
         </div>
       )}

@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import toast from "react-hot-toast";
 
-import { getPublicRoutine } from "../services/routines.service";
+import {
+  getPublicRoutine,
+  updatePublicMemberPhoto,
+} from "../services/routines.service";
 
 const DAY_NAMES = {
   monday: "Lunes",
@@ -22,6 +26,10 @@ function PublicRoutine() {
   const [routine, setRoutine] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [photoFile, setPhotoFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -44,6 +52,35 @@ function PublicRoutine() {
       setError("No se encontró la rutina.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePhotoUpload() {
+    if (!photoFile) return;
+
+    try {
+      setUploadingPhoto(true);
+
+      const response = await updatePublicMemberPhoto(token, photoFile);
+
+      setRoutine((prev) => ({
+        ...prev,
+        member: {
+          ...prev.member,
+          photo: response.photo,
+        },
+      }));
+
+      setPhotoFile(null);
+      setPreview(null);
+
+      toast.success("Foto actualizada correctamente");
+    } catch (error) {
+      console.error(error);
+
+      toast.error("No se pudo actualizar la foto");
+    } finally {
+      setUploadingPhoto(false);
     }
   }
 
@@ -71,25 +108,71 @@ function PublicRoutine() {
         {/* HEADER */}
         <div className="rounded-2xl bg-[#201f1f] p-6">
           <div className="flex items-center gap-4">
-            {gym.logo_url ? (
+            {member.photo ? (
               <img
-                src={gym.logo_url}
-                alt={gym.name}
-                className="h-16 w-16 rounded-2xl object-cover"
+                src={member.photo}
+                alt={member.first_name}
+                className="h-20 w-20 rounded-full object-cover"
               />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pink-500 text-2xl font-bold text-white">
-                {gym.name?.charAt(0)?.toUpperCase()}
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-pink-500 text-2xl font-bold text-white">
+                {member.first_name?.charAt(0)}
+                {member.last_name?.charAt(0)}
               </div>
             )}
 
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">
                 {member.first_name} {member.last_name}
               </h1>
 
               <p className="text-zinc-400">Socio de {gym.name}</p>
             </div>
+          </div>
+
+          <div className="mt-5 border-t border-white/5 pt-4">
+            <label className="mb-2 block text-sm text-zinc-400">
+              Cambiar foto
+            </label>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+
+                setPhotoFile(file);
+
+                if (file) {
+                  setPreview(URL.createObjectURL(file));
+                } else {
+                  setPreview(null);
+                }
+              }}
+              className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2 text-sm text-white"
+            />
+
+            {preview && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm text-zinc-400">Vista previa</p>
+
+                <img
+                  src={preview}
+                  alt="Preview"
+                  className="h-24 w-24 rounded-full border border-white/10 object-cover"
+                />
+              </div>
+            )}
+
+            {photoFile && (
+              <button
+                onClick={handlePhotoUpload}
+                disabled={uploadingPhoto}
+                className="mt-3 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
+              >
+                {uploadingPhoto ? "Subiendo..." : "Actualizar foto"}
+              </button>
+            )}
           </div>
         </div>
 

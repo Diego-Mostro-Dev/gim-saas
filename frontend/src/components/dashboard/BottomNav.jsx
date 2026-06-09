@@ -5,19 +5,20 @@ import {
   DollarSign,
   Dumbbell,
   CalendarDays,
+  ClipboardList,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
 
 function BottomNav() {
-  const baseClass = "flex flex-col items-center px-3 py-2 transition";
+  const baseClass = "flex flex-col items-center px-2 py-2 transition";
 
   const activeClass = "rounded-xl bg-purple-500/20 text-blue-300";
 
   const inactiveClass = "text-zinc-400";
 
   return (
-    <nav className="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around border-t border-white/10 bg-[#201f1f] px-2">
+    <nav className="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around gap-1 overflow-x-auto border-t border-white/10 bg-[#201f1f] px-2">
       <NavLink
         to="/dashboard"
         className={({ isActive }) =>
@@ -48,7 +49,18 @@ function BottomNav() {
       >
         <CreditCard size={20} />
 
-        <span className="text-xs">Subs</span>
+        <span className="text-xs">Suscrip.</span>
+      </NavLink>
+
+      <NavLink
+        to="/routines"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <ClipboardList size={20} />
+
+        <span className="text-xs">Rutinas</span>
       </NavLink>
 
       <NavLink

@@ -66,8 +66,8 @@ function PlanForm({
             ? "Guardando..."
             : "Creando..."
           : editingPlan
-            ? "Guardar Cambios"
-            : "Crear Plan"}
+            ? "Guardar cambios"
+            : "Crear plan"}
       </button>
     </form>
   );

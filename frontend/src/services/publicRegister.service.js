@@ -3,16 +3,13 @@ const API_BASE =
 
 export async function registerPublicMember(
   gymCode,
-  memberData
+  formData
 ) {
   const response = await fetch(
     `${API_BASE}/${gymCode}/`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(memberData),
+      body: formData,
     }
   );
 

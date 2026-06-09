@@ -1,9 +1,13 @@
+import { useNavigate } from "react-router-dom";
+
 function PendingPayments({ pendingPayments = [] }) {
+  const navigate = useNavigate();
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">
-          Pendientes de Cobro
+          Pendientes de cobro
         </h3>
 
         <span className="text-sm text-zinc-400">{pendingPayments.length}</span>
@@ -23,9 +27,17 @@ function PendingPayments({ pendingPayments = [] }) {
               .slice(0, 2);
 
             return (
-              <div
+              <button
                 key={item.id}
-                className="flex items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+                onClick={() =>
+                  navigate("/payments", {
+                    state: {
+                      prefillMemberId: item.member_id,
+                      prefillSubscriptionId: item.id,
+                    },
+                  })
+                }
+                className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-left transition hover:bg-white/5"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-yellow-300">
@@ -44,7 +56,7 @@ function PendingPayments({ pendingPayments = [] }) {
                 <div className="rounded-md bg-yellow-500/10 px-3 py-1 text-xs font-medium text-yellow-300">
                   ${Number(item.plan_price).toLocaleString()}
                 </div>
-              </div>
+              </button>
             );
           })
         )}
