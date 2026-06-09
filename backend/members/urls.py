@@ -6,7 +6,7 @@ from .views import (
     MemberViewSet,
     PublicMemberPhotoView,
 )
-from .public_views import PublicRegisterView
+from .public_views import PublicRegisterView, PublicSlotsView
 
 router = DefaultRouter()
 
@@ -21,6 +21,11 @@ urlpatterns = router.urls + [
         "public/register/<uuid:gym_code>/",
         PublicRegisterView.as_view(),
         name="public-register",
+    ),
+    path(
+        "public/slots/<uuid:gym_code>/",
+        PublicSlotsView.as_view(),
+        name="public-slots",
     ),
     path(
         "public/<str:token>/photo/",

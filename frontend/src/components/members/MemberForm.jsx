@@ -4,6 +4,8 @@ function MemberForm({
   onSubmit,
   editingMember,
   isSubmitting,
+  availableSlots,
+  loadingSlots,
 }) {
   if (!formData) return null;
 
@@ -18,23 +20,21 @@ function MemberForm({
     { value: "saturday", label: "Sábado" },
   ];
 
-  const AVAILABLE_HOURS = [
-    "07:00",
-    "08:00",
-    "09:00",
-    "10:00",
-    "11:00",
-    "12:00",
-    "13:00",
-    "14:00",
-    "15:00",
-    "16:00",
-    "17:00",
-    "18:00",
-    "19:00",
-    "20:00",
-    "21:00",
+  const FALLBACK_HOURS = [
+    "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+    "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
+    "19:00", "20:00", "21:00",
   ];
+
+  function getHoursForDay(day) {
+    if (availableSlots && availableSlots.length > 0) {
+      return availableSlots
+        .filter((s) => s.day === day)
+        .map((s) => s.hour.slice(0, 5))
+        .sort();
+    }
+    return availableSlots ? [] : FALLBACK_HOURS;
+  }
 
   function handleToggleDay(day) {
     const exists = schedules.find((s) => s.day === day);
@@ -47,9 +47,12 @@ function MemberForm({
       return;
     }
 
+    const hours = getHoursForDay(day);
+    if (hours.length === 0) return;
+
     setFormData({
       ...formData,
-      schedules: [...schedules, { day, hour: "08:00" }],
+      schedules: [...schedules, { day, hour: hours[0] }],
     });
   }
 
@@ -65,7 +68,10 @@ function MemberForm({
   }
 
   function getHour(day) {
-    return schedules.find((s) => s.day === day)?.hour || "08:00";
+    const current = schedules.find((s) => s.day === day);
+    if (current) return current.hour;
+    const hours = getHoursForDay(day);
+    return hours.length > 0 ? hours[0] : "";
   }
 
   return (
@@ -177,7 +183,7 @@ function MemberForm({
                       }
                       className="rounded-lg bg-[#2a2a2a] px-3 py-1 text-sm text-white outline-none"
                     >
-                      {AVAILABLE_HOURS.map((hour) => (
+                      {getHoursForDay(day.value).map((hour) => (
                         <option
                           key={hour}
                           value={hour}

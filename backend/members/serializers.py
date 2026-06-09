@@ -104,11 +104,30 @@ class MemberSerializer(serializers.ModelSerializer):
         schedule_slots = []
 
         for s in schedules:
-            slot, _ = ScheduleSlot.objects.get_or_create(
-                gym=member.gym,
-                day=s["day"],
-                hour=s["hour"],
-            )
+            try:
+                slot = ScheduleSlot.objects.get(
+                    gym=member.gym,
+                    day=s["day"],
+                    hour=s["hour"],
+                )
+            except ScheduleSlot.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"El horario {s['day']} {s['hour']} no está disponible."
+                )
+
+            cap = slot.capacity or member.gym.default_schedule_capacity
+
+            if cap is not None:
+                current_count = AttendanceSchedule.objects.filter(
+                    gym=member.gym,
+                    slot=slot,
+                    active=True,
+                ).count()
+
+                if current_count >= cap:
+                    raise serializers.ValidationError(
+                        f"El horario {s['day']} {s['hour']} está completo."
+                    )
 
             schedule_slots.append(
                 AttendanceSchedule(
