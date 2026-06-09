@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.utils import timezone
 
 from rest_framework import viewsets
 
@@ -13,6 +14,7 @@ from .serializers import MemberRoutineSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
 from attendance.models import AttendanceSchedule
+from payments.models import Payment
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -318,6 +320,8 @@ class PublicRoutineView(APIView):
             assignment
         )
 
+        today = timezone.localdate()
+
         subscription = (
             Subscription.objects
             .filter(
@@ -326,6 +330,19 @@ class PublicRoutineView(APIView):
             .order_by("-end_date")
             .first()
         )
+
+        subscription_data = None
+
+        if subscription:
+            subscription_data = {
+                "plan": subscription.plan.name,
+                "start_date": subscription.start_date,
+                "end_date": subscription.end_date,
+                "paid": subscription.paid,
+                "days_remaining": (
+                    subscription.end_date - today
+                ).days,
+            }
 
         schedules = (
             AttendanceSchedule.objects
@@ -344,6 +361,29 @@ class PublicRoutineView(APIView):
             .order_by("-date")[:15]
         )
 
+        member_name = (
+            f"{member.first_name} "
+            f"{member.last_name}"
+        )
+
+        payments_qs = (
+            Payment.objects
+            .filter(
+                gym=member.gym,
+                member_name__iexact=member_name,
+            )
+            .order_by("-paid_at")
+            .values(
+                "id",
+                "plan_name",
+                "amount",
+                "payment_method",
+                "paid_at",
+            )
+        )
+
+        payments_list = list(payments_qs[:10])
+
         data = {
             "member": {
                 "id": member.id,
@@ -361,16 +401,7 @@ class PublicRoutineView(APIView):
                     else None
                 ),
             },
-            "subscription": (
-                {
-                    "plan": subscription.plan.name,
-                    "start_date": subscription.start_date,
-                    "end_date": subscription.end_date,
-                    "paid": subscription.paid,
-                }
-                if subscription
-                else None
-            ),
+            "subscription": subscription_data,
             "schedules": [
                 {
                     "day": schedule.day,
@@ -385,6 +416,12 @@ class PublicRoutineView(APIView):
                 for attendance in attendances
             ],
             "routine": routine_serializer.data,
+            "last_payment": (
+                payments_list[0]
+                if payments_list
+                else None
+            ),
+            "payments": payments_list,
         }
 
         serializer = MemberPortalSerializer(
