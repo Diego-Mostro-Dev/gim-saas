@@ -1,6 +1,21 @@
 from django.contrib import admin
 
-from .models import AttendanceSchedule, Attendance
+from .models import AttendanceSchedule, Attendance, ScheduleSlot
+
+
+@admin.register(ScheduleSlot)
+class ScheduleSlotAdmin(admin.ModelAdmin):
+    list_display = (
+        "gym",
+        "day",
+        "hour",
+        "capacity",
+    )
+
+    list_filter = (
+        "day",
+        "hour",
+    )
 
 
 @admin.register(AttendanceSchedule)
@@ -9,6 +24,7 @@ class AttendanceScheduleAdmin(admin.ModelAdmin):
         "member",
         "day",
         "hour",
+        "slot",
     )
 
     list_filter = (

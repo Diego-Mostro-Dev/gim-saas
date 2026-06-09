@@ -5,11 +5,17 @@ from rest_framework import serializers
 from .models import (
     Attendance,
     AttendanceSchedule,
+    ScheduleSlot,
 )
 
 
 class AttendanceScheduleSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    slot_id = serializers.IntegerField(
+        source="slot_id",
+        read_only=True,
+    )
+    capacity = serializers.SerializerMethodField()
 
     class Meta:
         model = AttendanceSchedule
@@ -20,6 +26,8 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             "member_name",
             "day",
             "hour",
+            "slot_id",
+            "capacity",
         ]
 
     def get_member_name(self, obj):
@@ -27,6 +35,12 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             f"{obj.member.first_name} "
             f"{obj.member.last_name}"
         )
+
+    def get_capacity(self, obj):
+        if obj.slot_id and obj.slot.capacity is not None:
+            return obj.slot.capacity
+
+        return obj.gym.default_schedule_capacity
 
 
 class AttendanceSerializer(serializers.ModelSerializer):

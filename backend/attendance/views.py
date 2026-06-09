@@ -28,7 +28,7 @@ class WeeklyScheduleView(APIView):
             schedules = AttendanceSchedule.objects.filter(
                 gym=gym,
                 day=day
-            ).select_related("member")
+            ).select_related("member", "slot")
 
             result[day] = AttendanceScheduleSerializer(
                 schedules,

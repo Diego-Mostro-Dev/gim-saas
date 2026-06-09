@@ -1,4 +1,4 @@
-function WeeklyOccupancy({ weeklyAttendance, capacity }) {
+function WeeklyOccupancy({ weeklyAttendance }) {
   const days = [
     {
       key: "monday",
@@ -56,12 +56,6 @@ function WeeklyOccupancy({ weeklyAttendance, capacity }) {
     return { label: "Disponible", level: "available" };
   }
 
-  const badgeStyles = {
-    available: "bg-green-500/10 text-green-400",
-    warning: "bg-yellow-500/10 text-yellow-400",
-    full: "bg-red-500/10 text-red-400",
-  };
-
   const textStyles = {
     available: "text-green-400",
     warning: "text-yellow-400",
@@ -83,26 +77,11 @@ function WeeklyOccupancy({ weeklyAttendance, capacity }) {
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">{day.label}</h2>
 
-              {schedules.length > 0 && (() => {
-                const info = getOccupancyInfo(
-                  schedules.length,
-                  capacity,
-                );
-
-                return (
-                  <span
-                    className={`rounded-md px-2 py-1 text-xs ${
-                      info
-                        ? badgeStyles[info.level]
-                        : "bg-blue-500/10 text-blue-300"
-                    }`}
-                  >
-                    {schedules.length} /{" "}
-                    {capacity ?? schedules.length}
-                    {info && ` · ${info.label}`}
-                  </span>
-                );
-              })()}
+              {schedules.length > 0 && (
+                <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+                  {schedules.length} socio{schedules.length > 1 ? "s" : ""}
+                </span>
+              )}
             </div>
 
             {schedules.length === 0 ? (
@@ -113,9 +92,10 @@ function WeeklyOccupancy({ weeklyAttendance, capacity }) {
               <div className="space-y-3">
                 {Object.entries(groupedSchedules).map(
                   ([hour, people]) => {
+                    const slotCapacity = people[0]?.capacity;
                     const info = getOccupancyInfo(
                       people.length,
-                      capacity,
+                      slotCapacity,
                     );
 
                     return (
@@ -136,7 +116,7 @@ function WeeklyOccupancy({ weeklyAttendance, capacity }) {
                             }`}
                           >
                             {people.length} /{" "}
-                            {capacity ?? people.length}
+                            {slotCapacity ?? people.length}
                             {info && ` · ${info.label}`}
                           </span>
                         </div>

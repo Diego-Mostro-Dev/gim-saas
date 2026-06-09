@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from attendance.models import AttendanceSchedule
+from attendance.models import AttendanceSchedule, ScheduleSlot
 
 from .models import Member
 
@@ -101,17 +101,26 @@ class MemberSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
-        AttendanceSchedule.objects.bulk_create(
-            [
+        schedule_slots = []
+
+        for s in schedules:
+            slot, _ = ScheduleSlot.objects.get_or_create(
+                gym=member.gym,
+                day=s["day"],
+                hour=s["hour"],
+            )
+
+            schedule_slots.append(
                 AttendanceSchedule(
                     member=member,
                     gym=member.gym,
+                    slot=slot,
                     day=s["day"],
                     hour=s["hour"],
                 )
-                for s in schedules
-            ]
-        )
+            )
+
+        AttendanceSchedule.objects.bulk_create(schedule_slots)
 
         return member
 
@@ -137,17 +146,26 @@ class MemberSerializer(serializers.ModelSerializer):
                 member=instance,
             ).delete()
 
-            AttendanceSchedule.objects.bulk_create(
-                [
+            schedule_slots = []
+
+            for s in schedules:
+                slot, _ = ScheduleSlot.objects.get_or_create(
+                    gym=instance.gym,
+                    day=s["day"],
+                    hour=s["hour"],
+                )
+
+                schedule_slots.append(
                     AttendanceSchedule(
                         member=instance,
                         gym=instance.gym,
+                        slot=slot,
                         day=s["day"],
                         hour=s["hour"],
                     )
-                    for s in schedules
-                ]
-            )
+                )
+
+            AttendanceSchedule.objects.bulk_create(schedule_slots)
 
         return instance
 
