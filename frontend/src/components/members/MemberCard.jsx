@@ -77,16 +77,6 @@ function MemberCard({
             <Pencil size={16} />
           </button>
 
-          <div
-            className={`rounded-md px-2 py-1 text-xs ${
-              member.active
-                ? "bg-blue-500/10 text-blue-300"
-                : "bg-red-500/10 text-red-300"
-            }`}
-          >
-            {member.active ? "Activo" : "Inactivo"}
-          </div>
-
           <button
             onClick={() => onDelete(member.id)}
             className="rounded-lg bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
