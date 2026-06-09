@@ -27,7 +27,8 @@ class WeeklyScheduleView(APIView):
         for day in days:
             schedules = AttendanceSchedule.objects.filter(
                 gym=gym,
-                day=day
+                day=day,
+                active=True,
             ).select_related("member", "slot")
 
             result[day] = AttendanceScheduleSerializer(
@@ -49,6 +50,7 @@ def members_by_schedule(request):
         gym=gym,
         day=day,
         hour=hour,
+        active=True,
     ).select_related("member")
 
     return Response([
@@ -72,6 +74,7 @@ def attendance_status(request):
         gym=gym,
         day=day,
         hour=hour,
+        active=True,
     ).select_related("member")
 
     today = date.today()
