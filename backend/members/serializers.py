@@ -85,7 +85,35 @@ class MemberSerializer(serializers.ModelSerializer):
 
         return data
 
-    def create(self, validated_data):
+    def _validate_schedule_slot(self, gym, day, hour):
+        try:
+            slot = ScheduleSlot.objects.get(
+                gym=gym,
+                day=day,
+                hour=hour,
+            )
+        except ScheduleSlot.DoesNotExist:
+            raise serializers.ValidationError(
+                f"El horario {day} {hour} no está disponible."
+            )
+
+        cap = slot.capacity or gym.default_schedule_capacity
+
+        if cap is not None:
+            current_count = AttendanceSchedule.objects.filter(
+                gym=gym,
+                slot=slot,
+                active=True,
+            ).count()
+
+            if current_count >= cap:
+                raise serializers.ValidationError(
+                    f"El horario {day} {hour} está completo."
+                )
+
+        return slot
+
+    def _parse_schedules(self):
         schedules = self.initial_data.get(
             "schedules",
             [],
@@ -97,6 +125,11 @@ class MemberSerializer(serializers.ModelSerializer):
             except Exception:
                 schedules = []
 
+        return schedules
+
+    def create(self, validated_data):
+        schedules = self._parse_schedules()
+
         member = Member.objects.create(
             **validated_data
         )
@@ -104,30 +137,9 @@ class MemberSerializer(serializers.ModelSerializer):
         schedule_slots = []
 
         for s in schedules:
-            try:
-                slot = ScheduleSlot.objects.get(
-                    gym=member.gym,
-                    day=s["day"],
-                    hour=s["hour"],
-                )
-            except ScheduleSlot.DoesNotExist:
-                raise serializers.ValidationError(
-                    f"El horario {s['day']} {s['hour']} no está disponible."
-                )
-
-            cap = slot.capacity or member.gym.default_schedule_capacity
-
-            if cap is not None:
-                current_count = AttendanceSchedule.objects.filter(
-                    gym=member.gym,
-                    slot=slot,
-                    active=True,
-                ).count()
-
-                if current_count >= cap:
-                    raise serializers.ValidationError(
-                        f"El horario {s['day']} {s['hour']} está completo."
-                    )
+            slot = self._validate_schedule_slot(
+                member.gym, s["day"], s["hour"]
+            )
 
             schedule_slots.append(
                 AttendanceSchedule(
@@ -150,16 +162,7 @@ class MemberSerializer(serializers.ModelSerializer):
         instance.save()
 
         if "schedules" in self.initial_data:
-            schedules = self.initial_data.get(
-                "schedules",
-                [],
-            )
-
-            if isinstance(schedules, str):
-                try:
-                    schedules = json.loads(schedules)
-                except Exception:
-                    schedules = []
+            schedules = self._parse_schedules()
 
             current = {
                 (s.day, s.hour.strftime("%H:%M")): s
@@ -190,10 +193,8 @@ class MemberSerializer(serializers.ModelSerializer):
                         schedule.active = True
                         schedule.save(update_fields=["active"])
                 else:
-                    slot, _ = ScheduleSlot.objects.get_or_create(
-                        gym=instance.gym,
-                        day=day,
-                        hour=hour,
+                    slot = self._validate_schedule_slot(
+                        instance.gym, day, hour
                     )
 
                     AttendanceSchedule.objects.create(
