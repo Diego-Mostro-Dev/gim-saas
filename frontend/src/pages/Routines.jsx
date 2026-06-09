@@ -50,7 +50,7 @@ function Routines() {
     },
     {
       id: "templates",
-      label: "Plantillas",
+      label: "Rutinas",
       icon: ClipboardList,
     },
     {
@@ -80,7 +80,7 @@ function Routines() {
           <h1 className="text-2xl font-bold text-white">Rutinas</h1>
 
           <p className="mt-1 text-sm text-zinc-400">
-            Gestiona ejercicios, plantillas y asignaciones.
+            Gestiona ejercicios, rutinas y asignaciones.
           </p>
         </div>
       </div>
@@ -134,7 +134,7 @@ function Routines() {
         {/* RUTINAS */}
         {activeTab === "templates" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Plantillas</h2>
+            <h2 className="text-lg font-semibold text-white">Rutinas</h2>
 
             <RoutineTemplateForm onSubmit={addTemplate} />
 

@@ -2,9 +2,11 @@ import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
 import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
+import { useGym } from "../hooks/useGym";
 
 function Attendance() {
   const { weeklyAttendance, loading, error } = useWeeklyAttendance();
+  const { gym } = useGym();
 
   if (loading) {
     return (
@@ -36,7 +38,10 @@ function Attendance() {
       </div>
 
       {/* Vista semanal */}
-      <WeeklyOccupancy weeklyAttendance={weeklyAttendance} />
+      <WeeklyOccupancy
+        weeklyAttendance={weeklyAttendance}
+        capacity={gym?.default_schedule_capacity}
+      />
     </div>
   );
 }

@@ -34,7 +34,7 @@ export function useRoutineTemplates() {
       console.error(err);
 
       setError(
-        "No se pudieron cargar las plantillas"
+        "No se pudieron cargar las rutinas"
       );
     } finally {
       setLoading(false);
