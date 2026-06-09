@@ -136,3 +136,10 @@ class MemberPortalSerializer(serializers.Serializer):
         required=False
     )
     routine = serializers.DictField()
+    last_payment = serializers.DictField(
+        allow_null=True,
+        required=False,
+    )
+    payments = serializers.ListField(
+        required=False,
+    )

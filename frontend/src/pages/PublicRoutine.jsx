@@ -63,7 +63,7 @@ function PublicRoutine() {
     );
   }
 
-  const { member, gym, subscription, schedules, attendance_history } = routine;
+  const { member, gym, subscription, schedules, attendance_history, last_payment, payments } = routine;
 
   return (
     <div className="min-h-screen bg-[#161616] p-4">
@@ -135,6 +135,24 @@ function PublicRoutine() {
                     {formatDate(subscription.end_date)}
                   </span>
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Estado</span>
+
+                  <span
+                    className={`font-semibold ${
+                      subscription.days_remaining > 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {subscription.days_remaining > 0
+                      ? `${subscription.days_remaining} días restantes`
+                      : subscription.days_remaining === 0
+                        ? "Vence hoy"
+                        : "Vencido"}
+                  </span>
+                </div>
               </div>
             </>
           ) : (
@@ -194,6 +212,103 @@ function PublicRoutine() {
           ) : (
             <p className="text-sm text-zinc-500">
               Todavía no hay asistencias registradas.
+            </p>
+          )}
+        </div>
+
+        {/* ÚLTIMO PAGO */}
+        {last_payment ? (
+          <div className="rounded-2xl bg-[#201f1f] p-4">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Último pago
+            </h2>
+
+            <div className="rounded-xl bg-[#2a2a2a] p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400">Fecha</span>
+
+                <span className="text-white">
+                  {formatDate(last_payment.paid_at)}
+                </span>
+              </div>
+
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-zinc-400">Monto</span>
+
+                <span className="font-semibold text-white">
+                  ${Number(last_payment.amount).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              {last_payment.payment_method && (
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-zinc-400">Método</span>
+
+                  <span className="text-white">
+                    {last_payment.payment_method === "cash"
+                      ? "Efectivo"
+                      : last_payment.payment_method === "transfer"
+                        ? "Transferencia"
+                        : "Tarjeta"}
+                  </span>
+                </div>
+              )}
+
+              {last_payment.plan_name && (
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-zinc-400">Plan</span>
+
+                  <span className="text-white">
+                    {last_payment.plan_name}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {/* HISTORIAL DE PAGOS */}
+        <div className="rounded-2xl bg-[#201f1f] p-4">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Historial de pagos
+          </h2>
+
+          {payments?.length > 0 ? (
+            <div className="space-y-2">
+              {payments.map((payment, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col gap-1 rounded-xl bg-[#2a2a2a] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-white">
+                      ${Number(payment.amount).toLocaleString("es-AR")}
+                    </span>
+
+                    {payment.plan_name && (
+                      <span className="text-xs text-zinc-500">
+                        {payment.plan_name}
+                      </span>
+                    )}
+
+                    <span className="text-xs text-zinc-500">
+                      {payment.payment_method === "cash"
+                        ? "Efectivo"
+                        : payment.payment_method === "transfer"
+                          ? "Transferencia"
+                          : "Tarjeta"}
+                    </span>
+                  </div>
+
+                  <span className="text-sm text-zinc-400">
+                    {formatDate(payment.paid_at)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              No hay pagos registrados
             </p>
           )}
         </div>
