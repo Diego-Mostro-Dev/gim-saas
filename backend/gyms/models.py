@@ -19,6 +19,11 @@ class Gym(models.Model):
         editable=False,
     )
 
+    default_schedule_capacity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -13,6 +13,7 @@ function Settings() {
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
+    default_schedule_capacity: "",
   });
 
   const [logoFile, setLogoFile] = useState(null);
@@ -25,6 +26,8 @@ function Settings() {
     setFormData({
       name: gym.name || "",
       slug: gym.slug || "",
+      default_schedule_capacity:
+        gym.default_schedule_capacity ?? "",
     });
   }, [gym]);
 
@@ -38,6 +41,13 @@ function Settings() {
 
       data.append("name", formData.name);
       data.append("slug", formData.slug);
+
+      if (formData.default_schedule_capacity !== "") {
+        data.append(
+          "default_schedule_capacity",
+          formData.default_schedule_capacity,
+        );
+      }
 
       if (logoFile) {
         data.append("logo", logoFile);
@@ -140,6 +150,26 @@ function Settings() {
             }
             className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
             required
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-zinc-300">
+            Capacidad por defecto por horario
+          </label>
+
+          <input
+            type="number"
+            min="1"
+            value={formData.default_schedule_capacity}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                default_schedule_capacity: e.target.value,
+              })
+            }
+            placeholder="Ej: 20"
+            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
           />
         </div>
 

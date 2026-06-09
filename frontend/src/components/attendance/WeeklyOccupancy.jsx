@@ -1,4 +1,4 @@
-function WeeklyOccupancy({ weeklyAttendance }) {
+function WeeklyOccupancy({ weeklyAttendance, capacity }) {
   const days = [
     {
       key: "monday",
@@ -55,15 +55,16 @@ function WeeklyOccupancy({ weeklyAttendance }) {
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">{day.label}</h2>
 
-              <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
-                {schedules.length}{" "}
-                {schedules.length === 1 ? "persona" : "personas"}
-              </span>
+              {schedules.length > 0 && (
+                <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+                  {schedules.length} / {capacity ?? schedules.length}
+                </span>
+              )}
             </div>
 
             {schedules.length === 0 ? (
               <div className="rounded-xl bg-[#2a2a2a] px-4 py-3 text-sm text-zinc-500">
-                Sin asistencia registrada
+                Sin socios programados
               </div>
             ) : (
               <div className="space-y-3">
@@ -71,12 +72,11 @@ function WeeklyOccupancy({ weeklyAttendance }) {
                   <div key={hour} className="rounded-xl bg-[#2a2a2a] p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-sm font-medium text-white">
-                        {hour}
+                        {hour.slice(0, 5)}
                       </span>
 
                       <span className="text-xs text-zinc-400">
-                        {people.length}{" "}
-                        {people.length === 1 ? "persona" : "personas"}
+                        {people.length} / {capacity ?? people.length}
                       </span>
                     </div>
 

@@ -17,6 +17,7 @@ class GymSerializer(serializers.ModelSerializer):
             "logo",
             "logo_url",
             "active",
+            "default_schedule_capacity",
             "onboarding_code",
             "onboarding_url",
             "register_url",
