@@ -5,8 +5,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 
-from .models import AttendanceSchedule, Attendance
-from .serializers import AttendanceScheduleSerializer, AttendanceSerializer
+from .models import AttendanceSchedule, Attendance, ScheduleSlot
+from .serializers import (
+    AttendanceScheduleSerializer,
+    AttendanceSerializer,
+    ScheduleSlotSerializer,
+)
 
 
 class WeeklyScheduleView(APIView):
@@ -101,3 +105,24 @@ def attendance_status(request):
 class AttendanceCreateView(generics.CreateAPIView):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
+
+
+class ScheduleSlotListCreateView(generics.ListCreateAPIView):
+    serializer_class = ScheduleSlotSerializer
+
+    def get_queryset(self):
+        return ScheduleSlot.objects.filter(
+            gym=self.request.user.profile.gym,
+        ).order_by("day", "hour")
+
+    def perform_create(self, serializer):
+        serializer.save(gym=self.request.user.profile.gym)
+
+
+class ScheduleSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ScheduleSlotSerializer
+
+    def get_queryset(self):
+        return ScheduleSlot.objects.filter(
+            gym=self.request.user.profile.gym,
+        )
