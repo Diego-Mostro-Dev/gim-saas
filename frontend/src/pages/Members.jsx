@@ -14,6 +14,7 @@ import { useMembers } from "../hooks/useMembers";
 import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
 import { getMemberWhatsapp } from "../services/routines.service";
+import { getSlots } from "../services/attendance.service";
 
 import {
   getMember,
@@ -65,6 +66,23 @@ function Members() {
   const [paymentsMemberName, setPaymentsMemberName] = useState("");
 
   const [paymentsMemberId, setPaymentsMemberId] = useState(null);
+
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getSlots();
+        setAvailableSlots(data);
+      } catch {
+        toast.error("Error al cargar horarios disponibles");
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+    load();
+  }, []);
 
   // Abrir form desde query param (?create=true)
   useEffect(() => {
@@ -244,7 +262,18 @@ function Members() {
       </div>
 
       {/* FORM */}
-      {showForm && (
+      {showForm && !loadingSlots && availableSlots.length === 0 && !editingMember && (
+        <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center">
+          <p className="text-sm text-zinc-300">
+            No hay horarios configurados.
+          </p>
+          <p className="text-sm text-zinc-500">
+            Configuralos desde Configuración → Horarios disponibles.
+          </p>
+        </div>
+      )}
+
+      {showForm && (editingMember || availableSlots.length > 0) && (
         <div ref={formRef}>
           <MemberForm
             formData={formData}
@@ -252,6 +281,8 @@ function Members() {
             onSubmit={handleSubmit}
             editingMember={editingMember}
             isSubmitting={isSubmitting}
+            availableSlots={availableSlots}
+            loadingSlots={loadingSlots}
           />
         </div>
       )}

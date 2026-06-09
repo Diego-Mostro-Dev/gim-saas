@@ -22,20 +22,28 @@ class ScheduleSlotAdmin(admin.ModelAdmin):
 class AttendanceScheduleAdmin(admin.ModelAdmin):
     list_display = (
         "member",
-        "day",
-        "hour",
+        "slot_day",
+        "slot_hour",
         "slot",
     )
 
     list_filter = (
-        "day",
-        "hour",
+        "slot__day",
+        "slot__hour",
     )
 
     search_fields = (
         "member__first_name",
         "member__last_name",
     )
+
+    @admin.display(description="day")
+    def slot_day(self, obj):
+        return obj.slot.day
+
+    @admin.display(description="hour")
+    def slot_hour(self, obj):
+        return obj.slot.hour
 
 
 @admin.register(Attendance)

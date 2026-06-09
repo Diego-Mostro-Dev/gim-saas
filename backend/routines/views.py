@@ -349,9 +349,10 @@ class PublicRoutineView(APIView):
                 member=member,
                 active=True,
             )
+            .select_related("slot")
             .order_by(
-                "day",
-                "hour",
+                "slot__day",
+                "slot__hour",
             )
         )
         attendances = (
@@ -411,8 +412,8 @@ class PublicRoutineView(APIView):
             "subscription": subscription_data,
             "schedules": [
                 {
-                    "day": schedule.day,
-                    "hour": schedule.hour.strftime("%H:%M"),
+                    "day": schedule.slot.day,
+                    "hour": schedule.slot.hour.strftime("%H:%M"),
                 }
                 for schedule in schedules
             ],

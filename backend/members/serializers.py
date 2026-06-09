@@ -62,14 +62,10 @@ class MemberSerializer(serializers.ModelSerializer):
     def get_schedules(self, obj):
         return [
             {
-                "day": s.day,
-                "hour": (
-                    s.hour.strftime("%H:%M")
-                    if s.hour
-                    else None
-                ),
+                "day": s.slot.day,
+                "hour": s.slot.hour.strftime("%H:%M"),
             }
-            for s in obj.schedules.filter(active=True)
+            for s in obj.schedules.filter(active=True).select_related("slot")
         ]
 
     def to_representation(self, instance):
@@ -146,8 +142,6 @@ class MemberSerializer(serializers.ModelSerializer):
                     member=member,
                     gym=member.gym,
                     slot=slot,
-                    day=s["day"],
-                    hour=s["hour"],
                 )
             )
 
@@ -165,10 +159,10 @@ class MemberSerializer(serializers.ModelSerializer):
             schedules = self._parse_schedules()
 
             current = {
-                (s.day, s.hour.strftime("%H:%M")): s
+                (s.slot.day, s.slot.hour.strftime("%H:%M")): s
                 for s in AttendanceSchedule.objects.filter(
                     member=instance,
-                )
+                ).select_related("slot")
             }
 
             new_set = {
@@ -201,8 +195,6 @@ class MemberSerializer(serializers.ModelSerializer):
                         member=instance,
                         gym=instance.gym,
                         slot=slot,
-                        day=day,
-                        hour=hour,
                         active=True,
                     )
 

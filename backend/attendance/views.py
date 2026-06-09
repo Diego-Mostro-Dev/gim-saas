@@ -1,9 +1,12 @@
 from datetime import date
 
+from django.db.models.deletion import ProtectedError
+
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from rest_framework import status
 
 from .models import AttendanceSchedule, Attendance, ScheduleSlot
 from .serializers import (
@@ -31,7 +34,7 @@ class WeeklyScheduleView(APIView):
         for day in days:
             schedules = AttendanceSchedule.objects.filter(
                 gym=gym,
-                day=day,
+                slot__day=day,
                 active=True,
             ).select_related("member", "slot")
 
@@ -52,10 +55,10 @@ def members_by_schedule(request):
 
     schedules = AttendanceSchedule.objects.filter(
         gym=gym,
-        day=day,
-        hour=hour,
+        slot__day=day,
+        slot__hour=hour,
         active=True,
-    ).select_related("member")
+    ).select_related("member", "slot")
 
     return Response([
         {
@@ -76,10 +79,10 @@ def attendance_status(request):
 
     schedules = AttendanceSchedule.objects.filter(
         gym=gym,
-        day=day,
-        hour=hour,
+        slot__day=day,
+        slot__hour=hour,
         active=True,
-    ).select_related("member")
+    ).select_related("member", "slot")
 
     today = date.today()
 
@@ -126,3 +129,12 @@ class ScheduleSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
         return ScheduleSlot.objects.filter(
             gym=self.request.user.profile.gym,
         )
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {"detail": "No se puede eliminar el horario porque tiene socios asignados."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
