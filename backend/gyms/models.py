@@ -19,6 +19,20 @@ class Gym(models.Model):
         editable=False,
     )
 
+    whatsapp = models.CharField(
+        max_length=30,
+        blank=True,
+    )
+
+    phone = models.CharField(
+        max_length=30,
+        blank=True,
+    )
+
+    email = models.EmailField(
+        blank=True,
+    )
+
     default_schedule_capacity = models.PositiveIntegerField(
         null=True,
         blank=True,
