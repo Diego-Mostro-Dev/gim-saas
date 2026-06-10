@@ -17,6 +17,11 @@ export function useScheduleChangeWatcher() {
         if (!initialized.current) {
           initialized.current = true;
           prevRef.current = current;
+
+          window.dispatchEvent(
+            new CustomEvent("schedule-changes-refreshed", { detail: current }),
+          );
+
           return;
         }
 
@@ -54,15 +59,30 @@ export function useScheduleChangeWatcher() {
         }
 
         prevRef.current = current;
+
+        window.dispatchEvent(
+          new CustomEvent("schedule-changes-refreshed", { detail: current }),
+        );
       } catch {
         // silent — network errors are expected and handled elsewhere
       }
     }
 
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        check();
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     check();
 
-    const interval = setInterval(check, 5 * 60 * 1000);
+    const interval = setInterval(check, 1 * 60 * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(interval);
+    };
   }, []);
 }
