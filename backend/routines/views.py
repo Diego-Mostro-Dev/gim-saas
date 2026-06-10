@@ -408,10 +408,13 @@ class PublicRoutineView(APIView):
                 "whatsapp": assignment.gym.whatsapp,
                 "phone": assignment.gym.phone,
                 "email": assignment.gym.email,
+                "allow_member_schedule_changes": assignment.gym.allow_member_schedule_changes,
+                "schedule_change_notice_hours": assignment.gym.schedule_change_notice_hours,
             },
             "subscription": subscription_data,
             "schedules": [
                 {
+                    "id": schedule.id,
                     "day": schedule.slot.day,
                     "hour": schedule.slot.hour.strftime("%H:%M"),
                 }

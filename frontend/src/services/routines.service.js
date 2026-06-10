@@ -159,3 +159,30 @@ export async function updatePublicMemberPhoto(
     }
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC SCHEDULE CHANGE REQUESTS (Member Portal)
+|--------------------------------------------------------------------------
+*/
+
+export async function getPublicSlots(token) {
+  return apiFetch(`/api/attendance/public/slots/${token}/`);
+}
+
+export async function getPublicScheduleChangeRequests(token) {
+  return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/`);
+}
+
+export async function createPublicScheduleChangeRequest(token, data) {
+  return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function cancelPublicScheduleChangeRequest(token, id) {
+  return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/${id}/cancel/`, {
+    method: "POST",
+  });
+}

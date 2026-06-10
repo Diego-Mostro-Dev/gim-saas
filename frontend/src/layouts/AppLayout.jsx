@@ -2,8 +2,10 @@ import { Outlet } from "react-router-dom";
 
 import TopBar from "../components/dashboard/TopBar";
 import BottomNav from "../components/dashboard/BottomNav";
+import { useScheduleChangeWatcher } from "../hooks/useScheduleChangeWatcher";
 
 export default function AppLayout() {
+  useScheduleChangeWatcher();
   return (
     <div className="min-h-screen bg-[#131313] text-white">
       <TopBar />

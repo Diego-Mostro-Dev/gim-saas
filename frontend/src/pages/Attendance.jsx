@@ -1,10 +1,28 @@
+import { useEffect } from "react";
 import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
 import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
 
 function Attendance() {
-  const { weeklyAttendance, loading, error } = useWeeklyAttendance();
+  const { weeklyAttendance, loading, error, reload } = useWeeklyAttendance();
+
+  useEffect(() => {
+    function refreshIfVisible() {
+      if (document.visibilityState === "visible") {
+        reload();
+      }
+    }
+
+    document.addEventListener("visibilitychange", refreshIfVisible);
+
+    const interval = setInterval(refreshIfVisible, 5 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      clearInterval(interval);
+    };
+  }, [reload]);
 
   if (loading) {
     return (

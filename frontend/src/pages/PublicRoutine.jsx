@@ -5,16 +5,12 @@ import toast from "react-hot-toast";
 import {
   getPublicRoutine,
   updatePublicMemberPhoto,
+  getPublicSlots,
+  getPublicScheduleChangeRequests,
+  createPublicScheduleChangeRequest,
+  cancelPublicScheduleChangeRequest,
 } from "../services/routines.service";
-
-const DAY_NAMES = {
-  monday: "Lunes",
-  tuesday: "Martes",
-  wednesday: "Miércoles",
-  thursday: "Jueves",
-  friday: "Viernes",
-  saturday: "Sábado",
-};
+import { DAY_NAMES } from "../constants/days";
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString("es-AR");
@@ -31,12 +27,35 @@ function PublicRoutine() {
   const [preview, setPreview] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  const [slots, setSlots] = useState([]);
+  const [changeRequests, setChangeRequests] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [selectedDay, setSelectedDay] = useState("");
+  const [selectedSlotId, setSelectedSlotId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     if (token) {
       localStorage.setItem("member_token", token);
     }
 
     loadRoutine();
+
+    function refreshIfVisible() {
+      if (document.visibilityState === "visible") {
+        refreshRoutine();
+      }
+    }
+
+    document.addEventListener("visibilitychange", refreshIfVisible);
+
+    const interval = setInterval(refreshIfVisible, 5 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      clearInterval(interval);
+    };
   }, [token]);
 
   async function loadRoutine() {
@@ -46,12 +65,38 @@ function PublicRoutine() {
       const data = await getPublicRoutine(token);
 
       setRoutine(data);
+
+      if (data.gym?.allow_member_schedule_changes) {
+        const [slotsData, requestsData] = await Promise.all([
+          getPublicSlots(token),
+          getPublicScheduleChangeRequests(token),
+        ]);
+        setSlots(slotsData);
+        setChangeRequests(requestsData);
+      }
     } catch (err) {
       console.error(err);
 
       setError("No se encontró la rutina.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refreshRoutine() {
+    try {
+      const data = await getPublicRoutine(token);
+      setRoutine(data);
+      if (data.gym?.allow_member_schedule_changes) {
+        const [slotsData, requestsData] = await Promise.all([
+          getPublicSlots(token),
+          getPublicScheduleChangeRequests(token),
+        ]);
+        setSlots(slotsData);
+        setChangeRequests(requestsData);
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -82,6 +127,68 @@ function PublicRoutine() {
     } finally {
       setUploadingPhoto(false);
     }
+  }
+
+  function openChangeModal(schedule) {
+    setSelectedSchedule(schedule);
+    setSelectedSlotId("");
+    setShowModal(true);
+  }
+
+  async function handleCreateRequest() {
+    if (!selectedSlotId) return;
+
+    try {
+      setSubmitting(true);
+
+      await createPublicScheduleChangeRequest(token, {
+        current_schedule: selectedSchedule.id,
+        requested_slot: Number(selectedSlotId),
+      });
+
+      toast.success("Solicitud enviada correctamente");
+
+      setShowModal(false);
+      setSelectedSchedule(null);
+      setSelectedSlotId("");
+
+      await refreshRoutine();
+    } catch (error) {
+      const msg = error?.data?.[0] || error?.message || "Error al enviar la solicitud";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCancelRequest(id) {
+    try {
+      await cancelPublicScheduleChangeRequest(token, id);
+
+      toast.success("Solicitud cancelada");
+
+      await refreshRoutine();
+    } catch (error) {
+      toast.error("Error al cancelar la solicitud");
+    }
+  }
+
+  const availableSlots = selectedSchedule
+    ? slots.filter(
+        (s) =>
+          s.day !== selectedSchedule.day ||
+          s.hour !== selectedSchedule.hour
+      )
+    : [];
+
+  const uniqueDays = [...new Set(availableSlots.map((s) => s.day))];
+
+  const slotsForDay = selectedDay
+    ? availableSlots.filter((s) => s.day === selectedDay)
+    : [];
+
+  function getSlotDayLabel(dayKey) {
+    return DAY_NAMES[dayKey] || dayKey;
   }
 
   if (loading) {
@@ -250,20 +357,115 @@ function PublicRoutine() {
           </h2>
 
           {schedules.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {schedules.map((schedule, idx) => (
-                <span
-                  key={idx}
-                  className="rounded-lg bg-[#2a2a2a] px-3 py-1.5 text-sm text-zinc-300"
-                >
-                  {DAY_NAMES[schedule.day] || schedule.day} {schedule.hour}
-                </span>
-              ))}
+            <div className="space-y-2">
+              {schedules.map((schedule, idx) => {
+                const hasPending = changeRequests.some(
+                  (r) => r.current_schedule === schedule.id && r.status === "pending"
+                );
+                return (
+                  <div
+                    key={schedule.id || idx}
+                    className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
+                  >
+                    <span className="text-sm text-zinc-300">
+                      {DAY_NAMES[schedule.day] || schedule.day} {schedule.hour}
+                    </span>
+                    {gym.allow_member_schedule_changes && !hasPending && (
+                      <button
+                        onClick={() => openChangeModal(schedule)}
+                        className="rounded-lg bg-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-500/30"
+                      >
+                        Solicitar cambio
+                      </button>
+                    )}
+                    {hasPending && (
+                      <span className="rounded-lg bg-yellow-500/15 px-3 py-1.5 text-xs font-medium text-yellow-400">
+                        Pendiente
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-zinc-500">Sin horarios asignados</p>
           )}
         </div>
+
+        {/* SOLICITUDES DE CAMBIO */}
+        {gym.allow_member_schedule_changes && changeRequests.length > 0 && (
+          <div className="rounded-2xl bg-[#201f1f] p-4">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Solicitudes de cambio
+            </h2>
+
+            <div className="space-y-2">
+              {changeRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="rounded-xl bg-[#2a2a2a] px-4 py-3"
+                >
+                  <p className="text-xs text-zinc-500">Próximo horario</p>
+
+                  <p className="mt-0.5 text-sm text-zinc-100">
+                    {DAY_NAMES[req.requested_day]}{" "}
+                    {req.effective_date
+                      ? new Date(req.effective_date).toLocaleDateString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })
+                      : ""}
+                    ,{" "}
+                    {req.effective_date
+                      ? new Date(req.effective_date).toLocaleTimeString("es-AR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span
+                      className={`rounded-lg px-2 py-0.5 text-xs font-medium ${
+                        req.status === "pending"
+                          ? "bg-yellow-500/15 text-yellow-400"
+                          : req.status === "approved"
+                            ? "bg-green-500/15 text-green-400"
+                            : req.status === "rejected"
+                              ? "bg-red-500/15 text-red-400"
+                              : "bg-zinc-500/15 text-zinc-400"
+                      }`}
+                    >
+                      {req.status === "pending"
+                        ? "⏳ Pendiente"
+                        : req.status === "approved"
+                          ? "✓ Aprobado"
+                          : req.status === "rejected"
+                            ? "✕ Rechazado"
+                            : "Cancelado"}
+                    </span>
+                  </div>
+
+                  {req.status === "pending" && (
+                    <button
+                      onClick={() => handleCancelRequest(req.id)}
+                      className="mt-2 text-xs text-red-400 transition hover:text-red-300"
+                    >
+                      Cancelar solicitud
+                    </button>
+                  )}
+
+                  {req.admin_notes && (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {req.admin_notes}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ASISTENCIAS */}
         <div className="rounded-2xl bg-[#201f1f] p-4">
@@ -477,6 +679,87 @@ function PublicRoutine() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        {/* MODAL SOLICITAR CAMBIO */}
+        {showModal && selectedSchedule && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
+            <div className="w-full max-w-md rounded-t-2xl bg-[#201f1f] p-6 sm:rounded-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                  Solicitar cambio de horario
+                </h3>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-zinc-400 transition hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mb-4 rounded-xl bg-[#2a2a2a] p-3">
+                <p className="text-xs text-zinc-500">Horario actual</p>
+                <p className="text-sm text-zinc-200">
+                  {DAY_NAMES[selectedSchedule.day] || selectedSchedule.day} {selectedSchedule.hour}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="mb-2 block text-sm text-zinc-400">Nuevo día</label>
+                <select
+                  value={selectedDay}
+                  onChange={(e) => {
+                    setSelectedDay(e.target.value);
+                    setSelectedSlotId("");
+                  }}
+                  className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2.5 text-sm text-white"
+                >
+                  <option value="">Seleccionar día</option>
+                  {uniqueDays.map((day) => (
+                    <option key={day} value={day}>
+                      {getSlotDayLabel(day)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedDay && (
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm text-zinc-400">Nuevo horario</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {slotsForDay.map((slot) => (
+                      <button
+                        key={slot.id}
+                        onClick={() => setSelectedSlotId(slot.id)}
+                        className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                          Number(selectedSlotId) === slot.id
+                            ? "bg-blue-500 text-white"
+                            : "bg-[#2a2a2a] text-zinc-300 hover:bg-[#333]"
+                        }`}
+                      >
+                        {slot.hour}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 rounded-xl bg-[#2a2a2a] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-[#333]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateRequest}
+                  disabled={!selectedSlotId || submitting}
+                  className="flex-1 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {submitting ? "Enviando..." : "Enviar solicitud"}
+                </button>
+              </div>
             </div>
           </div>
         )}

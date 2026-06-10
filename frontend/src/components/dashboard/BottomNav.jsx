@@ -6,6 +6,7 @@ import {
   Dumbbell,
   CalendarDays,
   ClipboardList,
+  ArrowLeftRight,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -39,6 +40,17 @@ function BottomNav() {
         <CalendarDays size={20} />
 
         <span className="text-xs">Asistencia</span>
+      </NavLink>
+
+      <NavLink
+        to="/schedule-change-requests"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <ArrowLeftRight size={20} />
+
+        <span className="text-xs">Cambios</span>
       </NavLink>
 
       <NavLink

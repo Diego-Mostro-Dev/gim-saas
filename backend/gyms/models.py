@@ -38,6 +38,14 @@ class Gym(models.Model):
         blank=True,
     )
 
+    allow_member_schedule_changes = models.BooleanField(
+        default=False,
+    )
+
+    schedule_change_notice_hours = models.PositiveIntegerField(
+        default=24,
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

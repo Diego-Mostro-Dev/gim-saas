@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
 import AttendanceQR from "./pages/AttendanceQR";
+import ScheduleChangeRequests from "./pages/ScheduleChangeRequests";
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/routines" element={<Routines />} />
         <Route path="/attendance-qr" element={<AttendanceQR />} />
+        <Route path="/schedule-change-requests" element={<ScheduleChangeRequests />} />
       </Route>
     </Routes>
   );

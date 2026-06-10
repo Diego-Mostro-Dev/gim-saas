@@ -37,5 +37,6 @@ export function useWeeklyAttendance() {
     weeklyAttendance,
     loading,
     error,
+    reload: loadAttendance,
   };
 }
