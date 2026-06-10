@@ -37,6 +37,9 @@ function ScheduleChangeRequests() {
       setLoading(true);
       const data = await getScheduleChangeRequests();
       setRequests(data);
+      window.dispatchEvent(
+        new CustomEvent("schedule-changes-refreshed", { detail: data }),
+      );
     } catch {
       toast.error("Error al cargar solicitudes de cambio");
     } finally {
@@ -47,6 +50,45 @@ function ScheduleChangeRequests() {
   useEffect(() => {
     loadRequests();
   }, []);
+
+  useEffect(() => {
+    function onRefreshed(e) {
+      setRequests(e.detail);
+    }
+    window.addEventListener("schedule-changes-refreshed", onRefreshed);
+    return () => window.removeEventListener("schedule-changes-refreshed", onRefreshed);
+  }, []);
+
+  useEffect(() => {
+    if (approvalTarget) {
+      const updated = requests.find((r) => r.id === approvalTarget.id);
+      if (!updated || updated.status !== "pending") {
+        setApprovalTarget(null);
+        if (updated?.status === "approved") {
+          toast.success("Solicitud aprobada por otro administrador.");
+        } else if (updated?.status === "rejected") {
+          toast.success("Solicitud rechazada por otro administrador.");
+        } else {
+          toast.success("La solicitud ya no está pendiente.");
+        }
+      }
+    }
+
+    if (rejectionTarget) {
+      const updated = requests.find((r) => r.id === rejectionTarget.id);
+      if (!updated || updated.status !== "pending") {
+        setRejectionTarget(null);
+        setRejectionNotes("");
+        if (updated?.status === "approved") {
+          toast.success("Solicitud aprobada por otro administrador.");
+        } else if (updated?.status === "rejected") {
+          toast.success("Solicitud rechazada por otro administrador.");
+        } else {
+          toast.success("La solicitud ya no está pendiente.");
+        }
+      }
+    }
+  }, [requests]);
 
   const filteredRequests = requests.filter((r) => {
     if (filter === "all") return true;
@@ -86,6 +128,20 @@ function ScheduleChangeRequests() {
 
   async function handleConfirmApproval() {
     if (!approvalTarget) return;
+
+    const updated = requests.find((r) => r.id === approvalTarget.id);
+    if (!updated || updated.status !== "pending") {
+      setApprovalTarget(null);
+      if (updated?.status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (updated?.status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else {
+        toast.success("La solicitud ya no está pendiente.");
+      }
+      return;
+    }
+
     try {
       await approveScheduleChangeRequest(approvalTarget.id);
       toast.success("Cambio de horario aprobado");
@@ -103,6 +159,21 @@ function ScheduleChangeRequests() {
 
   async function handleConfirmRejection() {
     if (!rejectionTarget) return;
+
+    const updated = requests.find((r) => r.id === rejectionTarget.id);
+    if (!updated || updated.status !== "pending") {
+      setRejectionTarget(null);
+      setRejectionNotes("");
+      if (updated?.status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (updated?.status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else {
+        toast.success("La solicitud ya no está pendiente.");
+      }
+      return;
+    }
+
     try {
       const data = {};
       if (rejectionNotes.trim()) {
