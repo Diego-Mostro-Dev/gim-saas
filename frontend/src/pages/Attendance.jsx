@@ -1,17 +1,21 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
 import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
 
 function Attendance() {
-  const { weeklyAttendance, loading, error, reload } = useWeeklyAttendance();
+  const { weeklyAttendance, loading, error, reload, date, setDate } = useWeeklyAttendance();
+  const lastLoadedAt = useRef(0);
 
   useEffect(() => {
     function refreshIfVisible() {
-      if (document.visibilityState === "visible") {
-        reload();
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastLoadedAt.current < 5 * 60 * 1000) {
+        return;
       }
+      lastLoadedAt.current = Date.now();
+      reload();
     }
 
     document.addEventListener("visibilitychange", refreshIfVisible);
@@ -54,7 +58,11 @@ function Attendance() {
       </div>
 
       {/* Vista semanal */}
-      <WeeklyOccupancy weeklyAttendance={weeklyAttendance} />
+      <WeeklyOccupancy
+        weeklyAttendance={weeklyAttendance}
+        date={date}
+        onDateChange={setDate}
+      />
     </div>
   );
 }

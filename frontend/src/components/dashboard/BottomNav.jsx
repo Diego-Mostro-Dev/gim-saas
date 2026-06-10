@@ -7,14 +7,18 @@ import {
   CalendarDays,
   ClipboardList,
   ArrowLeftRight,
+  Repeat,
+  BarChart3,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
 
 import { useScheduleChangeData } from "../../hooks/useScheduleChangeData";
+import { useScheduleSwapData } from "../../hooks/useScheduleSwapData";
 
 function BottomNav() {
   const { pendingCount } = useScheduleChangeData();
+  const { pendingCount: swapPendingCount } = useScheduleSwapData();
 
   const baseClass = "flex flex-col items-center px-2 py-2 transition";
 
@@ -49,6 +53,17 @@ function BottomNav() {
       </NavLink>
 
       <NavLink
+        to="/attendance-analytics"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <BarChart3 size={20} />
+
+        <span className="text-xs">Métricas</span>
+      </NavLink>
+
+      <NavLink
         to="/schedule-change-requests"
         className={({ isActive }) =>
           `${baseClass} ${isActive ? activeClass : inactiveClass}`
@@ -64,7 +79,28 @@ function BottomNav() {
           )}
         </span>
 
-        <span className={`text-xs ${cambiosBlueClass}`}>Cambios</span>
+        <span className={`text-xs ${cambiosBlueClass}`}>Cambios de horario</span>
+      </NavLink>
+
+      <NavLink
+        to="/schedule-swap-requests"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <span className="relative">
+          <Repeat size={20} className={swapPendingCount > 0 ? "text-blue-300" : ""} />
+
+          {swapPendingCount > 0 && (
+            <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[18px] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold leading-none text-white">
+              {swapPendingCount > 99 ? "99+" : swapPendingCount}
+            </span>
+          )}
+        </span>
+
+        <span className={`text-xs ${swapPendingCount > 0 ? "text-blue-300" : ""}`}>
+          Intercambios de día
+        </span>
       </NavLink>
 
       <NavLink

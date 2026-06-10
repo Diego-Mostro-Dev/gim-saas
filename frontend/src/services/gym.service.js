@@ -1,7 +1,10 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
 export async function getGym() {
-  return apiFetch("/api/gyms/me/");
+  const data = await apiFetch("/api/gyms/me/");
+  setCached("gym", data);
+  return data;
 }
 
 export async function updateGym(data) {

@@ -159,7 +159,6 @@ function Subscriptions() {
       </div>
     );
   }
-  console.log(filteredSubscriptions);
   return (
     <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">

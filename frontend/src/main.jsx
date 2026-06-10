@@ -8,7 +8,6 @@ import useAuthStore from "./store/auth.store";
 
 import "./index.css";
 
-// 🔥 hidratar auth antes de render
 useAuthStore.getState().hydrate();
 
 ReactDOM.createRoot(document.getElementById("root")).render(

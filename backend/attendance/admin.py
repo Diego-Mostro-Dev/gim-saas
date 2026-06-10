@@ -51,6 +51,7 @@ class AttendanceAdmin(admin.ModelAdmin):
     list_display = (
         "member",
         "schedule",
+        "slot",
         "date",
         "created_at",
     )

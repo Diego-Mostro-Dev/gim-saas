@@ -13,7 +13,6 @@ function Dashboard() {
   if (loading) {
     return <div className="text-white">Cargando dashboard...</div>;
   }
-  console.log("DASHBOARD DATA", dashboardData);
   return (
     <div className="space-y-6">
       {error && (

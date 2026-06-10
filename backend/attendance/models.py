@@ -88,6 +88,22 @@ class Attendance(models.Model):
         related_name="attendances",
     )
 
+    swap_request = models.ForeignKey(
+        "ScheduleSwapRequest",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendances",
+    )
+
+    slot = models.ForeignKey(
+        ScheduleSlot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendances",
+    )
+
     date = models.DateField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -167,5 +183,81 @@ class ScheduleChangeRequest(models.Model):
             f"{self.current_schedule.slot.hour} → "
             f"{self.requested_slot.day} "
             f"{self.requested_slot.hour} "
+            f"({self.status})"
+        )
+
+
+class ScheduleSwapRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pendiente"),
+        ("approved", "Aprobado"),
+        ("rejected", "Rechazado"),
+        ("cancelled", "Cancelado"),
+    ]
+
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="schedule_swap_requests",
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="schedule_swap_requests",
+    )
+
+    origin_schedule = models.ForeignKey(
+        AttendanceSchedule,
+        on_delete=models.PROTECT,
+        related_name="swap_requests_from",
+    )
+
+    destination_slot = models.ForeignKey(
+        ScheduleSlot,
+        on_delete=models.PROTECT,
+        related_name="swap_requests_to",
+    )
+
+    swap_date = models.DateField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+    )
+
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    admin_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+        indexes = [
+            models.Index(fields=["gym", "status"]),
+            models.Index(fields=["member", "status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["member", "origin_schedule", "swap_date"],
+                condition=Q(status="pending"),
+                name="unique_pending_swap_request",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.member} - "
+            f"{self.origin_schedule.slot.day} "
+            f"{self.origin_schedule.slot.hour} → "
+            f"{self.destination_slot.day} "
+            f"{self.destination_slot.hour} "
+            f"({self.swap_date}) "
             f"({self.status})"
         )

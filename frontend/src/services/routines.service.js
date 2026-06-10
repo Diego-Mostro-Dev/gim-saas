@@ -166,8 +166,9 @@ export async function updatePublicMemberPhoto(
 |--------------------------------------------------------------------------
 */
 
-export async function getPublicSlots(token) {
-  return apiFetch(`/api/attendance/public/slots/${token}/`);
+export async function getPublicSlots(token, date) {
+  const params = date ? `?date=${date}` : "";
+  return apiFetch(`/api/attendance/public/slots/${token}/${params}`);
 }
 
 export async function getPublicScheduleChangeRequests(token) {
@@ -183,6 +184,23 @@ export async function createPublicScheduleChangeRequest(token, data) {
 
 export async function cancelPublicScheduleChangeRequest(token, id) {
   return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/${id}/cancel/`, {
+    method: "POST",
+  });
+}
+
+export async function getPublicScheduleSwapRequests(token) {
+  return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/`);
+}
+
+export async function createPublicScheduleSwapRequest(token, data) {
+  return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function cancelPublicScheduleSwapRequest(token, id) {
+  return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/${id}/cancel/`, {
     method: "POST",
   });
 }

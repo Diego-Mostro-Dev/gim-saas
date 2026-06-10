@@ -6,13 +6,33 @@ import {
   deleteMember,
   updateMember,
 } from "../services/members.service";
+import { getCached, isCacheFresh } from "../utils/cache";
+
+const CACHE_KEY = "members";
+const TTL = 5 * 60 * 1000;
 
 export function useMembers() {
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState(() => getCached(CACHE_KEY) || []);
+  const [loading, setLoading] = useState(() => !isCacheFresh(CACHE_KEY, TTL));
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   async function loadMembers() {
+    if (isCacheFresh(CACHE_KEY, TTL)) {
+      setMembers(getCached(CACHE_KEY));
+      setLoading(false);
+      setError(null);
+      setRefreshing(true);
+      try {
+        const data = await getMembers();
+        setMembers(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -69,6 +89,7 @@ export function useMembers() {
   return {
     members,
     loading,
+    refreshing,
     error,
     createNewMember,
     editMember,
