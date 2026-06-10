@@ -248,6 +248,17 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
                     "El horario solicitado es el mismo que el actual."
                 )
 
+            member = current_schedule.member
+            if AttendanceSchedule.objects.filter(
+                gym=gym,
+                member=member,
+                slot=requested_slot,
+                active=True,
+            ).exists():
+                raise serializers.ValidationError(
+                    "Ya tienes asignado ese horario."
+                )
+
             cap = requested_slot.capacity or gym.default_schedule_capacity
             if cap is not None:
                 current_count = AttendanceSchedule.objects.filter(
@@ -407,6 +418,16 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
             if current_schedule.slot_id == requested_slot.id:
                 raise serializers.ValidationError(
                     "El horario solicitado es el mismo que el actual."
+                )
+
+            if AttendanceSchedule.objects.filter(
+                gym=gym,
+                member=member,
+                slot=requested_slot,
+                active=True,
+            ).exists():
+                raise serializers.ValidationError(
+                    "Ya tienes asignado ese horario."
                 )
 
             cap = requested_slot.capacity or gym.default_schedule_capacity
