@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from gyms.models import Gym
 from members.models import Member
 
@@ -95,3 +96,76 @@ class Attendance(models.Model):
 
     def __str__(self):
         return f"{self.member} - {self.date}"
+
+
+class ScheduleChangeRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pendiente"),
+        ("approved", "Aprobado"),
+        ("rejected", "Rechazado"),
+        ("cancelled", "Cancelado"),
+    ]
+
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="schedule_change_requests",
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="schedule_change_requests",
+    )
+
+    current_schedule = models.ForeignKey(
+        AttendanceSchedule,
+        on_delete=models.PROTECT,
+        related_name="change_requests_from",
+    )
+
+    requested_slot = models.ForeignKey(
+        ScheduleSlot,
+        on_delete=models.PROTECT,
+        related_name="change_requests_to",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+    )
+
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    admin_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+        indexes = [
+            models.Index(fields=["gym", "status"]),
+            models.Index(fields=["member", "status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["member", "current_schedule"],
+                condition=Q(status="pending"),
+                name="unique_pending_change_request",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.member} - "
+            f"{self.current_schedule.slot.day} "
+            f"{self.current_schedule.slot.hour} → "
+            f"{self.requested_slot.day} "
+            f"{self.requested_slot.hour} "
+            f"({self.status})"
+        )

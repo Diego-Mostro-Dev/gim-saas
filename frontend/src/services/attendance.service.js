@@ -52,3 +52,21 @@ export async function deleteSlot(id) {
     method: "DELETE",
   });
 }
+
+export async function getScheduleChangeRequests() {
+  return apiFetch("/api/attendance/schedule-change-requests/");
+}
+
+export async function approveScheduleChangeRequest(id, data = {}) {
+  return apiFetch(`/api/attendance/schedule-change-requests/${id}/approve/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function rejectScheduleChangeRequest(id, data = {}) {
+  return apiFetch(`/api/attendance/schedule-change-requests/${id}/reject/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

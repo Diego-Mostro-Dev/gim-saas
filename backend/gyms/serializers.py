@@ -21,6 +21,8 @@ class GymSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "default_schedule_capacity",
+            "allow_member_schedule_changes",
+            "schedule_change_notice_hours",
             "onboarding_code",
             "onboarding_url",
             "register_url",

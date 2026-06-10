@@ -1,5 +1,7 @@
 from django.urls import path
 
+from rest_framework.routers import DefaultRouter
+
 from .views import (
     WeeklyScheduleView,
     members_by_schedule,
@@ -7,13 +9,24 @@ from .views import (
     AttendanceCreateView,
     ScheduleSlotListCreateView,
     ScheduleSlotDetailView,
+    ScheduleChangeRequestViewSet,
 )
 
 from .public_views import (
     PublicCheckinView,
+    PublicMemberSlotsView,
+    PublicScheduleChangeRequestView,
+    PublicCancelScheduleChangeRequestView,
 )
 
-urlpatterns = [
+router = DefaultRouter()
+router.register(
+    "schedule-change-requests",
+    ScheduleChangeRequestViewSet,
+    basename="schedule-change-request",
+)
+
+urlpatterns = router.urls + [
     path(
         "weekly/",
         WeeklyScheduleView.as_view(),
@@ -52,5 +65,22 @@ urlpatterns = [
         "slots/<int:pk>/",
         ScheduleSlotDetailView.as_view(),
         name="slot-detail",
+    ),
+
+    # Public (member-facing) endpoints
+    path(
+        "public/slots/<str:token>/",
+        PublicMemberSlotsView.as_view(),
+        name="public-member-slots",
+    ),
+    path(
+        "public/schedule-change-requests/<str:token>/",
+        PublicScheduleChangeRequestView.as_view(),
+        name="public-schedule-change-request",
+    ),
+    path(
+        "public/schedule-change-requests/<str:token>/<int:pk>/cancel/",
+        PublicCancelScheduleChangeRequestView.as_view(),
+        name="public-cancel-schedule-change-request",
     ),
 ]
