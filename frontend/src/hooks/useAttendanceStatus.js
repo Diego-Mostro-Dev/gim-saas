@@ -4,23 +4,58 @@ import {
   getAttendanceStatus,
   registerAttendance,
 } from "../services/attendance.service";
+import { getCached, isCacheFresh } from "../utils/cache";
+
+const TTL = 60 * 1000;
 
 export function useAttendanceStatus() {
-  const [day, setDay] = useState("tuesday");
+  const [day, setDay] = useState(() => sessionStorage.getItem("attendance_day") || "tuesday");
 
-  const [hour, setHour] = useState("08:00");
+  const [hour, setHour] = useState(() => sessionStorage.getItem("attendance_hour") || "08:00");
 
-  const [members, setMembers] = useState([]);
+  function cacheKey(d, h) {
+    return `attendance-status-${d}-${h}`;
+  }
 
-  const [loading, setLoading] = useState(false);
+  const [members, setMembers] = useState(() => getCached(cacheKey(day, hour)) || []);
+
+  const [loading, setLoading] = useState(() => !isCacheFresh(cacheKey(day, hour), TTL));
+
+  const [refreshing, setRefreshing] = useState(false);
 
   const [error, setError] = useState(null);
+
+  function handleSetDay(newDay) {
+    setDay(newDay);
+    sessionStorage.setItem("attendance_day", newDay);
+  }
+
+  function handleSetHour(newHour) {
+    setHour(newHour);
+    sessionStorage.setItem("attendance_hour", newHour);
+  }
 
   useEffect(() => {
     loadStatus();
   }, [day, hour]);
 
-  async function loadStatus() {
+  async function loadStatus(forceRefresh = false) {
+    const key = cacheKey(day, hour);
+    if (!forceRefresh && isCacheFresh(key, TTL)) {
+      setMembers(getCached(key));
+      setLoading(false);
+      setError(null);
+      setRefreshing(true);
+      try {
+        const data = await getAttendanceStatus(day, hour);
+        setMembers(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -32,13 +67,13 @@ export function useAttendanceStatus() {
 
       setMembers(data);
     } catch (err) {
-  console.error("ERROR REGISTER:", err);
+      console.error("ERROR REGISTER:", err);
 
-  setError(
-    err.message ||
-    "Error registrando asistencia",
-  );
-} finally {
+      setError(
+        err.message ||
+        "Error registrando asistencia",
+      );
+    } finally {
       setLoading(false);
     }
   }
@@ -51,7 +86,7 @@ export function useAttendanceStatus() {
         scheduleId,
       );
 
-      await loadStatus();
+      await loadStatus(true);
     } catch (err) {
       console.error(err);
 
@@ -63,13 +98,14 @@ export function useAttendanceStatus() {
 
   return {
     day,
-    setDay,
+    setDay: handleSetDay,
     hour,
-    setHour,
+    setHour: handleSetHour,
     members,
     loading,
+    refreshing,
     error,
     markAttendance,
-    reload: loadStatus,
+    reload: () => loadStatus(true),
   };
 }

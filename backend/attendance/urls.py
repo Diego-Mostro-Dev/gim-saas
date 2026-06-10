@@ -10,6 +10,8 @@ from .views import (
     ScheduleSlotListCreateView,
     ScheduleSlotDetailView,
     ScheduleChangeRequestViewSet,
+    ScheduleSwapRequestViewSet,
+    attendance_analytics,
 )
 
 from .public_views import (
@@ -17,6 +19,8 @@ from .public_views import (
     PublicMemberSlotsView,
     PublicScheduleChangeRequestView,
     PublicCancelScheduleChangeRequestView,
+    PublicScheduleSwapRequestView,
+    PublicCancelScheduleSwapRequestView,
 )
 
 router = DefaultRouter()
@@ -24,6 +28,11 @@ router.register(
     "schedule-change-requests",
     ScheduleChangeRequestViewSet,
     basename="schedule-change-request",
+)
+router.register(
+    "schedule-swap-requests",
+    ScheduleSwapRequestViewSet,
+    basename="schedule-swap-request",
 )
 
 urlpatterns = router.urls + [
@@ -67,6 +76,12 @@ urlpatterns = router.urls + [
         name="slot-detail",
     ),
 
+    path(
+        "analytics/",
+        attendance_analytics,
+        name="attendance-analytics",
+    ),
+
     # Public (member-facing) endpoints
     path(
         "public/slots/<str:token>/",
@@ -82,5 +97,15 @@ urlpatterns = router.urls + [
         "public/schedule-change-requests/<str:token>/<int:pk>/cancel/",
         PublicCancelScheduleChangeRequestView.as_view(),
         name="public-cancel-schedule-change-request",
+    ),
+    path(
+        "public/schedule-swap-requests/<str:token>/",
+        PublicScheduleSwapRequestView.as_view(),
+        name="public-schedule-swap-request",
+    ),
+    path(
+        "public/schedule-swap-requests/<str:token>/<int:pk>/cancel/",
+        PublicCancelScheduleSwapRequestView.as_view(),
+        name="public-cancel-schedule-swap-request",
     ),
 ]

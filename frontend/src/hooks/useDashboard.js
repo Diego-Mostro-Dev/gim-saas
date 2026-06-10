@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 
 import { getDashboardData } from "../services/dashboard.service";
+import { getCached, isCacheFresh } from "../utils/cache";
+
+const CACHE_KEY = "dashboard";
+const TTL = 60 * 1000;
 
 export function useDashboard() {
   const [dashboardData, setDashboardData] =
-    useState(null);
+    useState(() => getCached(CACHE_KEY) || null);
 
   const [loading, setLoading] =
-    useState(true);
+    useState(() => !isCacheFresh(CACHE_KEY, TTL));
+
+  const [refreshing, setRefreshing] = useState(false);
 
   const [error, setError] =
     useState(null);
@@ -17,9 +23,23 @@ export function useDashboard() {
   }, []);
 
   async function loadDashboard() {
+    if (isCacheFresh(CACHE_KEY, TTL)) {
+      setDashboardData(getCached(CACHE_KEY));
+      setLoading(false);
+      setError(null);
+      setRefreshing(true);
+      try {
+        const data = await getDashboardData();
+        setDashboardData(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
     try {
       setLoading(true);
-
       setError(null);
 
       const data =
@@ -40,6 +60,7 @@ export function useDashboard() {
   return {
     dashboardData,
     loading,
+    refreshing,
     error,
     reloadDashboard: loadDashboard,
   };

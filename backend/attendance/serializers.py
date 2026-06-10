@@ -1,7 +1,6 @@
 from datetime import date, datetime, timedelta
 
 from django.utils import timezone
-
 from rest_framework import serializers
 
 from .models import (
@@ -9,7 +8,9 @@ from .models import (
     AttendanceSchedule,
     ScheduleSlot,
     ScheduleChangeRequest,
+    ScheduleSwapRequest,
 )
+from .utils import compute_effective_occupancy
 
 
 class AttendanceScheduleSerializer(serializers.ModelSerializer):
@@ -79,6 +80,12 @@ class ScheduleSlotSerializer(serializers.ModelSerializer):
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
+    swap_request = serializers.PrimaryKeyRelatedField(
+        queryset=ScheduleSwapRequest.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = Attendance
         fields = "__all__"
@@ -92,28 +99,70 @@ class AttendanceSerializer(serializers.ModelSerializer):
         gym = request.user.profile.gym
 
         schedule = attrs.get("schedule")
+        swap_request = attrs.get("swap_request")
 
-        if schedule is None:
-            raise serializers.ValidationError({
-                "schedule": "Debe seleccionar un horario."
-            })
+        if swap_request:
+            if swap_request.gym != gym:
+                raise serializers.ValidationError({
+                    "swap_request": "El cambio de fecha no pertenece a este gimnasio."
+                })
 
-        if schedule.gym != gym:
-            raise serializers.ValidationError({
-                "schedule": "El horario no pertenece a este gimnasio."
-            })
+            if swap_request.status != "approved":
+                raise serializers.ValidationError({
+                    "swap_request": "El cambio de fecha no está aprobado."
+                })
 
-        already_registered = Attendance.objects.filter(
-            gym=gym,
-            schedule=schedule,
-            date=date.today(),
-        ).exists()
+            if swap_request.swap_date != date.today():
+                raise serializers.ValidationError({
+                    "swap_request": "El cambio de fecha no corresponde a hoy."
+                })
 
-        if already_registered:
-            raise serializers.ValidationError({
-                "schedule": "La asistencia ya fue registrada hoy."
-            })
+            if Attendance.objects.filter(
+                swap_request=swap_request,
+                date=date.today(),
+            ).exists():
+                raise serializers.ValidationError({
+                    "swap_request": "La asistencia para este cambio de fecha ya fue registrada."
+                })
 
+            attrs["schedule"] = swap_request.origin_schedule
+
+            slot = swap_request.destination_slot
+        else:
+            if schedule is None:
+                raise serializers.ValidationError({
+                    "schedule": "Debe seleccionar un horario."
+                })
+
+            if schedule.gym != gym:
+                raise serializers.ValidationError({
+                    "schedule": "El horario no pertenece a este gimnasio."
+                })
+
+            already_registered = Attendance.objects.filter(
+                gym=gym,
+                schedule=schedule,
+                date=date.today(),
+                swap_request__isnull=True,
+            ).exists()
+
+            if already_registered:
+                raise serializers.ValidationError({
+                    "schedule": "La asistencia ya fue registrada hoy."
+                })
+
+            slot = schedule.slot
+
+        if slot is not None:
+            cap = slot.capacity or gym.default_schedule_capacity
+            if cap is not None:
+                effective = compute_effective_occupancy(slot, timezone.localdate())
+                if effective >= cap:
+                    raise serializers.ValidationError(
+                        "El horario está completo."
+                    )
+
+        attrs["_slot"] = slot
         return attrs
 
     def create(self, validated_data):
@@ -121,11 +170,15 @@ class AttendanceSerializer(serializers.ModelSerializer):
         gym = request.user.profile.gym
 
         schedule = validated_data["schedule"]
+        swap_request = validated_data.get("swap_request")
+        slot = validated_data.pop("_slot", None)
 
         return Attendance.objects.create(
             gym=gym,
             member=schedule.member,
             schedule=schedule,
+            swap_request=swap_request,
+            slot=slot,
         )
 
 
@@ -463,3 +516,345 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         validated_data["gym"] = member.gym
         validated_data["member"] = member
         return super().create(validated_data)
+
+
+class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    origin_day = serializers.SerializerMethodField()
+    origin_hour = serializers.SerializerMethodField()
+    destination_day = serializers.SerializerMethodField()
+    destination_hour = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ScheduleSwapRequest
+        fields = [
+            "id",
+            "gym",
+            "member",
+            "member_name",
+            "origin_schedule",
+            "origin_day",
+            "origin_hour",
+            "destination_slot",
+            "destination_day",
+            "destination_hour",
+            "swap_date",
+            "status",
+            "requested_at",
+            "reviewed_at",
+            "reviewed_by",
+            "reviewed_by_name",
+            "admin_notes",
+        ]
+        read_only_fields = [
+            "gym",
+            "status",
+            "requested_at",
+            "reviewed_at",
+            "reviewed_by",
+        ]
+
+    def get_member_name(self, obj):
+        return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_origin_day(self, obj):
+        return obj.origin_schedule.slot.day
+
+    def get_origin_hour(self, obj):
+        return obj.origin_schedule.slot.hour.strftime("%H:%M")
+
+    def get_destination_day(self, obj):
+        return obj.destination_slot.day
+
+    def get_destination_hour(self, obj):
+        return obj.destination_slot.hour.strftime("%H:%M")
+
+    def get_reviewed_by_name(self, obj):
+        if obj.reviewed_by:
+            return obj.reviewed_by.get_full_name() or obj.reviewed_by.username
+        return None
+
+    def validate_origin_schedule(self, value):
+        if not value.active:
+            raise serializers.ValidationError(
+                "El horario de origen no está activo."
+            )
+        return value
+
+    def validate(self, attrs):
+        gym = self.context["request"].user.profile.gym
+        origin_schedule = attrs.get("origin_schedule")
+        destination_slot = attrs.get("destination_slot")
+        swap_date = attrs.get("swap_date")
+
+        if origin_schedule and destination_slot and swap_date:
+            if origin_schedule.gym != gym:
+                raise serializers.ValidationError({
+                    "origin_schedule": "El horario de origen no pertenece a este gimnasio."
+                })
+
+            if destination_slot.gym != gym:
+                raise serializers.ValidationError({
+                    "destination_slot": "El horario de destino no pertenece a este gimnasio."
+                })
+
+            if origin_schedule.slot_id == destination_slot.id:
+                raise serializers.ValidationError(
+                    "El horario de destino es el mismo que el actual."
+                )
+
+            if AttendanceSchedule.objects.filter(
+                gym=gym,
+                member=origin_schedule.member,
+                slot=destination_slot,
+                active=True,
+            ).exists():
+                raise serializers.ValidationError(
+                    "Ya tienes asignado ese horario."
+                )
+
+            DAY_INDEX_MAP = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+            }
+            if DAY_INDEX_MAP.get(destination_slot.day) != swap_date.weekday():
+                raise serializers.ValidationError(
+                    "La fecha seleccionada no corresponde al día del horario de destino."
+                )
+
+            if swap_date <= timezone.localdate():
+                raise serializers.ValidationError(
+                    "La fecha debe ser posterior a hoy."
+                )
+
+            member = origin_schedule.member
+
+            if ScheduleSwapRequest.objects.filter(
+                member=member,
+                swap_date=swap_date,
+            ).exclude(status="cancelled").exists():
+                raise serializers.ValidationError(
+                    "El socio ya tiene una solicitud de cambio para esta fecha."
+                )
+
+            if ScheduleChangeRequest.objects.filter(
+                member=member,
+                status="pending",
+                current_schedule__slot__day=destination_slot.day,
+            ).exists():
+                raise serializers.ValidationError(
+                    "El socio tiene un cambio de horario pendiente que afecta el mismo día."
+                )
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        gym = request.user.profile.gym
+        validated_data["gym"] = gym
+
+        instance = super().create(validated_data)
+
+        cap = instance.destination_slot.capacity or gym.default_schedule_capacity
+        if cap is not None:
+            effective = compute_effective_occupancy(
+                instance.destination_slot, instance.swap_date
+            )
+            if effective < cap:
+                instance.status = "approved"
+                instance.reviewed_at = timezone.now()
+                instance.admin_notes = "Aprobado automáticamente"
+                instance.save(update_fields=["status", "reviewed_at", "admin_notes"])
+
+        return instance
+
+
+class ScheduleSwapRequestActionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ScheduleSwapRequest
+        fields = ["status", "admin_notes"]
+
+    def validate_status(self, value):
+        if value not in ("approved", "rejected"):
+            raise serializers.ValidationError(
+                "El estado debe ser 'approved' o 'rejected'."
+            )
+        return value
+
+    def validate(self, attrs):
+        instance = self.instance
+
+        if instance.status != "pending":
+            raise serializers.ValidationError(
+                f"No se puede modificar una solicitud con estado '{instance.status}'."
+            )
+
+        if attrs.get("status") == "approved":
+            gym = instance.gym
+            destination_slot = instance.destination_slot
+
+            cap = destination_slot.capacity or gym.default_schedule_capacity
+            if cap is not None:
+                effective = compute_effective_occupancy(
+                    destination_slot, instance.swap_date
+                )
+                if effective >= cap:
+                    raise serializers.ValidationError(
+                        "El horario de destino está completo para esa fecha."
+                    )
+
+        return attrs
+
+
+class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    origin_day = serializers.SerializerMethodField()
+    origin_hour = serializers.SerializerMethodField()
+    destination_day = serializers.SerializerMethodField()
+    destination_hour = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ScheduleSwapRequest
+        fields = [
+            "id",
+            "gym",
+            "member",
+            "member_name",
+            "origin_schedule",
+            "origin_day",
+            "origin_hour",
+            "destination_slot",
+            "destination_day",
+            "destination_hour",
+            "swap_date",
+            "status",
+            "requested_at",
+            "reviewed_at",
+            "admin_notes",
+        ]
+        read_only_fields = [
+            "gym",
+            "member",
+            "status",
+            "requested_at",
+            "reviewed_at",
+        ]
+
+    def get_member_name(self, obj):
+        return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_origin_day(self, obj):
+        return obj.origin_schedule.slot.day
+
+    def get_origin_hour(self, obj):
+        return obj.origin_schedule.slot.hour.strftime("%H:%M")
+
+    def get_destination_day(self, obj):
+        return obj.destination_slot.day
+
+    def get_destination_hour(self, obj):
+        return obj.destination_slot.hour.strftime("%H:%M")
+
+    def validate_origin_schedule(self, value):
+        if not value.active:
+            raise serializers.ValidationError(
+                "El horario de origen no está activo."
+            )
+        return value
+
+    def validate(self, attrs):
+        member = self.context["member"]
+        gym = member.gym
+        origin_schedule = attrs.get("origin_schedule")
+        destination_slot = attrs.get("destination_slot")
+        swap_date = attrs.get("swap_date")
+
+        if origin_schedule and destination_slot and swap_date:
+            if origin_schedule.gym != gym:
+                raise serializers.ValidationError({
+                    "origin_schedule": "El horario de origen no pertenece a este gimnasio."
+                })
+
+            if destination_slot.gym != gym:
+                raise serializers.ValidationError({
+                    "destination_slot": "El horario de destino no pertenece a este gimnasio."
+                })
+
+            if origin_schedule.slot_id == destination_slot.id:
+                raise serializers.ValidationError(
+                    "El horario de destino es el mismo que el actual."
+                )
+
+            if AttendanceSchedule.objects.filter(
+                gym=gym,
+                member=member,
+                slot=destination_slot,
+                active=True,
+            ).exists():
+                raise serializers.ValidationError(
+                    "Ya tienes asignado ese horario."
+                )
+
+            DAY_INDEX_MAP = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+            }
+            if DAY_INDEX_MAP.get(destination_slot.day) != swap_date.weekday():
+                raise serializers.ValidationError(
+                    "La fecha seleccionada no corresponde al día del horario de destino."
+                )
+
+            if swap_date <= timezone.localdate():
+                raise serializers.ValidationError(
+                    "La fecha debe ser posterior a hoy."
+                )
+
+            if ScheduleSwapRequest.objects.filter(
+                member=member,
+                swap_date=swap_date,
+            ).exclude(status="cancelled").exists():
+                raise serializers.ValidationError(
+                    "Ya tienes una solicitud de cambio para esta fecha."
+                )
+
+            if ScheduleChangeRequest.objects.filter(
+                member=member,
+                status="pending",
+                current_schedule__slot__day=destination_slot.day,
+            ).exists():
+                raise serializers.ValidationError(
+                    "Tienes un cambio de horario pendiente que afecta el mismo día."
+                )
+
+        return attrs
+
+    def create(self, validated_data):
+        member = self.context["member"]
+        validated_data["gym"] = member.gym
+        validated_data["member"] = member
+
+        instance = super().create(validated_data)
+
+        cap = instance.destination_slot.capacity or member.gym.default_schedule_capacity
+        if cap is not None:
+            effective = compute_effective_occupancy(
+                instance.destination_slot, instance.swap_date
+            )
+            if effective < cap:
+                instance.status = "approved"
+                instance.reviewed_at = timezone.now()
+                instance.admin_notes = "Aprobado automáticamente"
+                instance.save(update_fields=["status", "reviewed_at", "admin_notes"])
+
+        return instance

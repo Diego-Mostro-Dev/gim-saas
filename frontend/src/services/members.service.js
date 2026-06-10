@@ -1,7 +1,10 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
 export async function getMembers() {
-  return apiFetch("/api/members/");
+  const data = await apiFetch("/api/members/");
+  setCached("members", data);
+  return data;
 }
 
 export async function getMember(id) {

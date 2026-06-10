@@ -1,9 +1,10 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
 export async function getSubscriptions() {
-  return apiFetch(
-    "/api/subscriptions/",
-  );
+  const data = await apiFetch("/api/subscriptions/");
+  setCached("subscriptions", data);
+  return data;
 }
 
 export async function createSubscription(

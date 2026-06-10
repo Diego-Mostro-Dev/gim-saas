@@ -17,9 +17,6 @@ class PublicRegisterView(APIView):
 
     def post(self, request, gym_code):
 
-        print("DATA:", request.data)
-        print("FILES:", request.FILES)
-
         gym = get_object_or_404(
             Gym,
             onboarding_code=gym_code,

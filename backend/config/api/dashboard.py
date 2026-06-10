@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Sum
+from django.db.models import Count, Q, Sum
 from django.utils.timezone import now
 
 from rest_framework.response import Response
@@ -30,76 +30,67 @@ class DashboardSummaryView(APIView):
                 month=current_month_start.month - 1
             )
 
+        # -------------------------
+        # Active Members
+        # -------------------------
         active_members = Member.objects.filter(
             gym=gym,
             active=True,
         ).count()
 
-        expiring_soon = Subscription.objects.filter(
-            gym=gym,
-            end_date__gte=today,
-            end_date__lte=today + timedelta(days=7),
-        ).count()
-
-        current_month_revenue = (
-            Payment.objects.filter(
-                gym=gym,
-                paid_at__date__gte=current_month_start,
-            ).aggregate(
-                total=Sum("amount")
-            )["total"]
-            or 0
+        # -------------------------
+        # Revenues
+        # -------------------------
+        revenues = Payment.objects.filter(gym=gym).aggregate(
+            current_month=Sum(
+                "amount",
+                filter=Q(
+                    paid_at__date__gte=current_month_start
+                ),
+            ),
+            previous_month=Sum(
+                "amount",
+                filter=Q(
+                    paid_at__date__gte=previous_month_start,
+                    paid_at__date__lt=current_month_start,
+                ),
+            ),
         )
 
-        previous_month_revenue = (
-            Payment.objects.filter(
-                gym=gym,
-                paid_at__date__gte=previous_month_start,
-                paid_at__date__lt=current_month_start,
-            ).aggregate(
-                total=Sum("amount")
-            )["total"]
-            or 0
-        )
+        current_month_revenue = revenues["current_month"] or 0
+        previous_month_revenue = revenues["previous_month"] or 0
 
-        upcoming_expirations = (
+        # -------------------------
+        # Subscriptions
+        # -------------------------
+        all_subscriptions = list(
             Subscription.objects.filter(
-                gym=gym,
-                end_date__gte=today,
-                end_date__lte=today + timedelta(days=7),
-            )
-            .select_related(
+                gym=gym
+            ).select_related(
                 "member",
                 "plan",
             )
-            .order_by("end_date")[:5]
         )
+
+        expiring_subs = [
+            s for s in all_subscriptions
+            if today <= s.end_date <= today + timedelta(days=7)
+        ]
+
+        expiring_soon = len(expiring_subs)
 
         upcoming_expirations_data = [
             {
                 "id": sub.id,
-                "member_name": (
-                    f"{sub.member.first_name} "
-                    f"{sub.member.last_name}"
-                ),
+                "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "plan_name": sub.plan.name,
-                "days_remaining": (
-                    sub.end_date - today
-                ).days,
+                "days_remaining": (sub.end_date - today).days,
             }
-            for sub in upcoming_expirations
+            for sub in sorted(
+                expiring_subs,
+                key=lambda s: s.end_date,
+            )[:5]
         ]
-
-        recent_subscriptions = (
-            Subscription.objects.filter(
-                gym=gym
-            )
-            .select_related(
-                "member",
-                "plan",
-            )
-            .order_by("-created_at")[:5]
-        )
 
         recent_activity_data = [
             {
@@ -107,49 +98,44 @@ class DashboardSummaryView(APIView):
                 "description": (
                     f"{sub.member.first_name} "
                     f"{sub.member.last_name} "
-                    f"adquirió el plan "
-                    f"{sub.plan.name}"
+                    f"adquirió el plan {sub.plan.name}"
                 ),
-                "created_at": sub.created_at.strftime(
-                    "%d/%m/%Y"
-                ),
+                "created_at": sub.created_at.strftime("%d/%m/%Y"),
             }
-            for sub in recent_subscriptions
+            for sub in sorted(
+                all_subscriptions,
+                key=lambda s: s.created_at,
+                reverse=True,
+            )[:5]
         ]
-
-        pending_payments = (
-            Subscription.objects.filter(
-                gym=gym,
-                paid=False,
-            )
-            .select_related(
-                "member",
-                "plan",
-            )
-            .order_by("end_date")[:10]
-        )
 
         pending_payments_data = [
             {
                 "id": sub.id,
-                "member_name": (
-                    f"{sub.member.first_name} "
-                    f"{sub.member.last_name}"
-                ),
+                "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "plan_name": sub.plan.name,
-                "plan_price": float(
-                    sub.plan.price
-                ),
-                "end_date": sub.end_date.strftime(
-                    "%d/%m/%Y"
-                ),
+                "plan_price": float(sub.plan.price),
+                "end_date": sub.end_date.strftime("%d/%m/%Y"),
             }
-            for sub in pending_payments
+            for sub in sorted(
+                [s for s in all_subscriptions if not s.paid],
+                key=lambda s: s.end_date,
+            )[:10]
         ]
 
-        # ==========================
-        # Asistencias últimos 7 días
-        # ==========================
+        # -------------------------
+        # Attendance
+        # -------------------------
+        attendance_counts = dict(
+            Attendance.objects.filter(
+                gym=gym,
+                date__gte=today - timedelta(days=6),
+                date__lte=today,
+            )
+            .values("date")
+            .annotate(count=Count("id"))
+            .values_list("date", "count")
+        )
 
         day_labels = [
             "Lun",
@@ -166,24 +152,15 @@ class DashboardSummaryView(APIView):
         for days_ago in range(6, -1, -1):
             day = today - timedelta(days=days_ago)
 
-            count = Attendance.objects.filter(
-                gym=gym,
-                date=day,
-            ).count()
-
             weekly_attendance.append({
                 "day": day_labels[day.weekday()],
-                "count": count,
+                "count": attendance_counts.get(day, 0),
             })
 
         return Response({
             "activeMembers": active_members,
-            "currentMonthRevenue": float(
-                current_month_revenue
-            ),
-            "previousMonthRevenue": float(
-                previous_month_revenue
-            ),
+            "currentMonthRevenue": float(current_month_revenue),
+            "previousMonthRevenue": float(previous_month_revenue),
             "expiringSoon": expiring_soon,
             "upcomingExpirations": upcoming_expirations_data,
             "recentActivity": recent_activity_data,

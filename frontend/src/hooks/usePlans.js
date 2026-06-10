@@ -6,19 +6,31 @@ import {
   updatePlan,
   deletePlan,
 } from "../services/plans.service";
+import { getCached, isCacheFresh } from "../utils/cache";
+
+const CACHE_KEY = "plans";
+const TTL = 30 * 60 * 1000;
 
 export function usePlans() {
-  const [plans, setPlans] = useState([]);
+  const [plans, setPlans] = useState(() => getCached(CACHE_KEY) || []);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !isCacheFresh(CACHE_KEY, TTL));
 
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadPlans();
-  }, []);
-
   async function loadPlans() {
+    if (isCacheFresh(CACHE_KEY, TTL)) {
+      setPlans(getCached(CACHE_KEY));
+      setLoading(false);
+      setError(null);
+      try {
+        const data = await getPlans();
+        setPlans(data);
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
     try {
       setLoading(true);
 
@@ -35,6 +47,10 @@ export function usePlans() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    loadPlans();
+  }, []);
 
   async function handleCreatePlan(data) {
     try {

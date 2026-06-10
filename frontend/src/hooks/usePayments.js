@@ -10,14 +10,26 @@ import {
 import { getMembers } from "../services/members.service";
 
 import { getSubscriptions } from "../services/subscriptions.service";
+import { getCached, isCacheFresh } from "../utils/cache";
+
+function secondaryCacheFresh() {
+  return (
+    isCacheFresh("members", 5 * 60 * 1000) &&
+    isCacheFresh("subscriptions", 2 * 60 * 1000)
+  );
+}
 
 export function usePayments() {
   const [payments, setPayments] = useState([]);
 
-  const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState(() =>
+    isCacheFresh("members", 5 * 60 * 1000) ? getCached("members") || [] : []
+  );
 
   const [subscriptions, setSubscriptions] =
-    useState([]);
+    useState(() =>
+      isCacheFresh("subscriptions", 2 * 60 * 1000) ? getCached("subscriptions") || [] : []
+    );
 
   const [loading, setLoading] =
     useState(true);
@@ -33,6 +45,25 @@ export function usePayments() {
   }, []);
 
   async function loadData() {
+    if (secondaryCacheFresh()) {
+      setMembers(getCached("members") || []);
+      setSubscriptions(getCached("subscriptions") || []);
+      setLoading(false);
+      setError(null);
+      try {
+        const [paymentsData, membersData, subscriptionsData] = await Promise.all([
+          getPayments(),
+          getMembers(),
+          getSubscriptions(),
+        ]);
+        setPayments(paymentsData);
+        setMembers(membersData);
+        setSubscriptions(subscriptionsData);
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
     try {
       setLoading(true);
 

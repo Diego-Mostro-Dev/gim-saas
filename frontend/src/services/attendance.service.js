@@ -1,18 +1,22 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
-export async function getWeeklyAttendance() {
-  return apiFetch(
-    "/api/attendance/weekly/"
-  );
+export async function getWeeklyAttendance(date) {
+  const params = date ? `?date=${date}` : "";
+  const data = await apiFetch(`/api/attendance/weekly/${params}`);
+  setCached(`weekly-attendance-${date || ""}`, data);
+  return data;
 }
 
 export async function getAttendanceStatus(
   day,
   hour,
 ) {
-  return apiFetch(
+  const data = await apiFetch(
     `/api/attendance/status/?day=${day}&hour=${hour}`
   );
+  setCached(`attendance-status-${day}-${hour}`, data);
+  return data;
 }
 
 export async function registerAttendance(
@@ -30,7 +34,9 @@ export async function registerAttendance(
 }
 
 export async function getSlots() {
-  return apiFetch("/api/attendance/slots/");
+  const data = await apiFetch("/api/attendance/slots/");
+  setCached("slots", data);
+  return data;
 }
 
 export async function createSlot(data) {
@@ -69,4 +75,29 @@ export async function rejectScheduleChangeRequest(id, data = {}) {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export async function getScheduleSwapRequests() {
+  return apiFetch("/api/attendance/schedule-swap-requests/");
+}
+
+export async function approveScheduleSwapRequest(id, data = {}) {
+  return apiFetch(`/api/attendance/schedule-swap-requests/${id}/approve/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function rejectScheduleSwapRequest(id, data = {}) {
+  return apiFetch(`/api/attendance/schedule-swap-requests/${id}/reject/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getAttendanceAnalytics(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const data = await apiFetch(`/api/attendance/analytics/${query ? `?${query}` : ""}`);
+  setCached(`attendance-analytics-${params.start_date}-${params.end_date}`, data);
+  return data;
 }

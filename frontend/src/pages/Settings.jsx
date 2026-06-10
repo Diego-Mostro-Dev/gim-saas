@@ -11,6 +11,7 @@ import {
   updateSlot,
   deleteSlot,
 } from "../services/attendance.service";
+import { getCached, isCacheFresh } from "../utils/cache";
 
 function Settings() {
   const navigate = useNavigate();
@@ -29,8 +30,8 @@ function Settings() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [slots, setSlots] = useState([]);
-  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [slots, setSlots] = useState(() => getCached("slots") || []);
+  const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newSlot, setNewSlot] = useState({
     day: "monday",
@@ -60,6 +61,15 @@ function Settings() {
   }, []);
 
   async function loadSlots() {
+    if (isCacheFresh("slots", 10 * 60 * 1000)) {
+      setSlots(getCached("slots"));
+      setLoadingSlots(false);
+      try {
+        const data = await getSlots();
+        setSlots(data);
+      } catch {}
+      return;
+    }
     try {
       setLoadingSlots(true);
       const data = await getSlots();

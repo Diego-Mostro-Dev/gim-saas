@@ -2,21 +2,21 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import { getScheduleChangeRequests } from "../services/attendance.service";
+import { getScheduleSwapRequests } from "../services/attendance.service";
 
 let lastRefreshTime = 0;
 
-export function getScheduleChangesLastRefresh() {
+export function getScheduleSwapsLastRefresh() {
   return lastRefreshTime;
 }
 
-export function useScheduleChangeWatcher() {
+export function useScheduleSwapWatcher() {
   const location = useLocation();
   const prevRef = useRef(null);
   const initialized = useRef(false);
 
   useEffect(() => {
-    if (!location.pathname.includes("/schedule-change-requests")) {
+    if (!location.pathname.includes("/schedule-swap-requests")) {
       return;
     }
 
@@ -29,14 +29,14 @@ export function useScheduleChangeWatcher() {
       lastRefreshTime = Date.now();
 
       try {
-        const current = await getScheduleChangeRequests();
+        const current = await getScheduleSwapRequests();
 
         if (!initialized.current) {
           initialized.current = true;
           prevRef.current = current;
 
           window.dispatchEvent(
-            new CustomEvent("schedule-changes-refreshed", { detail: current }),
+            new CustomEvent("schedule-swaps-refreshed", { detail: current }),
           );
 
           return;
@@ -53,8 +53,8 @@ export function useScheduleChangeWatcher() {
         for (const req of current) {
           if (!prevMap.has(req.id)) {
             toast.success(
-              `Nueva solicitud de cambio: ${req.member_name}`,
-              { id: `scr-new-${req.id}` },
+              `Nuevo cambio de fecha: ${req.member_name}`,
+              { id: `ssr-new-${req.id}` },
             );
           }
         }
@@ -62,23 +62,28 @@ export function useScheduleChangeWatcher() {
         for (const req of current) {
           const prevReq = prevMap.get(req.id);
           if (prevReq && prevReq.status !== req.status) {
-            const label =
-              req.status === "approved"
-                ? "aprobada"
-                : req.status === "rejected"
-                  ? "rechazada"
-                  : "cancelada";
-            toast.success(
-              `Solicitud ${label}: ${req.member_name}`,
-              { id: `scr-status-${req.id}-${req.status}` },
-            );
+            let message;
+            if (req.status === "approved") {
+              if (req.admin_notes === "Aprobado automáticamente" && !req.reviewed_by) {
+                message = `Tu cambio de fecha fue aprobado automáticamente.`;
+              } else {
+                message = `Tu cambio de fecha fue aprobado.`;
+              }
+            } else if (req.status === "rejected") {
+              message = `Tu cambio de fecha fue rechazado.`;
+            } else {
+              message = `Cambio de fecha cancelado: ${req.member_name}`;
+            }
+            toast.success(message, {
+              id: `ssr-status-${req.id}-${req.status}`,
+            });
           }
         }
 
         prevRef.current = current;
 
         window.dispatchEvent(
-          new CustomEvent("schedule-changes-refreshed", { detail: current }),
+          new CustomEvent("schedule-swaps-refreshed", { detail: current }),
         );
       } catch {
         // silent — network errors are expected and handled elsewhere

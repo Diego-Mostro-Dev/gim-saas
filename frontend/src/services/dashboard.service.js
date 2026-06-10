@@ -1,7 +1,8 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
 export async function getDashboardData() {
-  return apiFetch(
-    "/api/dashboard/"
-  );
+  const data = await apiFetch("/api/dashboard/");
+  setCached("dashboard", data);
+  return data;
 }

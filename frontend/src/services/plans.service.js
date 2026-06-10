@@ -1,9 +1,10 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
 export async function getPlans() {
-  return apiFetch(
-    "/api/plans/",
-  );
+  const data = await apiFetch("/api/plans/");
+  setCached("plans", data);
+  return data;
 }
 
 export async function createPlan(

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, X, ArrowLeftRight } from "lucide-react";
+import { Check, X, ArrowLeftRight, Search } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
-  getScheduleChangeRequests,
-  approveScheduleChangeRequest,
-  rejectScheduleChangeRequest,
+  getScheduleSwapRequests,
+  approveScheduleSwapRequest,
+  rejectScheduleSwapRequest,
 } from "../services/attendance.service";
-import { getScheduleChangesLastRefresh } from "../hooks/useScheduleChangeWatcher";
+import { getScheduleSwapsLastRefresh } from "../hooks/useScheduleSwapWatcher";
 import { DAY_NAMES } from "../constants/days";
 
 const STATUS_LABELS = {
@@ -17,17 +17,54 @@ const STATUS_LABELS = {
   cancelled: "Cancelado",
 };
 
-const FILTERS = [
+const STATUS_FILTERS = [
   { key: "all", label: "Todas" },
   { key: "pending", label: "Pendientes" },
   { key: "approved", label: "Aprobadas" },
   { key: "rejected", label: "Rechazadas" },
 ];
 
-function ScheduleChangeRequests() {
+const TIME_FILTERS = [
+  { key: "all", label: "Todas" },
+  { key: "today", label: "Hoy" },
+  { key: "week", label: "Esta semana" },
+  { key: "month", label: "Este mes" },
+];
+
+function startOfWeek() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isToday(dateStr) {
+  return dateStr === new Date().toISOString().slice(0, 10);
+}
+
+function isThisWeek(dateStr) {
+  const d = new Date(dateStr + "T12:00:00");
+  const sw = startOfWeek();
+  const ew = new Date(sw);
+  ew.setDate(sw.getDate() + 6);
+  ew.setHours(23, 59, 59, 999);
+  return d >= sw && d <= ew;
+}
+
+function isThisMonth(dateStr) {
+  const now = new Date();
+  const d = new Date(dateStr + "T12:00:00");
+  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+}
+
+function ScheduleSwapRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState(() => sessionStorage.getItem("change_filter") || "all");
+  const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("swap_status") || "all");
+  const [timeFilter, setTimeFilter] = useState(() => sessionStorage.getItem("swap_time") || "all");
+  const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem("swap_search") || "");
 
   const [approvalTarget, setApprovalTarget] = useState(null);
   const [rejectionTarget, setRejectionTarget] = useState(null);
@@ -36,7 +73,7 @@ function ScheduleChangeRequests() {
   const lastFetchTimestamp = useRef(0);
 
   async function loadRequests() {
-    if (Date.now() - Math.max(lastFetchTimestamp.current, getScheduleChangesLastRefresh()) < 60000) {
+    if (Date.now() - Math.max(lastFetchTimestamp.current, getScheduleSwapsLastRefresh()) < 60000) {
       setLoading(false);
       return;
     }
@@ -44,13 +81,13 @@ function ScheduleChangeRequests() {
 
     try {
       setLoading(true);
-      const data = await getScheduleChangeRequests();
+      const data = await getScheduleSwapRequests();
       setRequests(data);
       window.dispatchEvent(
-        new CustomEvent("schedule-changes-refreshed", { detail: data }),
+        new CustomEvent("schedule-swaps-refreshed", { detail: data }),
       );
     } catch {
-      toast.error("Error al cargar solicitudes de cambio");
+      toast.error("Error al cargar solicitudes de intercambio");
     } finally {
       setLoading(false);
     }
@@ -65,8 +102,8 @@ function ScheduleChangeRequests() {
       setRequests(e.detail);
       setLoading(false);
     }
-    window.addEventListener("schedule-changes-refreshed", onRefreshed);
-    return () => window.removeEventListener("schedule-changes-refreshed", onRefreshed);
+    window.addEventListener("schedule-swaps-refreshed", onRefreshed);
+    return () => window.removeEventListener("schedule-swaps-refreshed", onRefreshed);
   }, []);
 
   useEffect(() => {
@@ -75,9 +112,9 @@ function ScheduleChangeRequests() {
       if (!updated || updated.status !== "pending") {
         setApprovalTarget(null);
         if (updated?.status === "approved") {
-          toast.success("Solicitud aprobada por otro administrador.");
+          toast.success("Intercambio aprobado por otro administrador.");
         } else if (updated?.status === "rejected") {
-          toast.success("Solicitud rechazada por otro administrador.");
+          toast.success("Intercambio rechazado por otro administrador.");
         } else {
           toast.success("La solicitud ya no está pendiente.");
         }
@@ -90,9 +127,9 @@ function ScheduleChangeRequests() {
         setRejectionTarget(null);
         setRejectionNotes("");
         if (updated?.status === "approved") {
-          toast.success("Solicitud aprobada por otro administrador.");
+          toast.success("Intercambio aprobado por otro administrador.");
         } else if (updated?.status === "rejected") {
-          toast.success("Solicitud rechazada por otro administrador.");
+          toast.success("Intercambio rechazado por otro administrador.");
         } else {
           toast.success("La solicitud ya no está pendiente.");
         }
@@ -100,9 +137,26 @@ function ScheduleChangeRequests() {
     }
   }, [requests]);
 
+  const stats = {
+    pending: requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
+    cancelled: requests.filter((r) => r.status === "cancelled").length,
+  };
+
   const filteredRequests = requests.filter((r) => {
-    if (filter === "all") return true;
-    return r.status === filter;
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (timeFilter === "today" && !isToday(r.swap_date)) return false;
+    if (timeFilter === "week" && !isThisWeek(r.swap_date)) return false;
+    if (timeFilter === "month" && !isThisMonth(r.swap_date)) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const nameMatch = r.member_name?.toLowerCase().includes(term);
+      const destDay = DAY_NAMES[r.destination_day] || r.destination_day || "";
+      const slotMatch = destDay.toLowerCase().includes(term);
+      if (!nameMatch && !slotMatch) return false;
+    }
+    return true;
   });
 
   function formatDate(dateStr) {
@@ -111,8 +165,6 @@ function ScheduleChangeRequests() {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   }
 
@@ -143,9 +195,9 @@ function ScheduleChangeRequests() {
     if (!updated || updated.status !== "pending") {
       setApprovalTarget(null);
       if (updated?.status === "approved") {
-        toast.success("Solicitud aprobada por otro administrador.");
+        toast.success("Intercambio aprobado por otro administrador.");
       } else if (updated?.status === "rejected") {
-        toast.success("Solicitud rechazada por otro administrador.");
+        toast.success("Intercambio rechazado por otro administrador.");
       } else {
         toast.success("La solicitud ya no está pendiente.");
       }
@@ -153,8 +205,8 @@ function ScheduleChangeRequests() {
     }
 
     try {
-      await approveScheduleChangeRequest(approvalTarget.id);
-      toast.success("Cambio de horario aprobado");
+      await approveScheduleSwapRequest(approvalTarget.id);
+      toast.success("Intercambio aprobado");
       setApprovalTarget(null);
       loadRequests();
     } catch (error) {
@@ -175,9 +227,9 @@ function ScheduleChangeRequests() {
       setRejectionTarget(null);
       setRejectionNotes("");
       if (updated?.status === "approved") {
-        toast.success("Solicitud aprobada por otro administrador.");
+        toast.success("Intercambio aprobado por otro administrador.");
       } else if (updated?.status === "rejected") {
-        toast.success("Solicitud rechazada por otro administrador.");
+        toast.success("Intercambio rechazado por otro administrador.");
       } else {
         toast.success("La solicitud ya no está pendiente.");
       }
@@ -189,8 +241,8 @@ function ScheduleChangeRequests() {
       if (rejectionNotes.trim()) {
         data.admin_notes = rejectionNotes.trim();
       }
-      await rejectScheduleChangeRequest(rejectionTarget.id, data);
-      toast.success("Cambio de horario rechazado");
+      await rejectScheduleSwapRequest(rejectionTarget.id, data);
+      toast.success("Intercambio rechazado");
       setRejectionTarget(null);
       setRejectionNotes("");
       loadRequests();
@@ -202,7 +254,7 @@ function ScheduleChangeRequests() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
-        Cargando solicitudes...
+        Cargando solicitudes de intercambio...
       </div>
     );
   }
@@ -210,24 +262,82 @@ function ScheduleChangeRequests() {
   return (
     <div className="min-h-screen bg-[#131313] pb-28 pt-6 text-white">
       <div className="mb-6 px-4">
-        <h1 className="text-3xl font-bold">Cambios de horario</h1>
+        <h1 className="text-3xl font-bold">Intercambios de día</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Cambios permanentes del horario habitual de un socio.
+          Cambios por única vez entre días disponibles.
         </p>
       </div>
 
-      <div className="mb-6 flex gap-2 overflow-x-auto px-4">
-        {FILTERS.map((f) => (
+      {/* Stats cards */}
+      <div className="mb-6 grid grid-cols-2 gap-3 px-4 sm:grid-cols-4">
+        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-center">
+          <p className="text-2xl font-bold text-yellow-400">{stats.pending}</p>
+          <p className="text-xs text-zinc-400">Pendientes</p>
+        </div>
+        <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-3 text-center">
+          <p className="text-2xl font-bold text-green-400">{stats.approved}</p>
+          <p className="text-xs text-zinc-400">Aprobadas</p>
+        </div>
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-3 text-center">
+          <p className="text-2xl font-bold text-red-400">{stats.rejected}</p>
+          <p className="text-xs text-zinc-400">Rechazadas</p>
+        </div>
+        <div className="rounded-2xl border border-zinc-500/20 bg-zinc-500/5 p-3 text-center">
+          <p className="text-2xl font-bold text-zinc-400">{stats.cancelled}</p>
+          <p className="text-xs text-zinc-400">Canceladas</p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4 px-4">
+        <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-[#201f1f] px-3 py-2">
+          <Search size={16} className="shrink-0 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Buscar por socio o destino..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              sessionStorage.setItem("swap_search", e.target.value);
+            }}
+            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
+          />
+        </div>
+      </div>
+
+      {/* Status filters */}
+      <div className="mb-3 flex gap-2 overflow-x-auto px-4">
+        {STATUS_FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => {
-              setFilter(f.key);
-              sessionStorage.setItem("change_filter", f.key);
+              setStatusFilter(f.key);
+              sessionStorage.setItem("swap_status", f.key);
             }}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-              filter === f.key
-                ? "bg-blue-500 text-white"
+              statusFilter === f.key
+                ? "bg-purple-500 text-white"
                 : "bg-[#201f1f] text-zinc-400 hover:bg-[#2a2a2a]"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Time filters */}
+      <div className="mb-6 flex gap-2 overflow-x-auto px-4">
+        {TIME_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => {
+              setTimeFilter(f.key);
+              sessionStorage.setItem("swap_time", f.key);
+            }}
+            className={`rounded-xl px-4 py-1.5 text-xs font-medium transition ${
+              timeFilter === f.key
+                ? "bg-zinc-600 text-white"
+                : "bg-[#201f1f] text-zinc-500 hover:bg-[#2a2a2a]"
             }`}
           >
             {f.label}
@@ -239,8 +349,8 @@ function ScheduleChangeRequests() {
         {filteredRequests.length === 0 ? (
           <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
             {requests.length === 0
-              ? "No hay solicitudes de cambio"
-              : "No hay solicitudes con este estado"}
+              ? "No hay solicitudes de intercambio"
+              : "No hay solicitudes con este filtro"}
           </div>
         ) : (
           filteredRequests.map((req) => (
@@ -256,27 +366,25 @@ function ScheduleChangeRequests() {
                   <p className="mt-0.5 text-xs text-zinc-500">
                     Solicitado el: {formatDate(req.requested_at)}
                   </p>
-                  {req.effective_date && (
-                    <p className="text-xs text-zinc-500">
-                      Vigente desde: {formatDate(req.effective_date)}
-                    </p>
-                  )}
+                  <p className="text-xs text-zinc-500">
+                    Fecha del intercambio: {formatDate(req.swap_date)}
+                  </p>
                 </div>
                 {statusBadge(req.status)}
               </div>
 
               <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Actual</p>
+                  <p className="text-xs text-zinc-500">Origen</p>
                   <p className="text-sm text-white">
-                    {DAY_NAMES[req.current_day] || req.current_day} {req.current_hour}
+                    {DAY_NAMES[req.origin_day] || req.origin_day} {req.origin_hour}
                   </p>
                 </div>
                 <ArrowLeftRight size={16} className="shrink-0 text-zinc-500" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Solicitado</p>
+                  <p className="text-xs text-zinc-500">Destino</p>
                   <p className="text-sm text-white">
-                    {DAY_NAMES[req.requested_day] || req.requested_day} {req.requested_hour}
+                    {DAY_NAMES[req.destination_day] || req.destination_day} {req.destination_hour}
                   </p>
                 </div>
               </div>
@@ -317,7 +425,7 @@ function ScheduleChangeRequests() {
           <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#1b1b1b] p-6 shadow-2xl">
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-white">
-                Aprobar cambio de horario
+                Aprobar intercambio
               </h2>
             </div>
 
@@ -326,19 +434,23 @@ function ScheduleChangeRequests() {
                 <p className="text-sm text-zinc-400">Socio</p>
                 <p className="text-white">{approvalTarget.member_name}</p>
               </div>
+              <div>
+                <p className="text-sm text-zinc-400">Fecha del intercambio</p>
+                <p className="text-white">{formatDate(approvalTarget.swap_date)}</p>
+              </div>
               <div className="flex items-center gap-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Actual</p>
+                  <p className="text-xs text-zinc-500">Origen</p>
                   <p className="text-sm text-white">
-                    {DAY_NAMES[approvalTarget.current_day] || approvalTarget.current_day} {approvalTarget.current_hour}
+                    {DAY_NAMES[approvalTarget.origin_day] || approvalTarget.origin_day} {approvalTarget.origin_hour}
                   </p>
                 </div>
                 <ArrowLeftRight size={16} className="shrink-0 text-zinc-500" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Nuevo</p>
-                  <p className="text-sm text-green-300">
-                    {DAY_NAMES[approvalTarget.requested_day] || approvalTarget.requested_day}{" "}
-                    {approvalTarget.requested_hour}
+                  <p className="text-xs text-zinc-500">Destino</p>
+                  <p className="text-sm text-purple-300">
+                    {DAY_NAMES[approvalTarget.destination_day] || approvalTarget.destination_day}{" "}
+                    {approvalTarget.destination_hour}
                   </p>
                 </div>
               </div>
@@ -366,18 +478,9 @@ function ScheduleChangeRequests() {
       {rejectionTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#1b1b1b] p-6 shadow-2xl">
-              {rejectionTarget.effective_date && (
-                <div className="mt-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
-                  <p className="text-xs text-zinc-500">Vigente desde</p>
-                  <p className="text-sm text-white">
-                    {formatDate(rejectionTarget.effective_date)}
-                  </p>
-                </div>
-              )}
-
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-white">
-                  Rechazar cambio de horario
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Rechazar intercambio
               </h2>
               <p className="mt-1 text-sm text-zinc-400">
                 {rejectionTarget.member_name}
@@ -421,4 +524,4 @@ function ScheduleChangeRequests() {
   );
 }
 
-export default ScheduleChangeRequests;
+export default ScheduleSwapRequests;

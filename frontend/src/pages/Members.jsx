@@ -24,9 +24,10 @@ import {
   updateMember,
   getMemberPayments,
 } from "../services/members.service";
+import { getCached, isCacheFresh } from "../utils/cache";
 
 function Members() {
-  const { members, loading, error, createNewMember, editMember, removeMember } =
+  const { members, loading, refreshing, error, createNewMember, editMember, removeMember } =
     useMembers();
 
   const {
@@ -67,12 +68,22 @@ function Members() {
 
   const [paymentsMemberId, setPaymentsMemberId] = useState(null);
 
-  const [availableSlots, setAvailableSlots] = useState([]);
-  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [availableSlots, setAvailableSlots] = useState(() => getCached("slots") || []);
+  const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
 
   useEffect(() => {
     async function load() {
+      if (isCacheFresh("slots", 10 * 60 * 1000)) {
+        setAvailableSlots(getCached("slots"));
+        setLoadingSlots(false);
+        try {
+          const data = await getSlots();
+          setAvailableSlots(data);
+        } catch {}
+        return;
+      }
       try {
+        setLoadingSlots(true);
         const data = await getSlots();
         setAvailableSlots(data);
       } catch {
@@ -223,6 +234,9 @@ function Members() {
 
           <p className="mt-1 text-sm text-zinc-400">
             Gestión de miembros del gimnasio
+            {refreshing && (
+              <span className="ml-2 text-xs text-blue-400">Actualizando...</span>
+            )}
           </p>
         </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -9,6 +9,9 @@ import {
   getPublicScheduleChangeRequests,
   createPublicScheduleChangeRequest,
   cancelPublicScheduleChangeRequest,
+  getPublicScheduleSwapRequests,
+  createPublicScheduleSwapRequest,
+  cancelPublicScheduleSwapRequest,
 } from "../services/routines.service";
 import { DAY_NAMES } from "../constants/days";
 
@@ -35,6 +38,16 @@ function PublicRoutine() {
   const [selectedSlotId, setSelectedSlotId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [swapRequests, setSwapRequests] = useState([]);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [swapTarget, setSwapTarget] = useState(null);
+  const [swapDate, setSwapDate] = useState("");
+  const [swapSlotId, setSwapSlotId] = useState("");
+  const [submittingSwap, setSubmittingSwap] = useState(false);
+  const [swapDateSlots, setSwapDateSlots] = useState([]);
+
+  const lastRefreshAt = useRef(0);
+
   useEffect(() => {
     if (token) {
       localStorage.setItem("member_token", token);
@@ -43,9 +56,12 @@ function PublicRoutine() {
     loadRoutine();
 
     function refreshIfVisible() {
-      if (document.visibilityState === "visible") {
-        refreshRoutine();
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefreshAt.current < 5 * 60 * 1000) {
+        return;
       }
+      lastRefreshAt.current = Date.now();
+      refreshRoutine();
     }
 
     document.addEventListener("visibilitychange", refreshIfVisible);
@@ -63,16 +79,19 @@ function PublicRoutine() {
       setLoading(true);
 
       const data = await getPublicRoutine(token);
+      lastRefreshAt.current = Date.now();
 
       setRoutine(data);
 
       if (data.gym?.allow_member_schedule_changes) {
-        const [slotsData, requestsData] = await Promise.all([
+        const [slotsData, requestsData, swapData] = await Promise.all([
           getPublicSlots(token),
           getPublicScheduleChangeRequests(token),
+          getPublicScheduleSwapRequests(token),
         ]);
         setSlots(slotsData);
         setChangeRequests(requestsData);
+        setSwapRequests(swapData);
       }
     } catch (err) {
       console.error(err);
@@ -87,13 +106,16 @@ function PublicRoutine() {
     try {
       const data = await getPublicRoutine(token);
       setRoutine(data);
+      lastRefreshAt.current = Date.now();
       if (data.gym?.allow_member_schedule_changes) {
-        const [slotsData, requestsData] = await Promise.all([
+        const [slotsData, requestsData, swapData] = await Promise.all([
           getPublicSlots(token),
           getPublicScheduleChangeRequests(token),
+          getPublicScheduleSwapRequests(token),
         ]);
         setSlots(slotsData);
         setChangeRequests(requestsData);
+        setSwapRequests(swapData);
       }
     } catch (err) {
       console.error(err);
@@ -135,6 +157,49 @@ function PublicRoutine() {
     setShowModal(true);
   }
 
+  useEffect(() => {
+    if (swapDate && token) {
+      getPublicSlots(token, swapDate).then(setSwapDateSlots).catch(() => {});
+    } else {
+      setSwapDateSlots([]);
+    }
+  }, [swapDate, token]);
+
+  function openSwapModal(schedule) {
+    setSwapTarget(schedule);
+    setSwapDate("");
+    setSwapSlotId("");
+    setShowSwapModal(true);
+  }
+
+  async function handleCreateSwap() {
+    if (!swapDate || !swapSlotId) return;
+
+    try {
+      setSubmittingSwap(true);
+
+      await createPublicScheduleSwapRequest(token, {
+        origin_schedule: swapTarget.id,
+        destination_slot: Number(swapSlotId),
+        swap_date: swapDate,
+      });
+
+      toast.success("Solicitud de intercambio enviada correctamente");
+
+      setShowSwapModal(false);
+      setSwapTarget(null);
+      setSwapDate("");
+      setSwapSlotId("");
+
+      await refreshRoutine();
+    } catch (error) {
+      const msg = error?.data?.[0] || error?.message || "Error al enviar la solicitud";
+      toast.error(msg);
+    } finally {
+      setSubmittingSwap(false);
+    }
+  }
+
   async function handleCreateRequest() {
     if (!selectedSlotId) return;
 
@@ -173,6 +238,18 @@ function PublicRoutine() {
     }
   }
 
+  async function handleCancelSwap(id) {
+    try {
+      await cancelPublicScheduleSwapRequest(token, id);
+
+      toast.success("Solicitud cancelada");
+
+      await refreshRoutine();
+    } catch (error) {
+      toast.error("Error al cancelar la solicitud");
+    }
+  }
+
   const occupiedSlots = new Set(
     (routine?.schedules || []).map((s) => `${s.day}|${s.hour}`),
   );
@@ -186,6 +263,20 @@ function PublicRoutine() {
   const slotsForDay = selectedDay
     ? availableSlots.filter((s) => s.day === selectedDay)
     : [];
+
+  const swapAvailableSlots = swapTarget
+    ? slots.filter((s) => !occupiedSlots.has(`${s.day}|${s.hour}`))
+    : [];
+
+  function dayNameFromDate(dateStr) {
+    const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    return days[new Date(dateStr + "T12:00:00").getDay()];
+  }
+
+const slotsForSwapDate = swapDate
+  ? (swapDateSlots.length > 0 ? swapDateSlots : swapAvailableSlots)
+      .filter((s) => s.day === dayNameFromDate(swapDate))
+  : [];
 
   function getSlotDayLabel(dayKey) {
     return DAY_NAMES[dayKey] || dayKey;
@@ -370,19 +461,29 @@ function PublicRoutine() {
                     <span className="text-sm text-zinc-300">
                       {DAY_NAMES[schedule.day] || schedule.day} {schedule.hour}
                     </span>
-                    {gym.allow_member_schedule_changes && !hasPending && (
-                      <button
-                        onClick={() => openChangeModal(schedule)}
-                        className="rounded-lg bg-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-500/30"
-                      >
-                        Solicitar cambio
-                      </button>
-                    )}
-                    {hasPending && (
-                      <span className="rounded-lg bg-yellow-500/15 px-3 py-1.5 text-xs font-medium text-yellow-400">
-                        Pendiente
-                      </span>
-                    )}
+                    <div className="flex gap-2">
+                      {gym.allow_member_schedule_changes && !hasPending && (
+                        <button
+                          onClick={() => openChangeModal(schedule)}
+                          className="rounded-lg bg-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-500/30"
+                        >
+                          Solicitar cambio
+                        </button>
+                      )}
+                      {gym.allow_member_schedule_changes && (
+                        <button
+                          onClick={() => openSwapModal(schedule)}
+                          className="rounded-lg bg-purple-500/20 px-3 py-1.5 text-xs font-medium text-purple-400 transition hover:bg-purple-500/30"
+                        >
+                          Intercambiar por única vez
+                        </button>
+                      )}
+                      {hasPending && (
+                        <span className="rounded-lg bg-yellow-500/15 px-3 py-1.5 text-xs font-medium text-yellow-400">
+                          Pendiente
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -461,6 +562,79 @@ function PublicRoutine() {
                       {req.admin_notes}
                     </p>
                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SOLICITUDES DE CAMBIO TEMPORAL */}
+        {gym.allow_member_schedule_changes && swapRequests.length > 0 && (
+          <div className="rounded-2xl bg-[#201f1f] p-4">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                Intercambios de día
+              </h2>
+
+            <div className="space-y-2">
+              {swapRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="rounded-xl bg-[#2a2a2a] px-4 py-3"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-zinc-500">
+                        {DAY_NAMES[req.origin_day]} {req.origin_hour} → {DAY_NAMES[req.destination_day]} {req.destination_hour}
+                      </p>
+
+                      <p className="mt-0.5 text-sm text-zinc-100">
+                        {new Date(req.swap_date).toLocaleDateString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium ${
+                        req.status === "pending"
+                          ? "bg-yellow-500/15 text-yellow-400"
+                          : req.status === "approved"
+                            ? "bg-green-500/15 text-green-400"
+                            : req.status === "rejected"
+                              ? "bg-red-500/15 text-red-400"
+                              : "bg-zinc-500/15 text-zinc-400"
+                      }`}
+                    >
+                      {req.status === "pending"
+                        ? "⏳ Pendiente"
+                        : req.status === "approved"
+                          ? "✅ Aprobado"
+                          : req.status === "rejected"
+                            ? "❌ Rechazado"
+                            : "🚫 Cancelado"}
+                    </span>
+                  </div>
+
+                  {req.status === "pending" && (
+                    <button
+                      onClick={() => handleCancelSwap(req.id)}
+                      className="mt-2 text-xs text-red-400 transition hover:text-red-300"
+                    >
+                      Cancelar solicitud
+                    </button>
+                  )}
+
+                  {req.admin_notes && req.admin_notes === "Aprobado automáticamente" ? (
+                    <p className="mt-1 text-xs text-green-400">
+                      Aprobado automáticamente — el horario tenía lugar disponible
+                    </p>
+                  ) : req.admin_notes ? (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {req.admin_notes}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -758,6 +932,98 @@ function PublicRoutine() {
                   className="flex-1 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
                 >
                   {submitting ? "Enviando..." : "Enviar solicitud"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* MODAL CAMBIAR SOLO ESTA FECHA */}
+        {showSwapModal && swapTarget && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
+            <div className="w-full max-w-md rounded-t-2xl bg-[#201f1f] p-6 sm:rounded-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                  Intercambiar por única vez
+                </h3>
+                <button
+                  onClick={() => setShowSwapModal(false)}
+                  className="text-zinc-400 transition hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mb-4 rounded-xl bg-[#2a2a2a] p-3">
+                <p className="text-xs text-zinc-500">Horario actual</p>
+                <p className="text-sm text-zinc-200">
+                  {DAY_NAMES[swapTarget.day] || swapTarget.day} {swapTarget.hour}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="mb-2 block text-sm text-zinc-400">Fecha</label>
+                <input
+                  type="date"
+                  value={swapDate}
+                  onChange={(e) => {
+                    setSwapDate(e.target.value);
+                    setSwapSlotId("");
+                  }}
+                  className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2.5 text-sm text-white"
+                />
+              </div>
+
+              {swapDate && (
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm text-zinc-400">Nuevo horario</label>
+                  {slotsForSwapDate.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {slotsForSwapDate.map((slot) => {
+                        const occ = slot.occupancy;
+                        const cap = slot.capacity;
+                        const full = occ !== undefined && cap !== null && occ >= cap;
+
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => setSwapSlotId(slot.id)}
+                            className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                              Number(swapSlotId) === slot.id
+                                ? "bg-purple-500 text-white"
+                                : full
+                                  ? "bg-[#2a2a2a] text-red-400"
+                                  : "bg-[#2a2a2a] text-zinc-300 hover:bg-[#333]"
+                            }`}
+                          >
+                            <div>{slot.hour}</div>
+                            {occ !== undefined && (
+                              <div className={`mt-0.5 text-[10px] ${full ? "text-red-400" : "text-zinc-500"}`}>
+                                {full ? "Completo" : `${occ}/${cap}`}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500">No hay horarios disponibles para esta fecha.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSwapModal(false)}
+                  className="flex-1 rounded-xl bg-[#2a2a2a] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-[#333]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateSwap}
+                  disabled={!swapDate || !swapSlotId || submittingSwap}
+                  className="flex-1 rounded-xl bg-purple-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-600 disabled:opacity-50"
+                >
+                  {submittingSwap ? "Enviando..." : "Enviar solicitud"}
                 </button>
               </div>
             </div>
