@@ -173,12 +173,12 @@ function PublicRoutine() {
     }
   }
 
+  const occupiedSlots = new Set(
+    (routine?.schedules || []).map((s) => `${s.day}|${s.hour}`),
+  );
+
   const availableSlots = selectedSchedule
-    ? slots.filter(
-        (s) =>
-          s.day !== selectedSchedule.day ||
-          s.hour !== selectedSchedule.hour
-      )
+    ? slots.filter((s) => !occupiedSlots.has(`${s.day}|${s.hour}`))
     : [];
 
   const uniqueDays = [...new Set(availableSlots.map((s) => s.day))];
