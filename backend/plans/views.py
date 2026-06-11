@@ -6,3 +6,4 @@ from .serializers import MembershipPlanSerializer
 class MembershipPlanViewSet(GymModelViewSet):
     queryset = MembershipPlan.objects.all()
     serializer_class = MembershipPlanSerializer
+    pagination_class = None

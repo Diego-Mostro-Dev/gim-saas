@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import (
     IsAuthenticated,
 )
+from rest_framework.exceptions import PermissionDenied
 
 from .serializers import GymSerializer
 
@@ -13,8 +14,18 @@ class GymMeView(APIView):
         IsAuthenticated
     ]
 
+    def get_gym(self, request):
+        profile = getattr(request.user, "profile", None)
+
+        if not profile or not profile.gym:
+            raise PermissionDenied(
+                "Usuario sin gimnasio asignado"
+            )
+
+        return profile.gym
+
     def get(self, request):
-        gym = request.user.profile.gym
+        gym = self.get_gym(request)
 
         serializer = GymSerializer(gym)
 
@@ -23,7 +34,7 @@ class GymMeView(APIView):
         )
 
     def patch(self, request):
-        gym = request.user.profile.gym
+        gym = self.get_gym(request)
 
         serializer = GymSerializer(
             gym,

@@ -2,6 +2,7 @@ from django.db import models
 
 from gyms.models import Gym
 from subscriptions.models import Subscription
+from members.models import Member
 
 
 class Payment(models.Model):
@@ -24,6 +25,14 @@ class Payment(models.Model):
     null=True,
     blank=True,
     related_name="payments",
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payments",
     )
 
     member_name = models.CharField(
@@ -54,6 +63,7 @@ class Payment(models.Model):
 
     paid_at = models.DateTimeField(
         auto_now_add=True,
+        db_index=True,
     )
 
     subscription_end_date = models.DateField(

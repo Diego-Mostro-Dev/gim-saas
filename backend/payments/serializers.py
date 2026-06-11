@@ -1,4 +1,8 @@
+from django.db import transaction
+
 from rest_framework import serializers
+
+from subscriptions.models import Subscription
 
 from .models import Payment
 
@@ -33,13 +37,15 @@ class PaymentSerializer(serializers.ModelSerializer):
         validated_data["subscription_end_date"] = (
             subscription.end_date
         )
+        validated_data["member"] = subscription.member
 
-        payment = super().create(validated_data)
-
-        if not subscription.paid:
-            subscription.paid = True
-            subscription.save(
-                update_fields=["paid"]
+        with transaction.atomic():
+            sub = Subscription.objects.select_for_update().get(
+                pk=subscription.pk
             )
+            payment = super().create(validated_data)
+            if not sub.paid:
+                sub.paid = True
+                sub.save(update_fields=["paid"])
 
         return payment

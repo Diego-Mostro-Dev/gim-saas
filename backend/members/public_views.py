@@ -8,12 +8,14 @@ from gyms.models import Gym
 from attendance.models import ScheduleSlot
 
 from .serializers import MemberSerializer
+from config.api.throttles import PublicMemberRateThrottle
 
 
 class PublicRegisterView(APIView):
 
     authentication_classes = []
     permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
 
     def post(self, request, gym_code):
 
@@ -46,6 +48,7 @@ class PublicRegisterView(APIView):
 class PublicSlotsView(APIView):
     authentication_classes = []
     permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
 
     def get(self, request, gym_code):
         gym = get_object_or_404(

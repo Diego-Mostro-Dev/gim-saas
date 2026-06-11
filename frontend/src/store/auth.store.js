@@ -11,12 +11,38 @@ const useAuthStore = create((set, get) => ({
   loading: false,
   error: null,
 
+  initialized: false,
+
   // 🔥 HYDRATION (importante para refresh)
-  hydrate: () => {
+  hydrate: async () => {
     const token = localStorage.getItem("token");
 
-    if (token) {
-      set({ token });
+    if (!token) {
+      set({ initialized: true });
+      return;
+    }
+
+    set({ token });
+
+    try {
+      const data = await apiFetch("/api/auth/me/");
+
+      set({
+        user: { username: data.username },
+        gym: data.gym ? { name: data.gym, id: data.gym_id } : null,
+        must_change_password: data.must_change_password || false,
+        initialized: true,
+      });
+    } catch {
+      localStorage.removeItem("token");
+
+      set({
+        token: null,
+        user: null,
+        gym: null,
+        must_change_password: false,
+        initialized: true,
+      });
     }
   },
 

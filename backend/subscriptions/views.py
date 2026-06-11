@@ -16,6 +16,9 @@ class SubscriptionViewSet(GymModelViewSet):
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
 
+    def get_queryset(self):
+        return super().get_queryset().select_related("member", "plan")
+
     @action(
         detail=True,
         methods=["post"],

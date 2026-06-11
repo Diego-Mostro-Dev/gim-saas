@@ -15,6 +15,7 @@ from attendance.models import Attendance
 from subscriptions.models import Subscription
 from attendance.models import AttendanceSchedule
 from payments.models import Payment
+from config.api.throttles import PublicMemberRateThrottle
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -37,11 +38,13 @@ from .serializers import (
 class ExerciseViewSet(GymModelViewSet):
     queryset = Exercise.objects.all()
     serializer_class = ExerciseSerializer
+    pagination_class = None
 
 
 class RoutineTemplateViewSet(GymModelViewSet):
     queryset = RoutineTemplate.objects.all()
     serializer_class = RoutineTemplateSerializer
+    pagination_class = None
 
 
 class RoutineAssignmentViewSet(GymModelViewSet):
@@ -52,13 +55,14 @@ class RoutineAssignmentViewSet(GymModelViewSet):
 class RoutineExerciseViewSet(viewsets.ModelViewSet):
     queryset = RoutineExercise.objects.all()
     serializer_class = RoutineExerciseSerializer
+    pagination_class = None
 
     def get_queryset(self):
         gym = self.request.user.profile.gym
 
         return RoutineExercise.objects.filter(
             routine_template__gym=gym
-        )
+        ).select_related("exercise")
 
 
 class MemberRoutineView(APIView):
@@ -283,6 +287,7 @@ class BulkAssignRoutineView(APIView):
 
 class PublicRoutineView(APIView):
     permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(
@@ -361,16 +366,11 @@ class PublicRoutineView(APIView):
             .order_by("-date")[:15]
         )
 
-        member_name = (
-            f"{member.first_name} "
-            f"{member.last_name}"
-        )
-
         payments_qs = (
             Payment.objects
             .filter(
                 gym=member.gym,
-                member_name__iexact=member_name,
+                member=member,
             )
             .order_by("-paid_at")
             .values(
