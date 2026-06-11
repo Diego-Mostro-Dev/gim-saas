@@ -13,6 +13,10 @@ import Login from "./pages/Login";
 import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
 import Settings from "./pages/Settings";
+import MemberPortalLayout from "./pages/member/MemberPortalLayout";
+import MemberDashboard from "./pages/member/MemberDashboard";
+import MemberWorkout from "./pages/member/MemberWorkout";
+import MemberPayments from "./pages/member/MemberPayments";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
 import AttendanceQR from "./pages/AttendanceQR";
@@ -30,7 +34,12 @@ function App() {
       {/* public */}
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymCode" element={<Register />} />
-      <Route path="/routine/:token" element={<PublicRoutine />} />
+      <Route path="/routine/:token" element={<MemberPortalLayout />}>
+        <Route index element={<MemberDashboard />} />
+        <Route path="workout" element={<MemberWorkout />} />
+        <Route path="payments" element={<MemberPayments />} />
+        <Route path="schedules" element={<PublicRoutine />} />
+      </Route>
       <Route path="/checkin/:gymCode" element={<Checkin />} />
       <Route path="/onboarding/:gymCode" element={<GymSetup />} />
 
