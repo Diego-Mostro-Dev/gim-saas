@@ -8,13 +8,15 @@ import useAuthStore from "./store/auth.store";
 
 import "./index.css";
 
-useAuthStore.getState().hydrate();
+const root = ReactDOM.createRoot(document.getElementById("root"));
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-      <Toaster position="top-center" />
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+useAuthStore.getState().hydrate().then(() => {
+  root.render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <App />
+        <Toaster position="top-center" />
+      </BrowserRouter>
+    </React.StrictMode>,
+  );
+});

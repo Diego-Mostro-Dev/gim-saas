@@ -55,7 +55,7 @@ class AttendanceSchedule(models.Model):
         related_name="attendance_schedules",
     )
 
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         unique_together = ("gym", "member", "slot")
@@ -104,11 +104,14 @@ class Attendance(models.Model):
         related_name="attendances",
     )
 
-    date = models.DateField(auto_now_add=True)
+    date = models.DateField(auto_now_add=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("gym", "schedule", "date")
+        indexes = [
+            models.Index(fields=["gym", "date"]),
+        ]
 
     def __str__(self):
         return f"{self.member} - {self.date}"

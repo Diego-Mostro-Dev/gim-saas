@@ -33,7 +33,9 @@ export async function apiFetch(endpoint, options = {}) {
 
     try {
       error = await res.json();
-    } catch {}
+    } catch {
+      // ignore parse errors
+    }
 
     throw new Error(
       error.detail ||
@@ -52,5 +54,13 @@ export async function apiFetch(endpoint, options = {}) {
     return null;
   }
 
-  return res.json();
+  const data = await res.json();
+
+  // Unwrap DRF paginated responses: { results: [...], count: N } → [...]
+  if (data && Array.isArray(data.results) && typeof data.count === "number") {
+    data.results.totalCount = data.count;
+    return data.results;
+  }
+
+  return data;
 }

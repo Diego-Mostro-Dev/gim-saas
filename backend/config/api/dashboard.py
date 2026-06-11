@@ -63,21 +63,17 @@ class DashboardSummaryView(APIView):
         # -------------------------
         # Subscriptions
         # -------------------------
-        all_subscriptions = list(
-            Subscription.objects.filter(
-                gym=gym
-            ).select_related(
-                "member",
-                "plan",
-            )
+        expiring_base = Subscription.objects.filter(
+            gym=gym,
+            end_date__gte=today,
+            end_date__lte=today + timedelta(days=7),
         )
 
-        expiring_subs = [
-            s for s in all_subscriptions
-            if today <= s.end_date <= today + timedelta(days=7)
-        ]
+        expiring_soon = expiring_base.count()
 
-        expiring_soon = len(expiring_subs)
+        expiring_subs_list = list(
+            expiring_base.select_related("member", "plan").order_by("end_date")[:5]
+        )
 
         upcoming_expirations_data = [
             {
@@ -86,10 +82,7 @@ class DashboardSummaryView(APIView):
                 "plan_name": sub.plan.name,
                 "days_remaining": (sub.end_date - today).days,
             }
-            for sub in sorted(
-                expiring_subs,
-                key=lambda s: s.end_date,
-            )[:5]
+            for sub in expiring_subs_list
         ]
 
         recent_activity_data = [
@@ -102,11 +95,11 @@ class DashboardSummaryView(APIView):
                 ),
                 "created_at": sub.created_at.strftime("%d/%m/%Y"),
             }
-            for sub in sorted(
-                all_subscriptions,
-                key=lambda s: s.created_at,
-                reverse=True,
-            )[:5]
+            for sub in Subscription.objects.filter(
+                gym=gym
+            )
+            .select_related("member", "plan")
+            .order_by("-created_at")[:5]
         ]
 
         pending_payments_data = [
@@ -117,10 +110,12 @@ class DashboardSummaryView(APIView):
                 "plan_price": float(sub.plan.price),
                 "end_date": sub.end_date.strftime("%d/%m/%Y"),
             }
-            for sub in sorted(
-                [s for s in all_subscriptions if not s.paid],
-                key=lambda s: s.end_date,
-            )[:10]
+            for sub in Subscription.objects.filter(
+                gym=gym,
+                paid=False,
+            )
+            .select_related("member", "plan")
+            .order_by("end_date")[:10]
         ]
 
         # -------------------------

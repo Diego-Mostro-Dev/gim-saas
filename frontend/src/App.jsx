@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
 import AttendanceQR from "./pages/AttendanceQR";
+import GymSetup from "./pages/onboarding/GymSetup";
 import ScheduleChangeRequests from "./pages/ScheduleChangeRequests";
 import ScheduleSwapRequests from "./pages/ScheduleSwapRequests";
 import AttendanceAnalytics from "./pages/AttendanceAnalytics";
@@ -31,6 +32,7 @@ function App() {
       <Route path="/register/:gymCode" element={<Register />} />
       <Route path="/routine/:token" element={<PublicRoutine />} />
       <Route path="/checkin/:gymCode" element={<Checkin />} />
+      <Route path="/onboarding/:gymCode" element={<GymSetup />} />
 
       {/* protected layout */}
       <Route

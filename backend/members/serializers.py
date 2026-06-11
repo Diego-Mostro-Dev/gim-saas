@@ -65,7 +65,7 @@ class MemberSerializer(serializers.ModelSerializer):
                 "day": s.slot.day,
                 "hour": s.slot.hour.strftime("%H:%M"),
             }
-            for s in obj.schedules.filter(active=True).select_related("slot")
+            for s in obj.schedules.all()
         ]
 
     def to_representation(self, instance):

@@ -78,12 +78,15 @@ MIDDLEWARE = [
 # CORS
 # =========================
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://192.168.100.89:5173",
-]
-
-CORS_ALLOW_ALL_ORIGINS = True  # MVP (luego lo cerramos)
+CORS_ALLOWED_ORIGINS_ENV = os.getenv("CORS_ALLOWED_ORIGINS")
+if CORS_ALLOWED_ORIGINS_ENV:
+    CORS_ALLOWED_ORIGINS = [
+        o.strip() for o in CORS_ALLOWED_ORIGINS_ENV.split(",") if o.strip()
+    ]
+elif FRONTEND_URL:
+    CORS_ALLOWED_ORIGINS = [FRONTEND_URL]
+else:
+    CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
 
 
 # =========================
@@ -102,6 +105,17 @@ REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
+
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "60/hour",
+        "user": "1000/hour",
+    },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
 }
 
 

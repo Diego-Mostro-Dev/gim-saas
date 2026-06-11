@@ -380,6 +380,7 @@ class ScheduleSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ScheduleChangeRequestSerializer
+    pagination_class = None
 
     def get_serializer_class(self):
         if self.action in ("approve", "reject"):
@@ -554,6 +555,7 @@ def attendance_analytics(request):
 
 class ScheduleSwapRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ScheduleSwapRequestSerializer
+    pagination_class = None
 
     def get_serializer_class(self):
         if self.action in ("approve", "reject"):

@@ -14,10 +14,12 @@ from .serializers import (
     PublicScheduleSwapRequestSerializer,
 )
 from .utils import compute_effective_occupancy
+from config.api.throttles import PublicAttendanceRateThrottle
 
 
 class PublicCheckinView(APIView):
     permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
 
     def post(self, request, token):
         member = Member.objects.filter(
@@ -117,6 +119,7 @@ class PublicCheckinView(APIView):
 
 class PublicMemberSlotsView(APIView):
     permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -147,6 +150,7 @@ class PublicMemberSlotsView(APIView):
 
 class PublicScheduleChangeRequestView(APIView):
     permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -175,6 +179,7 @@ class PublicScheduleChangeRequestView(APIView):
 
 class PublicCancelScheduleChangeRequestView(APIView):
     permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
@@ -200,6 +205,7 @@ class PublicCancelScheduleChangeRequestView(APIView):
 
 class PublicScheduleSwapRequestView(APIView):
     permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -228,6 +234,7 @@ class PublicScheduleSwapRequestView(APIView):
 
 class PublicCancelScheduleSwapRequestView(APIView):
     permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)

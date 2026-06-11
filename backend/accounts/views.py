@@ -11,6 +11,11 @@ from .serializers import (
     LoginSerializer,
     ChangePasswordSerializer,
 )
+from config.api.throttles import (
+    LoginRateThrottle,
+    OnboardingCreateRateThrottle,
+    OnboardingValidateRateThrottle,
+)
 
 
 # -------------------------
@@ -18,6 +23,7 @@ from .serializers import (
 # -------------------------
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -25,7 +31,8 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
-        token, _ = Token.objects.get_or_create(user=user)
+        Token.objects.filter(user=user).delete()
+        token = Token.objects.create(user=user)
 
         return Response(
             {
@@ -35,6 +42,21 @@ class LoginView(APIView):
                     user.profile.must_change_password
                 ),
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+# -------------------------
+# LOGOUT
+# -------------------------
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        request.auth.delete()
+
+        return Response(
+            {"success": True},
             status=status.HTTP_200_OK,
         )
 
@@ -91,9 +113,13 @@ class ChangePasswordView(APIView):
 
         serializer.save()
 
+        Token.objects.filter(user=request.user).delete()
+        new_token = Token.objects.create(user=request.user)
+
         return Response(
             {
                 "success": True,
+                "token": new_token.key,
             },
             status=status.HTTP_200_OK,
         )
@@ -104,6 +130,7 @@ class ChangePasswordView(APIView):
 # -------------------------
 class GymOnboardingView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [OnboardingValidateRateThrottle]
 
     def get(self, request, code):
         try:
@@ -129,6 +156,7 @@ class GymOnboardingView(APIView):
 # -------------------------
 class CreateGymOwnerView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [OnboardingCreateRateThrottle]
 
     def post(self, request):
         code = request.data.get("gym_code")
@@ -171,6 +199,9 @@ class CreateGymOwnerView(APIView):
                 "token": token.key,
                 "user": user.username,
                 "gym": gym.name,
+                "must_change_password": (
+                    profile.must_change_password
+                ),
             },
             status=status.HTTP_201_CREATED,
         )

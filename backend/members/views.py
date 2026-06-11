@@ -4,9 +4,15 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
 from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch
 
 from core.viewsets import GymModelViewSet
 from payments.models import Payment
+
+from attendance.models import AttendanceSchedule
+from config.api.throttles import (
+    PublicMemberRateThrottle,
+)
 
 from .models import Member
 from .serializers import (
@@ -18,6 +24,16 @@ from .serializers import (
 class MemberViewSet(GymModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related(
+            Prefetch(
+                "schedules",
+                queryset=AttendanceSchedule.objects.filter(
+                    active=True
+                ).select_related("slot"),
+            )
+        )
 
     def update(self, request, *args, **kwargs):
 
@@ -37,10 +53,7 @@ class MemberViewSet(GymModelViewSet):
         payments = (
             Payment.objects.filter(
                 gym=member.gym,
-                member_name__iexact=(
-                    f"{member.first_name} "
-                    f"{member.last_name}"
-                ),
+                member=member,
             )
             .order_by("-paid_at")
             .values(
@@ -61,6 +74,7 @@ class PublicMemberPhotoView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
 
     def patch(self, request, token):
 
