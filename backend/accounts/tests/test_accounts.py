@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.utils.timezone import now
-from datetime import timedelta
+from datetime import timedelta, time
 
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -12,6 +12,7 @@ from gyms.models import Gym
 from members.models import Member
 from subscriptions.models import Subscription
 from plans.models import MembershipPlan
+from attendance.models import ScheduleSlot
 
 
 BASE_REST_FW = {
@@ -247,6 +248,11 @@ class DashboardOptimizationTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.today = now().date()
+
+        # Create ScheduleSlots for Mon-Sat (gym closed Sunday)
+        for day_key in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]:
+            ScheduleSlot.objects.create(gym=self.gym, day=day_key, hour=time(8, 0))
+
         plan = MembershipPlan.objects.create(
             gym=self.gym, name="Basic", price=50, duration_days=30,
         )
@@ -313,3 +319,28 @@ class DashboardOptimizationTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertLess(peak, 10 * 1024 * 1024)
+
+    def test_weekly_attendance_excludes_sunday(self):
+        response = self.client.get(self.url)
+        days = [entry["day"] for entry in response.data["weeklyAttendance"]]
+        self.assertNotIn("Dom", days)
+        self.assertLessEqual(len(days), 6)
+
+    def test_pending_payments_excludes_expired(self):
+        # Create a subscription that ended yesterday and is unpaid
+        expired_member = Member.objects.create(
+            first_name="Expired", last_name="Member",
+            phone="5550000", gym=self.gym, active=True,
+        )
+        plan = MembershipPlan.objects.first()
+        Subscription.objects.create(
+            gym=self.gym, member=expired_member,
+            plan=plan,
+            start_date=self.today - timedelta(days=60),
+            end_date=self.today - timedelta(days=1),
+            paid=False,
+        )
+
+        response = self.client.get(self.url)
+        for payment in response.data["pendingPayments"]:
+            self.assertNotEqual(payment["member_name"], "Expired Member")

@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from members.models import Member
 from payments.models import Payment
 from subscriptions.models import Subscription
-from attendance.models import Attendance
+from attendance.models import Attendance, ScheduleSlot
 
 
 class DashboardSummaryView(APIView):
@@ -113,6 +113,7 @@ class DashboardSummaryView(APIView):
             for sub in Subscription.objects.filter(
                 gym=gym,
                 paid=False,
+                end_date__gte=today,
             )
             .select_related("member", "plan")
             .order_by("end_date")[:10]
@@ -132,23 +133,31 @@ class DashboardSummaryView(APIView):
             .values_list("date", "count")
         )
 
-        day_labels = [
-            "Lun",
-            "Mar",
-            "Mié",
-            "Jue",
-            "Vie",
-            "Sáb",
-            "Dom",
-        ]
+        # Determine which weekdays the gym operates based on ScheduleSlots
+        DAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        DAY_CHOICE_MAP = {
+            "monday": 0, "tuesday": 1, "wednesday": 2,
+            "thursday": 3, "friday": 4, "saturday": 5,
+        }
+        operational_weekdays = set(
+            ScheduleSlot.objects.filter(gym=gym)
+            .values_list("day", flat=True)
+            .distinct()
+        )
+        operational_weekday_indices = {
+            DAY_CHOICE_MAP[d] for d in operational_weekdays if d in DAY_CHOICE_MAP
+        }
 
         weekly_attendance = []
 
         for days_ago in range(6, -1, -1):
             day = today - timedelta(days=days_ago)
 
+            if operational_weekday_indices and day.weekday() not in operational_weekday_indices:
+                continue
+
             weekly_attendance.append({
-                "day": day_labels[day.weekday()],
+                "day": DAY_LABELS[day.weekday()],
                 "count": attendance_counts.get(day, 0),
             })
 
