@@ -45,6 +45,9 @@ function PublicRoutine() {
   const [swapSlotId, setSwapSlotId] = useState("");
   const [submittingSwap, setSubmittingSwap] = useState(false);
   const [swapDateSlots, setSwapDateSlots] = useState([]);
+  const [showAllChanges, setShowAllChanges] = useState(false);
+  const [showAllSwaps, setShowAllSwaps] = useState(false);
+  const [showAllAttendance, setShowAllAttendance] = useState(false);
 
   const lastRefreshAt = useRef(0);
 
@@ -496,12 +499,25 @@ const slotsForSwapDate = swapDate
         {/* SOLICITUDES DE CAMBIO */}
         {gym.allow_member_schedule_changes && changeRequests.length > 0 && (
           <div className="rounded-2xl bg-[#201f1f] p-4">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              Solicitudes de cambio
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                Solicitudes de cambio
+              </h2>
 
-            <div className="space-y-2">
-              {changeRequests.map((req) => (
+              {changeRequests.filter(r => r.status !== "pending").length > 0 && (
+                <button
+                  onClick={() => setShowAllChanges(!showAllChanges)}
+                  className="text-xs text-blue-400 transition hover:text-blue-300"
+                >
+                  {showAllChanges
+                    ? "Mostrar solo pendientes"
+                    : `Ver historial (${changeRequests.filter(r => r.status !== "pending").length})`}
+                </button>
+              )}
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {(showAllChanges ? changeRequests : changeRequests.filter(r => r.status === "pending")).map((req) => (
                 <div
                   key={req.id}
                   className="rounded-xl bg-[#2a2a2a] px-4 py-3"
@@ -571,12 +587,25 @@ const slotsForSwapDate = swapDate
         {/* SOLICITUDES DE CAMBIO TEMPORAL */}
         {gym.allow_member_schedule_changes && swapRequests.length > 0 && (
           <div className="rounded-2xl bg-[#201f1f] p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
                 Intercambios de día
               </h2>
 
-            <div className="space-y-2">
-              {swapRequests.map((req) => (
+              {swapRequests.filter(r => r.status !== "pending").length > 0 && (
+                <button
+                  onClick={() => setShowAllSwaps(!showAllSwaps)}
+                  className="text-xs text-blue-400 transition hover:text-blue-300"
+                >
+                  {showAllSwaps
+                    ? "Mostrar solo pendientes"
+                    : `Ver historial (${swapRequests.filter(r => r.status !== "pending").length})`}
+                </button>
+              )}
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {(showAllSwaps ? swapRequests : swapRequests.filter(r => r.status === "pending")).map((req) => (
                 <div
                   key={req.id}
                   className="rounded-xl bg-[#2a2a2a] px-4 py-3"
@@ -643,17 +672,26 @@ const slotsForSwapDate = swapDate
 
         {/* ASISTENCIAS */}
         <div className="rounded-2xl bg-[#201f1f] p-4">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Asistencias recientes
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Asistencias recientes
+            </h2>
 
-          <p className="mb-4 text-sm text-zinc-400">
-            Total registradas: {attendance_history?.length || 0}
-          </p>
+            {attendance_history?.length > 3 && (
+              <button
+                onClick={() => setShowAllAttendance(!showAllAttendance)}
+                className="text-xs text-blue-400 transition hover:text-blue-300"
+              >
+                {showAllAttendance
+                  ? "Mostrar menos"
+                  : `Ver todas (${attendance_history.length})`}
+              </button>
+            )}
+          </div>
 
           {attendance_history?.length > 0 ? (
-            <div className="space-y-2">
-              {attendance_history.map((attendance, idx) => (
+            <div className="mt-3 space-y-2">
+              {(showAllAttendance ? attendance_history : attendance_history.slice(0, 3)).map((attendance, idx) => (
                 <div
                   key={idx}
                   className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
@@ -669,7 +707,7 @@ const slotsForSwapDate = swapDate
               ))}
             </div>
           ) : (
-            <p className="text-sm text-zinc-500">
+            <p className="mt-3 text-sm text-zinc-500">
               Todavía no hay asistencias registradas.
             </p>
           )}
@@ -727,50 +765,66 @@ const slotsForSwapDate = swapDate
         ) : null}
 
         {/* HISTORIAL DE PAGOS */}
-        <div className="rounded-2xl bg-[#201f1f] p-4">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Historial de pagos
-          </h2>
+        {payments?.length > 0 ? (
+          <div className="rounded-2xl bg-[#201f1f] p-4">
+            <details className="group">
+              <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                <span>Historial de pagos</span>
 
-          {payments?.length > 0 ? (
-            <div className="space-y-2">
-              {payments.map((payment, idx) => (
-                <div
-                  key={idx}
-                  className="flex flex-col gap-1 rounded-xl bg-[#2a2a2a] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-white">
-                      ${Number(payment.amount).toLocaleString("es-AR")}
-                    </span>
+                <span className="text-xs text-blue-400 group-open:hidden">
+                  Mostrar ({payments.length})
+                </span>
 
-                    {payment.plan_name && (
-                      <span className="text-xs text-zinc-500">
-                        {payment.plan_name}
+                <span className="text-xs text-blue-400 hidden group-open:inline">
+                  Ocultar
+                </span>
+              </summary>
+
+              <div className="mt-3 space-y-2">
+                {payments.map((payment, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-col gap-1 rounded-xl bg-[#2a2a2a] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-white">
+                        ${Number(payment.amount).toLocaleString("es-AR")}
                       </span>
-                    )}
 
-                    <span className="text-xs text-zinc-500">
-                      {payment.payment_method === "cash"
-                        ? "Efectivo"
-                        : payment.payment_method === "transfer"
-                          ? "Transferencia"
-                          : "Tarjeta"}
+                      {payment.plan_name && (
+                        <span className="text-xs text-zinc-500">
+                          {payment.plan_name}
+                        </span>
+                      )}
+
+                      <span className="text-xs text-zinc-500">
+                        {payment.payment_method === "cash"
+                          ? "Efectivo"
+                          : payment.payment_method === "transfer"
+                            ? "Transferencia"
+                            : "Tarjeta"}
+                      </span>
+                    </div>
+
+                    <span className="text-sm text-zinc-400">
+                      {formatDate(payment.paid_at)}
                     </span>
                   </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-[#201f1f] p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Historial de pagos
+            </h2>
 
-                  <span className="text-sm text-zinc-400">
-                    {formatDate(payment.paid_at)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">
+            <p className="mt-3 text-sm text-zinc-500">
               No hay pagos registrados
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* CONTACTO */}
         {(gym.whatsapp || gym.phone || gym.email) && (
