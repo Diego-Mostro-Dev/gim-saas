@@ -78,6 +78,8 @@ MIDDLEWARE = [
 # CORS
 # =========================
 
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+
 CORS_ALLOWED_ORIGINS_ENV = os.getenv("CORS_ALLOWED_ORIGINS")
 if CORS_ALLOWED_ORIGINS_ENV:
     CORS_ALLOWED_ORIGINS = [
@@ -155,11 +157,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-
-FRONTEND_URL = os.getenv("FRONTEND_URL")
-
-if not FRONTEND_URL:
-    raise Exception("FRONTEND_URL environment variable is required")
 
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
