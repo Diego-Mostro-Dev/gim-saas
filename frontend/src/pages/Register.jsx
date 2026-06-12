@@ -6,6 +6,7 @@ import MemberForm from "../components/members/MemberForm";
 import {
   registerPublicMember,
   getPublicSlots,
+  getPublicPlans,
 } from "../services/publicRegister.service";
 
 const INITIAL_FORM = {
@@ -15,6 +16,7 @@ const INITIAL_FORM = {
   email: "",
   photo: null,
   schedules: [],
+  plan_id: null,
 };
 
 function Register() {
@@ -29,15 +31,23 @@ function Register() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
 
+  const [availablePlans, setAvailablePlans] = useState([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+
   useEffect(() => {
     async function load() {
       try {
-        const data = await getPublicSlots(gymCode);
-        setAvailableSlots(data);
+        const [slots, plans] = await Promise.all([
+          getPublicSlots(gymCode),
+          getPublicPlans(gymCode),
+        ]);
+        setAvailableSlots(slots);
+        setAvailablePlans(plans);
       } catch {
-        toast.error("Error al cargar horarios disponibles");
+        toast.error("Error al cargar datos disponibles");
       } finally {
         setLoadingSlots(false);
+        setLoadingPlans(false);
       }
     }
     load();
@@ -45,6 +55,11 @@ function Register() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (availablePlans.length > 0 && !formData.plan_id) {
+      toast.error("Por favor seleccioná un plan.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -61,6 +76,10 @@ function Register() {
       }
 
       form.append("schedules", JSON.stringify(formData.schedules || []));
+
+      if (formData.plan_id) {
+        form.append("plan_id", formData.plan_id);
+      }
 
       await registerPublicMember(gymCode, form);
 
@@ -118,6 +137,8 @@ function Register() {
           isSubmitting={isSubmitting}
           availableSlots={availableSlots}
           loadingSlots={loadingSlots}
+          availablePlans={availablePlans}
+          loadingPlans={loadingPlans}
         />
       </div>
     </div>

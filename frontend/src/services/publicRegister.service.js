@@ -37,3 +37,15 @@ export async function getPublicSlots(gymCode) {
 
   return response.json();
 }
+
+export async function getPublicPlans(gymCode) {
+  const response = await fetch(
+    `${API_PUBLIC}/plans/${gymCode}/`,
+  );
+
+  if (!response.ok) {
+    throw new Error("Error al cargar planes disponibles");
+  }
+
+  return response.json();
+}

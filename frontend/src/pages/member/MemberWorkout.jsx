@@ -15,7 +15,7 @@ function MemberWorkout() {
   const exerciseCount = exercises?.length || 0;
 
   return (
-    <div className="rounded-2xl bg-[#201f1f] p-5">
+    <div className="rounded-2xl bg-[#201f1f] p-4">
       <div className="mb-1 flex items-center justify-between">
         <span className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Rutina

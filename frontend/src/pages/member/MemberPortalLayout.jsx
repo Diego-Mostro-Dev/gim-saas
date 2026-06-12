@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
+import { Home, Dumbbell, CreditCard, Calendar } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
@@ -8,6 +9,7 @@ import {
   getPublicSlots,
   getPublicScheduleChangeRequests,
   getPublicScheduleSwapRequests,
+  getPublicPlanChangeRequests,
 } from "../../services/routines.service";
 
 function MemberPortalLayout() {
@@ -26,6 +28,7 @@ function MemberPortalLayout() {
   const [slots, setSlots] = useState([]);
   const [changeRequests, setChangeRequests] = useState([]);
   const [swapRequests, setSwapRequests] = useState([]);
+  const [planChangeRequests, setPlanChangeRequests] = useState([]);
 
   const lastRefreshAt = useRef(0);
 
@@ -69,6 +72,13 @@ function MemberPortalLayout() {
         setChangeRequests(requestsData);
         setSwapRequests(swapData);
       }
+
+      try {
+        const planRequestsData = await getPublicPlanChangeRequests(token);
+        setPlanChangeRequests(planRequestsData);
+      } catch {
+        // plan change requests are optional
+      }
     } catch (err) {
       console.error(err);
       setError("No se encontró la rutina.");
@@ -92,6 +102,13 @@ function MemberPortalLayout() {
         setSlots(slotsData);
         setChangeRequests(requestsData);
         setSwapRequests(swapData);
+      }
+
+      try {
+        const planRequestsData = await getPublicPlanChangeRequests(token);
+        setPlanChangeRequests(planRequestsData);
+      } catch {
+        // plan change requests are optional
       }
     } catch (err) {
       console.error(err);
@@ -141,17 +158,17 @@ function MemberPortalLayout() {
   const { member, gym } = routine;
 
   const tabs = [
-    { path: `/routine/${token}`, label: "Inicio" },
-    { path: `/routine/${token}/workout`, label: "Rutina" },
-    { path: `/routine/${token}/payments`, label: "Pagos" },
-    { path: `/routine/${token}/schedules`, label: "Horarios" },
+    { path: `/routine/${token}`, label: "Inicio", icon: Home },
+    { path: `/routine/${token}/workout`, label: "Rutina", icon: Dumbbell },
+    { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
+    { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
   ];
 
   return (
     <div className="min-h-screen bg-[#161616]">
-      <div className="mx-auto max-w-2xl pb-24 sm:pb-6">
+      <div className="mx-auto max-w-2xl pb-6">
         <div className="p-4">
-          <div className="rounded-2xl bg-[#201f1f] p-6">
+          <div className="rounded-2xl bg-[#201f1f] p-5">
             <div className="flex items-center gap-4">
               {member.photo ? (
                 <img
@@ -174,13 +191,10 @@ function MemberPortalLayout() {
               </div>
             </div>
 
-            <div className="mt-5 border-t border-white/5 pt-4">
-              <label className="mb-2 block text-sm text-zinc-400">
-                Cambiar foto
-              </label>
-
+            <div className="mt-4 border-t border-white/5 pt-4">
               <input
                 type="file"
+                id="photo-upload"
                 accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files?.[0] || null;
@@ -192,48 +206,55 @@ function MemberPortalLayout() {
                     setPreview(null);
                   }
                 }}
-                className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2 text-sm text-white"
+                className="hidden"
               />
+              <label
+                htmlFor="photo-upload"
+                className="inline-block cursor-pointer rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                {member.photo ? "Cambiar foto" : "Subir foto"}
+              </label>
 
               {preview && (
                 <div className="mt-4">
                   <p className="mb-2 text-sm text-zinc-400">Vista previa</p>
-                  <img
-                    src={preview}
-                    alt="Preview"
-                    className="h-24 w-24 rounded-full border border-white/10 object-cover"
-                  />
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={preview}
+                      alt="Preview"
+                      className="h-20 w-20 rounded-full border border-white/10 object-cover"
+                    />
+                    <button
+                      onClick={handlePhotoUpload}
+                      disabled={uploadingPhoto}
+                      className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+                    >
+                      {uploadingPhoto ? "Subiendo..." : "Confirmar foto"}
+                    </button>
+                  </div>
                 </div>
-              )}
-
-              {photoFile && (
-                <button
-                  onClick={handlePhotoUpload}
-                  disabled={uploadingPhoto}
-                  className="mt-3 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
-                >
-                  {uploadingPhoto ? "Subiendo..." : "Actualizar foto"}
-                </button>
               )}
             </div>
           </div>
         </div>
 
-        <div className="hidden sm:block px-4 mb-6">
+        <div className="px-4 mb-6">
           <div className="flex rounded-xl bg-[#2a2a2a] p-1">
             {tabs.map((tab) => {
               const active = location.pathname === tab.path;
+              const Icon = tab.icon;
               return (
                 <button
                   key={tab.path}
                   onClick={() => navigate(tab.path)}
-                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                  className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium transition flex items-center justify-center gap-1.5 sm:gap-2 sm:px-4 ${
                     active
                       ? "bg-blue-500 text-white"
                       : "text-zinc-400 hover:text-zinc-200"
                   }`}
                 >
-                  {tab.label}
+                  <Icon size={18} />
+                  <span className="max-[420px]:hidden">{tab.label}</span>
                 </button>
               );
             })}
@@ -249,31 +270,11 @@ function MemberPortalLayout() {
               slots,
               changeRequests,
               swapRequests,
+              planChangeRequests,
             }}
           />
         </div>
       </div>
-
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#201f1f] sm:hidden">
-        <div className="mx-auto flex max-w-2xl">
-          {tabs.map((tab) => {
-            const active = location.pathname === tab.path;
-            return (
-              <button
-                key={tab.path}
-                onClick={() => navigate(tab.path)}
-                className={`flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition ${
-                  active
-                    ? "text-blue-400"
-                    : "text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 }

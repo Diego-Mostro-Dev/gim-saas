@@ -15,6 +15,7 @@ from attendance.models import Attendance
 from subscriptions.models import Subscription
 from attendance.models import AttendanceSchedule
 from payments.models import Payment
+from plans.models import MembershipPlan
 from config.api.throttles import PublicMemberRateThrottle
 from .models import (
     Exercise,
@@ -338,8 +339,14 @@ class PublicRoutineView(APIView):
         subscription_data = None
 
         if subscription:
+            plan = subscription.plan
             subscription_data = {
-                "plan": subscription.plan.name,
+                "id": subscription.id,
+                "plan_id": plan.id,
+                "plan": plan.name,
+                "plan_price": str(plan.price),
+                "plan_duration_days": plan.duration_days,
+                "plan_weekly_visits": plan.weekly_visits,
                 "start_date": subscription.start_date,
                 "end_date": subscription.end_date,
                 "paid": subscription.paid,
@@ -384,7 +391,24 @@ class PublicRoutineView(APIView):
 
         payments_list = list(payments_qs[:10])
 
+        active_plans = (
+            MembershipPlan.objects
+            .filter(gym=member.gym, active=True)
+            .order_by("price")
+        )
+
         data = {
+            "active_plans": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "description": p.description,
+                    "price": str(p.price),
+                    "duration_days": p.duration_days,
+                    "weekly_visits": p.weekly_visits,
+                }
+                for p in active_plans
+            ],
             "member": {
                     "id": member.id,
                     "first_name": member.first_name,

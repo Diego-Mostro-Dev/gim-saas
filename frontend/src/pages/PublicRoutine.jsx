@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
+import { RefreshCw, ArrowLeftRight } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
@@ -180,34 +181,41 @@ function PublicRoutine() {
               return (
                 <div
                   key={schedule.id || idx}
-                  className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
+                  className="rounded-xl bg-[#2a2a2a] px-4 py-3"
                 >
-                  <span className="text-sm text-zinc-300">
-                    {DAY_NAMES[schedule.day] || schedule.day} {schedule.hour}
-                  </span>
-                  <div className="flex gap-2">
-                    {gym.allow_member_schedule_changes && !hasPending && (
-                      <button
-                        onClick={() => openChangeModal(schedule)}
-                        className="rounded-lg bg-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-500/30"
-                      >
-                        Solicitar cambio
-                      </button>
-                    )}
-                    {gym.allow_member_schedule_changes && (
+                  <div className={gym.allow_member_schedule_changes ? "mb-2" : ""}>
+                    <span className="text-base font-semibold text-white">
+                      {DAY_NAMES[schedule.day] || schedule.day}
+                    </span>
+                    <span className="ml-1.5 text-base font-semibold text-white">
+                      {schedule.hour}
+                    </span>
+                  </div>
+                  {gym.allow_member_schedule_changes && (
+                    <div className="flex flex-wrap gap-2">
+                      {!hasPending && (
+                        <button
+                          onClick={() => openChangeModal(schedule)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-500/30"
+                        >
+                          <RefreshCw size={14} />
+                          Cambio
+                        </button>
+                      )}
                       <button
                         onClick={() => openSwapModal(schedule)}
-                        className="rounded-lg bg-purple-500/20 px-3 py-1.5 text-xs font-medium text-purple-400 transition hover:bg-purple-500/30"
+                        className="inline-flex items-center gap-1 rounded-lg bg-purple-500/20 px-2.5 py-1.5 text-xs font-medium text-purple-400 transition hover:bg-purple-500/30"
                       >
-                        Intercambiar por única vez
+                        <ArrowLeftRight size={14} />
+                        Intercambio
                       </button>
-                    )}
-                    {hasPending && (
-                      <span className="rounded-lg bg-yellow-500/15 px-3 py-1.5 text-xs font-medium text-yellow-400">
-                        Pendiente
-                      </span>
-                    )}
-                  </div>
+                      {hasPending && (
+                        <span className="inline-flex items-center rounded-lg bg-yellow-500/15 px-2.5 py-1.5 text-xs font-medium text-yellow-400">
+                          Pendiente
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils.timezone import now
 
 from rest_framework import status
@@ -8,8 +9,15 @@ from rest_framework.response import Response
 
 from core.viewsets import GymModelViewSet
 
-from .models import Subscription
-from .serializers import SubscriptionSerializer
+from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
+
+from .models import Subscription, PlanChangeRequest
+from .serializers import (
+    SubscriptionSerializer,
+    PlanChangeRequestSerializer,
+    PlanChangeRequestActionSerializer,
+)
+from .services import get_member_active_subscription
 
 
 class SubscriptionViewSet(GymModelViewSet):
@@ -60,3 +68,120 @@ class SubscriptionViewSet(GymModelViewSet):
             serializer.data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class PlanChangeRequestViewSet(GymModelViewSet):
+    queryset = PlanChangeRequest.objects.all()
+    serializer_class = PlanChangeRequestSerializer
+    pagination_class = None
+
+    def get_serializer_class(self):
+        if self.action in ("approve", "reject", "cancel"):
+            return PlanChangeRequestActionSerializer
+        return PlanChangeRequestSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().select_related(
+            "member", "requested_plan", "reviewed_by",
+        )
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        return self._handle_action(request, pk, "approved")
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        return self._handle_action(request, pk, "rejected")
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        return self._handle_action(request, pk, "cancelled")
+
+    def _handle_action(self, request, pk, new_status):
+        instance = self.get_object()
+
+        if instance.status != "pending":
+            return Response(
+                {
+                    "detail": (
+                        f"No se puede modificar una solicitud con estado "
+                        f"'{instance.status}'."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = PlanChangeRequestActionSerializer(
+            instance,
+            data={**request.data, "status": new_status},
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        now_value = now()
+
+        with transaction.atomic():
+            serializer.save(
+                reviewed_by=request.user,
+                reviewed_at=now_value,
+            )
+
+            if new_status == "approved":
+                subscription = get_member_active_subscription(instance.member)
+                if subscription:
+                    subscription.plan = instance.requested_plan
+                    subscription.save(update_fields=["plan"])
+
+                self._synchronize_schedules(instance)
+                self._cancel_pending_schedule_requests(instance.member, instance.gym)
+
+        return Response(PlanChangeRequestSerializer(instance).data)
+
+    def _synchronize_schedules(self, instance):
+        current_snapshots = instance.current_schedules_snapshot or []
+        target_snapshots = instance.target_schedules_snapshot or []
+
+        current_keys = {(s["day"], s["hour"]) for s in current_snapshots}
+
+        for key in current_keys:
+            try:
+                slot = ScheduleSlot.objects.get(
+                    gym=instance.gym, day=key[0], hour=key[1]
+                )
+                AttendanceSchedule.objects.filter(
+                    member=instance.member, slot=slot
+                ).update(active=False)
+            except ScheduleSlot.DoesNotExist:
+                pass
+
+        for s in target_snapshots:
+            try:
+                slot = ScheduleSlot.objects.get(
+                    gym=instance.gym, day=s["day"], hour=s["hour"]
+                )
+            except ScheduleSlot.DoesNotExist:
+                continue
+
+            existing = AttendanceSchedule.objects.filter(
+                member=instance.member, slot=slot
+            ).first()
+
+            if existing:
+                existing.active = True
+                existing.save(update_fields=["active"])
+            else:
+                AttendanceSchedule.objects.create(
+                    member=instance.member,
+                    gym=instance.gym,
+                    slot=slot,
+                    active=True,
+                )
+
+    def _cancel_pending_schedule_requests(self, member, gym):
+        ScheduleChangeRequest.objects.filter(
+            member=member, gym=gym, status="pending"
+        ).update(status="cancelled", reviewed_at=now(), admin_notes="Cancelled due to plan change approval")
+
+        ScheduleSwapRequest.objects.filter(
+            member=member, gym=gym, status="pending"
+        ).update(status="cancelled", reviewed_at=now(), admin_notes="Cancelled due to plan change approval")

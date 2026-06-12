@@ -204,3 +204,26 @@ export async function cancelPublicScheduleSwapRequest(token, id) {
     method: "POST",
   });
 }
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC PLAN CHANGE REQUESTS (Member Portal)
+|--------------------------------------------------------------------------
+*/
+
+export async function getPublicPlanChangeRequests(token) {
+  return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/`);
+}
+
+export async function createPublicPlanChangeRequest(token, data) {
+  return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function cancelPublicPlanChangeRequest(token, id) {
+  return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/${id}/cancel/`, {
+    method: "POST",
+  });
+}

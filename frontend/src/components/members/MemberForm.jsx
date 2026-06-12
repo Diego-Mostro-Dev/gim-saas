@@ -1,3 +1,5 @@
+import PlanSelector from "../plans/PlanSelector";
+
 function MemberForm({
   formData,
   setFormData,
@@ -6,10 +8,17 @@ function MemberForm({
   isSubmitting,
   availableSlots,
   loadingSlots,
+  availablePlans,
+  loadingPlans,
 }) {
   if (!formData) return null;
 
   const schedules = formData.schedules || [];
+
+  const selectedPlan = availablePlans.find((p) => p.id === formData.plan_id);
+  const limit = selectedPlan ? selectedPlan.weekly_visits : null;
+  const scheduleCount = schedules.length;
+  const atLimit = limit !== null && scheduleCount >= limit;
 
   const days = [
     { value: "monday", label: "Lunes" },
@@ -46,6 +55,8 @@ function MemberForm({
       });
       return;
     }
+
+    if (atLimit) return;
 
     const hours = getHoursForDay(day);
     if (hours.length === 0) return;
@@ -154,52 +165,89 @@ function MemberForm({
         />
       </div>
 
-      <div className="rounded-xl bg-[#2a2a2a] p-4">
-        <p className="mb-3 text-sm font-medium text-zinc-300">
-          Horarios de asistencia
-        </p>
+      {!loadingPlans && availablePlans.length > 0 && (
+        <PlanSelector
+          plans={availablePlans}
+          selectedPlanId={formData.plan_id}
+          onSelect={(id) =>
+            setFormData({ ...formData, plan_id: id })
+          }
+        />
+      )}
 
-        <div className="space-y-3">
-          {days.map((day) => {
-            const selected = isSelected(day.value);
-
-            return (
-              <div key={day.value} className="rounded-xl bg-[#1a1a1a] p-3">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 text-sm text-white">
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => handleToggleDay(day.value)}
-                    />
-                    {day.label}
-                  </label>
-
-                  {selected && (
-                    <select
-                      value={getHour(day.value)}
-                      onChange={(e) =>
-                        handleHourChange(day.value, e.target.value)
-                      }
-                      className="rounded-lg bg-[#2a2a2a] px-3 py-1 text-sm text-white outline-none"
-                    >
-                      {getHoursForDay(day.value).map((hour) => (
-                        <option
-                          key={hour}
-                          value={hour}
-                          className="bg-[#2a2a2a] text-white"
-                        >
-                          {hour}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      {availablePlans.length > 0 && !selectedPlan ? (
+        <div className="rounded-xl bg-[#2a2a2a] p-4">
+          <p className="text-sm text-zinc-400">
+            Elegí primero un plan para seleccionar tus horarios.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-xl bg-[#2a2a2a] p-4">
+          <p className="mb-2 text-sm font-medium text-zinc-300">
+            Horarios de asistencia
+          </p>
+
+          {selectedPlan && limit !== null && (
+            <p className="mb-2 text-sm text-zinc-400">
+              Seleccionados: {scheduleCount} de {limit}
+            </p>
+          )}
+
+          {selectedPlan && limit === null && (
+            <p className="mb-2 text-sm text-zinc-400">
+              Selección ilimitada de horarios.
+            </p>
+          )}
+
+          {atLimit && (
+            <p className="mb-2 text-xs text-amber-400">
+              Este plan permite un máximo de {limit} horarios semanales.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {days.map((day) => {
+              const selected = isSelected(day.value);
+
+              return (
+                <div key={day.value} className="rounded-xl bg-[#1a1a1a] p-3">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm text-white">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={!selected && atLimit}
+                        onChange={() => handleToggleDay(day.value)}
+                      />
+                      {day.label}
+                    </label>
+
+                    {selected && (
+                      <select
+                        value={getHour(day.value)}
+                        onChange={(e) =>
+                          handleHourChange(day.value, e.target.value)
+                        }
+                        className="rounded-lg bg-[#2a2a2a] px-3 py-1 text-sm text-white outline-none"
+                      >
+                        {getHoursForDay(day.value).map((hour) => (
+                          <option
+                            key={hour}
+                            value={hour}
+                            className="bg-[#2a2a2a] text-white"
+                          >
+                            {hour}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <button
         type="submit"

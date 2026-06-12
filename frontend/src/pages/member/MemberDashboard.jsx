@@ -1,5 +1,11 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
+import toast from "react-hot-toast";
+import { X, Clock } from "lucide-react";
+
+import CurrentPlanCard from "../../components/plans/CurrentPlanCard";
+import PlanChangeModal from "../../components/plans/PlanChangeModal";
+import { createPublicPlanChangeRequest, cancelPublicPlanChangeRequest } from "../../services/routines.service";
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString("es-AR");
@@ -53,12 +59,44 @@ function getNextTraining(schedules) {
 }
 
 function MemberDashboard() {
-  const { routine } = useOutletContext();
+  const { routine, token, slots, planChangeRequests, refreshRoutine } = useOutletContext();
   const [showAllAttendance, setShowAllAttendance] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
   const nextTraining = getNextTraining(routine.schedules);
 
-  const { member, gym, subscription, attendance_history, last_payment } =
+  const { gym, subscription, attendance_history, last_payment } =
     routine;
+
+  const activePlans = routine.active_plans || [];
+
+  const pendingRequest = (planChangeRequests || []).find(
+    (r) => r.status === "pending"
+  );
+
+  async function handleCreateRequest(data) {
+    try {
+      await createPublicPlanChangeRequest(token, data);
+      toast.success("Solicitud enviada correctamente.");
+      refreshRoutine();
+    } catch (err) {
+      toast.error(err?.message || "Error al enviar la solicitud.");
+      throw err;
+    }
+  }
+
+  async function handleCancelRequest(id) {
+    setCancellingId(id);
+    try {
+      await cancelPublicPlanChangeRequest(token, id);
+      toast.success("Solicitud cancelada.");
+      refreshRoutine();
+    } catch (err) {
+      toast.error(err?.message || "Error al cancelar la solicitud.");
+    } finally {
+      setCancellingId(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -122,6 +160,61 @@ function MemberDashboard() {
           </>
         ) : (
           <p className="text-sm text-zinc-500">Sin suscripción activa</p>
+        )}
+      </div>
+
+      {/* MI PLAN */}
+      <div className="rounded-2xl bg-[#201f1f] p-4">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Mi Plan
+        </h2>
+
+        <CurrentPlanCard subscription={subscription} />
+
+        {pendingRequest ? (
+          <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock size={16} className="text-yellow-400" />
+              <p className="text-sm font-medium text-yellow-300">
+                Ya tenés una solicitud pendiente.
+              </p>
+            </div>
+            <div className="space-y-2 text-sm text-zinc-300">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Plan solicitado</span>
+                <span>{pendingRequest.plan_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Fecha</span>
+                <span>{formatDate(pendingRequest.requested_at)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Estado</span>
+                <span className="rounded-full bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-300">
+                  Pendiente
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => handleCancelRequest(pendingRequest.id)}
+              disabled={cancellingId === pendingRequest.id}
+              className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/30 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+            >
+              <X size={16} />
+              {cancellingId === pendingRequest.id
+                ? "Cancelando..."
+                : "Cancelar solicitud"}
+            </button>
+          </div>
+        ) : (
+          subscription && activePlans.length > 0 && (
+            <button
+              onClick={() => setShowPlanModal(true)}
+              className="mt-4 w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-600"
+            >
+              Solicitar cambio de plan
+            </button>
+          )
         )}
       </div>
 
@@ -297,6 +390,17 @@ function MemberDashboard() {
             )}
           </div>
         </div>
+      )}
+
+      {showPlanModal && (
+        <PlanChangeModal
+          onClose={() => setShowPlanModal(false)}
+          currentSubscription={subscription}
+          currentSchedules={routine.schedules || []}
+          availablePlans={activePlans}
+          allSlots={slots}
+          onCreateRequest={handleCreateRequest}
+        />
       )}
     </div>
   );

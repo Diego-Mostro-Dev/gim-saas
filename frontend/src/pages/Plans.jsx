@@ -27,8 +27,11 @@ function Plans() {
 
   const [formData, setFormData] = useState({
     name: "",
+    description: "",
     price: "",
     duration_days: "",
+    weekly_visits: "",
+    active: true,
   });
 
   useEffect(() => {
@@ -47,11 +50,16 @@ function Plans() {
 
     setIsSubmitting(true);
 
+    const payload = {
+      ...formData,
+      weekly_visits: formData.weekly_visits === "" ? null : formData.weekly_visits,
+    };
+
     try {
       if (editingPlan) {
-        await handleUpdatePlan(editingPlan.id, formData);
+        await handleUpdatePlan(editingPlan.id, payload);
       } else {
-        await handleCreatePlan(formData);
+        await handleCreatePlan(payload);
       }
 
       handleCloseForm();
@@ -79,8 +87,11 @@ function Plans() {
 
     setFormData({
       name: plan.name,
+      description: plan.description || "",
       price: plan.price,
       duration_days: plan.duration_days,
+      weekly_visits: plan.weekly_visits ?? "",
+      active: plan.active,
     });
 
     setShowForm(true);
@@ -93,8 +104,11 @@ function Plans() {
 
     setFormData({
       name: "",
+      description: "",
       price: "",
       duration_days: "",
+      weekly_visits: "",
+      active: true,
     });
   }
 

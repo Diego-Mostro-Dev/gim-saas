@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from attendance.models import AttendanceSchedule, ScheduleSlot
+from subscriptions.services import get_member_schedule_limit, get_member_active_schedule_count
 
 from .models import Member
 
@@ -58,6 +59,21 @@ class MemberSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+    def validate(self, attrs):
+        if self.instance is not None and "schedules" in self.initial_data:
+            schedules = self._parse_schedules()
+            new_set = {(s["day"], s["hour"]) for s in schedules}
+            new_count = len(new_set)
+
+            limit = get_member_schedule_limit(self.instance)
+            if limit is not None:
+                current_count = get_member_active_schedule_count(self.instance)
+                if new_count > limit and new_count > current_count:
+                    raise serializers.ValidationError(
+                        f"Your plan allows a maximum of {limit} weekly schedules."
+                    )
+        return attrs
 
     def get_schedules(self, obj):
         return [
