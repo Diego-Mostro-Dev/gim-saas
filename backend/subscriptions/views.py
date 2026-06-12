@@ -138,27 +138,30 @@ class PlanChangeRequestViewSet(GymModelViewSet):
         return Response(PlanChangeRequestSerializer(instance).data)
 
     def _synchronize_schedules(self, instance):
-        current_snapshots = instance.current_schedules_snapshot or []
+        real_current = AttendanceSchedule.objects.filter(
+            member=instance.member, active=True
+        ).select_related("slot")
+
+        current_keys = {(s.slot.day, s.slot.hour.strftime("%H:%M")) for s in real_current}
+
         target_snapshots = instance.target_schedules_snapshot or []
+        target_keys = {(s["day"], s["hour"]) for s in target_snapshots}
 
-        current_keys = {(s["day"], s["hour"]) for s in current_snapshots}
+        to_deactivate = current_keys - target_keys
+        to_activate = target_keys - current_keys
 
-        for key in current_keys:
+        for day, hour in to_deactivate:
             try:
-                slot = ScheduleSlot.objects.get(
-                    gym=instance.gym, day=key[0], hour=key[1]
-                )
-                AttendanceSchedule.objects.filter(
-                    member=instance.member, slot=slot
-                ).update(active=False)
+                slot = ScheduleSlot.objects.get(gym=instance.gym, day=day, hour=hour)
             except ScheduleSlot.DoesNotExist:
-                pass
+                continue
+            AttendanceSchedule.objects.filter(
+                member=instance.member, slot=slot
+            ).update(active=False)
 
-        for s in target_snapshots:
+        for day, hour in to_activate:
             try:
-                slot = ScheduleSlot.objects.get(
-                    gym=instance.gym, day=s["day"], hour=s["hour"]
-                )
+                slot = ScheduleSlot.objects.get(gym=instance.gym, day=day, hour=hour)
             except ScheduleSlot.DoesNotExist:
                 continue
 

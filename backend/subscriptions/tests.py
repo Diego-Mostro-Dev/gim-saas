@@ -10,7 +10,7 @@ from gyms.models import Gym
 from members.models import Member
 from plans.models import MembershipPlan
 from subscriptions.models import Subscription
-from attendance.models import AttendanceSchedule, ScheduleSlot
+from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
 
 
 def _to_time(hour_str):
@@ -426,6 +426,130 @@ class PlanChangeRequestTest(TestCase):
         subscription = self.member.subscription_set.first()
         self.assertEqual(subscription.plan, original_plan)
         self.assertNotEqual(subscription.plan, self.plan_target)
+
+
+    
+                
+    def test_approve_activates_new_schedules(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+
+        self.member.refresh_from_db()
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+
+        self.member.refresh_from_db()
+        active_schedules = AttendanceSchedule.objects.filter(
+            member=self.member, active=True
+        ).select_related("slot")
+
+        target_keys = {(s["day"], s["hour"]) for s in resp2.data["target_schedules_snapshot"]}
+        active_keys = {(s.slot.day, s.slot.hour.strftime("%H:%M")) for s in active_schedules}
+
+        self.assertEqual(target_keys, active_keys)
+
+    
+
+    def test_approve_cancels_pending_schedule_change_request(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+
+        original_schedules = AttendanceSchedule.objects.filter(
+            member=self.member, active=True
+        ).select_related("slot")
+
+        ScheduleChangeRequest.objects.create(
+            gym=self.gym,
+            member=self.member,
+            current_schedule=original_schedules[0],
+            requested_slot=ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00")),
+            status="pending",
+        )
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+
+        self.assertEqual(
+            ScheduleChangeRequest.objects.filter(
+                member=self.member, status="pending"
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            ScheduleChangeRequest.objects.filter(
+                member=self.member, status="cancelled"
+            ).count(),
+            1,
+        )
+
+    def test_approve_cancels_pending_schedule_swap_request(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+
+        original_schedules = AttendanceSchedule.objects.filter(
+            member=self.member, active=True
+        ).select_related("slot")
+
+        ScheduleSwapRequest.objects.create(
+            gym=self.gym,
+            member=self.member,
+            origin_schedule=original_schedules[0],
+            destination_slot=ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00")),
+            swap_date=date.today(),
+            status="pending",
+        )
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+
+        self.assertEqual(
+            ScheduleSwapRequest.objects.filter(
+                member=self.member, status="pending"
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            ScheduleSwapRequest.objects.filter(
+                member=self.member, status="cancelled"
+            ).count(),
+            1,
+        )
+
+    def test_reject_does_not_modify_schedules(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+
+        self.member.refresh_from_db()
+        original_schedules = AttendanceSchedule.objects.filter(
+            member=self.member, active=True
+        ).select_related("slot")
+
+        resp2 = self.client.post(
+            self._url(f"{pk}/reject"),
+            {"admin_notes": "Not suitable"},
+            format="json",
+        )
+        self.assertEqual(resp2.status_code, 200)
+
+        for schedule in original_schedules:
+            schedule.refresh_from_db()
+            self.assertTrue(schedule.active)
+
+    def test_cancel_does_not_modify_schedules(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+
+        self.member.refresh_from_db()
+        original_schedules = AttendanceSchedule.objects.filter(
+            member=self.member, active=True
+        ).select_related("slot")
+
+        resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+
+        for schedule in original_schedules:
+            schedule.refresh_from_db()
+            self.assertTrue(schedule.active)
 
 
 class PublicPlanChangeRequestTest(TestCase):
