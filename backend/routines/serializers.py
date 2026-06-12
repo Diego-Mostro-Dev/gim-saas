@@ -143,3 +143,6 @@ class MemberPortalSerializer(serializers.Serializer):
     payments = serializers.ListField(
         required=False,
     )
+    active_plans = serializers.ListField(
+        required=False,
+    )

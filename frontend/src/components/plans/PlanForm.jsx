@@ -28,6 +28,19 @@ function PlanForm({
         required
       />
 
+      <textarea
+        placeholder="Descripción (opcional)"
+        value={formData.description}
+        onChange={(e) =>
+          setFormData({
+            ...formData,
+            description: e.target.value,
+          })
+        }
+        rows={3}
+        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none resize-none"
+      />
+
       <input
         type="number"
         placeholder="Precio"
@@ -55,6 +68,35 @@ function PlanForm({
         className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
         required
       />
+
+      <input
+        type="number"
+        min="1"
+        placeholder="Visitas semanales (dejar vacío para acceso ilimitado)"
+        value={formData.weekly_visits}
+        onChange={(e) =>
+          setFormData({
+            ...formData,
+            weekly_visits: e.target.value === "" ? "" : Number(e.target.value),
+          })
+        }
+        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+      />
+
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={formData.active}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              active: e.target.checked,
+            })
+          }
+          className="h-5 w-5 rounded border-zinc-600 bg-[#2a2a2a] text-blue-500"
+        />
+        <span className="text-sm text-zinc-300">Plan activo</span>
+      </label>
 
       <button
         type="submit"

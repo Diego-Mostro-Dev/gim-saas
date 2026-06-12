@@ -4,8 +4,8 @@ from .models import MembershipPlan
 
 @admin.register(MembershipPlan)
 class MembershipPlanAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "price", "gym")
-    list_filter = ("gym",)
+    list_display = ("id", "name", "price", "duration_days", "weekly_visits", "active", "gym")
+    list_filter = ("gym", "active")
     search_fields = ("name",)
 
     def get_queryset(self, request):
