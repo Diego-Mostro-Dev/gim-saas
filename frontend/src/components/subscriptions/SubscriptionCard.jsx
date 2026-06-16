@@ -14,17 +14,17 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
   const initials = getMemberInitials(subscription.member_name);
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
+    <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface-input font-bold text-info-text dark:text-info">
             {initials}
           </div>
 
           <div>
-            <p className="font-medium text-white">{subscription.member_name}</p>
+            <p className="font-medium text-text-primary">{subscription.member_name}</p>
 
-            <p className="text-sm text-zinc-400">{subscription.plan_name}</p>
+            <p className="text-sm text-text-secondary">{subscription.plan_name}</p>
           </div>
         </div>
 
@@ -32,7 +32,7 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
           {isExpired && (
             <button
               onClick={() => onRenew(subscription.id)}
-              className="rounded-lg bg-green-500/10 p-2 text-green-300 transition hover:bg-green-500/20"
+              className="rounded-lg bg-success-bg dark:bg-success/15 p-2 text-success-text dark:text-success transition hover:bg-success-bg dark:hover:bg-success/20"
               title="Renovar"
             >
               <RefreshCw size={16} />
@@ -41,14 +41,14 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
 
           <button
             onClick={() => onEdit(subscription)}
-            className="rounded-lg bg-blue-500/10 p-2 text-blue-300 transition hover:bg-blue-500/20"
+            className="rounded-lg bg-info-bg p-2 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/20"
           >
             <Pencil size={16} />
           </button>
 
           <button
             onClick={() => onDelete(subscription.id)}
-            className="rounded-lg bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
+            className="rounded-lg bg-danger-bg dark:bg-danger/15 p-2 text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
           >
             <Trash2 size={16} />
           </button>
@@ -57,15 +57,15 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
 
       <div className="mt-4 flex items-center justify-between text-sm">
         <div>
-          <p className="text-zinc-500">Inicio</p>
+          <p className="text-text-secondary">Inicio</p>
 
-          <p className="text-white">{subscription.start_date}</p>
+          <p className="text-text-primary">{subscription.start_date}</p>
         </div>
 
         <div>
-          <p className="text-zinc-500">Fin</p>
+          <p className="text-text-secondary">Fin</p>
 
-          <p className="text-white">{subscription.end_date}</p>
+          <p className="text-text-primary">{subscription.end_date}</p>
         </div>
       </div>
 
@@ -73,8 +73,8 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
         <div
           className={`inline-flex rounded-md px-2 py-1 text-xs ${
             isExpired
-              ? "bg-red-500/10 text-red-300"
-              : "bg-green-500/10 text-green-300"
+              ? "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger"
+              : "bg-success-bg dark:bg-success/15 text-success-text dark:text-success"
           }`}
         >
           {isExpired
@@ -87,18 +87,18 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
         <div
           className={`rounded-md px-2 py-1 text-xs ${
             subscription.paid
-              ? "bg-blue-500/10 text-blue-300"
-              : "bg-red-500/10 text-red-300"
+              ? "bg-info-bg text-info-text dark:bg-info/15 dark:text-info"
+              : "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger"
           }`}
         >
           {subscription.paid ? "Pago" : "Pendiente"}
         </div>
       </div>
 
-      <div className="mt-3 border-t border-white/5 pt-3">
-        <p className="text-xs text-zinc-500">Valor del plan</p>
+      <div className="mt-3 border-t border-border pt-3">
+        <p className="text-xs text-text-secondary">Valor del plan</p>
 
-        <p className="text-sm font-semibold text-white">
+        <p className="text-sm font-semibold text-text-primary">
           ${Number(subscription.plan_price).toLocaleString("es-AR")}
         </p>
       </div>

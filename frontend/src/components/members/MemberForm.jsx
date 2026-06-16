@@ -88,9 +88,9 @@ function MemberForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mb-6 space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+      className="mb-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-white">
+      <h2 className="text-lg font-semibold text-text-primary">
         {editingMember ? "Editar miembro" : "Nuevo miembro"}
       </h2>
 
@@ -104,10 +104,10 @@ function MemberForm({
             first_name: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
-
+    
       <input
         type="text"
         placeholder="Apellido"
@@ -118,10 +118,10 @@ function MemberForm({
             last_name: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
-
+    
       <input
         type="text"
         placeholder="Teléfono"
@@ -132,10 +132,10 @@ function MemberForm({
             phone: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
-
+    
       <input
         type="email"
         placeholder="Email"
@@ -146,11 +146,11 @@ function MemberForm({
             email: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
       <div>
-        <label className="mb-1 block text-sm text-zinc-400">Foto</label>
+        <label className="mb-1 block text-sm text-text-secondary">Foto</label>
 
         <input
           type="file"
@@ -161,7 +161,7 @@ function MemberForm({
               photo: e.target.files[0],
             })
           }
-          className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary"
         />
       </div>
 
@@ -176,31 +176,31 @@ function MemberForm({
       )}
 
       {availablePlans.length > 0 && !selectedPlan ? (
-        <div className="rounded-xl bg-[#2a2a2a] p-4">
-          <p className="text-sm text-zinc-400">
+        <div className="rounded-lg bg-surface-input border border-border p-4">
+          <p className="text-sm text-text-secondary">
             Elegí primero un plan para seleccionar tus horarios.
           </p>
         </div>
       ) : (
-        <div className="rounded-xl bg-[#2a2a2a] p-4">
-          <p className="mb-2 text-sm font-medium text-zinc-300">
+        <div className="rounded-lg bg-surface-input border border-border p-4">
+          <p className="mb-2 text-sm font-medium text-text-primary">
             Horarios de asistencia
           </p>
 
           {selectedPlan && limit !== null && (
-            <p className="mb-2 text-sm text-zinc-400">
+            <p className="mb-2 text-sm text-text-secondary">
               Seleccionados: {scheduleCount} de {limit}
             </p>
           )}
 
           {selectedPlan && limit === null && (
-            <p className="mb-2 text-sm text-zinc-400">
+            <p className="mb-2 text-sm text-text-secondary">
               Selección ilimitada de horarios.
             </p>
           )}
 
           {atLimit && (
-            <p className="mb-2 text-xs text-amber-400">
+            <p className="mb-2 text-xs text-warning-text dark:text-warning">
               Este plan permite un máximo de {limit} horarios semanales.
             </p>
           )}
@@ -210,9 +210,9 @@ function MemberForm({
               const selected = isSelected(day.value);
 
               return (
-                <div key={day.value} className="rounded-xl bg-[#1a1a1a] p-3">
+                <div key={day.value} className="rounded-xl bg-surface-elevated p-3">
                   <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-sm text-white">
+                    <label className="flex items-center gap-2 text-sm text-text-primary">
                       <input
                         type="checkbox"
                         checked={selected}
@@ -228,13 +228,13 @@ function MemberForm({
                         onChange={(e) =>
                           handleHourChange(day.value, e.target.value)
                         }
-                        className="rounded-lg bg-[#2a2a2a] px-3 py-1 text-sm text-white outline-none"
+                        className="rounded-lg border border-border bg-surface-input px-3 py-1 text-sm text-text-primary outline-none"
                       >
                         {getHoursForDay(day.value).map((hour) => (
                           <option
                             key={hour}
                             value={hour}
-                            className="bg-[#2a2a2a] text-white"
+                            className="bg-surface-input text-text-primary"
                           >
                             {hour}
                           </option>

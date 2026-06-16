@@ -55,17 +55,17 @@ function AttendanceQR() {
   }
 
   if (!gym) {
-    return <div className="p-4 text-white">Cargando...</div>;
+    return <div className="p-4 text-text-primary">Cargando...</div>;
   }
 
   const checkinUrl = `${window.location.origin}/checkin/${gym.onboarding_code}`;
 
   return (
-    <div className="flex min-h-full flex-col items-center p-6 text-white">
+    <div className="flex min-h-full flex-col items-center p-6 text-text-primary">
       <div className="mb-4 self-start">
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+          className="flex items-center gap-2 rounded-lg border border-border/10 px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
         >
           <ArrowLeft size={18} />
           Volver al inicio
@@ -74,14 +74,14 @@ function AttendanceQR() {
 
       <h1 className="mb-2 text-2xl font-semibold">Check-In de Asistencia</h1>
 
-      <p className="mb-6 max-w-md text-center text-sm text-zinc-400">
+      <p className="mb-6 max-w-md text-center text-sm text-text-secondary">
         Mostrá este QR en una pantalla o imprimilo en recepción. Los socios
         deberán abrir su Portal del Socio y escanear este código para registrar
         automáticamente su asistencia.
       </p>
 
       {QRCode && (
-        <div ref={qrRef} className="max-w-full rounded-3xl bg-white p-5 shadow-lg">
+        <div ref={qrRef} className="max-w-full rounded-3xl bg-surface-elevated p-5 shadow-lg">
           <QRCode
             value={checkinUrl}
             size={320}
@@ -92,16 +92,16 @@ function AttendanceQR() {
         </div>
       )}
 
-      <div className="mt-6 w-full max-w-md rounded-2xl border border-white/10 bg-[#201f1f] p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">
+      <div className="mt-6 w-full max-w-md rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="mb-2 text-xs uppercase tracking-wide text-text-secondary">
           URL de Check-In
         </p>
 
-        <p className="break-all text-sm text-zinc-300">{checkinUrl}</p>
+        <p className="break-all text-sm text-text-primary">{checkinUrl}</p>
 
         <button
           onClick={handleDownload}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-white transition active:scale-95"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border/10 px-4 py-3 text-text-primary transition active:scale-95"
         >
           <Download size={18} />
           Descargar QR

@@ -69,15 +69,15 @@ function Registration() {
   }
 
   if (!gym) {
-    return <div className="p-4 text-white">Cargando...</div>;
+    return <div className="p-4 text-text-primary">Cargando...</div>;
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center p-6 text-white">
+    <div className="flex min-h-full flex-col items-center p-6 text-text-primary">
       <div className="mb-4 self-start">
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+          className="flex items-center gap-2 rounded-lg border border-border/10 px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
         >
           <ArrowLeft size={18} />
           Volver al inicio
@@ -86,13 +86,13 @@ function Registration() {
 
       <h1 className="mb-2 text-2xl font-semibold">Registro de miembros</h1>
 
-      <p className="mb-6 text-center text-sm text-zinc-400">
+      <p className="mb-6 text-center text-sm text-text-secondary">
         Escaneá este código para registrarte en{" "}
-        <span className="font-medium text-white">{gym.name}</span>
+        <span className="font-medium text-text-primary">{gym.name}</span>
       </p>
 
       {QRCode && (
-        <div ref={qrRef} className="max-w-full rounded-3xl bg-white p-5 shadow-lg">
+        <div ref={qrRef} className="max-w-full rounded-3xl bg-surface-elevated p-5 shadow-lg">
           <QRCode
             value={gym.register_url}
             size={320}
@@ -103,16 +103,16 @@ function Registration() {
         </div>
       )}
 
-      <div className="mt-6 w-full max-w-md rounded-2xl border border-white/10 bg-[#201f1f] p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">
+      <div className="mt-6 w-full max-w-md rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="mb-2 text-xs uppercase tracking-wide text-text-secondary">
           Enlace de registro
         </p>
 
-        <p className="break-all text-sm text-zinc-300">{gym.register_url}</p>
+        <p className="break-all text-sm text-text-primary">{gym.register_url}</p>
 
         <button
           onClick={handleCopy}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-pink-500 px-4 py-3 font-medium text-white transition active:scale-95"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-medium text-white transition active:scale-95"
         >
           {copied ? (
             <>
@@ -129,7 +129,7 @@ function Registration() {
 
         <button
           onClick={handleDownload}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-white transition active:scale-95"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border/10 px-4 py-3 text-text-primary transition active:scale-95"
         >
           <Download size={18} />
           Descargar QR

@@ -1,3 +1,5 @@
+from datetime import date
+
 from rest_framework import serializers
 
 from attendance.models import ScheduleSlot, AttendanceSchedule
@@ -17,6 +19,7 @@ class PlanChangeRequestValidator:
         self._validate_same_gym()
         self._validate_different_plan()
         self._validate_no_duplicate_pending()
+        self._validate_no_future_approved()
         self._validate_schedule_capacity()
         self._validate_schedule_count()
 
@@ -49,6 +52,19 @@ class PlanChangeRequestValidator:
         ).exists():
             raise serializers.ValidationError(
                 "Ya tienes una solicitud de cambio de plan pendiente."
+            )
+
+    def _validate_no_future_approved(self):
+        from .models import PlanChangeRequest
+
+        if PlanChangeRequest.objects.filter(
+            member=self.member,
+            status="approved",
+            effective_date__gt=date.today(),
+        ).exists():
+            raise serializers.ValidationError(
+                "Ya tienes un cambio de plan aprobado programado "
+                "para el próximo ciclo."
             )
 
     def _validate_schedule_capacity(self):

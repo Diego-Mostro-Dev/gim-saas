@@ -32,13 +32,13 @@ function MemberRoutineModal({ open, onClose, routine }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="max-h-[80vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-[#201f1f] p-6">
+      <div className="max-h-[80vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-surface-elevated p-6 shadow-sm">
         <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-xl font-bold text-white">
+          <h2 className="text-xl font-bold text-text-primary">
             {routine.routine_name}
           </h2>
 
-          <button onClick={onClose} className="self-end text-zinc-400 hover:text-white md:self-auto">
+          <button onClick={onClose} className="self-end text-text-secondary hover:text-text-primary md:self-auto">
             ✕
           </button>
         </div>
@@ -47,7 +47,7 @@ function MemberRoutineModal({ open, onClose, routine }) {
           <button
             onClick={handleWhatsapp}
             disabled={sending}
-            className="w-full rounded-xl bg-green-600 py-3 font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            className="w-full rounded-xl bg-success py-3 font-medium text-white hover:bg-success/90 disabled:opacity-50"
           >
             {sending ? "Generando mensaje..." : "📲 Abrir WhatsApp"}
           </button>
@@ -57,20 +57,20 @@ function MemberRoutineModal({ open, onClose, routine }) {
           {routine.exercises?.map((exercise) => (
             <div
               key={exercise.id}
-              className="rounded-xl border border-white/10 p-4"
+              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
-              <h3 className="font-medium text-white">{exercise.name}</h3>
+              <h3 className="font-medium text-text-primary">{exercise.name}</h3>
 
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-text-secondary">
                 {exercise.sets} series • {exercise.reps}
               </p>
 
               {exercise.weight && (
-                <p className="text-sm text-blue-300">Peso: {exercise.weight}</p>
+                <p className="text-sm text-info-text dark:text-info">Peso: {exercise.weight}</p>
               )}
 
               {exercise.notes && (
-                <p className="mt-1 text-sm text-zinc-500">{exercise.notes}</p>
+                <p className="mt-1 text-sm text-text-secondary">{exercise.notes}</p>
               )}
             </div>
           ))}

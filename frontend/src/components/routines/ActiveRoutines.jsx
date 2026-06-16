@@ -36,7 +36,7 @@ function ActiveRoutines() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
+      <div className="rounded-xl border border-border p-6 text-center text-text-secondary">
         Cargando rutinas activas...
       </div>
     );
@@ -44,13 +44,13 @@ function ActiveRoutines() {
 
   if (error) {
     return (
-      <div className="rounded-xl bg-red-500/10 p-4 text-red-300">{error}</div>
+      <div className="rounded-xl bg-danger-bg dark:bg-danger/15 p-4 text-danger-text dark:text-danger">{error}</div>
     );
   }
 
   if (activeRoutines.length === 0) {
     return (
-      <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
+      <div className="rounded-xl border border-border p-6 text-center text-text-secondary">
         No hay rutinas activas.
       </div>
     );
@@ -62,17 +62,17 @@ function ActiveRoutines() {
         {activeRoutines.map((routine) => (
           <div
             key={`${routine.member_id}-${routine.routine_id}`}
-            className="rounded-xl border border-white/10 bg-[#2a2a2a] p-4"
+            className="rounded-lg border border-border bg-surface-input p-4 shadow-sm"
           >
-            <h3 className="font-semibold text-white">{routine.member_name}</h3>
+            <h3 className="font-semibold text-text-primary">{routine.member_name}</h3>
 
-            <p className="mt-1 text-sm text-blue-300">{routine.routine_name}</p>
+            <p className="mt-1 text-sm text-info-text dark:text-info">{routine.routine_name}</p>
 
             <div className="mt-4">
               <button
                 onClick={() => handleViewRoutine(routine.member_id)}
                 disabled={loadingRoutine}
-                className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
               >
                 {loadingRoutine ? "Cargando..." : "👁 Ver rutina"}
               </button>

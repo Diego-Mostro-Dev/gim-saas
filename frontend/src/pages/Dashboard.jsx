@@ -11,12 +11,12 @@ function Dashboard() {
   const { dashboardData, loading, error } = useDashboard();
 
   if (loading) {
-    return <div className="text-white">Cargando dashboard...</div>;
+    return <div className="text-text-primary">Cargando dashboard...</div>;
   }
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-xl bg-red-500/10 p-4 text-red-300">{error}</div>
+        <div className="rounded-xl bg-danger-bg dark:bg-danger/10 p-4 text-danger-text dark:text-danger">{error}</div>
       )}
       <StatsCards data={dashboardData} />
       <QuickActions />

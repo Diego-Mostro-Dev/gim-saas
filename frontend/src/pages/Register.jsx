@@ -97,17 +97,17 @@ function Register() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#141414] p-6 text-white">
-        <div className="mx-auto max-w-xl rounded-2xl bg-[#201f1f] p-8 text-center">
+      <div className="min-h-screen bg-surface p-6 text-text-primary">
+        <div className="mx-auto max-w-xl rounded-xl bg-surface-elevated p-8 text-center">
           <h1 className="mb-4 text-3xl font-bold">¡Registro completado!</h1>
 
-          <p className="text-zinc-300">
+          <p className="text-text-secondary">
             Tus datos fueron enviados correctamente.
           </p>
 
           <button
             onClick={() => setSuccess(false)}
-            className="mt-6 rounded-xl bg-blue-500 px-5 py-3 text-white"
+            className="mt-6 rounded-xl bg-primary px-5 py-3 text-white"
           >
             Registrar otra persona
           </button>
@@ -117,14 +117,14 @@ function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-[#141414] p-6">
+    <div className="min-h-screen bg-surface p-6">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-text-primary">
             Registro al gimnasio
           </h1>
 
-          <p className="mt-2 text-zinc-400">
+          <p className="mt-2 text-text-secondary">
             Completá tus datos y elegí tus horarios.
           </p>
         </div>

@@ -1,6 +1,90 @@
 @import "tailwindcss";
+
+@theme {
+  --color-surface: rgb(var(--surface));
+  --color-surface-elevated: rgb(var(--surface-elevated));
+  --color-surface-input: rgb(var(--surface-input));
+  --color-surface-modal: rgb(var(--surface-modal));
+  --color-surface-hover: rgb(var(--surface-hover));
+  --color-text-primary: rgb(var(--text-primary));
+  --color-text-secondary: rgb(var(--text-secondary));
+  --color-border: rgb(var(--border));
+  --color-primary: rgb(var(--primary));
+  --color-success: rgb(var(--success));
+  --color-success-bg: rgb(var(--success-bg));
+  --color-success-text: rgb(var(--success-text));
+  --color-warning: rgb(var(--warning));
+  --color-warning-bg: rgb(var(--warning-bg));
+  --color-warning-text: rgb(var(--warning-text));
+  --color-danger: rgb(var(--danger));
+  --color-danger-bg: rgb(var(--danger-bg));
+  --color-danger-text: rgb(var(--danger-text));
+  --color-muted: rgb(var(--muted));
+  --color-muted-bg: rgb(var(--muted-bg));
+  --color-muted-text: rgb(var(--muted-text));
+  --color-info: rgb(var(--info));
+  --color-info-bg: rgb(var(--info-bg));
+  --color-info-text: rgb(var(--info-text));
+}
+
+:root {
+  --surface: 226 232 240;
+  --surface-elevated: 255 255 255;
+  --surface-input: 241 245 249;
+  --surface-modal: 255 255 255;
+  --surface-hover: 241 245 249;
+  --text-primary: 15 23 42;
+  --text-secondary: 100 116 139;
+  --border: 226 232 240;
+  --primary: 59 130 246;
+  --success: 34 197 94;
+  --success-bg: 220 252 231;
+  --success-text: 21 128 61;
+  --warning: 234 179 8;
+  --warning-bg: 254 249 195;
+  --warning-text: 161 98 7;
+  --danger: 239 68 68;
+  --danger-bg: 254 226 226;
+  --danger-text: 185 28 28;
+  --muted: 113 113 122;
+  --muted-bg: 228 228 231;
+  --muted-text: 113 113 122;
+  --info: 59 130 246;
+  --info-bg: 219 234 254;
+  --info-text: 29 78 216;
+}
+
+[data-theme="dark"] {
+  --surface: 19 19 19;
+  --surface-elevated: 32 31 31;
+  --surface-input: 42 42 42;
+  --surface-modal: 27 27 27;
+  --surface-hover: 42 42 42;
+  --text-primary: 255 255 255;
+  --text-secondary: 161 161 170;
+  --border: 63 63 70;
+  --primary: 59 130 246;
+  --success: 34 197 94;
+  --success-bg: 34 197 94;
+  --success-text: 34 197 94;
+  --warning: 234 179 8;
+  --warning-bg: 234 179 8;
+  --warning-text: 234 179 8;
+  --danger: 239 68 68;
+  --danger-bg: 239 68 68;
+  --danger-text: 239 68 68;
+  --muted: 161 161 170;
+  --muted-bg: 63 63 70;
+  --muted-text: 161 161 170;
+  --info: 59 130 246;
+  --info-bg: 59 130 246;
+  --info-text: 59 130 246;
+}
+
 body {
   margin: 0;
   font-family: Inter, sans-serif;
   overflow-x: hidden;
+  background: rgb(var(--surface));
+  color: rgb(var(--text-primary));
 }

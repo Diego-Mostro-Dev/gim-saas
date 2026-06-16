@@ -121,20 +121,20 @@ function Payments() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando pagos...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
+    <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       {/* HEADER */}
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Pagos</h1>
 
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-text-secondary">
             Gestión de pagos del gimnasio
           </p>
         </div>
@@ -156,7 +156,7 @@ function Payments() {
 
       {/* ERROR */}
       {error && (
-        <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+        <div className="mb-4 rounded-xl border border-danger/20 bg-danger-bg dark:bg-danger/10 p-4 text-sm text-danger-text dark:text-danger">
           {error}
         </div>
       )}
@@ -187,7 +187,7 @@ function Payments() {
       {/* LIST */}
       <div className="space-y-3">
         {payments.length === 0 ? (
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             No hay pagos registrados
           </div>
         ) : (

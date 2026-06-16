@@ -73,7 +73,6 @@ Frontend development with React will begin next.
 
 - React
 - Vite
-- Axios
 - React Router
 
 ---

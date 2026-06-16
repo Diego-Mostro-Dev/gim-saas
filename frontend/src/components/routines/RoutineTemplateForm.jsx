@@ -18,16 +18,16 @@ function RoutineTemplateForm({ onSubmit }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-2xl border border-white/5 bg-[#1a1a1a] p-4"
+      className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h3 className="text-white font-medium">Nueva rutina</h3>
+      <h3 className="text-text-primary font-medium">Nueva rutina</h3>
 
       <input
         type="text"
         placeholder="Ej: Push A"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
       <button

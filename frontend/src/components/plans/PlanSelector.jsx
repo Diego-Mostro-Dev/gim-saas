@@ -3,7 +3,7 @@ function PlanSelector({ plans, selectedPlanId, onSelect }) {
 
   return (
     <div>
-      <p className="mb-3 text-sm font-medium text-zinc-300">
+      <p className="mb-3 text-sm font-medium text-text-primary">
         Seleccioná tu plan
       </p>
 
@@ -22,27 +22,27 @@ function PlanSelector({ plans, selectedPlanId, onSelect }) {
               onClick={() => onSelect(plan.id)}
               className={`cursor-pointer rounded-xl border p-4 transition ${
                 isSelected
-                  ? "border-blue-500 bg-blue-500/10"
-                  : "border-white/5 bg-[#1a1a1a] hover:border-white/10"
+                  ? "border-info bg-info-bg"
+                  : "border-border bg-surface-elevated hover:border-border"
               }`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-white">
+                  <h3 className="text-base font-semibold text-text-primary">
                     {plan.name}
                   </h3>
-                  <p className="mt-0.5 text-sm text-zinc-400">
+                  <p className="mt-0.5 text-sm text-text-secondary">
                     {plan.duration_days} días
                   </p>
                   <p className="mt-0.5 text-sm text-blue-400">{weeklyLabel}</p>
                   {plan.description && (
-                    <p className="mt-1 text-sm text-zinc-500">
+                    <p className="mt-1 text-sm text-text-secondary">
                       {plan.description}
                     </p>
                   )}
                 </div>
                 <div className="text-right">
-                  <span className="text-lg font-semibold text-white">
+                  <span className="text-base font-bold text-info-text dark:text-info">
                     ${plan.price}
                   </span>
                 </div>

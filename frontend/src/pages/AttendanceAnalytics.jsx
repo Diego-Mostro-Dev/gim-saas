@@ -11,14 +11,14 @@ function analyticsCacheKey(start, end) {
 
 function StatCard({ icon: Icon, label, value, color }) {
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
+    <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex items-center gap-3">
         <div className={`rounded-xl p-2 ${color}`}>
           <Icon size={20} />
         </div>
         <div className="min-w-0">
-          <p className="text-xs text-zinc-400">{label}</p>
-          <p className="text-xl font-bold text-white">{value}</p>
+          <p className="text-xs text-text-secondary">{label}</p>
+          <p className="text-xl font-bold text-text-primary">{value}</p>
         </div>
       </div>
     </div>
@@ -28,14 +28,14 @@ function StatCard({ icon: Icon, label, value, color }) {
 function LoadingSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="h-8 w-48 animate-pulse rounded-lg bg-zinc-800" />
+      <div className="h-8 w-48 animate-pulse rounded-lg bg-surface-input" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 animate-pulse rounded-2xl bg-[#201f1f]" />
+          <div key={i} className="h-24 animate-pulse rounded-xl bg-surface-input" />
         ))}
       </div>
-      <div className="h-32 animate-pulse rounded-2xl bg-[#201f1f]" />
-      <div className="h-48 animate-pulse rounded-2xl bg-[#201f1f]" />
+      <div className="h-32 animate-pulse rounded-xl bg-surface-input" />
+      <div className="h-48 animate-pulse rounded-xl bg-surface-input" />
     </div>
   );
 }
@@ -100,17 +100,17 @@ function AttendanceAnalytics() {
   }, [load]);
 
   return (
-    <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
+    <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Métricas de asistencia</h1>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="mt-1 text-sm text-text-secondary">
           Indicadores y estadísticas de asistencia
         </p>
       </div>
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs text-zinc-500">Desde</label>
+          <label className="mb-1 block text-xs text-text-secondary">Desde</label>
           <input
             type="date"
             value={startDate}
@@ -118,11 +118,11 @@ function AttendanceAnalytics() {
               setStartDate(e.target.value);
               sessionStorage.setItem("analytics_start", e.target.value);
             }}
-            className="rounded-lg bg-[#2a2a2a] p-2 text-sm text-white [color-scheme:dark]"
+            className="rounded-lg border border-border bg-surface-input p-2 text-sm text-text-primary [color-scheme:dark]"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-zinc-500">Hasta</label>
+          <label className="mb-1 block text-xs text-text-secondary">Hasta</label>
           <input
             type="date"
             value={endDate}
@@ -130,20 +130,20 @@ function AttendanceAnalytics() {
               setEndDate(e.target.value);
               sessionStorage.setItem("analytics_end", e.target.value);
             }}
-            className="rounded-lg bg-[#2a2a2a] p-2 text-sm text-white [color-scheme:dark]"
+            className="rounded-lg border border-border bg-surface-input p-2 text-sm text-text-primary [color-scheme:dark]"
           />
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-600 disabled:opacity-50"
+          className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
         >
           {loading ? "Cargando..." : "Actualizar"}
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">{error}</div>
+        <div className="mb-4 rounded-xl bg-danger-bg dark:bg-danger/10 p-4 text-sm text-danger-text dark:text-danger">{error}</div>
       )}
 
       {loading && !data ? (
@@ -151,28 +151,28 @@ function AttendanceAnalytics() {
       ) : data ? (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard icon={CalendarDays} label="Asistencias totales" value={data.summary.total_attendances} color="bg-purple-500/10 text-purple-400" />
-            <StatCard icon={Users} label="Asistencias regulares" value={data.summary.regular_attendances} color="bg-green-500/10 text-green-400" />
-            <StatCard icon={Repeat} label="Asistencias por intercambio de día" value={data.summary.swap_attendances} color="bg-blue-500/10 text-blue-400" />
-            <StatCard icon={TrendingUp} label="Asistencias por QR" value={data.summary.walkin_attendances} color="bg-yellow-500/10 text-yellow-400" />
+            <StatCard icon={CalendarDays} label="Asistencias totales" value={data.summary.total_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
+            <StatCard icon={Users} label="Asistencias regulares" value={data.summary.regular_attendances} color="bg-success-bg dark:bg-success/15 text-success-text dark:text-success" />
+            <StatCard icon={Repeat} label="Asistencias por intercambio de día" value={data.summary.swap_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
+            <StatCard icon={TrendingUp} label="Asistencias por QR" value={data.summary.walkin_attendances} color="bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning" />
           </div>
 
           {data.occupancy && (
-            <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
                 Ocupación
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl bg-[#2a2a2a] p-3">
-                  <p className="text-xs text-zinc-400">Ocupación promedio</p>
-                  <p className="text-2xl font-bold text-white">
+                <div className="rounded-xl bg-surface-input p-3">
+                  <p className="text-xs text-text-secondary">Ocupación promedio</p>
+                  <p className="text-2xl font-bold text-text-primary">
                     {data.occupancy.average_occupancy_percent}%
                   </p>
                 </div>
-                <div className="rounded-xl bg-[#2a2a2a] p-3">
-                  <p className="text-xs text-zinc-400">Horario más concurrido</p>
+                <div className="rounded-xl bg-surface-input p-3">
+                  <p className="text-xs text-text-secondary">Horario más concurrido</p>
                   {data.occupancy.highest_occupancy_slot ? (
-                    <p className="text-lg font-semibold text-white">
+                    <p className="text-lg font-semibold text-text-primary">
                       {data.occupancy.highest_occupancy_slot.day === "monday" ? "Lunes" :
                        data.occupancy.highest_occupancy_slot.day === "tuesday" ? "Martes" :
                        data.occupancy.highest_occupancy_slot.day === "wednesday" ? "Miércoles" :
@@ -183,27 +183,27 @@ function AttendanceAnalytics() {
                       {data.occupancy.highest_occupancy_slot.hour}
                     </p>
                   ) : (
-                    <p className="text-sm text-zinc-500">Sin datos</p>
+                    <p className="text-sm text-text-secondary">Sin datos</p>
                   )}
                 </div>
               </div>
             </div>
           )}
 
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
               Intercambios de día
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: "Solicitados", value: data.swaps.requested, color: "text-yellow-400" },
-                { label: "Aprobados", value: data.swaps.approved, color: "text-green-400", autoValue: data.swaps.auto_approved },
-                { label: "Rechazados", value: data.swaps.rejected, color: "text-red-400" },
-                { label: "Cancelados", value: data.swaps.cancelled, color: "text-zinc-400" },
+                { label: "Solicitados", value: data.swaps.requested, color: "text-warning-text dark:text-warning" },
+                { label: "Aprobados", value: data.swaps.approved, color: "text-success-text dark:text-success", autoValue: data.swaps.auto_approved },
+                { label: "Rechazados", value: data.swaps.rejected, color: "text-danger-text dark:text-danger" },
+                { label: "Cancelados", value: data.swaps.cancelled, color: "text-muted-text" },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-[#2a2a2a] p-3 text-center">
+                <div key={item.label} className="rounded-xl bg-surface-input p-3 text-center">
                   <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
-                  <p className="text-xs text-zinc-400">{item.label}</p>
+                  <p className="text-xs text-text-secondary">{item.label}</p>
                   {item.autoValue > 0 && (
                     <p className="mt-0.5 text-[10px] text-blue-400">
                       {item.autoValue} aprobados sin revisión (había lugar disponible)
@@ -215,8 +215,8 @@ function AttendanceAnalytics() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
                 Horarios más concurridos
               </h2>
               {data.top_slots.length > 0 ? (
@@ -224,9 +224,9 @@ function AttendanceAnalytics() {
                   {data.top_slots.map((slot, i) => (
                     <div
                       key={`${slot.day}-${slot.hour}`}
-                      className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-3 py-2"
+                      className="flex items-center justify-between rounded-xl bg-surface-input px-3 py-2"
                     >
-                      <span className="text-sm text-white">
+                      <span className="text-sm text-text-primary">
                         {slot.day === "monday" ? "Lunes" :
                          slot.day === "tuesday" ? "Martes" :
                          slot.day === "wednesday" ? "Miércoles" :
@@ -236,19 +236,19 @@ function AttendanceAnalytics() {
                          slot.day}{" "}
                         {slot.hour}
                       </span>
-                      <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-xs text-blue-300">
+                      <span className="rounded-md bg-info-bg px-2 py-0.5 text-xs text-info-text dark:bg-info/15 dark:text-info">
                         {slot.attendances}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">Sin datos en este período</p>
+                <p className="text-sm text-text-secondary">Sin datos en este período</p>
               )}
             </div>
 
-            <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
                 Miembros con más asistencias
               </h2>
               {data.top_members.length > 0 ? (
@@ -256,17 +256,17 @@ function AttendanceAnalytics() {
                   {data.top_members.map((member) => (
                     <div
                       key={member.member_id}
-                      className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-3 py-2"
+                      className="flex items-center justify-between rounded-xl bg-surface-input px-3 py-2"
                     >
-                      <span className="text-sm text-white">{member.member_name}</span>
-                      <span className="rounded-md bg-green-500/10 px-2 py-0.5 text-xs text-green-300">
+                      <span className="text-sm text-text-primary">{member.member_name}</span>
+                      <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
                         {member.attendances}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">Sin datos en este período</p>
+                <p className="text-sm text-text-secondary">Sin datos en este período</p>
               )}
             </div>
           </div>

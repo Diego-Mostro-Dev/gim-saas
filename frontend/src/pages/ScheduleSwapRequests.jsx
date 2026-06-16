@@ -172,10 +172,10 @@ function ScheduleSwapRequests() {
     const base =
       "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium";
     const colors = {
-      pending: "bg-yellow-500/20 text-yellow-300",
-      approved: "bg-green-500/20 text-green-300",
-      rejected: "bg-red-500/20 text-red-300",
-      cancelled: "bg-zinc-500/20 text-zinc-400",
+      pending: "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning",
+      approved: "bg-success-bg dark:bg-success/15 text-success-text dark:text-success",
+      rejected: "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger",
+      cancelled: "bg-muted-bg text-muted-text",
     };
     return (
       <span className={`${base} ${colors[status] || colors.pending}`}>
@@ -253,45 +253,45 @@ function ScheduleSwapRequests() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando solicitudes de intercambio...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#131313] pb-28 pt-6 text-white">
+    <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
       <div className="mb-6 px-4">
         <h1 className="text-3xl font-bold">Intercambios de día</h1>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="mt-1 text-sm text-text-secondary">
           Cambios por única vez entre días disponibles.
         </p>
       </div>
 
       {/* Stats cards */}
       <div className="mb-6 grid grid-cols-2 gap-3 px-4 sm:grid-cols-4">
-        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-center">
-          <p className="text-2xl font-bold text-yellow-400">{stats.pending}</p>
-          <p className="text-xs text-zinc-400">Pendientes</p>
+        <div className="rounded-xl border border-warning/20 bg-warning-bg dark:bg-warning/5 p-3 text-center">
+          <p className="text-2xl font-bold text-warning-text dark:text-warning">{stats.pending}</p>
+          <p className="text-xs text-text-secondary">Pendientes</p>
         </div>
-        <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-3 text-center">
-          <p className="text-2xl font-bold text-green-400">{stats.approved}</p>
-          <p className="text-xs text-zinc-400">Aprobadas</p>
+        <div className="rounded-xl border border-success/20 bg-success-bg dark:bg-success/5 p-3 text-center">
+          <p className="text-2xl font-bold text-success-text dark:text-success">{stats.approved}</p>
+          <p className="text-xs text-text-secondary">Aprobadas</p>
         </div>
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-3 text-center">
-          <p className="text-2xl font-bold text-red-400">{stats.rejected}</p>
-          <p className="text-xs text-zinc-400">Rechazadas</p>
+        <div className="rounded-xl border border-danger/20 bg-danger-bg dark:bg-danger/5 p-3 text-center">
+          <p className="text-2xl font-bold text-danger-text dark:text-danger">{stats.rejected}</p>
+          <p className="text-xs text-text-secondary">Rechazadas</p>
         </div>
-        <div className="rounded-2xl border border-zinc-500/20 bg-zinc-500/5 p-3 text-center">
-          <p className="text-2xl font-bold text-zinc-400">{stats.cancelled}</p>
-          <p className="text-xs text-zinc-400">Canceladas</p>
+        <div className="rounded-xl border border-muted/20 bg-muted-bg p-3 text-center">
+          <p className="text-2xl font-bold text-muted-text">{stats.cancelled}</p>
+          <p className="text-xs text-text-secondary">Canceladas</p>
         </div>
       </div>
 
       {/* Search */}
       <div className="mb-4 px-4">
-        <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-[#201f1f] px-3 py-2">
-          <Search size={16} className="shrink-0 text-zinc-500" />
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-3 py-2">
+          <Search size={16} className="shrink-0 text-text-secondary" />
           <input
             type="text"
             placeholder="Buscar por socio o destino..."
@@ -300,7 +300,7 @@ function ScheduleSwapRequests() {
               setSearchTerm(e.target.value);
               sessionStorage.setItem("swap_search", e.target.value);
             }}
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
+            className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
           />
         </div>
       </div>
@@ -316,8 +316,8 @@ function ScheduleSwapRequests() {
             }}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
               statusFilter === f.key
-                ? "bg-purple-500 text-white"
-                : "bg-[#201f1f] text-zinc-400 hover:bg-[#2a2a2a]"
+                ? "bg-info text-white"
+                : "bg-surface-elevated text-text-secondary hover:bg-surface-input"
             }`}
           >
             {f.label}
@@ -336,8 +336,8 @@ function ScheduleSwapRequests() {
             }}
             className={`rounded-xl px-4 py-1.5 text-xs font-medium transition ${
               timeFilter === f.key
-                ? "bg-zinc-600 text-white"
-                : "bg-[#201f1f] text-zinc-500 hover:bg-[#2a2a2a]"
+                ? "bg-surface-input text-text-primary"
+                : "bg-surface-elevated text-text-secondary hover:bg-surface-input"
             }`}
           >
             {f.label}
@@ -347,7 +347,7 @@ function ScheduleSwapRequests() {
 
       <div className="space-y-3 px-4">
         {filteredRequests.length === 0 ? (
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             {requests.length === 0
               ? "No hay solicitudes de intercambio"
               : "No hay solicitudes con este filtro"}
@@ -356,34 +356,34 @@ function ScheduleSwapRequests() {
           filteredRequests.map((req) => (
             <div
               key={req.id}
-              className="rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
               <div className="mb-3 flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-text-primary">
                     {req.member_name}
                   </p>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="mt-0.5 text-xs text-text-secondary">
                     Solicitado el: {formatDate(req.requested_at)}
                   </p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-text-secondary">
                     Fecha del intercambio: {formatDate(req.swap_date)}
                   </p>
                 </div>
                 {statusBadge(req.status)}
               </div>
 
-              <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
+              <div className="mb-3 flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Origen</p>
-                  <p className="text-sm text-white">
+                  <p className="text-xs text-text-secondary">Origen</p>
+                  <p className="text-sm text-text-primary">
                     {DAY_NAMES[req.origin_day] || req.origin_day} {req.origin_hour}
                   </p>
                 </div>
-                <ArrowLeftRight size={16} className="shrink-0 text-zinc-500" />
+                <ArrowLeftRight size={16} className="shrink-0 text-text-secondary" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Destino</p>
-                  <p className="text-sm text-white">
+                  <p className="text-xs text-text-secondary">Destino</p>
+                  <p className="text-sm text-text-primary">
                     {DAY_NAMES[req.destination_day] || req.destination_day} {req.destination_hour}
                   </p>
                 </div>
@@ -393,14 +393,14 @@ function ScheduleSwapRequests() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleOpenApproval(req)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-500/20 py-2 text-sm font-medium text-green-300 transition hover:bg-green-500/30"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-success-bg dark:bg-success/15 py-2 text-sm font-medium text-success-text dark:text-success transition hover:bg-success/30"
                   >
                     <Check size={16} />
                     Aprobar
                   </button>
                   <button
                     onClick={() => handleOpenRejection(req)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-500/20 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/30"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-danger-bg dark:bg-danger/15 py-2 text-sm font-medium text-danger-text dark:text-danger transition hover:bg-danger/30"
                   >
                     <X size={16} />
                     Rechazar
@@ -409,9 +409,9 @@ function ScheduleSwapRequests() {
               )}
 
               {req.admin_notes && req.status !== "pending" && (
-                <div className="mt-2 rounded-xl bg-[#2a2a2a] px-3 py-2">
-                  <p className="text-xs text-zinc-500">Notas:</p>
-                  <p className="text-sm text-zinc-300">{req.admin_notes}</p>
+                <div className="mt-2 rounded-xl bg-surface-input px-3 py-2">
+                  <p className="text-xs text-text-secondary">Notas:</p>
+                  <p className="text-sm text-text-secondary">{req.admin_notes}</p>
                 </div>
               )}
             </div>
@@ -422,33 +422,33 @@ function ScheduleSwapRequests() {
       {/* Approval modal */}
       {approvalTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#1b1b1b] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-text-primary">
                 Aprobar intercambio
               </h2>
             </div>
 
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-zinc-400">Socio</p>
-                <p className="text-white">{approvalTarget.member_name}</p>
+                <p className="text-sm text-text-secondary">Socio</p>
+                <p className="text-text-primary">{approvalTarget.member_name}</p>
               </div>
               <div>
-                <p className="text-sm text-zinc-400">Fecha del intercambio</p>
-                <p className="text-white">{formatDate(approvalTarget.swap_date)}</p>
+                <p className="text-sm text-text-secondary">Fecha del intercambio</p>
+                <p className="text-text-primary">{formatDate(approvalTarget.swap_date)}</p>
               </div>
-              <div className="flex items-center gap-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
+              <div className="flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Origen</p>
-                  <p className="text-sm text-white">
+                  <p className="text-xs text-text-secondary">Origen</p>
+                  <p className="text-sm text-text-primary">
                     {DAY_NAMES[approvalTarget.origin_day] || approvalTarget.origin_day} {approvalTarget.origin_hour}
                   </p>
                 </div>
-                <ArrowLeftRight size={16} className="shrink-0 text-zinc-500" />
+                <ArrowLeftRight size={16} className="shrink-0 text-text-secondary" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Destino</p>
-                  <p className="text-sm text-purple-300">
+                  <p className="text-xs text-text-secondary">Destino</p>
+                    <p className="text-sm text-info-text dark:text-info">
                     {DAY_NAMES[approvalTarget.destination_day] || approvalTarget.destination_day}{" "}
                     {approvalTarget.destination_hour}
                   </p>
@@ -459,13 +459,13 @@ function ScheduleSwapRequests() {
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setApprovalTarget(null)}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-surface-input"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmApproval}
-                className="rounded-xl bg-green-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-600"
+                className="rounded-xl bg-success px-4 py-2 text-sm font-medium text-white transition hover:brightness-90"
               >
                 Aprobar
               </button>
@@ -477,18 +477,18 @@ function ScheduleSwapRequests() {
       {/* Rejection modal */}
       {rejectionTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#1b1b1b] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-text-primary">
                 Rechazar intercambio
               </h2>
-              <p className="mt-1 text-sm text-zinc-400">
+              <p className="mt-1 text-sm text-text-secondary">
                 {rejectionTarget.member_name}
               </p>
             </div>
 
             <div>
-              <label className="mb-1 block text-sm text-zinc-400">
+              <label className="mb-1 block text-sm text-text-secondary">
                 Notas (opcional)
               </label>
               <textarea
@@ -496,7 +496,7 @@ function ScheduleSwapRequests() {
                 onChange={(e) => setRejectionNotes(e.target.value)}
                 placeholder="Motivo del rechazo..."
                 rows={3}
-                className="w-full rounded-xl border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600"
+                className="w-full rounded-xl border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary"
               />
             </div>
 
@@ -506,13 +506,13 @@ function ScheduleSwapRequests() {
                   setRejectionTarget(null);
                   setRejectionNotes("");
                 }}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-surface-input"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmRejection}
-                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+                className="rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:brightness-90"
               >
                 Rechazar
               </button>

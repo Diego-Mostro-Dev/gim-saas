@@ -54,19 +54,19 @@ function ChangePassword() {
   }
 
   return (
-    <div className="min-h-screen bg-[#141414] p-6">
-      <div className="mx-auto max-w-md rounded-2xl bg-[#201f1f] p-6">
-        <h1 className="mb-2 text-2xl font-bold text-white">
+    <div className="min-h-screen bg-surface p-6">
+      <div className="mx-auto max-w-md rounded-xl bg-surface-elevated p-6">
+        <h1 className="mb-2 text-2xl font-bold text-text-primary">
           Cambiar contraseña
         </h1>
 
-        <p className="mb-6 text-sm text-zinc-400">
+        <p className="mb-6 text-sm text-text-secondary">
           Debés cambiar tu contraseña antes de continuar.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-2 block text-sm text-zinc-300">
+            <label className="mb-2 block text-sm text-text-primary">
               Contraseña actual
             </label>
 
@@ -79,13 +79,13 @@ function ChangePassword() {
                   old_password: e.target.value,
                 })
               }
-              className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+              className="w-full rounded-xl border border-border/10 bg-surface px-4 py-3 text-text-primary outline-none"
               required
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm text-zinc-300">
+            <label className="mb-2 block text-sm text-text-primary">
               Nueva contraseña
             </label>
 
@@ -98,13 +98,13 @@ function ChangePassword() {
                   new_password: e.target.value,
                 })
               }
-              className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+              className="w-full rounded-xl border border-border/10 bg-surface px-4 py-3 text-text-primary outline-none"
               required
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm text-zinc-300">
+            <label className="mb-2 block text-sm text-text-primary">
               Confirmar contraseña
             </label>
 
@@ -117,7 +117,7 @@ function ChangePassword() {
                   confirm_password: e.target.value,
                 })
               }
-              className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+              className="w-full rounded-xl border border-border/10 bg-surface px-4 py-3 text-text-primary outline-none"
               required
             />
           </div>
@@ -125,7 +125,7 @@ function ChangePassword() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-xl bg-pink-500 px-4 py-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
+            className="w-full rounded-xl bg-primary px-4 py-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
           >
             {isSubmitting ? "Actualizando..." : "Actualizar contraseña"}
           </button>

@@ -20,7 +20,7 @@ function TemplateDetails({
 
   if (!template) {
     return (
-      <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
+      <div className="rounded-xl border border-dashed border-border p-8 text-center text-text-secondary">
         Selecciona una rutina para verla.
       </div>
     );
@@ -76,12 +76,12 @@ function TemplateDetails({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+      <div className="rounded-xl border border-info/20 bg-info-bg/50 p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-white">{template.name}</h2>
+            <h2 className="text-xl font-bold text-text-primary">{template.name}</h2>
 
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-text-secondary">
               {exercises.length} ejercicios
             </p>
           </div>
@@ -89,14 +89,14 @@ function TemplateDetails({
           <div className="flex flex-wrap gap-2">
             <button
               onClick={handleRename}
-              className="rounded-lg bg-yellow-500 px-3 py-2 text-sm font-medium text-black"
+              className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"
             >
               Renombrar
             </button>
 
             <button
               onClick={handleDeleteTemplate}
-              className="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white"
+              className="rounded-lg bg-danger px-3 py-2 text-sm font-medium text-white"
             >
               Eliminar rutina
             </button>
@@ -106,9 +106,9 @@ function TemplateDetails({
 
       <form
         onSubmit={handleSubmit}
-        className="space-y-3 rounded-xl border border-white/10 bg-[#1a1a1a] p-4"
+        className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
       >
-        <h3 className="font-semibold text-white">Agregar ejercicio</h3>
+        <h3 className="font-semibold text-text-primary">Agregar ejercicio</h3>
 
         <select
           value={formData.exercise}
@@ -118,7 +118,7 @@ function TemplateDetails({
               exercise: e.target.value,
             })
           }
-          className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary"
         >
           <option value="">Seleccionar ejercicio</option>
 
@@ -139,22 +139,22 @@ function TemplateDetails({
 
       <div className="space-y-3">
         {exercises.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-zinc-500">
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-text-secondary">
             Esta rutina todavía no tiene ejercicios.
           </div>
         ) : (
           exercises.map((exercise) => (
             <div
               key={exercise.id}
-              className="rounded-xl border border-white/10 bg-[#1a1a1a] p-4"
+              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h4 className="font-medium text-white">
+                  <h4 className="font-medium text-text-primary">
                     {exercise.exercise_name}
                   </h4>
 
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-text-secondary">
                     {exercise.sets} series
                   </p>
                 </div>
@@ -162,7 +162,7 @@ function TemplateDetails({
                 <button
                   type="button"
                   onClick={() => removeRoutineExercise(exercise.id)}
-                  className="rounded-lg bg-red-500 px-3 py-2 text-sm text-white"
+                  className="rounded-lg bg-danger px-3 py-2 text-sm text-white"
                 >
                   Eliminar
                 </button>

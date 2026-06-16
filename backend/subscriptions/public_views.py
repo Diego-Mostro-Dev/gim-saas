@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -8,6 +10,7 @@ from members.models import Member
 
 from .models import PlanChangeRequest
 from .serializers import PublicPlanChangeRequestSerializer
+from .services import cancel_future_plan_change
 
 
 class PublicPlanChangeRequestView(APIView):
@@ -20,6 +23,8 @@ class PublicPlanChangeRequestView(APIView):
             member=member,
         ).select_related(
             "requested_plan",
+        ).prefetch_related(
+            "planned_schedules",
         ).order_by("-requested_at")
 
         return Response(
@@ -54,7 +59,13 @@ class PublicCancelPlanChangeRequestView(APIView):
             member=member,
         )
 
-        if change_request.status != "pending":
+        allowed = change_request.status == "pending"
+        if change_request.status == "approved" and (
+            change_request.effective_date and change_request.effective_date > date.today()
+        ):
+            allowed = True
+
+        if not allowed:
             return Response(
                 {
                     "detail": (
@@ -65,9 +76,13 @@ class PublicCancelPlanChangeRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        change_request.status = "cancelled"
-        change_request.save(update_fields=["status"])
+        if change_request.status == "approved":
+            cancel_future_plan_change(change_request)
+        else:
+            change_request.status = "cancelled"
+            change_request.save(update_fields=["status"])
 
+        change_request.refresh_from_db()
         return Response(
             PublicPlanChangeRequestSerializer(change_request).data
         )

@@ -18,10 +18,10 @@ function MemberCard({
   };
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
+    <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-input font-bold text-info-text dark:text-info">
             {member.photo ? (
               <img
                 src={member.photo}
@@ -37,22 +37,22 @@ function MemberCard({
           </div>
 
           <div>
-            <p className="font-medium text-white">
+            <p className="font-medium text-text-primary">
               {member.first_name} {member.last_name}
             </p>
 
-            <p className="text-sm text-zinc-400">{member.phone}</p>
+            <p className="text-sm text-text-secondary">{member.phone}</p>
 
-            <p className="text-xs text-zinc-500">{member.email}</p>
+            <p className="text-xs text-text-secondary">{member.email}</p>
 
             {member.plan_name && (
               <div className="mt-1 flex items-center gap-2">
-                <span className="rounded-md bg-green-500/10 px-2 py-0.5 text-xs text-green-300">
+                <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
                   {member.plan_name}
                 </span>
 
                 {member.subscription_end_date && (
-                  <span className="text-xs text-zinc-500">
+                    <span className="text-xs text-text-secondary">
                     {member.subscription_days_remaining != null
                       ? `${
                           member.subscription_days_remaining === 1
@@ -72,14 +72,14 @@ function MemberCard({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onEdit(member)}
-            className="rounded-lg bg-blue-500/10 p-2 text-blue-300 transition hover:bg-blue-500/20"
+            className="rounded-lg bg-info-bg p-2 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/20"
           >
             <Pencil size={16} />
           </button>
 
           <button
             onClick={() => onDelete(member.id)}
-            className="rounded-lg bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
+            className="rounded-lg bg-danger-bg dark:bg-danger/15 p-2 text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
           >
             <Trash2 size={16} />
           </button>
@@ -91,7 +91,7 @@ function MemberCard({
           {member.schedules.map((schedule) => (
             <span
               key={`${schedule.day}-${schedule.hour}`}
-              className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300"
+              className="rounded-md bg-info-bg px-2 py-1 text-xs text-info-text dark:bg-info/15 dark:text-info"
             >
               {dayLabels[schedule.day]} {schedule.hour}
             </span>
@@ -102,14 +102,14 @@ function MemberCard({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           onClick={() => onViewPayments(member)}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-600/30"
+          className="flex items-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
         >
           Historial
         </button>
 
         <button
           onClick={() => onSharePortal(member.id)}
-          className="flex items-center gap-1.5 rounded-lg bg-green-600/20 px-3 py-1.5 text-xs font-medium text-green-400 transition hover:bg-green-600/30"
+          className="flex items-center gap-1.5 rounded-lg bg-success-bg dark:bg-success/15 px-3 py-1.5 text-xs font-medium text-success-text dark:text-success transition hover:bg-success-bg dark:hover:bg-success/30"
         >
           <Share2 size={14} />
           Compartir acceso
@@ -117,7 +117,7 @@ function MemberCard({
 
         <button
           onClick={() => onCopyPortalLink(member.id)}
-          className="flex items-center gap-1.5 rounded-lg bg-zinc-600/20 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-600/30"
+          className="flex items-center gap-1.5 rounded-lg bg-zinc-600/20 px-3 py-1.5 text-xs font-medium text-text-primary transition hover:bg-zinc-600/30"
         >
           <Link size={14} />
           Copiar enlace

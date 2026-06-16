@@ -6,16 +6,16 @@ function PendingPayments({ pendingPayments = [] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-text-primary">
           Pendientes de cobro
         </h3>
 
-        <span className="text-sm text-zinc-400">{pendingPayments.length}</span>
+        <span className="text-sm text-text-secondary">{pendingPayments.length}</span>
       </div>
 
       <div className="space-y-3">
         {pendingPayments.length === 0 ? (
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             No hay pagos pendientes
           </div>
         ) : (
@@ -37,23 +37,23 @@ function PendingPayments({ pendingPayments = [] }) {
                     },
                   })
                 }
-                className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-left transition hover:bg-white/5"
+                className="flex w-full items-center justify-between rounded-xl border border-border bg-surface-elevated p-4 text-left transition hover:bg-surface-input shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-yellow-300">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-input font-bold text-warning-text dark:text-warning">
                     {initials}
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-text-primary">
                       {item.member_name}
                     </p>
 
-                    <p className="text-xs text-zinc-400">{item.plan_name}</p>
+                    <p className="text-xs text-text-secondary">{item.plan_name}</p>
                   </div>
                 </div>
 
-                <div className="rounded-md bg-yellow-500/10 px-3 py-1 text-xs font-medium text-yellow-300">
+                <div className="rounded-md bg-warning-bg dark:bg-warning/15 px-3 py-1 text-xs font-medium text-warning-text dark:text-warning">
                   ${Number(item.plan_price).toLocaleString()}
                 </div>
               </button>

@@ -9,10 +9,9 @@ export default function AppLayout() {
   useScheduleChangeWatcher();
   useScheduleSwapWatcher();
   return (
-    <div className="min-h-screen bg-[#131313] text-white">
+    <div className="min-h-screen bg-surface text-text-primary">
       <TopBar />
 
-      {/* contenido real de páginas */}
       <main className="px-4 pt-20 pb-28">
         <Outlet />
       </main>

@@ -141,7 +141,7 @@ function MemberPortalLayout() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#161616] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando portal...
       </div>
     );
@@ -149,7 +149,7 @@ function MemberPortalLayout() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#161616] text-red-400">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-danger-text dark:text-danger">
         {error}
       </div>
     );
@@ -165,10 +165,10 @@ function MemberPortalLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#161616]">
+    <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-2xl pb-6">
         <div className="p-4">
-          <div className="rounded-2xl bg-[#201f1f] p-5">
+          <div className="rounded-xl bg-surface-elevated p-5 shadow-sm">
             <div className="flex items-center gap-4">
               {member.photo ? (
                 <img
@@ -177,21 +177,21 @@ function MemberPortalLayout() {
                   className="h-20 w-20 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-pink-500 text-2xl font-bold text-white">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-2xl font-bold text-white">
                   {member.first_name?.charAt(0)}
                   {member.last_name?.charAt(0)}
                 </div>
               )}
 
               <div className="flex-1">
-                <h1 className="text-2xl font-bold text-white">
+                <h1 className="text-2xl font-bold text-text-primary">
                   {member.first_name} {member.last_name}
                 </h1>
-                <p className="text-zinc-400">Socio de {gym.name}</p>
+                <p className="text-text-secondary">Socio de {gym.name}</p>
               </div>
             </div>
 
-            <div className="mt-4 border-t border-white/5 pt-4">
+            <div className="mt-4 border-t border-border pt-4">
               <input
                 type="file"
                 id="photo-upload"
@@ -210,24 +210,24 @@ function MemberPortalLayout() {
               />
               <label
                 htmlFor="photo-upload"
-                className="inline-block cursor-pointer rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+                className="inline-block cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
               >
                 {member.photo ? "Cambiar foto" : "Subir foto"}
               </label>
 
               {preview && (
                 <div className="mt-4">
-                  <p className="mb-2 text-sm text-zinc-400">Vista previa</p>
+                  <p className="mb-2 text-sm text-text-secondary">Vista previa</p>
                   <div className="flex items-center gap-4">
                     <img
                       src={preview}
                       alt="Preview"
-                      className="h-20 w-20 rounded-full border border-white/10 object-cover"
+                      className="h-20 w-20 rounded-full border border-border object-cover"
                     />
                     <button
                       onClick={handlePhotoUpload}
                       disabled={uploadingPhoto}
-                      className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+                      className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
                     >
                       {uploadingPhoto ? "Subiendo..." : "Confirmar foto"}
                     </button>
@@ -239,7 +239,7 @@ function MemberPortalLayout() {
         </div>
 
         <div className="px-4 mb-6">
-          <div className="flex rounded-xl bg-[#2a2a2a] p-1">
+          <div className="flex rounded-xl bg-surface-elevated border border-border p-1">
             {tabs.map((tab) => {
               const active = location.pathname === tab.path;
               const Icon = tab.icon;
@@ -249,8 +249,8 @@ function MemberPortalLayout() {
                   onClick={() => navigate(tab.path)}
                   className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium transition flex items-center justify-center gap-1.5 sm:gap-2 sm:px-4 ${
                     active
-                      ? "bg-blue-500 text-white"
-                      : "text-zinc-400 hover:text-zinc-200"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   <Icon size={18} />

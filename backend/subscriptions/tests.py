@@ -1,3 +1,5 @@
+import json
+
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.utils.timezone import now
@@ -9,8 +11,9 @@ from rest_framework.authtoken.models import Token
 from gyms.models import Gym
 from members.models import Member
 from plans.models import MembershipPlan
-from subscriptions.models import Subscription
+from subscriptions.models import Subscription, PlanChangeRequest, PlannedSchedule
 from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
+from subscriptions.services import calculate_effective_date, compute_projected_occupancy
 
 
 def _to_time(hour_str):
@@ -210,9 +213,6 @@ class MemberScheduleLimitTest(TestCase):
         ], 200)
 
 
-import json
-
-
 class PlanChangeRequestTest(TestCase):
     """PlanChangeRequest creation via admin ViewSet."""
 
@@ -372,10 +372,25 @@ class PlanChangeRequestTest(TestCase):
         pk = resp.data["id"]
 
         self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.client.post(self._url(f"{pk}/cancel"), format="json")
+
         resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
         self.assertEqual(resp2.status_code, 400)
 
-    def test_approve_updates_subscription_plan(self):
+    def test_approve_sets_effective_date(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.data["status"], "approved")
+        self.assertIsNotNone(resp2.data.get("effective_date"))
+
+        today = date.today()
+        expected = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+        self.assertEqual(resp2.data["effective_date"], expected.isoformat())
+
+    def test_approve_deferred_does_not_change_plan_yet(self):
         resp = self._create_request()
         pk = resp.data["id"]
 
@@ -388,8 +403,8 @@ class PlanChangeRequestTest(TestCase):
 
         self.member.refresh_from_db()
         subscription = self.member.subscription_set.first()
-        self.assertEqual(subscription.plan, self.plan_target)
-        self.assertNotEqual(subscription.plan, original_plan)
+        self.assertEqual(subscription.plan, original_plan)
+        self.assertNotEqual(subscription.plan, self.plan_target)
 
     def test_reject_does_not_update_subscription_plan(self):
         resp = self._create_request()
@@ -430,23 +445,25 @@ class PlanChangeRequestTest(TestCase):
 
     
                 
-    def test_approve_activates_new_schedules(self):
+    def test_approve_deferred_creates_planned_schedules(self):
         resp = self._create_request()
         pk = resp.data["id"]
 
         self.member.refresh_from_db()
+        original_schedules = list(AttendanceSchedule.objects.filter(
+            member=self.member, active=True
+        ).select_related("slot"))
+
         resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
         self.assertEqual(resp2.status_code, 200)
 
-        self.member.refresh_from_db()
-        active_schedules = AttendanceSchedule.objects.filter(
-            member=self.member, active=True
-        ).select_related("slot")
+        for s in original_schedules:
+            s.refresh_from_db()
+            self.assertTrue(s.active)
 
-        target_keys = {(s["day"], s["hour"]) for s in resp2.data["target_schedules_snapshot"]}
-        active_keys = {(s.slot.day, s.slot.hour.strftime("%H:%M")) for s in active_schedules}
-
-        self.assertEqual(target_keys, active_keys)
+        planned = PlannedSchedule.objects.filter(plan_change_id=pk)
+        self.assertEqual(planned.count(), 2)
+        self.assertFalse(planned.filter(activated=True).exists())
 
     
 
@@ -550,6 +567,246 @@ class PlanChangeRequestTest(TestCase):
         for schedule in original_schedules:
             schedule.refresh_from_db()
             self.assertTrue(schedule.active)
+
+    def test_approve_deferred_blocks_approval_if_full_at_effective_date(self):
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00"))
+        slot.capacity = 1
+        slot.save()
+
+        other_member = Member.objects.create(
+            gym=self.gym, first_name="Other", last_name="Guy", phone="333",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=other_member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+
+        today = date.today()
+        other_effective = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+
+        other_change = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=other_member,
+            requested_plan=self.plan_target,
+            status="approved",
+            effective_date=other_effective,
+            target_schedules_snapshot=[
+                {"day": "monday", "hour": "10:00"},
+            ],
+            current_schedules_snapshot=[],
+        )
+        PlannedSchedule.objects.create(
+            gym=self.gym,
+            member=other_member,
+            plan_change=other_change,
+            slot=slot,
+            slot_name="monday 10:00",
+            day="monday",
+            hour="10:00",
+        )
+
+        resp = self._create_request(schedules=[
+            {"day": "monday", "hour": "10:00"},
+            {"day": "tuesday", "hour": "10:00"},
+        ])
+        self.assertEqual(resp.status_code, 201)
+        pk = resp.data["id"]
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 400)
+        self.assertIn("capacidad", str(resp2.data).lower())
+
+    def test_approve_deferred_when_subscription_expired(self):
+        expired_member = Member.objects.create(
+            gym=self.gym, first_name="Expired", last_name="User", phone="444",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=expired_member, plan=self.plan_current,
+            start_date=date.today() - timedelta(days=60),
+            end_date=date.today() - timedelta(days=30),
+        )
+        _create_schedules(expired_member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+        resp = self._create_request(member=expired_member)
+        pk = resp.data["id"]
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.data["status"], "approved")
+        self.assertIsNotNone(resp2.data["effective_date"])
+
+        today = date.today()
+        expected = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+        self.assertEqual(resp2.data["effective_date"], expected.isoformat())
+
+        expired_member.refresh_from_db()
+        sub = expired_member.subscription_set.first()
+        self.assertEqual(sub.plan, self.plan_current)
+
+        active = AttendanceSchedule.objects.filter(member=expired_member, active=True)
+        self.assertEqual(active.count(), 2)
+
+        planned = PlannedSchedule.objects.filter(plan_change_id=pk)
+        self.assertEqual(planned.count(), 2)
+
+
+class PlanChangeExecutionTest(TestCase):
+    """Tests for management command and services layer."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.gym = Gym.objects.create(
+            name="Exec Gym", slug="exec-gym", phone="123", email="exec@gym.com",
+        )
+        self.user = User.objects.create_user(username="execadmin", password="pass1234")
+        self.user.profile.gym = self.gym
+        self.user.profile.save()
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+        self.plan_old = MembershipPlan.objects.create(
+            gym=self.gym, name="Old", price=10, duration_days=30, weekly_visits=2,
+        )
+        self.plan_new = MembershipPlan.objects.create(
+            gym=self.gym, name="New", price=20, duration_days=30, weekly_visits=2,
+        )
+
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Exec", last_name="User", phone="555",
+        )
+        self.subscription = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan_old,
+            start_date=date.today() - timedelta(days=30),
+            end_date=date.today() - timedelta(days=1),
+        )
+
+        _create_slot(self.gym, "monday", "10:00")
+        _create_slot(self.gym, "tuesday", "10:00")
+
+        self.pcr = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=self.member,
+            requested_plan=self.plan_new,
+            status="approved",
+            effective_date=date.today(),
+            target_schedules_snapshot=[
+                {"day": "monday", "hour": "10:00"},
+            ],
+            current_schedules_snapshot=[{"day": "tuesday", "hour": "10:00"}],
+        )
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00"))
+        PlannedSchedule.objects.create(
+            gym=self.gym,
+            member=self.member,
+            plan_change=self.pcr,
+            slot=slot,
+            slot_name="monday 10:00",
+            day="monday",
+            hour="10:00",
+        )
+
+    def _url(self, suffix=""):
+        if suffix:
+            return f"/api/plan-change-requests/{suffix}/"
+        return "/api/plan-change-requests/"
+
+    def test_management_command_activates_due_plan_changes(self):
+        from django.core.management import call_command
+        from io import StringIO
+        out = StringIO()
+        call_command("apply_plan_changes", stdout=out)
+
+        self.pcr.refresh_from_db()
+        self.assertEqual(self.pcr.status, "executed")
+
+        self.member.refresh_from_db()
+        sub = self.member.subscription_set.first()
+        self.assertEqual(sub.plan, self.plan_new)
+
+        active = AttendanceSchedule.objects.filter(member=self.member, active=True)
+        self.assertEqual(active.count(), 1)
+
+    def test_management_command_skips_future_plan_changes(self):
+        future_pcr = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=self.member,
+            requested_plan=self.plan_old,
+            status="approved",
+            effective_date=date.today() + timedelta(days=10),
+            target_schedules_snapshot=[],
+            current_schedules_snapshot=[],
+        )
+
+        from django.core.management import call_command
+        from io import StringIO
+        out = StringIO()
+        call_command("apply_plan_changes", stdout=out)
+
+        future_pcr.refresh_from_db()
+        self.assertEqual(future_pcr.status, "approved")
+
+    def test_management_command_skips_already_executed(self):
+        from django.core.management import call_command
+        from io import StringIO
+        out = StringIO()
+        call_command("apply_plan_changes", stdout=out)
+        call_command("apply_plan_changes", stdout=out)
+        self.pcr.refresh_from_db()
+        self.assertEqual(self.pcr.status, "executed")
+
+    def test_calculate_effective_date_with_active_subscription(self):
+        today = date.today()
+        expected = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+        ed = calculate_effective_date(self.member)
+        self.assertEqual(ed, expected)
+
+    def test_calculate_effective_date_without_subscription(self):
+        today = date.today()
+        expected = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+        member_no_sub = Member.objects.create(
+            gym=self.gym, first_name="NoSub", last_name="User", phone="666",
+        )
+        ed = calculate_effective_date(member_no_sub)
+        self.assertEqual(ed, expected)
+
+    def test_compute_projected_occupancy_base(self):
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00"))
+        occ = compute_projected_occupancy(slot, date.today())
+        self.assertEqual(occ, 1)
+
+    def test_compute_projected_occupancy_excludes_member(self):
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00"))
+        occ = compute_projected_occupancy(slot, date.today(), exclude_member=self.member)
+        self.assertEqual(occ, 0)
+
+    def test_compute_projected_occupancy_counts_future_changes(self):
+        other_member = Member.objects.create(
+            gym=self.gym, first_name="Other", last_name="User2", phone="777",
+        )
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00"))
+        other_change = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=other_member,
+            requested_plan=self.plan_new,
+            status="approved",
+            effective_date=date.today(),
+            target_schedules_snapshot=[{"day": "monday", "hour": "10:00"}],
+            current_schedules_snapshot=[],
+        )
+        PlannedSchedule.objects.create(
+            gym=self.gym,
+            member=other_member,
+            plan_change=other_change,
+            slot=slot,
+            slot_name="monday 10:00",
+            day="monday",
+            hour="10:00",
+        )
+
+        occ = compute_projected_occupancy(slot, date.today())
+        self.assertEqual(occ, 2)
 
 
 class PublicPlanChangeRequestTest(TestCase):
@@ -748,3 +1005,447 @@ class RegistrationSubscriptionTest(TestCase):
         resp = self._register(plan_id=other_plan.id)
         self.assertEqual(resp.status_code, 400)
         self.assertIn("plan_id", resp.data)
+
+
+class Phase3Test(TestCase):
+    """Phase 3: cancellation, chained prevention, suggestions, visibility."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.gym = Gym.objects.create(
+            name="Phase3 Gym", slug="phase3-gym", phone="123", email="p3@gym.com",
+        )
+        self.user = User.objects.create_user(username="p3admin", password="pass1234")
+        self.user.profile.gym = self.gym
+        self.user.profile.save()
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+        self.plan_current = MembershipPlan.objects.create(
+            gym=self.gym, name="Current", price=10, duration_days=30, weekly_visits=2,
+        )
+        self.plan_target = MembershipPlan.objects.create(
+            gym=self.gym, name="Target", price=20, duration_days=30, weekly_visits=2,
+        )
+
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Phase3", last_name="User", phone="888",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+
+        _create_slot(self.gym, "monday", "10:00")
+        _create_slot(self.gym, "tuesday", "10:00")
+        _create_slot(self.gym, "wednesday", "10:00", capacity=1)
+
+        _create_schedules(self.member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+    def _url(self, suffix=""):
+        if suffix:
+            return f"/api/plan-change-requests/{suffix}/"
+        return "/api/plan-change-requests/"
+
+    def _create_request(self, schedules=None):
+        data = {
+            "member": self.member.id,
+            "requested_plan": self.plan_target.id,
+            "target_schedules_snapshot": schedules or [
+                {"day": "monday", "hour": "10:00"},
+                {"day": "tuesday", "hour": "10:00"},
+            ],
+        }
+        return self.client.post(self._url(), data, format="json")
+
+    # ── Feature 1: Cancel approved+future plan change (admin) ──
+
+    def test_cancel_approved_future(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+        self.client.post(self._url(f"{pk}/approve"), format="json")
+
+        resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.data["status"], "cancelled")
+
+        planned = PlannedSchedule.objects.filter(plan_change_id=pk)
+        self.assertEqual(planned.count(), 0)
+
+        self.member.refresh_from_db()
+        sub = self.member.subscription_set.first()
+        self.assertEqual(sub.plan, self.plan_current)
+
+        active = AttendanceSchedule.objects.filter(member=self.member, active=True)
+        self.assertEqual(active.count(), 2)
+
+    def test_can_cancel_approved_future_even_with_other_approved(self):
+        other_member = Member.objects.create(
+            gym=self.gym, first_name="Other", last_name="Cancel", phone="8915",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=other_member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+        _create_schedules(other_member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+        data = {
+            "member": other_member.id,
+            "requested_plan": self.plan_target.id,
+            "target_schedules_snapshot": [
+                {"day": "monday", "hour": "10:00"},
+                {"day": "tuesday", "hour": "10:00"},
+            ],
+        }
+        resp_other = self.client.post(self._url(), data, format="json")
+        pk_other = resp_other.data["id"]
+        self.client.post(self._url(f"{pk_other}/approve"), format="json")
+
+        resp = self._create_request()
+        pk = resp.data["id"]
+        self.client.post(self._url(f"{pk}/approve"), format="json")
+
+        resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.data["status"], "cancelled")
+
+    def test_cannot_cancel_approved_executed(self):
+        expired_member = Member.objects.create(
+            gym=self.gym, first_name="Expired", last_name="Cancel", phone="889",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=expired_member, plan=self.plan_current,
+            start_date=date.today() - timedelta(days=60),
+            end_date=date.today() - timedelta(days=30),
+        )
+        _create_schedules(expired_member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+        data = {
+            "member": expired_member.id,
+            "requested_plan": self.plan_target.id,
+            "target_schedules_snapshot": [
+                {"day": "monday", "hour": "10:00"},
+                {"day": "tuesday", "hour": "10:00"},
+            ],
+        }
+        resp = self.client.post(self._url(), data, format="json")
+        pk = resp.data["id"]
+        self.client.post(self._url(f"{pk}/approve"), format="json")
+
+        resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
+        self.assertEqual(resp2.status_code, 400)
+
+    # ── Feature 1: Cancel approved+future plan change (public) ──
+
+    def test_public_cancel_approved_future(self):
+        pub_plan = MembershipPlan.objects.create(
+            gym=self.gym, name="PubTarget", price=25, duration_days=30, weekly_visits=2,
+        )
+        pub_member = Member.objects.create(
+            gym=self.gym, first_name="Pub", last_name="User", phone="890",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=pub_member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+        _create_schedules(pub_member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+        token = pub_member.access_token
+        create_resp = self.client.post(
+            f"/api/subscriptions/public/plan-change-requests/{token}/",
+            {
+                "requested_plan": pub_plan.id,
+                "target_schedules_snapshot": [
+                    {"day": "monday", "hour": "10:00"},
+                    {"day": "tuesday", "hour": "10:00"},
+                ],
+            },
+            format="json",
+        )
+        pk = create_resp.data["id"]
+
+        self.client.post(
+            f"/api/plan-change-requests/{pk}/approve/",
+            format="json",
+            **{"HTTP_AUTHORIZATION": f"Token {self.token.key}"},
+        )
+
+        cancel_resp = self.client.post(
+            f"/api/subscriptions/public/plan-change-requests/{token}/{pk}/cancel/",
+            format="json",
+        )
+        self.assertEqual(cancel_resp.status_code, 200)
+        self.assertEqual(cancel_resp.data["status"], "cancelled")
+
+        planned = PlannedSchedule.objects.filter(plan_change_id=pk)
+        self.assertEqual(planned.count(), 0)
+
+    # ── Feature 2: Prevent chained future plan changes ──
+
+    def test_cannot_create_request_with_existing_future_approved(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+        self.client.post(self._url(f"{pk}/approve"), format="json")
+
+        resp2 = self._create_request()
+        self.assertEqual(resp2.status_code, 400)
+        self.assertIn("próximo ciclo", str(resp2.data).lower())
+
+    def test_can_create_request_if_future_approved_is_cancelled(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+        self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.client.post(self._url(f"{pk}/cancel"), format="json")
+
+        resp2 = self._create_request()
+        self.assertEqual(resp2.status_code, 201)
+
+    def test_can_create_request_if_future_approved_was_executed(self):
+        target_plan_b = MembershipPlan.objects.create(
+            gym=self.gym, name="Plan B", price=30, duration_days=30, weekly_visits=2,
+        )
+        target_plan_c = MembershipPlan.objects.create(
+            gym=self.gym, name="Plan C", price=40, duration_days=30, weekly_visits=2,
+        )
+        expired_member = Member.objects.create(
+            gym=self.gym, first_name="Exec", last_name="Chained", phone="891",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=expired_member, plan=self.plan_current,
+            start_date=date.today() - timedelta(days=60),
+            end_date=date.today() - timedelta(days=30),
+        )
+        _create_schedules(expired_member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+        data = {
+            "member": expired_member.id,
+            "requested_plan": target_plan_b.id,
+            "target_schedules_snapshot": [
+                {"day": "monday", "hour": "10:00"},
+                {"day": "tuesday", "hour": "10:00"},
+            ],
+        }
+        resp = self.client.post(self._url(), data, format="json")
+        pk = resp.data["id"]
+        self.client.post(self._url(f"{pk}/approve"), format="json")
+
+        data2 = {
+            "member": expired_member.id,
+            "requested_plan": target_plan_c.id,
+            "target_schedules_snapshot": [
+                {"day": "monday", "hour": "10:00"},
+                {"day": "tuesday", "hour": "10:00"},
+            ],
+        }
+        resp2 = self.client.post(self._url(), data2, format="json")
+        self.assertEqual(resp2.status_code, 201)
+
+    # ── Feature 3: planned_schedules in serializer output ──
+
+    def test_approved_future_includes_planned_schedules(self):
+        resp = self._create_request()
+        pk = resp.data["id"]
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertIn("planned_schedules", resp2.data)
+        self.assertEqual(len(resp2.data["planned_schedules"]), 2)
+
+    def test_public_approved_future_includes_planned_schedules(self):
+        pub_member = Member.objects.create(
+            gym=self.gym, first_name="Vis", last_name="User", phone="892",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=pub_member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+        _create_schedules(pub_member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+        token = pub_member.access_token
+        create_resp = self.client.post(
+            f"/api/subscriptions/public/plan-change-requests/{token}/",
+            {
+                "requested_plan": self.plan_target.id,
+                "target_schedules_snapshot": [
+                    {"day": "monday", "hour": "10:00"},
+                    {"day": "tuesday", "hour": "10:00"},
+                ],
+            },
+            format="json",
+        )
+        pk = create_resp.data["id"]
+
+        self.client.post(
+            f"/api/plan-change-requests/{pk}/approve/",
+            format="json",
+            **{"HTTP_AUTHORIZATION": f"Token {self.token.key}"},
+        )
+
+        list_resp = self.client.get(
+            f"/api/subscriptions/public/plan-change-requests/{token}/",
+        )
+        approved = [r for r in list_resp.data if r["status"] == "approved"]
+        self.assertEqual(len(approved), 1)
+        self.assertIn("planned_schedules", approved[0])
+        self.assertEqual(len(approved[0]["planned_schedules"]), 2)
+
+    # ── Feature 4: Alternative schedule suggestions ──
+
+    def test_approval_includes_suggestions_when_capacity_full(self):
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="wednesday", hour=_to_time("10:00"))
+        slot.capacity = 1
+        slot.save()
+
+        other_member = Member.objects.create(
+            gym=self.gym, first_name="Other", last_name="Sug", phone="893",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=other_member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+
+        other_change = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=other_member,
+            requested_plan=self.plan_target,
+            status="approved",
+            effective_date=date.today() + timedelta(days=31),
+            target_schedules_snapshot=[{"day": "wednesday", "hour": "10:00"}],
+            current_schedules_snapshot=[],
+        )
+        PlannedSchedule.objects.create(
+            gym=self.gym,
+            member=other_member,
+            plan_change=other_change,
+            slot=slot,
+            slot_name="wednesday 10:00",
+            day="wednesday",
+            hour="10:00",
+        )
+
+        resp = self._create_request(schedules=[
+            {"day": "wednesday", "hour": "10:00"},
+            {"day": "tuesday", "hour": "10:00"},
+        ])
+        self.assertEqual(resp.status_code, 201)
+        pk = resp.data["id"]
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        self.assertEqual(resp2.status_code, 400)
+        self.assertIn("suggestions", str(resp2.data).lower())
+        self.assertIn("monday", str(resp2.data).lower())
+
+    def test_approval_suggestions_are_available_alternatives(self):
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="wednesday", hour=_to_time("10:00"))
+        slot.capacity = 1
+        slot.save()
+
+        other_member = Member.objects.create(
+            gym=self.gym, first_name="Sug2", last_name="User", phone="894",
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=other_member, plan=self.plan_current,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+
+        other_change = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=other_member,
+            requested_plan=self.plan_target,
+            status="approved",
+            effective_date=date.today() + timedelta(days=31),
+            target_schedules_snapshot=[{"day": "wednesday", "hour": "10:00"}],
+            current_schedules_snapshot=[],
+        )
+        PlannedSchedule.objects.create(
+            gym=self.gym,
+            member=other_member,
+            plan_change=other_change,
+            slot=slot,
+            slot_name="wednesday 10:00",
+            day="wednesday",
+            hour="10:00",
+        )
+
+        resp = self._create_request(schedules=[
+            {"day": "wednesday", "hour": "10:00"},
+            {"day": "tuesday", "hour": "10:00"},
+        ])
+        pk = resp.data["id"]
+
+        resp2 = self.client.post(self._url(f"{pk}/approve"), format="json")
+        data = resp2.data
+
+        if isinstance(data, dict) and "suggestions" in str(data):
+            pass
+
+        self.assertEqual(resp2.status_code, 400)
+
+        suggestions = None
+        if isinstance(data, dict):
+            for key in data:
+                val = data[key]
+                if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and "day" in val[0]:
+                    suggestions = val
+                    break
+
+        self.assertIsNotNone(suggestions)
+        self.assertGreater(len(suggestions), 0)
+
+        suggestion_days = {s["day"] for s in suggestions}
+        self.assertIn("monday", suggestion_days)
+        self.assertIn("tuesday", suggestion_days)
+
+
+class MonthlyModelTest(TestCase):
+    """Tests for monthly subscription architecture (Phase 1)."""
+
+    def test_auto_renew_default_value(self):
+        gym = Gym.objects.create(
+            name="Monthly Gym", slug="monthly-gym", phone="555", email="m@gym.com",
+        )
+        member = Member.objects.create(
+            gym=gym, first_name="Monthly", last_name="User", phone="777",
+        )
+        plan = MembershipPlan.objects.create(
+            gym=gym, name="Monthly", price=10, duration_days=30,
+        )
+        sub = Subscription.objects.create(
+            gym=gym, member=member, plan=plan,
+            start_date=date.today(), end_date=date.today() + timedelta(days=30),
+        )
+        self.assertTrue(sub.auto_renew)
+
+    def test_calculate_effective_date_returns_first_of_next_month(self):
+        ed = calculate_effective_date()
+        self.assertEqual(ed.day, 1)
+        self.assertGreater(ed.month, 0)
+        self.assertGreater(ed.year, 0)
+
+    def test_calculate_effective_date_year_boundary(self):
+        from unittest.mock import patch
+        with patch("subscriptions.services.timezone.localdate", return_value=date(2026, 12, 15)):
+            ed = calculate_effective_date()
+        self.assertEqual(ed, date(2027, 1, 1))
+
+    def test_calculate_effective_date_mid_month(self):
+        from unittest.mock import patch
+        with patch("subscriptions.services.timezone.localdate", return_value=date(2026, 6, 5)):
+            ed = calculate_effective_date()
+        self.assertEqual(ed, date(2026, 7, 1))
+
+    def test_calculate_effective_date_end_of_month(self):
+        from unittest.mock import patch
+        with patch("subscriptions.services.timezone.localdate", return_value=date(2026, 6, 28)):
+            ed = calculate_effective_date()
+        self.assertEqual(ed, date(2026, 7, 1))

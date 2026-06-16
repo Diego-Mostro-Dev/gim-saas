@@ -155,25 +155,25 @@ function PlanChangeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-10 pb-10">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#1b1b1b] shadow-2xl">
+      <div className="w-full max-w-lg rounded-3xl border border-border/10 bg-surface-modal shadow-2xl">
         {/* HEADER */}
-        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border/5 px-6 py-4">
           <div className="flex items-center gap-3">
             {step === "schedules" && (
               <button
                 onClick={() => setStep("select")}
-                className="text-zinc-400 transition hover:text-white"
+                className="text-text-secondary transition hover:text-text-primary"
               >
                 <ChevronLeft size={20} />
               </button>
             )}
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-lg font-semibold text-text-primary">
               {step === "select" ? "Solicitar cambio de plan" : "Configurar horarios"}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-400 transition hover:text-white"
+            className="text-text-secondary transition hover:text-text-primary"
           >
             <X size={20} />
           </button>
@@ -183,20 +183,20 @@ function PlanChangeModal({
           {step === "select" && (
             <>
               {currentSubscription && (
-                <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                <div className="rounded-2xl border border-border bg-surface-elevated p-4 shadow-sm">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
                     Plan actual
                   </p>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className="text-base font-bold text-text-primary">
                     {currentSubscription.plan}
                   </h3>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-text-secondary">
                     {weeklyLabel(currentSubscription.plan_weekly_visits)}
                   </p>
                 </div>
               )}
 
-              <p className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <p className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
                 Seleccioná un nuevo plan
               </p>
 
@@ -210,27 +210,27 @@ function PlanChangeModal({
                       onClick={() => handleSelectPlan(plan.id)}
                       className={`cursor-pointer rounded-xl border p-4 transition ${
                         isActive
-                          ? "border-blue-500 bg-blue-500/10"
-                          : "border-white/5 bg-[#1a1a1a] hover:border-white/20"
+                          ? "border-info bg-info-bg"
+                          : "border-border bg-surface hover:border-border/20"
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h3 className="font-bold text-white">{plan.name}</h3>
-                          <p className="text-sm text-zinc-400">
+                          <h3 className="font-bold text-text-primary">{plan.name}</h3>
+                          <p className="text-sm text-text-secondary">
                             {plan.duration_days} días
                           </p>
                           <p className="text-sm text-blue-400">
                             {weeklyLabel(plan.weekly_visits)}
                           </p>
                           {plan.description && (
-                            <p className="mt-1 text-xs text-zinc-500">
+                            <p className="mt-1 text-xs text-text-secondary">
                               {plan.description}
                             </p>
                           )}
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-white">
+                          <p className="text-base font-bold text-info-text dark:text-info">
                             ${Number(plan.price).toLocaleString("es-AR")}
                           </p>
                         </div>
@@ -243,23 +243,23 @@ function PlanChangeModal({
 
           {step === "schedules" && selectedPlan && (
             <>
-              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
-                <p className="text-sm text-blue-300">{getHelperMessage()}</p>
+              <div className="rounded-2xl border border-info/20 bg-info-bg/50 p-4 dark:bg-info/15">
+                <p className="text-sm text-info-text dark:text-info">{getHelperMessage()}</p>
               </div>
 
               {selectedPlan.weekly_visits !== null && (
-                <div className="flex justify-between rounded-xl bg-[#2a2a2a] px-4 py-3">
-                  <span className="text-sm text-zinc-400">Horarios seleccionados</span>
-                  <span className="text-sm font-medium text-white">
+                <div className="flex justify-between rounded-xl bg-surface-input px-4 py-3">
+                  <span className="text-sm text-text-secondary">Horarios seleccionados</span>
+                  <span className="text-sm font-medium text-text-primary">
                     {targetSchedules.length} / {selectedPlan.weekly_visits}
                   </span>
                 </div>
               )}
 
               {selectedPlan.weekly_visits === null && targetSchedules.length > 0 && (
-                <div className="flex justify-between rounded-xl bg-[#2a2a2a] px-4 py-3">
-                  <span className="text-sm text-zinc-400">Horarios seleccionados</span>
-                  <span className="text-sm font-medium text-white">
+                <div className="flex justify-between rounded-xl bg-surface-input px-4 py-3">
+                  <span className="text-sm text-text-secondary">Horarios seleccionados</span>
+                  <span className="text-sm font-medium text-text-primary">
                     {targetSchedules.length}
                   </span>
                 </div>
@@ -275,26 +275,26 @@ function PlanChangeModal({
                       onClick={() => handleToggleSlot(slot)}
                       className={`flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3 transition ${
                         selected
-                          ? "border-blue-500 bg-blue-500/10"
-                          : "border-white/5 bg-[#2a2a2a] hover:border-white/20"
+                          ? "border-info bg-info-bg"
+                          : "border-border bg-surface-input hover:border-border/20"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div
                           className={`flex h-5 w-5 items-center justify-center rounded border ${
                             selected
-                              ? "border-blue-500 bg-blue-500"
+                              ? "border-info bg-info"
                               : "border-zinc-600"
                           }`}
                         >
                           {selected && <Check size={14} className="text-white" />}
                         </div>
-                        <span className="text-sm text-white">
+                        <span className="text-sm text-text-primary">
                           {DAY_NAMES[slot.day] || slot.day} {slot.hour}
                         </span>
                       </div>
                       {isCurrent && (
-                        <span className="text-xs text-zinc-500">Actual</span>
+                        <span className="text-xs text-text-secondary">Actual</span>
                       )}
                     </div>
                   );
@@ -302,9 +302,9 @@ function PlanChangeModal({
               </div>
 
               {getValidationError() && (
-                <div className="flex items-center gap-2 rounded-xl bg-yellow-500/10 px-4 py-3">
-                  <AlertTriangle size={16} className="text-yellow-400" />
-                  <p className="text-sm text-yellow-300">{getValidationError()}</p>
+                <div className="flex items-center gap-2 rounded-xl bg-warning-bg dark:bg-warning/10 px-4 py-3">
+                  <AlertTriangle size={16} className="text-warning-text dark:text-warning" />
+                  <p className="text-sm text-warning-text dark:text-warning">{getValidationError()}</p>
                 </div>
               )}
 

@@ -120,10 +120,10 @@ function ScheduleChangeRequests() {
     const base =
       "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium";
     const colors = {
-      pending: "bg-yellow-500/20 text-yellow-300",
-      approved: "bg-green-500/20 text-green-300",
-      rejected: "bg-red-500/20 text-red-300",
-      cancelled: "bg-zinc-500/20 text-zinc-400",
+      pending: "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning",
+      approved: "bg-success-bg dark:bg-success/15 text-success-text dark:text-success",
+      rejected: "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger",
+      cancelled: "bg-muted-bg text-muted-text",
     };
     return (
       <span className={`${base} ${colors[status] || colors.pending}`}>
@@ -201,17 +201,17 @@ function ScheduleChangeRequests() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando solicitudes...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#131313] pb-28 pt-6 text-white">
+    <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
       <div className="mb-6 px-4">
         <h1 className="text-3xl font-bold">Cambios de horario</h1>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="mt-1 text-sm text-text-secondary">
           Cambios permanentes del horario habitual de un socio.
         </p>
       </div>
@@ -226,8 +226,8 @@ function ScheduleChangeRequests() {
             }}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
               filter === f.key
-                ? "bg-blue-500 text-white"
-                : "bg-[#201f1f] text-zinc-400 hover:bg-[#2a2a2a]"
+                ? "bg-info text-white"
+                : "bg-surface-elevated text-text-secondary hover:bg-surface-input"
             }`}
           >
             {f.label}
@@ -237,7 +237,7 @@ function ScheduleChangeRequests() {
 
       <div className="space-y-3 px-4">
         {filteredRequests.length === 0 ? (
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             {requests.length === 0
               ? "No hay solicitudes de cambio"
               : "No hay solicitudes con este estado"}
@@ -246,18 +246,18 @@ function ScheduleChangeRequests() {
           filteredRequests.map((req) => (
             <div
               key={req.id}
-              className="rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
               <div className="mb-3 flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-text-primary">
                     {req.member_name}
                   </p>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="mt-0.5 text-xs text-text-secondary">
                     Solicitado el: {formatDate(req.requested_at)}
                   </p>
                   {req.effective_date && (
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-text-secondary">
                       Vigente desde: {formatDate(req.effective_date)}
                     </p>
                   )}
@@ -265,17 +265,17 @@ function ScheduleChangeRequests() {
                 {statusBadge(req.status)}
               </div>
 
-              <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
+              <div className="mb-3 flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Actual</p>
-                  <p className="text-sm text-white">
+                  <p className="text-xs text-text-secondary">Actual</p>
+                  <p className="text-sm text-text-primary">
                     {DAY_NAMES[req.current_day] || req.current_day} {req.current_hour}
                   </p>
                 </div>
-                <ArrowLeftRight size={16} className="shrink-0 text-zinc-500" />
+                <ArrowLeftRight size={16} className="shrink-0 text-text-secondary" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Solicitado</p>
-                  <p className="text-sm text-white">
+                  <p className="text-xs text-text-secondary">Solicitado</p>
+                  <p className="text-sm text-text-primary">
                     {DAY_NAMES[req.requested_day] || req.requested_day} {req.requested_hour}
                   </p>
                 </div>
@@ -285,14 +285,14 @@ function ScheduleChangeRequests() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleOpenApproval(req)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-500/20 py-2 text-sm font-medium text-green-300 transition hover:bg-green-500/30"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-success-bg dark:bg-success/15 py-2 text-sm font-medium text-success-text dark:text-success transition hover:bg-success-bg dark:hover:bg-success/30"
                   >
                     <Check size={16} />
                     Aprobar
                   </button>
                   <button
                     onClick={() => handleOpenRejection(req)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-500/20 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/30"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-danger-bg dark:bg-danger/15 py-2 text-sm font-medium text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/30"
                   >
                     <X size={16} />
                     Rechazar
@@ -301,9 +301,9 @@ function ScheduleChangeRequests() {
               )}
 
               {req.admin_notes && req.status !== "pending" && (
-                <div className="mt-2 rounded-xl bg-[#2a2a2a] px-3 py-2">
-                  <p className="text-xs text-zinc-500">Notas:</p>
-                  <p className="text-sm text-zinc-300">{req.admin_notes}</p>
+                <div className="mt-2 rounded-xl bg-surface-input px-3 py-2">
+                  <p className="text-xs text-text-secondary">Notas:</p>
+                  <p className="text-sm text-text-secondary">{req.admin_notes}</p>
                 </div>
               )}
             </div>
@@ -314,29 +314,29 @@ function ScheduleChangeRequests() {
       {/* Approval modal */}
       {approvalTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#1b1b1b] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-text-primary">
                 Aprobar cambio de horario
               </h2>
             </div>
 
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-zinc-400">Socio</p>
-                <p className="text-white">{approvalTarget.member_name}</p>
+                <p className="text-sm text-text-secondary">Socio</p>
+                <p className="text-text-primary">{approvalTarget.member_name}</p>
               </div>
-              <div className="flex items-center gap-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
+              <div className="flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Actual</p>
-                  <p className="text-sm text-white">
+                  <p className="text-xs text-text-secondary">Actual</p>
+                  <p className="text-sm text-text-primary">
                     {DAY_NAMES[approvalTarget.current_day] || approvalTarget.current_day} {approvalTarget.current_hour}
                   </p>
                 </div>
-                <ArrowLeftRight size={16} className="shrink-0 text-zinc-500" />
+                <ArrowLeftRight size={16} className="shrink-0 text-text-secondary" />
                 <div className="flex-1 text-center">
-                  <p className="text-xs text-zinc-500">Nuevo</p>
-                  <p className="text-sm text-green-300">
+                  <p className="text-xs text-text-secondary">Nuevo</p>
+                  <p className="text-sm text-success-text dark:text-success">
                     {DAY_NAMES[approvalTarget.requested_day] || approvalTarget.requested_day}{" "}
                     {approvalTarget.requested_hour}
                   </p>
@@ -347,13 +347,13 @@ function ScheduleChangeRequests() {
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setApprovalTarget(null)}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-surface-input"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmApproval}
-                className="rounded-xl bg-green-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-600"
+                className="rounded-xl bg-success px-4 py-2 text-sm font-medium text-white transition hover:brightness-90"
               >
                 Aprobar
               </button>
@@ -365,27 +365,27 @@ function ScheduleChangeRequests() {
       {/* Rejection modal */}
       {rejectionTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#1b1b1b] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
               {rejectionTarget.effective_date && (
-                <div className="mt-3 rounded-xl bg-[#2a2a2a] px-3 py-2">
-                  <p className="text-xs text-zinc-500">Vigente desde</p>
-                  <p className="text-sm text-white">
+                <div className="mt-3 rounded-xl bg-surface-input px-3 py-2">
+                  <p className="text-xs text-text-secondary">Vigente desde</p>
+                  <p className="text-sm text-text-primary">
                     {formatDate(rejectionTarget.effective_date)}
                   </p>
                 </div>
               )}
 
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-white">
+                <h2 className="text-lg font-semibold text-text-primary">
                   Rechazar cambio de horario
               </h2>
-              <p className="mt-1 text-sm text-zinc-400">
+              <p className="mt-1 text-sm text-text-secondary">
                 {rejectionTarget.member_name}
               </p>
             </div>
 
             <div>
-              <label className="mb-1 block text-sm text-zinc-400">
+              <label className="mb-1 block text-sm text-text-secondary">
                 Notas (opcional)
               </label>
               <textarea
@@ -393,7 +393,7 @@ function ScheduleChangeRequests() {
                 onChange={(e) => setRejectionNotes(e.target.value)}
                 placeholder="Motivo del rechazo..."
                 rows={3}
-                className="w-full rounded-xl border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600"
+                className="w-full rounded-xl border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary"
               />
             </div>
 
@@ -403,13 +403,13 @@ function ScheduleChangeRequests() {
                   setRejectionTarget(null);
                   setRejectionNotes("");
                 }}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-surface-input"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmRejection}
-                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+                className="rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:brightness-90"
               >
                 Rechazar
               </button>
