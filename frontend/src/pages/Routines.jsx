@@ -70,16 +70,16 @@ function Routines() {
       <div className="flex items-start gap-3">
         <button
           onClick={() => navigate("/dashboard")}
-          className="mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+          className="mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
         >
           <ArrowLeft size={18} />
           Volver al inicio
         </button>
 
         <div>
-          <h1 className="text-2xl font-bold text-white">Rutinas</h1>
+          <h1 className="text-2xl font-bold text-text-primary">Rutinas</h1>
 
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-text-secondary">
             Gestiona ejercicios, rutinas y asignaciones.
           </p>
         </div>
@@ -95,8 +95,8 @@ function Routines() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center justify-center gap-2 rounded-xl border p-3 transition ${
                 activeTab === tab.id
-                  ? "border-blue-500 bg-blue-500/10 text-blue-300"
-                  : "border-white/10 bg-[#201f1f] text-zinc-400 hover:bg-[#2a2a2a]"
+                  ? "border-info bg-info-bg text-info-text dark:bg-info/15 dark:text-info"
+                  : "border-border/10 bg-surface-elevated text-text-secondary hover:bg-surface-input"
               }`}
             >
               <Icon size={18} />
@@ -107,22 +107,22 @@ function Routines() {
         })}
       </div>
 
-      <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-5">
+      <div className="rounded-xl border border-border bg-surface-elevated p-5">
         {/* EJERCICIOS */}
         {activeTab === "exercises" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Ejercicios</h2>
+            <h2 className="text-lg font-semibold text-text-primary">Ejercicios</h2>
 
             <ExerciseForm onSubmit={addExercise} />
 
             {exercisesLoading && (
-              <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
+              <div className="rounded-xl border border-border p-6 text-center text-text-secondary">
                 Cargando ejercicios...
               </div>
             )}
 
             {exercisesError && (
-              <div className="rounded-xl bg-red-500/10 p-4 text-red-300">
+              <div className="rounded-xl bg-danger-bg dark:bg-danger/10 p-4 text-danger-text dark:text-danger">
                 {exercisesError}
               </div>
             )}
@@ -134,18 +134,18 @@ function Routines() {
         {/* RUTINAS */}
         {activeTab === "templates" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Rutinas</h2>
+            <h2 className="text-lg font-semibold text-text-primary">Rutinas</h2>
 
             <RoutineTemplateForm onSubmit={addTemplate} />
 
             {templatesLoading && (
-              <div className="rounded-xl border border-white/10 p-6 text-center text-zinc-400">
+              <div className="rounded-xl border border-border p-6 text-center text-text-secondary">
                 Cargando rutinas...
               </div>
             )}
 
             {templatesError && (
-              <div className="rounded-xl bg-red-500/10 p-4 text-red-300">
+              <div className="rounded-xl bg-danger-bg dark:bg-danger/10 p-4 text-danger-text dark:text-danger">
                 {templatesError}
               </div>
             )}
@@ -184,7 +184,7 @@ function Routines() {
         {/* ASIGNACIONES */}
         {activeTab === "assignments" && (
           <div>
-            <h2 className="mb-4 text-lg font-semibold text-white">
+            <h2 className="mb-4 text-lg font-semibold text-text-primary">
               Asignaciones
             </h2>
 
@@ -195,7 +195,7 @@ function Routines() {
         {/* ACTIVAS */}
         {activeTab === "active" && (
           <div>
-            <h2 className="mb-4 text-lg font-semibold text-white">
+            <h2 className="mb-4 text-lg font-semibold text-text-primary">
               Rutinas asignadas
             </h2>
 

@@ -22,14 +22,14 @@ function BottomNav() {
 
   const baseClass = "flex flex-col items-center px-2 py-2 transition";
 
-  const activeClass = "rounded-xl bg-purple-500/20 text-blue-300";
+  const activeClass = "rounded-xl bg-info-bg text-info-text dark:bg-info/15 dark:text-info";
 
-  const inactiveClass = "text-zinc-400";
+  const inactiveClass = "text-text-secondary";
 
-  const cambiosBlueClass = pendingCount > 0 ? "text-blue-300" : "";
+  const cambiosBlueClass = pendingCount > 0 ? "text-info-text dark:text-info" : "";
 
   return (
-    <nav className="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around gap-1 overflow-x-auto border-t border-white/10 bg-[#201f1f] px-2">
+    <nav className="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around gap-1 overflow-x-auto border-t border-border/10 bg-surface-elevated px-2">
       <NavLink
         to="/dashboard"
         className={({ isActive }) =>
@@ -89,7 +89,7 @@ function BottomNav() {
         }
       >
         <span className="relative">
-          <Repeat size={20} className={swapPendingCount > 0 ? "text-blue-300" : ""} />
+          <Repeat size={20} className={swapPendingCount > 0 ? "text-info-text dark:text-info" : ""} />
 
           {swapPendingCount > 0 && (
             <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[18px] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold leading-none text-white">
@@ -98,7 +98,7 @@ function BottomNav() {
           )}
         </span>
 
-        <span className={`text-xs ${swapPendingCount > 0 ? "text-blue-300" : ""}`}>
+        <span className={`text-xs ${swapPendingCount > 0 ? "text-info-text dark:text-info" : ""}`}>
           Intercambios de día
         </span>
       </NavLink>
@@ -112,6 +112,19 @@ function BottomNav() {
         <CreditCard size={20} />
 
         <span className="text-xs">Suscrip.</span>
+      </NavLink>
+
+      <NavLink
+        to="/plan-change-requests"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <span className="relative">
+          <ArrowLeftRight size={20} />
+        </span>
+
+        <span className="text-xs">Cambios de plan</span>
       </NavLink>
 
       <NavLink

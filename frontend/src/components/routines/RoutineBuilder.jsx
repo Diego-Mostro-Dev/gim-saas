@@ -37,12 +37,12 @@ function RoutineBuilder({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-        <h3 className="mb-2 font-semibold text-blue-300">
+      <div className="rounded-xl border border-info/20 bg-info-bg/50 p-4 dark:bg-info/15">
+        <h3 className="mb-2 font-semibold text-info-text dark:text-info">
           Cómo completar una rutina
         </h3>
 
-        <div className="text-sm text-zinc-300">
+        <div className="text-sm text-text-primary">
           <p>🏋️ Press banca</p>
           <p>4 series</p>
           <p>8-10 repeticiones</p>
@@ -53,7 +53,7 @@ function RoutineBuilder({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">
+          <label className="mb-2 block text-sm text-text-secondary">
             Plantilla de rutina
           </label>
 
@@ -65,7 +65,7 @@ function RoutineBuilder({
                 routine_template: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           >
             <option value="">Seleccionar plantilla</option>
 
@@ -78,7 +78,7 @@ function RoutineBuilder({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">Ejercicio</label>
+          <label className="mb-2 block text-sm text-text-secondary">Ejercicio</label>
 
           <select
             value={formData.exercise}
@@ -88,7 +88,7 @@ function RoutineBuilder({
                 exercise: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           >
             <option value="">Seleccionar ejercicio</option>
 
@@ -101,7 +101,7 @@ function RoutineBuilder({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">
+          <label className="mb-2 block text-sm text-text-secondary">
             Posición en la rutina
           </label>
 
@@ -115,16 +115,16 @@ function RoutineBuilder({
                 order: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           />
 
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-text-secondary">
             1 = primer ejercicio, 2 = segundo, etc.
           </p>
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">Series</label>
+          <label className="mb-2 block text-sm text-text-secondary">Series</label>
 
           <input
             type="number"
@@ -137,12 +137,12 @@ function RoutineBuilder({
                 sets: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">
+          <label className="mb-2 block text-sm text-text-secondary">
             Repeticiones
           </label>
 
@@ -155,12 +155,12 @@ function RoutineBuilder({
                 reps: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">
+          <label className="mb-2 block text-sm text-text-secondary">
             Peso objetivo
           </label>
 
@@ -173,12 +173,12 @@ function RoutineBuilder({
                 weight: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm text-zinc-400">
+          <label className="mb-2 block text-sm text-text-secondary">
             Indicaciones para el alumno
           </label>
 
@@ -191,7 +191,7 @@ function RoutineBuilder({
                 notes: e.target.value,
               })
             }
-            className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white"
+            className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary"
           />
         </div>
 
@@ -205,29 +205,29 @@ function RoutineBuilder({
 
       {formData.routine_template && (
         <div className="space-y-3">
-          <h3 className="font-semibold text-white">
+          <h3 className="font-semibold text-text-primary">
             Ejercicios de la plantilla
           </h3>
 
           {filteredExercises.map((item) => (
             <div
               key={item.id}
-              className="rounded-xl border border-white/10 bg-[#181818] p-4"
+              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
-              <p className="font-medium text-white">
+              <p className="font-medium text-text-primary">
                 #{item.order} • {item.exercise_name}
               </p>
 
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-text-secondary">
                 {item.sets} series • {item.reps}
               </p>
 
               {item.weight && (
-                <p className="mt-1 text-sm text-blue-300">🏋️ {item.weight}</p>
+                <p className="mt-1 text-sm text-info-text dark:text-info">🏋️ {item.weight}</p>
               )}
 
               {item.notes && (
-                <p className="mt-1 text-sm text-zinc-500">📝 {item.notes}</p>
+                <p className="mt-1 text-sm text-text-secondary">📝 {item.notes}</p>
               )}
             </div>
           ))}

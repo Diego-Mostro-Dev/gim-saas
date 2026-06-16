@@ -167,8 +167,8 @@ function PublicRoutine() {
   return (
     <div className="space-y-4">
       {/* HORARIOS */}
-      <div className="rounded-2xl bg-[#201f1f] p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Horarios
         </h2>
 
@@ -181,13 +181,13 @@ function PublicRoutine() {
               return (
                 <div
                   key={schedule.id || idx}
-                  className="rounded-xl bg-[#2a2a2a] px-4 py-3"
+                  className="rounded-xl bg-surface-input px-4 py-3"
                 >
                   <div className={gym.allow_member_schedule_changes ? "mb-2" : ""}>
-                    <span className="text-base font-semibold text-white">
+                    <span className="text-base font-semibold text-text-primary">
                       {DAY_NAMES[schedule.day] || schedule.day}
                     </span>
-                    <span className="ml-1.5 text-base font-semibold text-white">
+                    <span className="ml-1.5 text-base font-semibold text-text-primary">
                       {schedule.hour}
                     </span>
                   </div>
@@ -196,7 +196,7 @@ function PublicRoutine() {
                       {!hasPending && (
                         <button
                           onClick={() => openChangeModal(schedule)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 text-xs font-medium text-blue-400 transition hover:bg-blue-500/30"
+                          className="inline-flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
                         >
                           <RefreshCw size={14} />
                           Cambio
@@ -204,13 +204,13 @@ function PublicRoutine() {
                       )}
                       <button
                         onClick={() => openSwapModal(schedule)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-purple-500/20 px-2.5 py-1.5 text-xs font-medium text-purple-400 transition hover:bg-purple-500/30"
+                        className="inline-flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
                       >
                         <ArrowLeftRight size={14} />
                         Intercambio
                       </button>
                       {hasPending && (
-                        <span className="inline-flex items-center rounded-lg bg-yellow-500/15 px-2.5 py-1.5 text-xs font-medium text-yellow-400">
+                        <span className="inline-flex items-center rounded-lg bg-warning-bg dark:bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning-text dark:text-warning">
                           Pendiente
                         </span>
                       )}
@@ -221,22 +221,22 @@ function PublicRoutine() {
             })}
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">Sin horarios asignados</p>
+          <p className="text-sm text-text-secondary">Sin horarios asignados</p>
         )}
       </div>
 
       {/* SOLICITUDES DE CAMBIO */}
       {gym.allow_member_schedule_changes && changeRequests.length > 0 && (
-        <div className="rounded-2xl bg-[#201f1f] p-4">
+        <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
               Solicitudes de cambio
             </h2>
 
             {changeRequests.filter(r => r.status !== "pending").length > 0 && (
               <button
                 onClick={() => setShowAllChanges(!showAllChanges)}
-                className="text-xs text-blue-400 transition hover:text-blue-300"
+                className="text-xs text-info-text dark:text-info transition hover:text-info/80"
               >
                 {showAllChanges
                   ? "Mostrar solo pendientes"
@@ -249,11 +249,11 @@ function PublicRoutine() {
             {(showAllChanges ? changeRequests : changeRequests.filter(r => r.status === "pending")).map((req) => (
               <div
                 key={req.id}
-                className="rounded-xl bg-[#2a2a2a] px-4 py-3"
+                className="rounded-xl bg-surface-input px-4 py-3"
               >
-                <p className="text-xs text-zinc-500">Próximo horario</p>
+                <p className="text-xs text-text-secondary">Próximo horario</p>
 
-                <p className="mt-0.5 text-sm text-zinc-100">
+                <p className="mt-0.5 text-sm text-text-primary">
                   {DAY_NAMES[req.requested_day]}{" "}
                   {req.effective_date
                     ? new Date(req.effective_date).toLocaleDateString("es-AR", {
@@ -275,12 +275,12 @@ function PublicRoutine() {
                   <span
                     className={`rounded-lg px-2 py-0.5 text-xs font-medium ${
                       req.status === "pending"
-                        ? "bg-yellow-500/15 text-yellow-400"
+                        ? "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning"
                         : req.status === "approved"
-                          ? "bg-green-500/15 text-green-400"
+                          ? "bg-success-bg dark:bg-success/15 text-success-text dark:text-success"
                           : req.status === "rejected"
-                            ? "bg-red-500/15 text-red-400"
-                            : "bg-zinc-500/15 text-zinc-400"
+                            ? "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger"
+                            : "bg-muted-bg text-muted-text"
                     }`}
                   >
                     {req.status === "pending"
@@ -296,14 +296,14 @@ function PublicRoutine() {
                 {req.status === "pending" && (
                   <button
                     onClick={() => handleCancelRequest(req.id)}
-                    className="mt-2 text-xs text-red-400 transition hover:text-red-300"
+                    className="mt-2 text-xs text-danger-text dark:text-danger transition hover:text-danger-text dark:hover:text-danger"
                   >
                     Cancelar solicitud
                   </button>
                 )}
 
                 {req.admin_notes && (
-                  <p className="mt-1 text-xs text-zinc-500">
+                  <p className="mt-1 text-xs text-text-secondary">
                     {req.admin_notes}
                   </p>
                 )}
@@ -315,16 +315,16 @@ function PublicRoutine() {
 
       {/* SOLICITUDES DE CAMBIO TEMPORAL */}
       {gym.allow_member_schedule_changes && swapRequests.length > 0 && (
-        <div className="rounded-2xl bg-[#201f1f] p-4">
+        <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
               Intercambios de día
             </h2>
 
             {swapRequests.filter(r => r.status !== "pending").length > 0 && (
               <button
                 onClick={() => setShowAllSwaps(!showAllSwaps)}
-                className="text-xs text-blue-400 transition hover:text-blue-300"
+                className="text-xs text-info-text dark:text-info transition hover:text-info/80"
               >
                 {showAllSwaps
                   ? "Mostrar solo pendientes"
@@ -337,15 +337,15 @@ function PublicRoutine() {
             {(showAllSwaps ? swapRequests : swapRequests.filter(r => r.status === "pending")).map((req) => (
               <div
                 key={req.id}
-                className="rounded-xl bg-[#2a2a2a] px-4 py-3"
+                className="rounded-xl bg-surface-input px-4 py-3"
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-text-secondary">
                       {DAY_NAMES[req.origin_day]} {req.origin_hour} → {DAY_NAMES[req.destination_day]} {req.destination_hour}
                     </p>
 
-                    <p className="mt-0.5 text-sm text-zinc-100">
+                    <p className="mt-0.5 text-sm text-text-primary">
                       {new Date(req.swap_date).toLocaleDateString("es-AR", {
                         day: "2-digit",
                         month: "2-digit",
@@ -357,12 +357,12 @@ function PublicRoutine() {
                   <span
                     className={`shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium ${
                       req.status === "pending"
-                        ? "bg-yellow-500/15 text-yellow-400"
+                        ? "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning"
                         : req.status === "approved"
-                          ? "bg-green-500/15 text-green-400"
+                          ? "bg-success-bg dark:bg-success/15 text-success-text dark:text-success"
                           : req.status === "rejected"
-                            ? "bg-red-500/15 text-red-400"
-                            : "bg-zinc-500/15 text-zinc-400"
+                            ? "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger"
+                            : "bg-muted-bg text-muted-text"
                     }`}
                   >
                     {req.status === "pending"
@@ -378,18 +378,18 @@ function PublicRoutine() {
                 {req.status === "pending" && (
                   <button
                     onClick={() => handleCancelSwap(req.id)}
-                    className="mt-2 text-xs text-red-400 transition hover:text-red-300"
+                    className="mt-2 text-xs text-danger-text dark:text-danger transition hover:text-danger-text dark:hover:text-danger"
                   >
                     Cancelar solicitud
                   </button>
                 )}
 
                 {req.admin_notes && req.admin_notes === "Aprobado automáticamente" ? (
-                  <p className="mt-1 text-xs text-green-400">
+                  <p className="mt-1 text-xs text-success-text dark:text-success">
                     Aprobado automáticamente — el horario tenía lugar disponible
                   </p>
                 ) : req.admin_notes ? (
-                  <p className="mt-1 text-xs text-zinc-500">
+                  <p className="mt-1 text-xs text-text-secondary">
                     {req.admin_notes}
                   </p>
                 ) : null}
@@ -402,35 +402,35 @@ function PublicRoutine() {
       {/* MODAL SOLICITAR CAMBIO */}
       {showModal && selectedSchedule && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
-          <div className="w-full max-w-md rounded-t-2xl bg-[#201f1f] p-6 sm:rounded-2xl">
+          <div className="w-full max-w-md rounded-t-2xl bg-surface-elevated p-6 sm:rounded-2xl shadow-sm">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text-primary">
                 Solicitar cambio de horario
               </h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-zinc-400 transition hover:text-white"
+                className="text-text-secondary transition hover:text-text-primary"
               >
                 ✕
               </button>
             </div>
 
-            <div className="mb-4 rounded-xl bg-[#2a2a2a] p-3">
-              <p className="text-xs text-zinc-500">Horario actual</p>
-              <p className="text-sm text-zinc-200">
+            <div className="mb-4 rounded-xl bg-surface-input p-3">
+              <p className="text-xs text-text-secondary">Horario actual</p>
+              <p className="text-sm text-text-primary">
                 {DAY_NAMES[selectedSchedule.day] || selectedSchedule.day} {selectedSchedule.hour}
               </p>
             </div>
 
             <div className="mb-4">
-              <label className="mb-2 block text-sm text-zinc-400">Nuevo día</label>
+              <label className="mb-2 block text-sm text-text-secondary">Nuevo día</label>
               <select
                 value={selectedDay}
                 onChange={(e) => {
                   setSelectedDay(e.target.value);
                   setSelectedSlotId("");
                 }}
-                className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2.5 text-sm text-white"
+                className="w-full rounded-xl bg-surface-input px-3 py-2.5 text-sm text-text-primary"
               >
                 <option value="">Seleccionar día</option>
                 {uniqueDays.map((day) => (
@@ -443,7 +443,7 @@ function PublicRoutine() {
 
             {selectedDay && (
               <div className="mb-6">
-                <label className="mb-2 block text-sm text-zinc-400">Nuevo horario</label>
+                <label className="mb-2 block text-sm text-text-secondary">Nuevo horario</label>
                 <div className="grid grid-cols-2 gap-2">
                   {slotsForDay.map((slot) => (
                     <button
@@ -451,8 +451,8 @@ function PublicRoutine() {
                       onClick={() => setSelectedSlotId(slot.id)}
                       className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                         Number(selectedSlotId) === slot.id
-                          ? "bg-blue-500 text-white"
-                          : "bg-[#2a2a2a] text-zinc-300 hover:bg-[#333]"
+                          ? "bg-info text-white"
+                          : "bg-surface-input text-text-secondary hover:bg-surface-elevated"
                       }`}
                     >
                       {slot.hour}
@@ -465,14 +465,14 @@ function PublicRoutine() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 rounded-xl bg-[#2a2a2a] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-[#333]"
+                className="flex-1 rounded-xl bg-surface-input px-4 py-2.5 text-sm font-medium text-text-secondary transition hover:bg-surface-elevated"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleCreateRequest}
                 disabled={!selectedSlotId || submitting}
-                className="flex-1 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
               >
                 {submitting ? "Enviando..." : "Enviar solicitud"}
               </button>
@@ -484,28 +484,28 @@ function PublicRoutine() {
       {/* MODAL CAMBIAR SOLO ESTA FECHA */}
       {showSwapModal && swapTarget && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
-          <div className="w-full max-w-md rounded-t-2xl bg-[#201f1f] p-6 sm:rounded-2xl">
+          <div className="w-full max-w-md rounded-t-2xl bg-surface-elevated p-6 sm:rounded-2xl shadow-sm">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text-primary">
                 Intercambiar por única vez
               </h3>
               <button
                 onClick={() => setShowSwapModal(false)}
-                className="text-zinc-400 transition hover:text-white"
+                className="text-text-secondary transition hover:text-text-primary"
               >
                 ✕
               </button>
             </div>
 
-            <div className="mb-4 rounded-xl bg-[#2a2a2a] p-3">
-              <p className="text-xs text-zinc-500">Horario actual</p>
-              <p className="text-sm text-zinc-200">
+            <div className="mb-4 rounded-xl bg-surface-input p-3">
+              <p className="text-xs text-text-secondary">Horario actual</p>
+              <p className="text-sm text-text-primary">
                 {DAY_NAMES[swapTarget.day] || swapTarget.day} {swapTarget.hour}
               </p>
             </div>
 
             <div className="mb-4">
-              <label className="mb-2 block text-sm text-zinc-400">Fecha</label>
+              <label className="mb-2 block text-sm text-text-secondary">Fecha</label>
               <input
                 type="date"
                 value={swapDate}
@@ -513,13 +513,13 @@ function PublicRoutine() {
                   setSwapDate(e.target.value);
                   setSwapSlotId("");
                 }}
-                className="w-full rounded-xl bg-[#2a2a2a] px-3 py-2.5 text-sm text-white"
+                className="w-full rounded-xl bg-surface-input px-3 py-2.5 text-sm text-text-primary"
               />
             </div>
 
             {swapDate && (
               <div className="mb-6">
-                <label className="mb-2 block text-sm text-zinc-400">Nuevo horario</label>
+                <label className="mb-2 block text-sm text-text-secondary">Nuevo horario</label>
                 {slotsForSwapDate.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {slotsForSwapDate.map((slot) => {
@@ -533,15 +533,15 @@ function PublicRoutine() {
                           onClick={() => setSwapSlotId(slot.id)}
                           className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                             Number(swapSlotId) === slot.id
-                              ? "bg-purple-500 text-white"
+                              ? "bg-info text-white"
                               : full
-                                ? "bg-[#2a2a2a] text-red-400"
-                                : "bg-[#2a2a2a] text-zinc-300 hover:bg-[#333]"
+                                ? "bg-surface-input text-danger-text dark:text-danger"
+                                : "bg-surface-input text-text-secondary hover:bg-surface-elevated"
                           }`}
                         >
                           <div>{slot.hour}</div>
                           {occ !== undefined && (
-                            <div className={`mt-0.5 text-[10px] ${full ? "text-red-400" : "text-zinc-500"}`}>
+                            <div className={`mt-0.5 text-[10px] ${full ? "text-danger-text dark:text-danger" : "text-text-secondary"}`}>
                               {full ? "Completo" : `${occ}/${cap}`}
                             </div>
                           )}
@@ -550,7 +550,7 @@ function PublicRoutine() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-zinc-500">No hay horarios disponibles para esta fecha.</p>
+                  <p className="text-sm text-text-secondary">No hay horarios disponibles para esta fecha.</p>
                 )}
               </div>
             )}
@@ -558,14 +558,14 @@ function PublicRoutine() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowSwapModal(false)}
-                className="flex-1 rounded-xl bg-[#2a2a2a] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-[#333]"
+                className="flex-1 rounded-xl bg-surface-input px-4 py-2.5 text-sm font-medium text-text-secondary transition hover:bg-surface-elevated"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleCreateSwap}
                 disabled={!swapDate || !swapSlotId || submittingSwap}
-                className="flex-1 rounded-xl bg-purple-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-600 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
               >
                 {submittingSwap ? "Enviando..." : "Enviar solicitud"}
               </button>

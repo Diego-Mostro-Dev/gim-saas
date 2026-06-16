@@ -3,7 +3,7 @@ import { ClipboardList } from "lucide-react";
 function TemplateList({ templates }) {
   if (!templates.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
+      <div className="rounded-xl border border-dashed border-border p-8 text-center text-text-secondary">
         No hay rutinas cargadas
       </div>
     );
@@ -14,12 +14,12 @@ function TemplateList({ templates }) {
       {templates.map((template) => (
         <div
           key={template.id}
-          className="rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+          className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
         >
           <div className="flex items-center gap-3">
             <ClipboardList size={18} className="text-blue-400" />
 
-            <h3 className="font-medium text-white">{template.name}</h3>
+            <h3 className="font-medium text-text-primary">{template.name}</h3>
           </div>
         </div>
       ))}

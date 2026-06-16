@@ -1,0 +1,392 @@
+import { useEffect, useRef, useState } from "react";
+import { Check, X } from "lucide-react";
+import toast from "react-hot-toast";
+
+import {
+  getPlanChangeRequests,
+  approvePlanChangeRequest,
+  rejectPlanChangeRequest,
+} from "../services/plan-change-requests.service";
+
+const STATUS_LABELS = {
+  pending: "Pendiente",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+};
+
+const FILTERS = [
+  { key: "all", label: "Todas" },
+  { key: "pending", label: "Pendientes" },
+  { key: "approved", label: "Aprobadas" },
+  { key: "rejected", label: "Rechazadas" },
+  { key: "cancelled", label: "Canceladas" },
+];
+
+function PlanChangeRequests() {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState(
+    () => sessionStorage.getItem("plan_change_filter") || "all",
+  );
+
+  const [approvalTarget, setApprovalTarget] = useState(null);
+  const [rejectionTarget, setRejectionTarget] = useState(null);
+  const [rejectionNotes, setRejectionNotes] = useState("");
+
+  const lastFetchTimestamp = useRef(0);
+
+  async function loadRequests() {
+    if (Date.now() - lastFetchTimestamp.current < 60000) {
+      setLoading(false);
+      return;
+    }
+    lastFetchTimestamp.current = Date.now();
+
+    try {
+      setLoading(true);
+      const data = await getPlanChangeRequests();
+      setRequests(data);
+    } catch {
+      toast.error("Error al cargar solicitudes de cambio de plan");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  useEffect(() => {
+    if (approvalTarget) {
+      const updated = requests.find((r) => r.id === approvalTarget.id);
+      if (!updated || updated.status !== "pending") {
+        setApprovalTarget(null);
+        if (updated?.status === "approved") {
+          toast.success("Solicitud aprobada por otro administrador.");
+        } else if (updated?.status === "rejected") {
+          toast.success("Solicitud rechazada por otro administrador.");
+        } else {
+          toast.success("La solicitud ya no está pendiente.");
+        }
+      }
+    }
+
+    if (rejectionTarget) {
+      const updated = requests.find((r) => r.id === rejectionTarget.id);
+      if (!updated || updated.status !== "pending") {
+        setRejectionTarget(null);
+        setRejectionNotes("");
+        if (updated?.status === "approved") {
+          toast.success("Solicitud aprobada por otro administrador.");
+        } else if (updated?.status === "rejected") {
+          toast.success("Solicitud rechazada por otro administrador.");
+        } else {
+          toast.success("La solicitud ya no está pendiente.");
+        }
+      }
+    }
+  }, [requests]);
+
+  const filteredRequests = requests.filter((r) => {
+    if (filter === "all") return true;
+    return r.status === filter;
+  });
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function statusBadge(status) {
+    const base =
+      "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium";
+    const colors = {
+      pending: "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning",
+      approved: "bg-success-bg dark:bg-success/15 text-success-text dark:text-success",
+      rejected: "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger",
+      cancelled: "bg-muted-bg text-muted-text",
+    };
+    return (
+      <span className={`${base} ${colors[status] || colors.pending}`}>
+        {STATUS_LABELS[status] || status}
+      </span>
+    );
+  }
+
+  function handleOpenApproval(req) {
+    setApprovalTarget(req);
+  }
+
+  async function handleConfirmApproval() {
+    if (!approvalTarget) return;
+
+    const updated = requests.find((r) => r.id === approvalTarget.id);
+    if (!updated || updated.status !== "pending") {
+      setApprovalTarget(null);
+      if (updated?.status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (updated?.status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else {
+        toast.success("La solicitud ya no está pendiente.");
+      }
+      return;
+    }
+
+    try {
+      await approvePlanChangeRequest(approvalTarget.id);
+      toast.success("Solicitud de cambio de plan aprobada");
+      setApprovalTarget(null);
+      loadRequests();
+    } catch (error) {
+      toast.error(error.message || "Error al aprobar");
+    }
+  }
+
+  function handleOpenRejection(req) {
+    setRejectionTarget(req);
+    setRejectionNotes("");
+  }
+
+  async function handleConfirmRejection() {
+    if (!rejectionTarget) return;
+
+    const updated = requests.find((r) => r.id === rejectionTarget.id);
+    if (!updated || updated.status !== "pending") {
+      setRejectionTarget(null);
+      setRejectionNotes("");
+      if (updated?.status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (updated?.status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else {
+        toast.success("La solicitud ya no está pendiente.");
+      }
+      return;
+    }
+
+    try {
+      const data = {};
+      if (rejectionNotes.trim()) {
+        data.admin_notes = rejectionNotes.trim();
+      }
+      await rejectPlanChangeRequest(rejectionTarget.id, data);
+      toast.success("Solicitud de cambio de plan rechazada");
+      setRejectionTarget(null);
+      setRejectionNotes("");
+      loadRequests();
+    } catch (error) {
+      toast.error(error.message || "Error al rechazar");
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
+        Cargando solicitudes de cambio de plan...
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
+      <div className="mb-6 px-4">
+        <h1 className="text-3xl font-bold">Cambios de plan</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Solicitudes de cambio de plan de membresía.
+        </p>
+      </div>
+
+      <div className="mb-6 flex gap-2 overflow-x-auto px-4">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => {
+              setFilter(f.key);
+              sessionStorage.setItem("plan_change_filter", f.key);
+            }}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+              filter === f.key
+                ? "bg-info text-white"
+                : "bg-surface-elevated text-text-secondary hover:bg-surface-input"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-3 px-4">
+        {filteredRequests.length === 0 ? (
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
+            {requests.length === 0
+              ? "No hay solicitudes de cambio de plan"
+              : "No hay solicitudes con este estado"}
+          </div>
+        ) : (
+          filteredRequests.map((req) => (
+            <div
+              key={req.id}
+              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
+            >
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">
+                    {req.member_name}
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-secondary">
+                    Solicitado el: {formatDate(req.requested_at)}
+                  </p>
+                </div>
+                {statusBadge(req.status)}
+              </div>
+
+              <div className="mb-3 flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-text-secondary">Plan actual</p>
+                  <p className="text-sm text-text-primary">{req.current_plan_name}</p>
+                </div>
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-text-secondary">Plan solicitado</p>
+                  <p className="text-sm text-success-text dark:text-success">{req.plan_name}</p>
+                </div>
+              </div>
+
+              {req.status === "pending" && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleOpenApproval(req)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-success-bg dark:bg-success/15 py-2 text-sm font-medium text-success-text dark:text-success transition hover:bg-success-bg dark:hover:bg-success/30"
+                  >
+                    <Check size={16} />
+                    Aprobar
+                  </button>
+                  <button
+                    onClick={() => handleOpenRejection(req)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-danger-bg dark:bg-danger/15 py-2 text-sm font-medium text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/30"
+                  >
+                    <X size={16} />
+                    Rechazar
+                  </button>
+                </div>
+              )}
+
+              {req.admin_notes && req.status !== "pending" && (
+                <div className="mt-2 rounded-xl bg-surface-input px-3 py-2">
+                  <p className="text-xs text-text-secondary">Notas:</p>
+                  <p className="text-sm text-text-primary">{req.admin_notes}</p>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Approval modal */}
+      {approvalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-text-primary">
+                Aprobar cambio de plan
+              </h2>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm text-text-secondary">Socio</p>
+                <p className="text-text-primary">{approvalTarget.member_name}</p>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-text-secondary">Plan actual</p>
+                  <p className="text-sm text-text-primary">
+                    {approvalTarget.current_plan_name}
+                  </p>
+                </div>
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-text-secondary">Nuevo plan</p>
+                  <p className="text-sm text-success-text dark:text-success">
+                    {approvalTarget.plan_name}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setApprovalTarget(null)}
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-surface-input"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmApproval}
+                className="rounded-xl bg-success px-4 py-2 text-sm font-medium text-white transition hover:brightness-90"
+              >
+                Aprobar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection modal */}
+      {rejectionTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-text-primary">
+                Rechazar cambio de plan
+              </h2>
+              <p className="mt-1 text-sm text-text-secondary">
+                {rejectionTarget.member_name}
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm text-text-secondary">
+                Notas (opcional)
+              </label>
+              <textarea
+                value={rejectionNotes}
+                onChange={(e) => setRejectionNotes(e.target.value)}
+                placeholder="Motivo del rechazo..."
+                rows={3}
+                className="w-full rounded-xl border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary"
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRejectionTarget(null);
+                  setRejectionNotes("");
+                }}
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-surface-input"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmRejection}
+                className="rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:brightness-90"
+              >
+                Rechazar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default PlanChangeRequests;

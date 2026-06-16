@@ -186,26 +186,26 @@ function Settings() {
   }
 
   if (!gym) {
-    return <div className="p-4 text-white">Cargando...</div>;
+    return <div className="p-4 text-text-primary">Cargando...</div>;
   }
 
   return (
     <div className="mx-auto max-w-xl">
       <button
         onClick={() => navigate("/dashboard")}
-        className="mb-4 flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/5"
+        className="mb-4 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
       >
         <ArrowLeft size={18} />
         Volver
       </button>
 
-      <h1 className="mb-2 text-3xl font-bold text-white">Configuración</h1>
+      <h1 className="mb-2 text-3xl font-bold text-text-primary">Configuración</h1>
 
-      <p className="mb-6 text-zinc-400">Información básica del gimnasio.</p>
+      <p className="mb-6 text-text-secondary">Información básica del gimnasio.</p>
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-white/10 bg-[#201f1f] p-6"
+        className="rounded-xl border border-border bg-surface-elevated p-6"
       >
         <div className="mb-8 flex flex-col items-center">
           <div className="mb-4">
@@ -213,22 +213,22 @@ function Settings() {
               <img
                 src={URL.createObjectURL(logoFile)}
                 alt="Preview"
-                className="h-32 w-32 rounded-3xl border border-white/10 object-cover"
+                className="h-32 w-32 rounded-3xl border border-border/10 object-cover"
               />
             ) : gym.logo_url ? (
               <img
                 src={gym.logo_url}
                 alt={gym.name}
-                className="h-32 w-32 rounded-3xl border border-white/10 object-cover"
+                className="h-32 w-32 rounded-3xl border border-border/10 object-cover"
               />
             ) : (
-              <div className="flex h-32 w-32 items-center justify-center rounded-3xl border border-white/10 bg-pink-500 text-5xl font-bold text-white">
+              <div className="flex h-32 w-32 items-center justify-center rounded-3xl border border-border/10 bg-primary text-5xl font-bold text-white">
                 {gym?.name?.charAt(0)?.toUpperCase() || "G"}
               </div>
             )}
           </div>
 
-          <label className="cursor-pointer rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
+          <label className="cursor-pointer rounded-xl border border-border/10 px-4 py-2 text-sm text-text-primary transition hover:bg-surface-input">
             Cambiar logo
             <input
               type="file"
@@ -240,7 +240,7 @@ function Settings() {
         </div>
 
         <div className="mb-4">
-          <label className="mb-2 block text-sm text-zinc-300">Nombre</label>
+          <label className="mb-2 block text-sm text-text-primary">Nombre</label>
 
           <input
             type="text"
@@ -251,13 +251,13 @@ function Settings() {
                 name: e.target.value,
               })
             }
-            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
             required
           />
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block text-sm text-zinc-300">Slug</label>
+          <label className="mb-2 block text-sm text-text-primary">Slug</label>
 
           <input
             type="text"
@@ -268,13 +268,13 @@ function Settings() {
                 slug: e.target.value,
               })
             }
-            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
             required
           />
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block text-sm text-zinc-300">
+          <label className="mb-2 block text-sm text-text-primary">
             WhatsApp
           </label>
 
@@ -288,12 +288,12 @@ function Settings() {
               })
             }
             placeholder="Ej: 541234567890"
-            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block text-sm text-zinc-300">
+          <label className="mb-2 block text-sm text-text-primary">
             Teléfono
           </label>
 
@@ -307,12 +307,12 @@ function Settings() {
               })
             }
             placeholder="Ej: 11 2345-6789"
-            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block text-sm text-zinc-300">
+          <label className="mb-2 block text-sm text-text-primary">
             Email
           </label>
 
@@ -326,12 +326,12 @@ function Settings() {
               })
             }
             placeholder="Ej: info@gimnasio.com"
-            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block text-sm text-zinc-300">
+          <label className="mb-2 block text-sm text-text-primary">
             Capacidad por defecto por horario
           </label>
 
@@ -346,53 +346,53 @@ function Settings() {
               })
             }
             placeholder="Ej: 20"
-            className="w-full rounded-xl border border-white/10 bg-[#141414] px-4 py-3 text-white outline-none"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-xl bg-pink-500 px-4 py-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
+          className="w-full rounded-xl bg-primary px-4 py-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
         >
           {isSubmitting ? "Guardando..." : "Guardar cambios"}
         </button>
       </form>
 
-      <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-[#201f1f] p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="mt-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Códigos QR
         </h2>
 
         <button
           onClick={() => navigate("/registration")}
-          className="flex w-full items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm text-white transition hover:bg-white/5"
+          className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
         >
-          <QrCode size={18} className="text-pink-300" />
+          <QrCode size={18} className="text-primary" />
 
           <span>Registro de miembros</span>
         </button>
 
         <button
           onClick={() => navigate("/attendance-qr")}
-          className="flex w-full items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm text-white transition hover:bg-white/5"
+          className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
         >
-          <QrCode size={18} className="text-green-400" />
+          <QrCode size={18} className="text-success-text dark:text-success" />
 
           <span>Asistencia QR</span>
         </button>
       </div>
 
       {/* Horarios disponibles */}
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#201f1f] p-6">
+      <div className="mt-6 rounded-xl border border-border bg-surface-elevated p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Horarios disponibles
           </h2>
 
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1 rounded-xl bg-pink-500 px-3 py-1.5 text-xs font-medium text-white transition active:scale-95"
+            className="flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-white transition active:scale-95"
           >
             <Plus size={14} />
             Agregar
@@ -402,7 +402,7 @@ function Settings() {
         {showCreateForm && (
           <form
             onSubmit={handleCreateSlot}
-            className="mb-4 rounded-xl border border-white/10 bg-[#2a2a2a] p-3"
+            className="mb-4 rounded-xl border border-border bg-surface-input p-3"
           >
             <div className="mb-3 flex items-center gap-2">
               <select
@@ -410,7 +410,7 @@ function Settings() {
                 onChange={(e) =>
                   setNewSlot({ ...newSlot, day: e.target.value })
                 }
-                className="flex-1 rounded-lg bg-[#141414] px-3 py-2 text-sm text-white outline-none"
+                className="flex-1 rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
               >
                 {Object.entries(DAY_LABELS).map(([key, label]) => (
                   <option key={key} value={key}>
@@ -424,7 +424,7 @@ function Settings() {
                 onChange={(e) =>
                   setNewSlot({ ...newSlot, hour: e.target.value })
                 }
-                className="rounded-lg bg-[#141414] px-3 py-2 text-sm text-white outline-none"
+                className="rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
               >
                 {AVAILABLE_HOURS.map((h) => (
                   <option key={h} value={h}>
@@ -441,7 +441,7 @@ function Settings() {
                 onChange={(e) =>
                   setNewSlot({ ...newSlot, capacity: e.target.value })
                 }
-                className="w-24 rounded-lg bg-[#141414] px-3 py-2 text-sm text-white outline-none"
+                className="w-24 rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
               />
             </div>
 
@@ -449,7 +449,7 @@ function Settings() {
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-white/5"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary transition hover:bg-surface-input"
               >
                 Cancelar
               </button>
@@ -465,11 +465,11 @@ function Settings() {
         )}
 
         {loadingSlots ? (
-          <div className="py-4 text-center text-sm text-zinc-500">
+          <div className="py-4 text-center text-sm text-text-secondary">
             Cargando horarios...
           </div>
         ) : slots.length === 0 ? (
-          <div className="rounded-xl bg-[#2a2a2a] px-4 py-3 text-sm text-zinc-500">
+          <div className="rounded-xl bg-surface-input px-4 py-3 text-sm text-text-secondary">
             No hay horarios configurados
           </div>
         ) : (
@@ -477,14 +477,14 @@ function Settings() {
             {slots.map((slot) => (
               <div
                 key={slot.id}
-                className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
+                className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-white">
+                    <span className="text-sm font-medium text-text-primary">
                     {DAY_LABELS[slot.day]}
                   </span>
 
-                  <span className="text-sm text-zinc-300">
+                    <span className="text-sm text-text-primary">
                     {slot.hour.slice(0, 5)}
                   </span>
 
@@ -496,25 +496,25 @@ function Settings() {
                         placeholder="Cap."
                         value={editCapacity}
                         onChange={(e) => setEditCapacity(e.target.value)}
-                        className="w-16 rounded-lg bg-[#141414] px-2 py-1 text-xs text-white outline-none"
+                        className="w-16 rounded-lg border border-border bg-surface-input px-2 py-1 text-xs text-text-primary outline-none"
                       />
 
                       <button
                         onClick={() => handleUpdateCapacity(slot.id)}
-                        className="rounded-lg bg-green-500/20 p-1 text-green-400 transition hover:bg-green-500/30"
+                        className="rounded-lg bg-success-bg dark:bg-success/15 p-1 text-success-text dark:text-success transition hover:bg-success/30"
                       >
                         <Check size={14} />
                       </button>
 
                       <button
                         onClick={() => setEditingSlotId(null)}
-                        className="rounded-lg bg-red-500/20 p-1 text-red-400 transition hover:bg-red-500/30"
+                        className="rounded-lg bg-danger-bg dark:bg-danger/15 p-1 text-danger-text dark:text-danger transition hover:bg-danger/30"
                       >
                         <X size={14} />
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs text-zinc-400">
+                    <span className="text-xs text-text-secondary">
                       {slot.capacity !== null && slot.capacity !== undefined
                         ? `Cap: ${slot.capacity}`
                         : "(usar capacidad por defecto)"}
@@ -525,14 +525,14 @@ function Settings() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => startEdit(slot)}
-                    className="rounded-lg bg-blue-500/20 p-1.5 text-blue-400 transition hover:bg-blue-500/30"
+                    className="rounded-lg bg-info-bg p-1.5 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
                   >
                     <Pencil size={14} />
                   </button>
 
                   <button
                     onClick={() => handleDeleteSlot(slot.id)}
-                    className="rounded-lg bg-red-500/20 p-1.5 text-red-400 transition hover:bg-red-500/30"
+                    className="rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
                   >
                     <Trash2 size={14} />
                   </button>

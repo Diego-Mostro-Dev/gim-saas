@@ -79,71 +79,71 @@ export default function GymSetup() {
 
   if (validating) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <p className="text-zinc-400">Verificando enlace...</p>
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
+        <p className="text-text-secondary">Verificando enlace...</p>
       </div>
     );
   }
 
   if (error && !gymName) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black p-6">
-        <div className="w-full max-w-sm rounded-xl bg-zinc-900 p-6 text-center">
-          <h1 className="mb-4 text-xl text-red-400">Enlace inválido</h1>
-          <p className="text-zinc-400">{error}</p>
+      <div className="flex min-h-screen items-center justify-center bg-surface p-6">
+        <div className="w-full max-w-sm rounded-xl bg-surface-elevated p-6 text-center">
+          <h1 className="mb-4 text-xl text-danger">Enlace inválido</h1>
+          <p className="text-text-secondary">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-black p-6">
+    <div className="flex min-h-screen items-center justify-center bg-surface p-6">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-text-primary">
             Configurar {gymName}
           </h1>
-          <p className="mt-2 text-zinc-400">
+          <p className="mt-2 text-text-secondary">
             Creá tu cuenta de administrador para empezar.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-xl bg-zinc-900 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="rounded-xl bg-surface-elevated p-6 space-y-4">
           <div>
-            <label className="mb-1 block text-sm text-zinc-300">
+            <label className="mb-1 block text-sm text-text-secondary">
               Usuario
             </label>
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded bg-zinc-800 p-3 text-white outline-none"
+              className="w-full rounded bg-surface-input p-3 text-text-primary outline-none"
               placeholder="ej: admin"
               required
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-zinc-300">
+            <label className="mb-1 block text-sm text-text-secondary">
               Email (opcional)
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded bg-zinc-800 p-3 text-white outline-none"
+              className="w-full rounded bg-surface-input p-3 text-text-primary outline-none"
               placeholder="ej: admin@gym.com"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-zinc-300">
+            <label className="mb-1 block text-sm text-text-secondary">
               Contraseña
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded bg-zinc-800 p-3 text-white outline-none"
+              className="w-full rounded bg-surface-input p-3 text-text-primary outline-none"
               placeholder="••••••••"
               required
               minLength={8}
@@ -151,13 +151,13 @@ export default function GymSetup() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-danger">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded bg-blue-600 p-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
+            className="w-full rounded bg-primary p-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
           >
             {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
           </button>

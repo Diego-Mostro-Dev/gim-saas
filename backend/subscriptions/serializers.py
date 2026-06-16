@@ -1,10 +1,11 @@
 from rest_framework import serializers
-from datetime import timedelta
+from datetime import date, timedelta
 
 from attendance.models import AttendanceSchedule
 
-from .models import Subscription, PlanChangeRequest
+from .models import Subscription, PlanChangeRequest, PlannedSchedule
 from .validators import PlanChangeRequestValidator
+from .services import get_member_active_subscription, calculate_effective_date, compute_projected_occupancy
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -87,7 +88,9 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
         source="requested_plan.name",
         read_only=True,
     )
+    current_plan_name = serializers.SerializerMethodField()
     reviewed_by_name = serializers.SerializerMethodField()
+    planned_schedules = serializers.SerializerMethodField()
 
     class Meta:
         model = PlanChangeRequest
@@ -101,23 +104,44 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             "current_schedules_snapshot",
             "target_schedules_snapshot",
             "status",
+            "effective_date",
+            "planned_schedules",
             "requested_at",
             "reviewed_at",
             "reviewed_by",
             "reviewed_by_name",
             "admin_notes",
+            "current_plan_name",
         ]
         read_only_fields = [
             "gym",
             "status",
+            "effective_date",
+            "planned_schedules",
             "requested_at",
             "reviewed_at",
             "reviewed_by",
             "current_schedules_snapshot",
         ]
 
+    def get_planned_schedules(self, obj):
+        return list(
+            obj.planned_schedules.values("slot_name", "day", "hour", "activated")
+        )
+
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_current_plan_name(self, obj):
+        if obj.current_plan_name_snapshot:
+            return obj.current_plan_name_snapshot
+
+        subscription = get_member_active_subscription(obj.member)
+
+        if not subscription:
+            return None
+
+        return subscription.plan.name
 
     def get_reviewed_by_name(self, obj):
         if obj.reviewed_by:
@@ -176,6 +200,10 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             for s in schedules_qs
         ]
 
+        subscription = get_member_active_subscription(validated_data["member"])
+        if subscription:
+            validated_data["current_plan_name_snapshot"] = subscription.plan.name
+
         validated_data["gym"] = gym
         return super().create(validated_data)
 
@@ -194,6 +222,13 @@ class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         instance = self.instance
+        new_status = attrs.get("status")
+
+        if new_status == "cancelled":
+            if instance.status == "approved" and (
+                instance.effective_date and instance.effective_date > date.today()
+            ):
+                return attrs
 
         if instance.status != "pending":
             raise serializers.ValidationError(
@@ -201,13 +236,16 @@ class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
                 f"'{instance.status}'."
             )
 
-        if attrs.get("status") == "approved":
+        if new_status == "approved":
             self._validate_capacity_on_approve(instance)
 
         return attrs
 
     def _validate_capacity_on_approve(self, instance):
-        from attendance.models import ScheduleSlot, AttendanceSchedule
+        from attendance.models import ScheduleSlot
+
+        effective_date = calculate_effective_date(instance.member)
+        target_date = effective_date
 
         for s in instance.target_schedules_snapshot:
             try:
@@ -221,17 +259,22 @@ class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
 
             cap = slot.capacity or instance.gym.default_schedule_capacity
             if cap is not None:
-                current_count = AttendanceSchedule.objects.filter(
-                    gym=instance.gym,
-                    slot=slot,
-                    active=True,
-                ).exclude(member=instance.member).count()
+                projected = compute_projected_occupancy(
+                    slot, target_date, exclude_member=instance.member
+                )
 
-                if current_count >= cap:
+                if projected >= cap:
+                    from .services import suggest_alternative_slots
+                    suggestions = suggest_alternative_slots(instance, (s["day"], s["hour"]))
                     raise serializers.ValidationError(
-                        f"El horario {s['day']} {s['hour']} ya no tiene "
-                        f"capacidad disponible."
+                        {
+                            "error": f"El horario {s['day']} {s['hour']} no tiene "
+                                     f"capacidad disponible para la fecha "
+                                     f"{target_date}.",
+                            "suggestions": suggestions,
+                        }
                     )
+
 
 
 class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
@@ -239,6 +282,8 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         source="requested_plan.name",
         read_only=True,
     )
+    current_plan_name = serializers.SerializerMethodField()
+    planned_schedules = serializers.SerializerMethodField()
 
     class Meta:
         model = PlanChangeRequest
@@ -249,18 +294,39 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
             "current_schedules_snapshot",
             "target_schedules_snapshot",
             "status",
+            "effective_date",
+            "planned_schedules",
             "requested_at",
             "reviewed_at",
             "admin_notes",
+            "current_plan_name",
         ]
         read_only_fields = [
             "gym",
             "member",
             "status",
+            "effective_date",
+            "planned_schedules",
             "requested_at",
             "reviewed_at",
             "current_schedules_snapshot",
         ]
+
+    def get_planned_schedules(self, obj):
+        return list(
+            obj.planned_schedules.values("slot_name", "day", "hour", "activated")
+        )
+
+    def get_current_plan_name(self, obj):
+        if obj.current_plan_name_snapshot:
+            return obj.current_plan_name_snapshot
+
+        subscription = get_member_active_subscription(obj.member)
+
+        if not subscription:
+            return None
+
+        return subscription.plan.name
 
     def validate(self, attrs):
         member = self.context["member"]
@@ -306,6 +372,10 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
             }
             for s in schedules_qs
         ]
+
+        subscription = get_member_active_subscription(member)
+        if subscription:
+            validated_data["current_plan_name_snapshot"] = subscription.plan.name
 
         validated_data["gym"] = member.gym
         validated_data["member"] = member

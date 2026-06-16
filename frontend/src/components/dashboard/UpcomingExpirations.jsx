@@ -6,7 +6,7 @@ function UpcomingExpirations({ expirations = [] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-text-primary">
           Próximos Vencimientos
         </h3>
 
@@ -20,7 +20,7 @@ function UpcomingExpirations({ expirations = [] }) {
 
       <div className="space-y-3">
         {expirations.length === 0 ? (
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             No hay vencimientos próximos
           </div>
         ) : (
@@ -39,23 +39,23 @@ function UpcomingExpirations({ expirations = [] }) {
             return (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+                className="flex items-center justify-between rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] font-bold text-blue-300">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-input font-bold text-info-text dark:text-info">
                     {initials}
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-text-primary">
                       {item.member_name}
                     </p>
 
-                    <p className="text-xs text-zinc-400">{item.plan_name}</p>
+                    <p className="text-xs text-text-secondary">{item.plan_name}</p>
                   </div>
                 </div>
 
-                <div className="rounded-md bg-red-500/10 px-2 py-1 text-xs text-red-300">
+                <div className="rounded-md bg-danger-bg dark:bg-danger/15 px-2 py-1 text-xs text-danger-text dark:text-danger">
                   {item.days_remaining} {remainingText}
                 </div>
               </div>

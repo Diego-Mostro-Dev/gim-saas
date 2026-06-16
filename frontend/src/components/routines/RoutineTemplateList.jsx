@@ -5,7 +5,7 @@ function RoutineTemplateList({
 }) {
   if (!templates.length) {
     return (
-      <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-zinc-500">
+      <div className="rounded-xl border border-dashed border-border p-8 text-center text-text-secondary">
         No hay rutinas creadas
       </div>
     );
@@ -21,15 +21,15 @@ function RoutineTemplateList({
             key={template.id}
             type="button"
             onClick={() => onSelectTemplate(template)}
-            className={`w-full rounded-2xl border p-4 text-left transition ${
+            className={`w-full rounded-xl border p-4 text-left transition ${
               isSelected
-                ? "border-blue-500 bg-blue-500/10"
-                : "border-white/5 bg-[#1a1a1a] hover:bg-[#242424]"
+                ? "border-info bg-info-bg"
+                : "border-border bg-surface-elevated hover:bg-surface-input shadow-sm"
             }`}
           >
-            <h3 className="font-medium text-white">{template.name}</h3>
+            <h3 className="font-medium text-text-primary">{template.name}</h3>
 
-            <p className="mt-1 text-sm text-zinc-500">ID #{template.id}</p>
+            <p className="mt-1 text-sm text-text-secondary">ID #{template.id}</p>
           </button>
         );
       })}

@@ -11,13 +11,13 @@ from core.viewsets import GymModelViewSet
 
 from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
 
-from .models import Subscription, PlanChangeRequest
+from .models import Subscription, PlanChangeRequest, PlannedSchedule
 from .serializers import (
     SubscriptionSerializer,
     PlanChangeRequestSerializer,
     PlanChangeRequestActionSerializer,
 )
-from .services import get_member_active_subscription
+from .services import get_member_active_subscription, calculate_effective_date, cancel_future_plan_change
 
 
 class SubscriptionViewSet(GymModelViewSet):
@@ -100,7 +100,13 @@ class PlanChangeRequestViewSet(GymModelViewSet):
     def _handle_action(self, request, pk, new_status):
         instance = self.get_object()
 
-        if instance.status != "pending":
+        allowed = instance.status == "pending"
+        if new_status == "cancelled" and instance.status == "approved" and (
+            instance.effective_date and instance.effective_date > now().date()
+        ):
+            allowed = True
+
+        if not allowed:
             return Response(
                 {
                     "detail": (
@@ -121,21 +127,63 @@ class PlanChangeRequestViewSet(GymModelViewSet):
         now_value = now()
 
         with transaction.atomic():
-            serializer.save(
-                reviewed_by=request.user,
-                reviewed_at=now_value,
-            )
-
             if new_status == "approved":
-                subscription = get_member_active_subscription(instance.member)
-                if subscription:
-                    subscription.plan = instance.requested_plan
-                    subscription.save(update_fields=["plan"])
+                effective_date = calculate_effective_date(instance.member)
+                instance.effective_date = effective_date
 
-                self._synchronize_schedules(instance)
-                self._cancel_pending_schedule_requests(instance.member, instance.gym)
+                if effective_date > now().date():
+                    instance.status = "approved"
+                    instance.reviewed_by = request.user
+                    instance.reviewed_at = now_value
+                    instance.save(update_fields=["status", "effective_date", "reviewed_by", "reviewed_at"])
+                    self._reserve_schedules(instance)
+                else:
+                    instance.status = "executed"
+                    instance.reviewed_by = request.user
+                    instance.reviewed_at = now_value
+                    instance.save(update_fields=["status", "effective_date", "reviewed_by", "reviewed_at"])
+
+                    subscription = get_member_active_subscription(instance.member)
+                    if subscription:
+                        subscription.plan = instance.requested_plan
+                        subscription.save(update_fields=["plan"])
+
+                    self._synchronize_schedules(instance)
+            elif new_status == "cancelled" and instance.status == "approved":
+                cancel_future_plan_change(instance)
+                instance.refresh_from_db()
+            else:
+                serializer.save(
+                    reviewed_by=request.user,
+                    reviewed_at=now_value,
+                )
+
+            self._cancel_pending_schedule_requests(instance.member, instance.gym)
 
         return Response(PlanChangeRequestSerializer(instance).data)
+
+    def _reserve_schedules(self, instance):
+        for s in instance.target_schedules_snapshot:
+            try:
+                slot = ScheduleSlot.objects.get(
+                    gym=instance.gym,
+                    day=s["day"],
+                    hour=s["hour"],
+                )
+            except ScheduleSlot.DoesNotExist:
+                continue
+
+            PlannedSchedule.objects.get_or_create(
+                plan_change=instance,
+                slot=slot,
+                defaults={
+                    "gym": instance.gym,
+                    "member": instance.member,
+                    "slot_name": str(slot),
+                    "day": s["day"],
+                    "hour": s["hour"],
+                },
+            )
 
     def _synchronize_schedules(self, instance):
         real_current = AttendanceSchedule.objects.filter(

@@ -8,9 +8,9 @@ function PlanForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+      className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-white">
+      <h2 className="text-lg font-semibold text-text-primary">
         {editingPlan ? "Editar plan" : "Nuevo plan"}
       </h2>
 
@@ -24,7 +24,7 @@ function PlanForm({
             name: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
 
@@ -38,7 +38,7 @@ function PlanForm({
           })
         }
         rows={3}
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none resize-none"
+        className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none resize-none"
       />
 
       <input
@@ -51,7 +51,7 @@ function PlanForm({
             price: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
 
@@ -65,7 +65,7 @@ function PlanForm({
             duration_days: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
 
@@ -80,7 +80,7 @@ function PlanForm({
             weekly_visits: e.target.value === "" ? "" : Number(e.target.value),
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
       <label className="flex items-center gap-3 cursor-pointer">
@@ -93,9 +93,9 @@ function PlanForm({
               active: e.target.checked,
             })
           }
-          className="h-5 w-5 rounded border-zinc-600 bg-[#2a2a2a] text-blue-500"
+          className="h-5 w-5 rounded border border-border bg-surface-input text-blue-500"
         />
-        <span className="text-sm text-zinc-300">Plan activo</span>
+        <span className="text-sm text-text-primary">Plan activo</span>
       </label>
 
       <button

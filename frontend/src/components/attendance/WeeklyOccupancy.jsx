@@ -40,15 +40,15 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
   }
 
   const textStyles = {
-    available: "text-green-400",
-    warning: "text-yellow-400",
-    full: "text-red-400",
+    available: "text-success-text dark:text-success",
+    warning: "text-warning-text dark:text-warning",
+    full: "text-danger-text dark:text-danger",
   };
 
   const bgStyles = {
-    available: "border-l-4 border-l-green-500",
-    warning: "border-l-4 border-l-yellow-500",
-    full: "border-l-4 border-l-red-500",
+    available: "border-l-4 border-l-success",
+    warning: "border-l-4 border-l-warning",
+    full: "border-l-4 border-l-danger",
   };
 
   const weekRange = getWeekRange(date);
@@ -61,12 +61,12 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
             type="date"
             value={date}
             onChange={(e) => onDateChange(e.target.value)}
-            className="w-full rounded-lg bg-[#2a2a2a] p-2 text-sm text-white [color-scheme:dark]"
+            className="w-full rounded-lg bg-surface-input p-2 text-sm text-text-primary [color-scheme:dark]"
           />
           {date && (
             <button
               onClick={() => onDateChange("")}
-              className="shrink-0 rounded-lg bg-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-600"
+              className="shrink-0 rounded-lg bg-zinc-700 px-3 py-2 text-xs text-text-primary hover:bg-zinc-600"
             >
               Hoy
             </button>
@@ -74,11 +74,11 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
         </div>
         <div className="mt-2 flex items-center gap-2">
           {date && (
-            <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+            <span className="rounded-md bg-info-bg px-2 py-1 text-xs text-info-text dark:bg-info/15 dark:text-info">
               {weekRange}
             </span>
           )}
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-text-secondary">
             Seleccioná una fecha para ver la ocupación de la semana
           </p>
         </div>
@@ -91,19 +91,19 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
         return (
           <div
             key={day.key}
-            className="rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+            className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">{day.label}</h2>
+              <h2 className="text-lg font-semibold text-text-primary">{day.label}</h2>
               {schedules.length > 0 && (
-                <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+                <span className="rounded-md bg-info-bg px-2 py-1 text-xs text-info-text dark:bg-info/15 dark:text-info">
                   {schedules.length} socio{schedules.length > 1 ? "s" : ""}
                 </span>
               )}
             </div>
 
             {schedules.length === 0 ? (
-              <div className="rounded-xl bg-[#2a2a2a] px-4 py-3 text-sm text-zinc-500">
+              <div className="rounded-xl bg-surface-input px-4 py-3 text-sm text-text-secondary">
                 Sin socios programados
               </div>
             ) : (
@@ -119,17 +119,17 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
                   return (
                     <div
                       key={hour}
-                      className={`rounded-xl bg-[#2a2a2a] p-3 ${
+                      className={`rounded-xl bg-surface-input p-3 ${
                         info ? bgStyles[info.level] : ""
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-medium text-white">
+                        <span className="text-sm font-medium text-text-primary">
                           {hour.slice(0, 5)}
                         </span>
                         <span
                           className={`text-xs ${
-                            info ? textStyles[info.level] : "text-zinc-400"
+                            info ? textStyles[info.level] : "text-text-secondary"
                           }`}
                         >
                           {capacity
@@ -140,16 +140,16 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
                       </div>
 
                       {info && (
-                        <div className="mb-2 text-xs text-zinc-400">
-                          Disponibles: {available} de {capacity} lugares
-                        </div>
+                      <div className="mb-2 text-xs text-text-secondary">
+                        Disponibles: {available} de {capacity} lugares
+                      </div>
                       )}
 
                       <div className="space-y-2">
                         {people.map((person) => (
                           <div
                             key={person.id}
-                            className="flex items-center justify-between rounded-lg bg-[#1a1a1a] px-3 py-2 text-xs text-zinc-300"
+                            className="flex items-center justify-between rounded-lg bg-surface-elevated px-3 py-2 text-xs text-text-primary"
                           >
                             <span>{person.member_name}</span>
                             {person.id < 0 && (

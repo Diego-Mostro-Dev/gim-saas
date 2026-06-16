@@ -5,8 +5,8 @@ function formatDate(date) {
 function CurrentPlanCard({ subscription }) {
   if (!subscription) {
     return (
-      <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-        <p className="text-sm text-zinc-500">No tenés una suscripción activa.</p>
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="text-sm text-text-secondary">No tenés una suscripción activa.</p>
       </div>
     );
   }
@@ -25,31 +25,31 @@ function CurrentPlanCard({ subscription }) {
 
   const statusColor =
     subscription.days_remaining > 0
-      ? "text-green-400"
-      : "text-red-400";
+      ? "text-success-text dark:text-success"
+      : "text-danger-text dark:text-danger";
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
+    <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-lg font-bold text-white">
+          <h3 className="text-lg font-bold text-text-primary">
             {subscription.plan}
           </h3>
-          <p className="mt-1 text-xl font-semibold text-blue-400">
+          <p className="mt-1 text-lg font-bold text-info-text dark:text-info">
             ${Number(subscription.plan_price).toLocaleString("es-AR")}
           </p>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-text-secondary">
             {subscription.plan_duration_days} días
           </p>
-          <p className="mt-1 text-sm text-zinc-400">{weeklyLabel}</p>
-          <p className="mt-2 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-text-secondary">{weeklyLabel}</p>
+          <p className="mt-2 text-sm text-text-secondary">
             Vence:{" "}
-            <span className="text-white">
+            <span className="text-text-primary">
               {formatDate(subscription.end_date)}
             </span>
           </p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColor} bg-white/5`}>
+        <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColor} bg-border/5`}>
           {statusLabel}
         </span>
       </div>

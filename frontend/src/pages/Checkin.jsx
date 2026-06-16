@@ -47,18 +47,7 @@ export default function Checkin() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#161616",
-        color: "white",
-        padding: 24,
-        textAlign: "center",
-      }}
-    >
+    <div className="flex min-h-screen items-center justify-center bg-surface p-6 text-center text-text-primary">
       <h1>{message}</h1>
     </div>
   );

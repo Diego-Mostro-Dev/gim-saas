@@ -10,9 +10,9 @@ function SubscriptionForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mb-6 space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+      className="mb-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-white">
+      <h2 className="text-lg font-semibold text-text-primary">
         {editingSubscription ? "Editar suscripción" : "Nueva suscripción"}
       </h2>
 
@@ -24,7 +24,7 @@ function SubscriptionForm({
             member: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       >
         <option value="">Seleccionar miembro</option>
@@ -44,7 +44,7 @@ function SubscriptionForm({
             plan: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       >
         <option value="">Seleccionar plan</option>
@@ -65,7 +65,7 @@ function SubscriptionForm({
             start_date: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
-import { X, Clock } from "lucide-react";
+import { X, Clock, CheckCircle } from "lucide-react";
 
 import CurrentPlanCard from "../../components/plans/CurrentPlanCard";
 import PlanChangeModal from "../../components/plans/PlanChangeModal";
@@ -58,6 +58,11 @@ function getNextTraining(schedules) {
   return best;
 }
 
+const dayNameMap = {
+  monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles",
+  thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo",
+};
+
 function MemberDashboard() {
   const { routine, token, slots, planChangeRequests, refreshRoutine } = useOutletContext();
   const [showAllAttendance, setShowAllAttendance] = useState(false);
@@ -72,6 +77,10 @@ function MemberDashboard() {
 
   const pendingRequest = (planChangeRequests || []).find(
     (r) => r.status === "pending"
+  );
+
+  const approvedFutureRequest = (planChangeRequests || []).find(
+    (r) => r.status === "approved" && r.effective_date
   );
 
   async function handleCreateRequest(data) {
@@ -101,8 +110,8 @@ function MemberDashboard() {
   return (
     <div className="space-y-4">
       {/* SUSCRIPCIÓN */}
-      <div className="rounded-2xl bg-[#201f1f] p-4">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Suscripción
         </h2>
 
@@ -110,11 +119,11 @@ function MemberDashboard() {
           <>
             <div className="mb-4">
               {subscription.paid ? (
-                <span className="rounded-xl bg-green-500/15 px-3 py-1 text-sm font-semibold text-green-400">
+                <span className="rounded-xl bg-success-bg dark:bg-success/15 px-3 py-1 text-sm font-semibold text-success-text dark:text-success">
                   ✓ Cuota al día
                 </span>
               ) : (
-                <span className="rounded-xl bg-yellow-500/15 px-3 py-1 text-sm font-semibold text-yellow-300">
+                <span className="rounded-xl bg-warning-bg dark:bg-warning/15 px-3 py-1 text-sm font-semibold text-warning-text dark:text-warning">
                   ⚠ Pendiente de pago
                 </span>
               )}
@@ -122,31 +131,31 @@ function MemberDashboard() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Plan</span>
-                <span className="text-white">{subscription.plan}</span>
+                <span className="text-text-secondary">Plan</span>
+                <span className="text-text-primary">{subscription.plan}</span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Inicio</span>
-                <span className="text-white">
+                <span className="text-text-secondary">Inicio</span>
+                <span className="text-text-primary">
                   {formatDate(subscription.start_date)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Vencimiento</span>
-                <span className="text-white">
+                <span className="text-text-secondary">Vencimiento</span>
+                <span className="text-text-primary">
                   {formatDate(subscription.end_date)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Estado</span>
+                <span className="text-text-secondary">Estado</span>
                 <span
                   className={`font-semibold ${
                     subscription.days_remaining > 0
-                      ? "text-green-400"
-                      : "text-red-400"
+                      ? "text-success-text dark:text-success"
+                      : "text-danger-text dark:text-danger"
                   }`}
                 >
                   {subscription.days_remaining > 0
@@ -159,38 +168,38 @@ function MemberDashboard() {
             </div>
           </>
         ) : (
-          <p className="text-sm text-zinc-500">Sin suscripción activa</p>
+          <p className="text-sm text-text-secondary">Sin suscripción activa</p>
         )}
       </div>
 
       {/* MI PLAN */}
-      <div className="rounded-2xl bg-[#201f1f] p-4">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Mi Plan
         </h2>
 
         <CurrentPlanCard subscription={subscription} />
 
         {pendingRequest ? (
-          <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
+          <div className="mt-4 rounded-xl border border-warning/20 bg-warning-bg dark:bg-warning/5 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Clock size={16} className="text-yellow-400" />
-              <p className="text-sm font-medium text-yellow-300">
+              <Clock size={16} className="text-warning-text dark:text-warning" />
+              <p className="text-sm font-medium text-warning-text dark:text-warning">
                 Ya tenés una solicitud pendiente.
               </p>
             </div>
-            <div className="space-y-2 text-sm text-zinc-300">
+            <div className="space-y-2 text-sm text-text-primary">
               <div className="flex justify-between">
-                <span className="text-zinc-500">Plan solicitado</span>
+                <span className="text-text-secondary">Plan solicitado</span>
                 <span>{pendingRequest.plan_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500">Fecha</span>
+                <span className="text-text-secondary">Fecha</span>
                 <span>{formatDate(pendingRequest.requested_at)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500">Estado</span>
-                <span className="rounded-full bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-300">
+                <span className="text-text-secondary">Estado</span>
+                <span className="rounded-full bg-warning-bg dark:bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning-text dark:text-warning">
                   Pendiente
                 </span>
               </div>
@@ -198,7 +207,7 @@ function MemberDashboard() {
             <button
               onClick={() => handleCancelRequest(pendingRequest.id)}
               disabled={cancellingId === pendingRequest.id}
-              className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/30 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+              className="mt-3 flex items-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:opacity-50"
             >
               <X size={16} />
               {cancellingId === pendingRequest.id
@@ -210,27 +219,73 @@ function MemberDashboard() {
           subscription && activePlans.length > 0 && (
             <button
               onClick={() => setShowPlanModal(true)}
-              className="mt-4 w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-600"
+              className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition hover:bg-primary/90"
             >
               Solicitar cambio de plan
             </button>
           )
         )}
+
+        {approvedFutureRequest && !pendingRequest && (
+          <div className="mt-4 rounded-xl border border-info/20 bg-info-bg dark:bg-info/5 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle size={16} className="text-info-text dark:text-info" />
+              <p className="text-sm font-medium text-info-text dark:text-info">
+                Cambio de plan aprobado
+              </p>
+            </div>
+            <div className="space-y-2 text-sm text-text-primary">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Nuevo plan</span>
+                <span className="font-medium">{approvedFutureRequest.plan_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Activación</span>
+                <span>{formatDate(approvedFutureRequest.effective_date)}</span>
+              </div>
+            </div>
+            {approvedFutureRequest.planned_schedules?.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-text-secondary mb-2">
+                  Horarios reservados
+                </p>
+                <div className="space-y-1">
+                  {approvedFutureRequest.planned_schedules.map((ps, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-text-primary">
+                      <Clock size={14} className="text-info-text dark:text-info" />
+                      <span>{dayNameMap[ps.day] || ps.day} {ps.hour}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => handleCancelRequest(approvedFutureRequest.id)}
+              disabled={cancellingId === approvedFutureRequest.id}
+              className="mt-3 flex items-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:opacity-50"
+            >
+              <X size={16} />
+              {cancellingId === approvedFutureRequest.id
+                ? "Cancelando..."
+                : "Cancelar cambio aprobado"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* PRÓXIMO ENTRENAMIENTO */}
-      <div className="rounded-2xl bg-[#201f1f] p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Próximo entrenamiento
         </h2>
 
         {nextTraining ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-lg font-bold text-white">
+              <p className="text-lg font-bold text-text-primary">
                 {nextTraining.dayLabel} {nextTraining.hour}
               </p>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-text-secondary">
                 {nextTraining.daysUntil === 0
                   ? "Hoy"
                   : nextTraining.daysUntil === 1
@@ -240,10 +295,10 @@ function MemberDashboard() {
             </div>
             <span className={`rounded-lg px-3 py-1 text-xs font-medium ${
               nextTraining.daysUntil === 0
-                ? "bg-green-500/15 text-green-400"
+                ? "bg-success-bg dark:bg-success/15 text-success-text dark:text-success"
                 : nextTraining.daysUntil <= 2
-                  ? "bg-blue-500/15 text-blue-400"
-                  : "bg-zinc-500/15 text-zinc-300"
+                  ? "bg-info-bg text-info-text dark:bg-info/15 dark:text-info"
+                  : "bg-muted-bg text-text-primary"
             }`}>
               {nextTraining.daysUntil === 0
                 ? "Hoy"
@@ -253,21 +308,21 @@ function MemberDashboard() {
             </span>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">Sin horarios asignados</p>
+          <p className="text-sm text-text-secondary">Sin horarios asignados</p>
         )}
       </div>
 
       {/* ASISTENCIAS */}
-      <div className="rounded-2xl bg-[#201f1f] p-4">
+      <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Asistencias recientes
           </h2>
 
           {attendance_history?.length > 3 && (
             <button
               onClick={() => setShowAllAttendance(!showAllAttendance)}
-              className="text-xs text-blue-400 transition hover:text-blue-300"
+              className="text-xs text-info-text dark:text-info transition hover:text-info/80"
             >
               {showAllAttendance
                 ? "Mostrar menos"
@@ -284,19 +339,19 @@ function MemberDashboard() {
             ).map((attendance, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3"
+                className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3"
               >
-                <span className="font-medium text-green-400">
+                <span className="font-medium text-success-text dark:text-success">
                   ✓ Asistencia
                 </span>
-                <span className="text-zinc-300">
+                <span className="text-text-primary">
                   {formatDate(attendance.date)}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-zinc-500">
+          <p className="mt-3 text-sm text-text-secondary">
             Todavía no hay asistencias registradas.
           </p>
         )}
@@ -304,30 +359,30 @@ function MemberDashboard() {
 
       {/* ÚLTIMO PAGO */}
       {last_payment ? (
-        <div className="rounded-2xl bg-[#201f1f] p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Último pago
           </h2>
 
-          <div className="rounded-xl bg-[#2a2a2a] p-4">
+          <div className="rounded-lg bg-surface-input border border-border p-4">
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">Fecha</span>
-              <span className="text-white">
+              <span className="text-text-secondary">Fecha</span>
+              <span className="text-text-primary">
                 {formatDate(last_payment.paid_at)}
               </span>
             </div>
 
             <div className="mt-2 flex items-center justify-between">
-              <span className="text-zinc-400">Monto</span>
-              <span className="font-semibold text-white">
+              <span className="text-text-secondary">Monto</span>
+              <span className="font-semibold text-text-primary">
                 ${Number(last_payment.amount).toLocaleString("es-AR")}
               </span>
             </div>
 
             {last_payment.payment_method && (
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-zinc-400">Método</span>
-                <span className="text-white">
+                <span className="text-text-secondary">Método</span>
+                <span className="text-text-primary">
                   {last_payment.payment_method === "cash"
                     ? "Efectivo"
                     : last_payment.payment_method === "transfer"
@@ -339,8 +394,8 @@ function MemberDashboard() {
 
             {last_payment.plan_name && (
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-zinc-400">Plan</span>
-                <span className="text-white">
+                <span className="text-text-secondary">Plan</span>
+                <span className="text-text-primary">
                   {last_payment.plan_name}
                 </span>
               </div>
@@ -351,8 +406,8 @@ function MemberDashboard() {
 
       {/* CONTACTO */}
       {(gym.whatsapp || gym.phone || gym.email) && (
-        <div className="rounded-2xl bg-[#201f1f] p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Contacto del gimnasio
           </h2>
 
@@ -362,7 +417,7 @@ function MemberDashboard() {
                 href={`https://wa.me/${gym.whatsapp}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 rounded-xl bg-green-600/20 px-4 py-3 text-sm font-medium text-green-400 transition hover:bg-green-600/30"
+                className="flex items-center gap-3 rounded-xl bg-success-bg dark:bg-success/15 px-4 py-3 text-sm font-medium text-success-text dark:text-success transition hover:bg-success/30"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -376,16 +431,16 @@ function MemberDashboard() {
             )}
 
             {gym.phone && (
-              <div className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3">
-                <span className="text-sm text-zinc-400">Teléfono</span>
-                <span className="text-sm text-white">{gym.phone}</span>
+              <div className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3">
+                <span className="text-sm text-text-secondary">Teléfono</span>
+                <span className="text-sm text-text-primary">{gym.phone}</span>
               </div>
             )}
 
             {gym.email && (
-              <div className="flex items-center justify-between rounded-xl bg-[#2a2a2a] px-4 py-3">
-                <span className="text-sm text-zinc-400">Email</span>
-                <span className="text-sm text-white">{gym.email}</span>
+              <div className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3">
+                <span className="text-sm text-text-secondary">Email</span>
+                <span className="text-sm text-text-primary">{gym.email}</span>
               </div>
             )}
           </div>

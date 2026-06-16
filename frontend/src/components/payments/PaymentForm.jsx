@@ -35,9 +35,9 @@ function PaymentForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+      className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-white">
+      <h2 className="text-lg font-semibold text-text-primary">
         {editingPayment ? "Editar pago" : "Nuevo pago"}
       </h2>
 
@@ -50,7 +50,7 @@ function PaymentForm({
             subscription: "",
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       >
         <option value="">Seleccionar miembro</option>
@@ -71,7 +71,7 @@ function PaymentForm({
               subscription: e.target.value,
             })
           }
-          className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           required
           disabled={!formData.member}
         >
@@ -108,10 +108,10 @@ function PaymentForm({
             amount: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
-
+    
       <select
         value={formData.payment_method}
         onChange={(e) =>
@@ -120,7 +120,7 @@ function PaymentForm({
             payment_method: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       >
         <option value="cash">Efectivo</option>
@@ -139,7 +139,7 @@ function PaymentForm({
             notes: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
       <button

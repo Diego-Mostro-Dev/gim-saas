@@ -28,9 +28,9 @@ function ExerciseForm({ onSubmit }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+      className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-white">Nuevo ejercicio</h2>
+      <h2 className="text-lg font-semibold text-text-primary">Nuevo ejercicio</h2>
 
       <input
         type="text"
@@ -42,7 +42,7 @@ function ExerciseForm({ onSubmit }) {
             name: e.target.value,
           })
         }
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
 
@@ -56,7 +56,7 @@ function ExerciseForm({ onSubmit }) {
           })
         }
         rows={3}
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
       <button

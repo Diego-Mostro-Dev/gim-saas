@@ -26,16 +26,16 @@ function TemplateForm({ onSubmit }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-2xl border border-white/5 bg-[#201f1f] p-4"
+      className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-white">Nueva rutina</h2>
+      <h2 className="text-lg font-semibold text-text-primary">Nueva rutina</h2>
 
       <input
         type="text"
         value={name}
         placeholder="Nombre"
         onChange={(e) => setName(e.target.value)}
-        className="w-full rounded-xl bg-[#2a2a2a] px-4 py-3 text-white outline-none"
+        className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
 

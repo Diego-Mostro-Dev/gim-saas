@@ -23,6 +23,7 @@ import AttendanceQR from "./pages/AttendanceQR";
 import GymSetup from "./pages/onboarding/GymSetup";
 import ScheduleChangeRequests from "./pages/ScheduleChangeRequests";
 import ScheduleSwapRequests from "./pages/ScheduleSwapRequests";
+import PlanChangeRequests from "./pages/PlanChangeRequests";
 import AttendanceAnalytics from "./pages/AttendanceAnalytics";
 
 function App() {
@@ -64,6 +65,7 @@ function App() {
         <Route path="/attendance-qr" element={<AttendanceQR />} />
         <Route path="/schedule-change-requests" element={<ScheduleChangeRequests />} />
         <Route path="/schedule-swap-requests" element={<ScheduleSwapRequests />} />
+        <Route path="/plan-change-requests" element={<PlanChangeRequests />} />
         <Route path="/attendance-analytics" element={<AttendanceAnalytics />} />
       </Route>
     </Routes>

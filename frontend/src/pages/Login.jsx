@@ -23,15 +23,15 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-black">
+    <div className="flex min-h-screen items-center justify-center bg-surface">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-xl bg-zinc-900 p-6"
+        className="w-full max-w-sm rounded-xl bg-surface-elevated p-6"
       >
-        <h1 className="mb-4 text-xl text-white">Iniciar sesión</h1>
+        <h1 className="mb-4 text-xl text-text-primary">Iniciar sesión</h1>
 
         <input
-          className="mb-3 w-full rounded bg-zinc-800 p-3 text-white"
+          className="mb-3 w-full rounded bg-surface-input p-3 text-text-primary"
           placeholder="Usuario"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -39,17 +39,17 @@ export default function Login() {
 
         <input
           type="password"
-          className="mb-3 w-full rounded bg-zinc-800 p-3 text-white"
+          className="mb-3 w-full rounded bg-surface-input p-3 text-text-primary"
           placeholder="Contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
+        {error && <p className="mb-2 text-sm text-danger">{error}</p>}
 
         <button
           disabled={loading}
-          className="w-full rounded bg-blue-600 p-3 text-white disabled:opacity-50"
+          className="w-full rounded bg-primary p-3 text-white disabled:opacity-50"
         >
           {loading ? "Entrando..." : "Entrar"}
         </button>

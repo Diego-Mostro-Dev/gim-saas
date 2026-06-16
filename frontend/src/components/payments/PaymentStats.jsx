@@ -6,32 +6,32 @@ function PaymentStats({
 }) {
   return (
     <section className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-      <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-        <p className="text-sm text-zinc-400">Total recaudado</p>
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="text-sm text-text-secondary">Total recaudado</p>
 
-        <h3 className="mt-2 text-2xl font-bold text-white">
+        <h3 className="mt-2 text-2xl font-bold text-text-primary">
           ${totalAmount.toLocaleString("es-AR")}
         </h3>
       </div>
 
-      <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-        <p className="text-sm text-zinc-400">Pagos registrados</p>
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="text-sm text-text-secondary">Pagos registrados</p>
 
-        <h3 className="mt-2 text-2xl font-bold text-white">{totalPayments}</h3>
+        <h3 className="mt-2 text-2xl font-bold text-text-primary">{totalPayments}</h3>
       </div>
 
-      <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-        <p className="text-sm text-zinc-400">Efectivo</p>
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="text-sm text-text-secondary">Efectivo</p>
 
-        <h3 className="mt-2 text-2xl font-bold text-green-300">
+        <h3 className="mt-2 text-2xl font-bold text-success-text dark:text-success">
           {cashPayments}
         </h3>
       </div>
 
-      <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4">
-        <p className="text-sm text-zinc-400">Transferencia</p>
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="text-sm text-text-secondary">Transferencia</p>
 
-        <h3 className="mt-2 text-2xl font-bold text-blue-300">
+        <h3 className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-300">
           {transferPayments}
         </h3>
       </div>

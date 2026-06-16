@@ -154,18 +154,18 @@ function Subscriptions() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando suscripciones...
       </div>
     );
   }
   return (
-    <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
+    <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Suscripciones</h1>
 
-          <p className="mt-1 text-sm text-zinc-400">Gestión de membresías</p>
+          <p className="mt-1 text-sm text-text-secondary">Gestión de membresías</p>
         </div>
 
         <button
@@ -184,7 +184,7 @@ function Subscriptions() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">
+        <div className="mb-4 rounded-xl bg-danger-bg dark:bg-danger/15 p-4 text-sm text-danger-text dark:text-danger">
           {error}
         </div>
       )}
@@ -215,7 +215,7 @@ function Subscriptions() {
       />
 
       {filteredSubscriptions.length === 0 ? (
-        <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center text-zinc-400">
+        <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center text-text-secondary">
           No hay suscripciones que coincidan con los filtros
         </div>
       ) : (

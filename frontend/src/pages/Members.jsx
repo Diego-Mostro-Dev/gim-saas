@@ -219,20 +219,20 @@ function Members() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#131313] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando miembros...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#131313] px-4 pb-28 pt-6 text-white">
+    <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       {/* HEADER */}
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Miembros</h1>
 
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-text-secondary">
             Gestión de miembros del gimnasio
             {refreshing && (
               <span className="ml-2 text-xs text-blue-400">Actualizando...</span>
@@ -257,31 +257,31 @@ function Members() {
 
       {/* ERROR */}
       {error && (
-        <div className="mb-4 rounded-xl bg-red-500/10 p-4 text-sm text-red-300">
+        <div className="mb-4 rounded-xl bg-danger-bg dark:bg-danger/10 p-4 text-sm text-danger-text dark:text-danger">
           {error}
         </div>
       )}
 
       {/* SEARCH */}
-      <div className="mb-6 flex items-center gap-2 rounded-2xl border border-white/5 bg-[#201f1f] px-4 py-3">
-        <Search size={18} className="text-zinc-400" />
+      <div className="mb-6 flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-3">
+        <Search size={18} className="text-text-secondary" />
 
         <input
           type="text"
           placeholder="Buscar miembro..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
+          className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
         />
       </div>
 
       {/* FORM */}
       {showForm && !loadingSlots && availableSlots.length === 0 && !editingMember && (
-        <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-6 text-center">
-          <p className="text-sm text-zinc-300">
+        <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center">
+          <p className="text-sm text-text-primary">
             No hay horarios configurados.
           </p>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-text-secondary">
             Configuralos desde Configuración → Horarios disponibles.
           </p>
         </div>
@@ -304,7 +304,7 @@ function Members() {
       {/* LIST */}
       <div className="space-y-3">
         {filteredMembers.length === 0 ? (
-          <div className="rounded-2xl border border-white/5 bg-[#201f1f] p-4 text-sm text-zinc-400">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             No se encontraron miembros
           </div>
         ) : (
@@ -344,17 +344,17 @@ function Members() {
 
       {showPaymentsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="w-full max-w-2xl rounded-2xl bg-[#201f1f] p-6">
-            <h2 className="mb-4 text-xl font-bold">
+          <div className="w-full max-w-2xl rounded-2xl bg-surface-elevated p-6">
+            <h2 className="mb-4 text-xl font-bold text-text-primary">
               Pagos de {paymentsMemberName}
             </h2>
 
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {memberPayments.length === 0 ? (
-                <p className="text-zinc-400">No hay pagos registrados</p>
+                <p className="text-text-secondary">No hay pagos registrados</p>
               ) : (
                 memberPayments.map((payment) => (
-                  <div key={payment.id} className="rounded-xl bg-[#2a2a2a] p-3">
+                  <div key={payment.id} className="rounded-xl bg-surface-input p-3">
                     <p>Plan: {payment.plan_name}</p>
 
                     <p>
@@ -374,7 +374,7 @@ function Members() {
             <div className="mt-4 flex gap-3">
               <button
                 onClick={() => setShowPaymentsModal(false)}
-                className="flex-1 rounded-xl bg-zinc-700 py-2 text-sm font-medium text-white transition hover:bg-zinc-600"
+                className="flex-1 rounded-xl bg-surface-input py-2 text-sm font-medium text-text-primary transition hover:bg-surface-elevated"
               >
                 Cerrar
               </button>
