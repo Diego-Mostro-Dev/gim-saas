@@ -331,16 +331,17 @@ function MemberDashboard() {
             >
               Solicitar cambio de plan
             </button>
-          )}
-          {subscription && gym.allow_plan_changes === false && (
-            <button
-              disabled
-              title="El gimnasio no permite cambios de plan"
-              className="mt-4 w-full cursor-not-allowed rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white opacity-50"
-            >
-              Solicitar cambio de plan
-            </button>
           )
+        )}
+
+        {subscription && gym.allow_plan_changes === false && (
+          <button
+            disabled
+            title="El gimnasio no permite cambios de plan"
+            className="mt-4 w-full cursor-not-allowed rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white opacity-50"
+          >
+            Solicitar cambio de plan
+          </button>
         )}
 
         {approvedFutureRequest && !pendingRequest && (
