@@ -9,13 +9,19 @@ from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleSwapRequ
 from .models import PlanChangeRequest, Subscription, PlannedSchedule
 
 
+PAYMENT_WINDOW_DAYS = 10
+ACCESS_GRACE_DAYS = 5
+
+
 def get_subscription_payment_status(subscription):
     today = timezone.localdate()
     if subscription.paid:
         return "paid"
-    if today.day <= 10:
+    if today.day <= PAYMENT_WINDOW_DAYS:
         return "pending"
-    return "overdue"
+    if today.day <= PAYMENT_WINDOW_DAYS + ACCESS_GRACE_DAYS:
+        return "overdue"
+    return "blocked"
 
 
 def get_last_day_of_month(d):

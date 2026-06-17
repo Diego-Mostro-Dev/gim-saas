@@ -2231,6 +2231,33 @@ class PaymentStatusTest(TestCase):
             resp = self._get_dashboard()
             self.assertEqual(resp.data["subscription"]["payment_status"], "pending")
 
+    def test_status_overdue_on_day_15(self):
+        """day 15 is the last day of grace period → overdue"""
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 15)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "overdue")
+
+    def test_status_blocked_on_day_16(self):
+        """day 16 → blocked"""
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 16)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "blocked")
+
+    def test_status_blocked_later_in_month(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 25)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "blocked")
+
+    def test_paid_overrides_all_statuses(self):
+        """paid subscription always shows 'paid' regardless of day"""
+        self._create_sub(paid=True)
+        with self._mock_today(date(2026, 6, 25)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "paid")
+
     def test_helper_paid(self):
         from subscriptions.services import get_subscription_payment_status
         sub = self._create_sub(paid=True)
@@ -2247,3 +2274,9 @@ class PaymentStatusTest(TestCase):
         sub = self._create_sub(paid=False)
         with self._mock_today(date(2026, 6, 15)):
             self.assertEqual(get_subscription_payment_status(sub), "overdue")
+
+    def test_helper_blocked(self):
+        from subscriptions.services import get_subscription_payment_status
+        sub = self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 20)):
+            self.assertEqual(get_subscription_payment_status(sub), "blocked")

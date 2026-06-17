@@ -170,12 +170,24 @@ function MemberDashboard() {
                 <span className="rounded-xl bg-warning-bg dark:bg-warning/15 px-3 py-1 text-sm font-semibold text-warning-text dark:text-warning">
                   ⚠ Pendiente de pago
                 </span>
-              ) : (
+              ) : subscription.payment_status === "overdue" ? (
                 <span className="rounded-xl bg-danger-bg dark:bg-danger/15 px-3 py-1 text-sm font-semibold text-danger-text dark:text-danger">
                   ❌ Pago vencido
                 </span>
+              ) : (
+                <span className="rounded-xl bg-danger-bg dark:bg-danger/15 px-3 py-1 text-sm font-semibold text-danger-text dark:text-danger">
+                  ⛔ Acceso suspendido
+                </span>
               )}
             </div>
+
+            {subscription.payment_status === "blocked" && (
+              <div className="mb-4 rounded-xl bg-danger-bg/20 dark:bg-danger/10 border border-danger/20 px-4 py-3 text-sm text-danger-text dark:text-danger">
+                <p className="font-medium">
+                  Tu acceso al gimnasio se encuentra suspendido por falta de pago.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
