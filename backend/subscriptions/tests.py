@@ -2143,7 +2143,7 @@ class RenewalReminderTest(TestCase):
             self.assertIsNone(resp.data["subscription"])
 
     def test_reminder_false_expired_subscription_no_reminder(self):
-        """renewal_reminder False for already expired subscription"""
+        """Expired subscription → subscription is None, no reminder"""
         Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
             start_date=date(2026, 5, 1),
@@ -2152,9 +2152,7 @@ class RenewalReminderTest(TestCase):
         )
         with self._subtest_today(date(2026, 6, 23)):
             resp = self._get_dashboard()
-            sub = resp.data["subscription"]
-            self.assertFalse(sub["renewal_reminder"])
-            self.assertIsNone(sub["renewal_date"])
+            self.assertIsNone(resp.data["subscription"])
 
     def _subtest_today(self, target_date):
         from unittest.mock import patch

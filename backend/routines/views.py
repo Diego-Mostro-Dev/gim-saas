@@ -331,48 +331,71 @@ class PublicRoutineView(APIView):
 
         today = timezone.localdate()
 
-        subscription = (
+        active_subscription = (
             Subscription.objects
             .filter(
                 member=member,
+                start_date__lte=today,
+                end_date__gte=today,
             )
-            .order_by("-end_date")
             .first()
         )
 
-        subscription_data = None
+        upcoming_subscription = None
+        subscription = active_subscription
 
-        if subscription:
-            plan = subscription.plan
+        if not subscription:
+            upcoming_subscription = (
+                Subscription.objects
+                .filter(
+                    member=member,
+                    start_date__gt=today,
+                )
+                .order_by("start_date")
+                .first()
+            )
+            subscription = upcoming_subscription
+
+        subscription_data = None
+        upcoming_subscription_data = None
+
+        def _build_sub_data(sub):
+            plan = sub.plan
             days_remaining = (
-                subscription.end_date - today
+                sub.end_date - today
             ).days
-            subscription_data = {
-                "id": subscription.id,
+            return {
+                "id": sub.id,
                 "plan_id": plan.id,
                 "plan": plan.name,
                 "plan_price": str(plan.price),
                 "plan_duration_days": plan.duration_days,
                 "plan_weekly_visits": plan.weekly_visits,
-                "start_date": subscription.start_date,
-                "end_date": subscription.end_date,
-                "paid": subscription.paid,
-                "payment_status": get_subscription_payment_status(subscription),
-                "auto_renew": subscription.auto_renew,
+                "start_date": sub.start_date,
+                "end_date": sub.end_date,
+                "paid": sub.paid,
+                "payment_status": get_subscription_payment_status(sub),
+                "auto_renew": sub.auto_renew,
                 "days_remaining": days_remaining,
                 "renewal_reminder": (
-                    subscription.auto_renew
+                    sub.auto_renew
                     and 0 <= days_remaining <= 7
                 ),
                 "renewal_date": (
                     get_first_day_of_next_month(
-                        subscription.end_date
+                        sub.end_date
                     ).isoformat()
-                    if subscription.auto_renew
+                    if sub.auto_renew
                     and 0 <= days_remaining <= 7
                     else None
                 ),
             }
+
+        if active_subscription:
+            subscription_data = _build_sub_data(active_subscription)
+
+        if upcoming_subscription:
+            upcoming_subscription_data = _build_sub_data(upcoming_subscription)
 
         schedules = (
             AttendanceSchedule.objects
@@ -453,8 +476,11 @@ class PublicRoutineView(APIView):
                 "email": assignment.gym.email,
                 "allow_member_schedule_changes": assignment.gym.allow_member_schedule_changes,
                 "schedule_change_notice_hours": assignment.gym.schedule_change_notice_hours,
+                "allow_plan_changes": assignment.gym.allow_plan_changes,
+                "allow_schedule_changes": assignment.gym.allow_schedule_changes,
             },
             "subscription": subscription_data,
+            "upcoming_subscription": upcoming_subscription_data,
             "schedules": [
                 {
                     "id": schedule.id,

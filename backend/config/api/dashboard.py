@@ -191,6 +191,8 @@ class DashboardSummaryView(APIView):
             "expiringSoon": expiring_soon,
             "overdueCount": overdue_count,
             "blockedCount": blocked_count,
+            "paymentDueDay": payment_due_day,
+            "accessBlockDay": access_block_day,
             "upcomingExpirations": upcoming_expirations_data,
             "recentActivity": recent_activity_data,
             "pendingPayments": pending_payments_data,
