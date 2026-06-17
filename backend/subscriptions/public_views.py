@@ -6,9 +6,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.api.throttles import PublicMemberRateThrottle
 from members.models import Member
 
-from .models import PlanChangeRequest
+from .models import PlanChangeRequest, Subscription
 from .serializers import PublicPlanChangeRequestSerializer
 from .services import cancel_future_plan_change
 
@@ -85,4 +86,68 @@ class PublicCancelPlanChangeRequestView(APIView):
         change_request.refresh_from_db()
         return Response(
             PublicPlanChangeRequestSerializer(change_request).data
+        )
+
+
+class PublicCancelRenewalView(APIView):
+    permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
+
+    def post(self, request, token):
+        member = get_object_or_404(Member, access_token=token)
+
+        subscription = Subscription.objects.filter(
+            member=member,
+        ).order_by("-end_date").first()
+
+        if not subscription:
+            return Response(
+                {"detail": "No hay una suscripción activa."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not subscription.auto_renew:
+            return Response(
+                {"message": "La renovación automática ya está cancelada."},
+                status=status.HTTP_200_OK,
+            )
+
+        subscription.auto_renew = False
+        subscription.save(update_fields=["auto_renew"])
+
+        return Response(
+            {"message": "La renovación automática fue cancelada."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class PublicEnableRenewalView(APIView):
+    permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
+
+    def post(self, request, token):
+        member = get_object_or_404(Member, access_token=token)
+
+        subscription = Subscription.objects.filter(
+            member=member,
+        ).order_by("-end_date").first()
+
+        if not subscription:
+            return Response(
+                {"detail": "No hay una suscripción activa."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if subscription.auto_renew:
+            return Response(
+                {"message": "La renovación automática ya está activa."},
+                status=status.HTTP_200_OK,
+            )
+
+        subscription.auto_renew = True
+        subscription.save(update_fields=["auto_renew"])
+
+        return Response(
+            {"message": "La renovación automática fue reactivada."},
+            status=status.HTTP_200_OK,
         )

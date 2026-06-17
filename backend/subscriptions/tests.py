@@ -1,4 +1,5 @@
 import json
+import unittest
 
 from decimal import Decimal
 
@@ -725,7 +726,7 @@ class PlanChangeExecutionTest(TestCase):
 
         self.member.refresh_from_db()
         sub = self.member.subscription_set.first()
-        self.assertEqual(sub.plan, self.plan_new)
+        self.assertEqual(sub.plan, self.plan_old)
 
         active = AttendanceSchedule.objects.filter(member=self.member, active=True)
         self.assertEqual(active.count(), 1)
@@ -1584,3 +1585,456 @@ class MonthlySubscriptionPhase2Test(TestCase):
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data["start_date"], "2028-02-01")
         self.assertEqual(resp.data["end_date"], "2028-02-29")
+
+
+class AutoRenewCommandTest(TestCase):
+    """Tests for the auto_renew_subscriptions management command."""
+
+    def setUp(self):
+        self.gym = Gym.objects.create(
+            name="Auto Gym", slug="auto-gym", phone="123", email="auto@gym.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Auto", last_name="User", phone="001",
+        )
+
+    def _run_command(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("auto_renew_subscriptions", stdout=out)
+        return out.getvalue()
+
+    def _get_month_range(self, year, month):
+        from calendar import monthrange
+        last = monthrange(year, month)[1]
+        return date(year, month, 1), date(year, month, last)
+
+    # 1) Renews eligible members — creates NEXT month subscription
+    def test_renews_eligible_member(self):
+        start, end = self._get_month_range(2026, 5)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=True,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 1", output)
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 2,
+        )
+        new_sub = Subscription.objects.filter(member=self.member).order_by("-id").first()
+        self.assertEqual(new_sub.start_date, date(2026, 7, 1))
+        self.assertEqual(new_sub.end_date, date(2026, 7, 31))
+        self.assertFalse(new_sub.paid)
+
+    # 2) Skips auto_renew=False
+    def test_skips_auto_renew_false(self):
+        start, end = self._get_month_range(2026, 5)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=False,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Skipped auto_renew=False: 1", output)
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 1,
+        )
+
+    # 3) Skips members already renewed — duplicate on next month
+    def test_skips_already_renewed(self):
+        start, end = self._get_month_range(2026, 5)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=True,
+        )
+        july_start, july_end = self._get_month_range(2026, 7)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=july_start, end_date=july_end, auto_renew=True,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 15)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 0", output)
+        self.assertIn("Skipped already renewed: 1", output)
+
+    # 4) Idempotency — running twice produces same result
+    def test_idempotent(self):
+        start, end = self._get_month_range(2026, 5)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=True,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            self._run_command()
+            output2 = self._run_command()
+
+        self.assertIn("Created: 0", output2)
+        self.assertIn("Skipped already renewed: 1", output2)
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 2,
+        )
+
+    # 5) Year boundary (December → January)
+    def test_year_boundary(self):
+        start, end = self._get_month_range(2026, 12)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=True,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2027, 1, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 1", output)
+        new_sub = Subscription.objects.filter(member=self.member).order_by("-id").first()
+        self.assertEqual(new_sub.start_date, date(2027, 2, 1))
+        self.assertEqual(new_sub.end_date, date(2027, 2, 28))
+
+    # 6) Leap year safety (February 29)
+    def test_leap_year_safety(self):
+        start, end = self._get_month_range(2028, 1)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=True,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2028, 1, 16)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 1", output)
+        new_sub = Subscription.objects.filter(member=self.member).order_by("-id").first()
+        self.assertEqual(new_sub.start_date, date(2028, 2, 1))
+        self.assertEqual(new_sub.end_date, date(2028, 2, 29))
+
+
+class Phase3BTest(TestCase):
+    """Phase 3B: Plan Change Execution on Monthly Renewals — immutability."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.gym = Gym.objects.create(
+            name="Phase3B Gym", slug="phase3b-gym", phone="123", email="p3b@gym.com",
+        )
+        self.user = User.objects.create_user(username="p3badmin", password="pass1234")
+        self.user.profile.gym = self.gym
+        self.user.profile.save()
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+        self.plan_old = MembershipPlan.objects.create(
+            gym=self.gym, name="Current", price=10, duration_days=30, weekly_visits=2,
+        )
+        self.plan_new = MembershipPlan.objects.create(
+            gym=self.gym, name="Premium", price=20, duration_days=30, weekly_visits=2,
+        )
+
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="P3B", last_name="User", phone="555",
+        )
+        self.june_sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan_old,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            auto_renew=True,
+        )
+
+        _create_slot(self.gym, "monday", "10:00")
+        _create_slot(self.gym, "tuesday", "10:00")
+        _create_schedules(self.member, self.gym, [
+            ("monday", "10:00"), ("tuesday", "10:00"),
+        ])
+
+    def _create_approved_pcr(self, effective_date):
+        slot = ScheduleSlot.objects.get(gym=self.gym, day="monday", hour=_to_time("10:00"))
+        pcr = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=self.member,
+            requested_plan=self.plan_new,
+            status="approved",
+            effective_date=effective_date,
+            target_schedules_snapshot=[
+                {"day": "monday", "hour": "10:00"},
+            ],
+            current_schedules_snapshot=[
+                {"day": "monday", "hour": "10:00"},
+                {"day": "tuesday", "hour": "10:00"},
+            ],
+        )
+        PlannedSchedule.objects.create(
+            gym=self.gym,
+            member=self.member,
+            plan_change=pcr,
+            slot=slot,
+            slot_name="monday 10:00",
+            day="monday",
+            hour="10:00",
+        )
+        return pcr
+
+    def _run_auto_renew(self, today):
+        from io import StringIO
+        from django.core.management import call_command
+        with unittest.mock.patch(
+            "subscriptions.management.commands.auto_renew_subscriptions.date"
+        ) as mock_date:
+            mock_date.today.return_value = today
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            out = StringIO()
+            call_command("auto_renew_subscriptions", stdout=out)
+            return out.getvalue()
+
+    def _run_apply_plan_changes(self, today):
+        from io import StringIO
+        from django.core.management import call_command
+        with unittest.mock.patch(
+            "subscriptions.management.commands.apply_plan_changes.now"
+        ) as mock_now:
+            mock_now.return_value.date.return_value = today
+            out = StringIO()
+            call_command("apply_plan_changes", stdout=out)
+            return out.getvalue()
+
+    def test_approved_pcr_causes_new_subscription_to_use_new_plan(self):
+        """approved PCR causes July subscription to use new plan"""
+        self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+
+        july_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2026, 7, 1),
+        )
+        self.assertEqual(july_sub.plan, self.plan_new)
+
+    def test_old_subscription_remains_unchanged(self):
+        """old June subscription remains unchanged"""
+        self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+        self.june_sub.refresh_from_db()
+        self.assertEqual(self.june_sub.plan, self.plan_old)
+
+    def test_apply_plan_change_does_not_mutate_any_subscription(self):
+        """apply_plan_change does not mutate any subscription plan"""
+        self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+        self._run_apply_plan_changes(date(2026, 7, 1))
+
+        self.june_sub.refresh_from_db()
+        self.assertEqual(self.june_sub.plan, self.plan_old)
+
+        july_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2026, 7, 1),
+        )
+        self.assertEqual(july_sub.plan, self.plan_new)
+
+    def test_schedule_activation_still_works(self):
+        """schedule activation still works after apply_plan_change"""
+        self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+        self._run_apply_plan_changes(date(2026, 7, 1))
+
+        active_schedules = AttendanceSchedule.objects.filter(
+            member=self.member, active=True,
+        )
+        self.assertEqual(active_schedules.count(), 1)
+        self.assertEqual(active_schedules.first().slot.day, "monday")
+
+    def test_pcr_becomes_executed(self):
+        """PCR becomes executed"""
+        pcr = self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+        self._run_apply_plan_changes(date(2026, 7, 1))
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+
+    def test_planned_schedule_activated(self):
+        """PlannedSchedule records are activated"""
+        pcr = self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+        self._run_apply_plan_changes(date(2026, 7, 1))
+
+        ps = PlannedSchedule.objects.get(plan_change=pcr)
+        self.assertTrue(ps.activated)
+
+    def test_full_lifecycle(self):
+        """Complete lifecycle: auto_renew then apply_plan_change"""
+        pcr = self._create_approved_pcr(date(2026, 7, 1))
+        self._run_auto_renew(date(2026, 6, 16))
+        self._run_apply_plan_changes(date(2026, 7, 1))
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+
+        july_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2026, 7, 1),
+        )
+        self.assertEqual(july_sub.plan, self.plan_new)
+        self.assertFalse(july_sub.paid)
+
+        self.june_sub.refresh_from_db()
+        self.assertEqual(self.june_sub.plan, self.plan_old)
+        self.assertEqual(self.june_sub.start_date, date(2026, 6, 1))
+        self.assertEqual(self.june_sub.end_date, date(2026, 6, 30))
+
+    def test_auto_renew_skips_member_without_pcr(self):
+        """auto_renew uses old plan when no approved PCR exists"""
+        self._run_auto_renew(date(2026, 6, 16))
+
+        july_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2026, 7, 1),
+        )
+        self.assertEqual(july_sub.plan, self.plan_old)
+
+    def test_auto_renew_honours_pcr_with_effective_date_in_past(self):
+        """approved PCR with effective_date <= renewal month start is respected"""
+        self._create_approved_pcr(date(2026, 6, 30))
+
+        self._run_auto_renew(date(2026, 6, 16))
+
+        july_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2026, 7, 1),
+        )
+        self.assertEqual(july_sub.plan, self.plan_new)
+
+    def test_june_run_creates_july_subscription(self):
+        """regression: today=2026-06-16 creates July (not June) subscription"""
+        self._run_auto_renew(date(2026, 6, 16))
+
+        july_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2026, 7, 1),
+        )
+        self.assertEqual(july_sub.end_date, date(2026, 7, 31))
+        self.assertFalse(july_sub.paid)
+
+        no_june_sub = Subscription.objects.filter(
+            member=self.member, start_date=date(2026, 6, 1),
+        ).exclude(id=self.june_sub.id)
+        self.assertEqual(no_june_sub.count(), 0)
+
+    def test_december_run_creates_january_subscription(self):
+        """regression: year boundary — Dec run creates January next year"""
+        self.dec_sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan_old,
+            start_date=date(2026, 12, 1), end_date=date(2026, 12, 31),
+            auto_renew=True,
+        )
+
+        self._run_auto_renew(date(2026, 12, 16))
+
+        jan_sub = Subscription.objects.get(
+            member=self.member, start_date=date(2027, 1, 1),
+        )
+        self.assertEqual(jan_sub.end_date, date(2027, 1, 31))
+        self.assertEqual(jan_sub.plan, self.plan_old)
+        self.assertFalse(jan_sub.paid)
+
+
+class AutoRenewalCancelTest(TestCase):
+    """Tests for cancel/enable auto-renewal endpoints."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.gym = Gym.objects.create(
+            name="Cancel Gym", slug="cancel-gym", phone="123", email="cancel@gym.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Cancel", last_name="Test", phone="001",
+        )
+        self.subscription = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date.today() - timedelta(days=10),
+            end_date=date.today() + timedelta(days=20),
+            auto_renew=True,
+        )
+
+    def _cancel_url(self, token):
+        return f"/api/subscriptions/public/cancel-renewal/{token}/"
+
+    def _enable_url(self, token):
+        return f"/api/subscriptions/public/enable-renewal/{token}/"
+
+    def test_cancel_renewal_sets_auto_renew_false(self):
+        resp = self.client.post(self._cancel_url(self.member.access_token))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("cancelada", resp.data["message"].lower())
+        self.subscription.refresh_from_db()
+        self.assertFalse(self.subscription.auto_renew)
+
+    def test_enable_renewal_sets_auto_renew_true(self):
+        self.subscription.auto_renew = False
+        self.subscription.save(update_fields=["auto_renew"])
+        resp = self.client.post(self._enable_url(self.member.access_token))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("reactivada", resp.data["message"].lower())
+        self.subscription.refresh_from_db()
+        self.assertTrue(self.subscription.auto_renew)
+
+    def test_auto_renew_command_skips_cancelled_subscriptions(self):
+        self.subscription.auto_renew = False
+        self.subscription.save(update_fields=["auto_renew"])
+        from django.core.management import call_command
+        from io import StringIO
+        out = StringIO()
+        call_command("auto_renew_subscriptions", stdout=out)
+        self.assertIn("Skipped auto_renew=False: 1", out.getvalue())
+
+    def test_cancel_twice_returns_success(self):
+        self.subscription.auto_renew = False
+        self.subscription.save(update_fields=["auto_renew"])
+        resp = self.client.post(self._cancel_url(self.member.access_token))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_enable_twice_returns_success(self):
+        resp = self.client.post(self._enable_url(self.member.access_token))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("activa", resp.data["message"].lower())
+
+    def test_inactive_member_no_subscription(self):
+        member_no_sub = Member.objects.create(
+            gym=self.gym, first_name="NoSub", last_name="User", phone="999",
+        )
+        resp = self.client.post(self._cancel_url(member_no_sub.access_token))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_portal_exposes_auto_renew_state(self):
+        from routines.models import RoutineAssignment, RoutineTemplate
+        template = RoutineTemplate.objects.create(
+            gym=self.gym, name="Test Routine",
+        )
+        RoutineAssignment.objects.create(
+            gym=self.gym, member=self.member,
+            routine_template=template, active=True,
+        )
+        resp = self.client.get(f"/api/routines/public/{self.member.access_token}/")
+        self.assertEqual(resp.status_code, 200)
+        sub_data = resp.data.get("subscription")
+        self.assertIsNotNone(sub_data)
+        self.assertIn("auto_renew", sub_data)
+        self.assertTrue(sub_data["auto_renew"])

@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
-import { X, Clock, CheckCircle } from "lucide-react";
+import { X, Clock, CheckCircle, RotateCcw } from "lucide-react";
 
 import CurrentPlanCard from "../../components/plans/CurrentPlanCard";
 import PlanChangeModal from "../../components/plans/PlanChangeModal";
-import { createPublicPlanChangeRequest, cancelPublicPlanChangeRequest } from "../../services/routines.service";
+import {
+  createPublicPlanChangeRequest,
+  cancelPublicPlanChangeRequest,
+  cancelAutoRenewal,
+  enableAutoRenewal,
+} from "../../services/routines.service";
 
 function formatDate(date) {
   if (!date) return "";
@@ -84,6 +89,34 @@ function MemberDashboard() {
   const approvedFutureRequest = (planChangeRequests || []).find(
     (r) => r.status === "approved" && r.effective_date
   );
+
+  const [togglingRenewal, setTogglingRenewal] = useState(false);
+
+  async function handleCancelRenewal() {
+    setTogglingRenewal(true);
+    try {
+      await cancelAutoRenewal(token);
+      toast.success("Renovación automática cancelada.");
+      refreshRoutine();
+    } catch (err) {
+      toast.error(err?.message || "Error al cancelar renovación.");
+    } finally {
+      setTogglingRenewal(false);
+    }
+  }
+
+  async function handleEnableRenewal() {
+    setTogglingRenewal(true);
+    try {
+      await enableAutoRenewal(token);
+      toast.success("Renovación automática reactivada.");
+      refreshRoutine();
+    } catch (err) {
+      toast.error(err?.message || "Error al reactivar renovación.");
+    } finally {
+      setTogglingRenewal(false);
+    }
+  }
 
   async function handleCreateRequest(data) {
     try {
@@ -168,6 +201,48 @@ function MemberDashboard() {
                 </span>
               </div>
             </div>
+
+            {subscription.days_remaining > 0 && (
+              <div className="mt-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm text-text-secondary">
+                    Renovación automática
+                  </span>
+                  <span
+                    className={`text-sm font-medium ${
+                      subscription.auto_renew
+                        ? "text-success-text dark:text-success"
+                        : "text-danger-text dark:text-danger"
+                    }`}
+                  >
+                    {subscription.auto_renew ? "Activada" : "Cancelada"}
+                  </span>
+                </div>
+                {subscription.auto_renew ? (
+                  <button
+                    onClick={handleCancelRenewal}
+                    disabled={togglingRenewal}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:opacity-50"
+                  >
+                    <X size={16} />
+                    {togglingRenewal
+                      ? "Cancelando..."
+                      : "Cancelar renovación automática"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleEnableRenewal}
+                    disabled={togglingRenewal}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 px-4 py-2 text-sm text-primary transition hover:bg-primary/10 disabled:opacity-50"
+                  >
+                    <RotateCcw size={16} />
+                    {togglingRenewal
+                      ? "Reactivando..."
+                      : "Reactivar renovación automática"}
+                  </button>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <p className="text-sm text-text-secondary">Sin suscripción activa</p>

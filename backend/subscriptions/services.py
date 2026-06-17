@@ -149,11 +149,6 @@ def apply_plan_change(plan_change_request):
         plan_change_request.status = "executed"
         plan_change_request.save(update_fields=["status"])
 
-        subscription = get_member_active_subscription(plan_change_request.member)
-        if subscription:
-            subscription.plan = plan_change_request.requested_plan
-            subscription.save(update_fields=["plan"])
-
         AttendanceSchedule.objects.filter(
             member=plan_change_request.member,
             active=True,

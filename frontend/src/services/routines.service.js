@@ -227,3 +227,21 @@ export async function cancelPublicPlanChangeRequest(token, id) {
     method: "POST",
   });
 }
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC AUTO-RENEWAL (Member Portal)
+|--------------------------------------------------------------------------
+*/
+
+export async function cancelAutoRenewal(token) {
+  return apiFetch(`/api/subscriptions/public/cancel-renewal/${token}/`, {
+    method: "POST",
+  });
+}
+
+export async function enableAutoRenewal(token) {
+  return apiFetch(`/api/subscriptions/public/enable-renewal/${token}/`, {
+    method: "POST",
+  });
+}

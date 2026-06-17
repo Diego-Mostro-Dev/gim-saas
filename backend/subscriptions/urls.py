@@ -6,6 +6,8 @@ from .views import SubscriptionViewSet, PlanChangeRequestViewSet
 from .public_views import (
     PublicPlanChangeRequestView,
     PublicCancelPlanChangeRequestView,
+    PublicCancelRenewalView,
+    PublicEnableRenewalView,
 )
 
 
@@ -27,5 +29,15 @@ urlpatterns = router.urls + [
         "subscriptions/public/plan-change-requests/<str:token>/<int:pk>/cancel/",
         PublicCancelPlanChangeRequestView.as_view(),
         name="public-cancel-plan-change-request",
+    ),
+    path(
+        "subscriptions/public/cancel-renewal/<str:token>/",
+        PublicCancelRenewalView.as_view(),
+        name="public-cancel-renewal",
+    ),
+    path(
+        "subscriptions/public/enable-renewal/<str:token>/",
+        PublicEnableRenewalView.as_view(),
+        name="public-enable-renewal",
     ),
 ]

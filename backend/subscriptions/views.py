@@ -15,7 +15,7 @@ from .serializers import (
     PlanChangeRequestSerializer,
     PlanChangeRequestActionSerializer,
 )
-from .services import get_member_active_subscription, calculate_effective_date, cancel_future_plan_change, get_first_day_of_next_month, get_last_day_of_month
+from .services import calculate_effective_date, cancel_future_plan_change, get_first_day_of_next_month, get_last_day_of_month
 
 
 class SubscriptionViewSet(GymModelViewSet):
@@ -127,10 +127,17 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     instance.reviewed_at = now_value
                     instance.save(update_fields=["status", "effective_date", "reviewed_by", "reviewed_at"])
 
-                    subscription = get_member_active_subscription(instance.member)
-                    if subscription:
-                        subscription.plan = instance.requested_plan
-                        subscription.save(update_fields=["plan"])
+                    effective = instance.effective_date
+                    month_start = effective
+                    month_end = get_last_day_of_month(effective)
+                    Subscription.objects.create(
+                        gym=instance.gym,
+                        member=instance.member,
+                        plan=instance.requested_plan,
+                        start_date=month_start,
+                        end_date=month_end,
+                        paid=False,
+                    )
 
                     self._synchronize_schedules(instance)
             elif new_status == "cancelled" and instance.status == "approved":
