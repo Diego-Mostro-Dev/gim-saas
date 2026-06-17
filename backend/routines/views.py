@@ -350,6 +350,7 @@ class PublicRoutineView(APIView):
                 "start_date": subscription.start_date,
                 "end_date": subscription.end_date,
                 "paid": subscription.paid,
+                "auto_renew": subscription.auto_renew,
                 "days_remaining": (
                     subscription.end_date - today
                 ).days,
