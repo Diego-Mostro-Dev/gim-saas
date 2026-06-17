@@ -15,7 +15,8 @@ function MemberForm({
 
   const schedules = formData.schedules || [];
 
-  const selectedPlan = availablePlans.find((p) => p.id === formData.plan_id);
+  const plans = availablePlans || [];
+  const selectedPlan = plans.find((p) => p.id === formData.plan_id);
   const limit = selectedPlan ? selectedPlan.weekly_visits : null;
   const scheduleCount = schedules.length;
   const atLimit = limit !== null && scheduleCount >= limit;
@@ -165,7 +166,7 @@ function MemberForm({
         />
       </div>
 
-      {!loadingPlans && availablePlans.length > 0 && (
+      {!loadingPlans && plans.length > 0 && (
         <PlanSelector
           plans={availablePlans}
           selectedPlanId={formData.plan_id}
@@ -175,7 +176,7 @@ function MemberForm({
         />
       )}
 
-      {availablePlans.length > 0 && !selectedPlan ? (
+      {plans.length > 0 && !selectedPlan ? (
         <div className="rounded-lg bg-surface-input border border-border p-4">
           <p className="text-sm text-text-secondary">
             Elegí primero un plan para seleccionar tus horarios.

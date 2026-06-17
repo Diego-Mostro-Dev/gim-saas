@@ -15,6 +15,7 @@ import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
 import { getMemberWhatsapp } from "../services/routines.service";
 import { getSlots } from "../services/attendance.service";
+import { getPlans } from "../services/plans.service";
 
 import {
   getMember,
@@ -68,8 +69,35 @@ function Members() {
 
   const [paymentsMemberId, setPaymentsMemberId] = useState(null);
 
+  const [availablePlans, setAvailablePlans] = useState(() => getCached("plans") || []);
+  const [loadingPlans, setLoadingPlans] = useState(() => !isCacheFresh("plans", 10 * 60 * 1000));
+
   const [availableSlots, setAvailableSlots] = useState(() => getCached("slots") || []);
   const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
+
+  useEffect(() => {
+    async function load() {
+      if (isCacheFresh("plans", 10 * 60 * 1000)) {
+        setAvailablePlans(getCached("plans"));
+        setLoadingPlans(false);
+        try {
+          const data = await getPlans();
+          setAvailablePlans(data);
+        } catch {}
+        return;
+      }
+      try {
+        setLoadingPlans(true);
+        const data = await getPlans();
+        setAvailablePlans(data);
+      } catch {
+        toast.error("Error al cargar planes disponibles");
+      } finally {
+        setLoadingPlans(false);
+      }
+    }
+    load();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -297,6 +325,8 @@ function Members() {
             isSubmitting={isSubmitting}
             availableSlots={availableSlots}
             loadingSlots={loadingSlots}
+            availablePlans={availablePlans}
+            loadingPlans={loadingPlans}
           />
         </div>
       )}
