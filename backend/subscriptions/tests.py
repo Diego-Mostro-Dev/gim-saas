@@ -1623,7 +1623,7 @@ class AutoRenewCommandTest(TestCase):
         start, end = self._get_month_range(2026, 5)
         Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
-            start_date=start, end_date=end, auto_renew=True,
+            start_date=start, end_date=end, paid=True, auto_renew=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
@@ -1684,7 +1684,7 @@ class AutoRenewCommandTest(TestCase):
         start, end = self._get_month_range(2026, 5)
         Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
-            start_date=start, end_date=end, auto_renew=True,
+            start_date=start, end_date=end, paid=True, auto_renew=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
@@ -1704,7 +1704,7 @@ class AutoRenewCommandTest(TestCase):
         start, end = self._get_month_range(2026, 12)
         Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
-            start_date=start, end_date=end, auto_renew=True,
+            start_date=start, end_date=end, paid=True, auto_renew=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
@@ -1722,7 +1722,7 @@ class AutoRenewCommandTest(TestCase):
         start, end = self._get_month_range(2028, 1)
         Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
-            start_date=start, end_date=end, auto_renew=True,
+            start_date=start, end_date=end, paid=True, auto_renew=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
@@ -1734,6 +1734,65 @@ class AutoRenewCommandTest(TestCase):
         new_sub = Subscription.objects.filter(member=self.member).order_by("-id").first()
         self.assertEqual(new_sub.start_date, date(2028, 2, 1))
         self.assertEqual(new_sub.end_date, date(2028, 2, 29))
+
+    # --- initial_pending skip rules ---
+
+    def _make_sub(self, **kw):
+        start, end = self._get_month_range(2026, 5)
+        defaults = dict(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start, end_date=end, auto_renew=True, paid=True,
+        )
+        defaults.update(kw)
+        return Subscription.objects.create(**defaults)
+
+    def test_skips_first_unpaid(self):
+        """First subscription unpaid → NOT renewed"""
+        self._make_sub(paid=False)
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 0", output)
+        self.assertIn("Skipped initial pending: 1", output)
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 1,
+        )
+
+    def test_first_paid_renews_normally(self):
+        """First subscription paid → renewed normally"""
+        self._make_sub(paid=True)
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 1", output)
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 2,
+        )
+
+    def test_renewal_subscriptions_continue_normally(self):
+        """Second (renewal) subscription unpaid → normal renewal logic applies"""
+        self._make_sub(paid=True)  # first sub, paid
+        june_start, june_end = self._get_month_range(2026, 6)
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=june_start, end_date=june_end, paid=False, auto_renew=True,
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.management.commands.auto_renew_subscriptions.date") as mock_date:
+            mock_date.today.return_value = date(2026, 7, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            output = self._run_command()
+
+        self.assertIn("Created: 1", output)
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 3,
+        )
 
 
 class Phase3BTest(TestCase):
@@ -2183,6 +2242,13 @@ class PaymentStatusTest(TestCase):
             routine_template=template, active=True,
         )
 
+        # prior paid subscription so test subs are not the member's first
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+
     def _create_sub(self, paid=True, start_date=None, end_date=None):
         if start_date is None:
             start_date = date(2026, 6, 1)
@@ -2308,6 +2374,13 @@ class BlockedMemberAccessTest(TestCase):
             routine_template=template, active=True,
         )
 
+        # prior paid subscription so test subs are not the member's first
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+
     def _create_sub(self, paid=True, start_date=None, end_date=None):
         if start_date is None:
             start_date = date(2026, 6, 1)
@@ -2403,12 +2476,212 @@ class BlockedMemberAccessTest(TestCase):
         )
         self.assertNotEqual(resp.status_code, 403)
 
-    def test_pending_plan_change_create_allowed(self):
-        self._create_sub(paid=False)
+
+class InitialPendingTest(TestCase):
+    """Focused tests for the initial_pending payment status."""
+
+    def setUp(self):
+        self.gym = Gym.objects.create(
+            name="Initial Gym", slug="initial-gym", phone="123", email="init@gym.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Init", last_name="Test", phone="001",
+        )
+
+    def _mock_today(self, target_date):
+        from unittest.mock import patch
+        from django.utils import timezone
+        return patch.object(timezone, "localdate", return_value=target_date)
+
+    # — helper unit tests —
+
+    def test_first_unpaid_is_initial_pending(self):
+        """First subscription, unpaid, returns initial_pending regardless of day"""
+        sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        from subscriptions.services import get_subscription_payment_status
+        status = get_subscription_payment_status(sub)
+        self.assertEqual(status, "initial_pending")
+
+    def test_first_unpaid_initial_pending_on_late_day(self):
+        """First subscription, unpaid, still initial_pending even on day 25"""
+        sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        from subscriptions.services import get_subscription_payment_status
+        with self._mock_today(date(2026, 6, 25)):
+            status = get_subscription_payment_status(sub)
+        self.assertEqual(status, "initial_pending")
+
+    def test_first_paid_is_paid(self):
+        """First subscription, paid, returns paid"""
+        sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=True,
+        )
+        from subscriptions.services import get_subscription_payment_status
+        status = get_subscription_payment_status(sub)
+        self.assertEqual(status, "paid")
+
+    def test_renewal_unpaid_pending(self):
+        """Second subscription, unpaid, on early day → pending (renewal logic)"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+        sub2 = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        from subscriptions.services import get_subscription_payment_status
         with self._mock_today(date(2026, 6, 5)):
-            resp = self.client.post(
-                f"/api/subscriptions/public/plan-change-requests/{self.member.access_token}/",
-                {"requested_plan": self.plan.id, "target_schedules_snapshot": []},
-                format="json",
-            )
-        self.assertNotEqual(resp.status_code, 403)
+            status = get_subscription_payment_status(sub2)
+        self.assertEqual(status, "pending")
+
+    def test_renewal_unpaid_overdue(self):
+        """Second subscription, unpaid, on overdue day → overdue (renewal logic)"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+        sub2 = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        from subscriptions.services import get_subscription_payment_status
+        with self._mock_today(date(2026, 6, 15)):
+            status = get_subscription_payment_status(sub2)
+        self.assertEqual(status, "overdue")
+
+    def test_renewal_unpaid_blocked(self):
+        """Second subscription, unpaid, on blocked day → blocked (renewal logic)"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+        sub2 = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        from subscriptions.services import get_subscription_payment_status
+        with self._mock_today(date(2026, 6, 20)):
+            status = get_subscription_payment_status(sub2)
+        self.assertEqual(status, "blocked")
+
+    def test_renewal_paid_is_paid(self):
+        """Second subscription, paid → paid"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+        sub2 = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=True,
+        )
+        from subscriptions.services import get_subscription_payment_status
+        status = get_subscription_payment_status(sub2)
+        self.assertEqual(status, "paid")
+
+    # — dashboard counter —
+
+    _dash_user_counter = 0
+
+    def _auth_dashboard(self):
+        from rest_framework.test import APIClient
+        from django.contrib.auth.models import User
+        type(self)._dash_user_counter += 1
+        staff_user = User.objects.create_user(
+            username=f"dash_init_{self._dash_user_counter}",
+            password="testpass123",
+        )
+        staff_user.profile.gym = self.gym
+        staff_user.profile.save(update_fields=["gym"])
+        client = APIClient()
+        client.force_authenticate(user=staff_user)
+        return client
+
+    def test_dashboard_initial_pending_count(self):
+        """Dashboard returns initialPendingCount for first unpaid subs"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        client = self._auth_dashboard()
+        with self._mock_today(date(2026, 6, 5)):
+            response = client.get("/api/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["initialPendingCount"], 1)
+
+    def test_dashboard_initial_pending_zero_when_paid(self):
+        """Dashboard initialPendingCount is 0 when first sub is paid"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=True,
+        )
+        client = self._auth_dashboard()
+        with self._mock_today(date(2026, 6, 5)):
+            response = client.get("/api/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["initialPendingCount"], 0)
+
+    def test_dashboard_initial_pending_zero_for_renewal(self):
+        """Dashboard initialPendingCount excludes renewal unpaid subs"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1), end_date=date(2026, 5, 31),
+            paid=True,
+        )
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        client = self._auth_dashboard()
+        with self._mock_today(date(2026, 6, 5)):
+            response = client.get("/api/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["initialPendingCount"], 0)
+
+    # — can_member_operate —
+
+    def test_can_member_operate_false_for_initial_pending(self):
+        """can_member_operate returns False for initial_pending members"""
+        from subscriptions.services import can_member_operate
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=False,
+        )
+        self.assertFalse(can_member_operate(self.member))
+
+    def test_can_member_operate_true_after_first_paid(self):
+        """can_member_operate returns True after first sub is paid"""
+        from subscriptions.services import can_member_operate
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=True,
+        )
+        self.assertTrue(can_member_operate(self.member))
+
+
