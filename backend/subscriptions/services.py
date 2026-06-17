@@ -9,6 +9,15 @@ from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleSwapRequ
 from .models import PlanChangeRequest, Subscription, PlannedSchedule
 
 
+def get_subscription_payment_status(subscription):
+    today = timezone.localdate()
+    if subscription.paid:
+        return "paid"
+    if today.day <= 10:
+        return "pending"
+    return "overdue"
+
+
 def get_last_day_of_month(d):
     return date(d.year, d.month, monthrange(d.year, d.month)[1])
 

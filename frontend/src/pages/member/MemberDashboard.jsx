@@ -150,16 +150,29 @@ function MemberDashboard() {
           Suscripción
         </h2>
 
+        {subscription?.renewal_reminder && (
+          <div className="mb-4 rounded-xl bg-primary-bg/20 dark:bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-primary-text dark:text-primary">
+            <p className="font-medium">
+              Tu suscripción se renovará automáticamente el{" "}
+              {formatDate(subscription.renewal_date)}.
+            </p>
+          </div>
+        )}
+
         {subscription ? (
           <>
             <div className="mb-4">
-              {subscription.paid ? (
+              {subscription.payment_status === "paid" ? (
                 <span className="rounded-xl bg-success-bg dark:bg-success/15 px-3 py-1 text-sm font-semibold text-success-text dark:text-success">
-                  ✓ Cuota al día
+                  ✓ Al día
                 </span>
-              ) : (
+              ) : subscription.payment_status === "pending" ? (
                 <span className="rounded-xl bg-warning-bg dark:bg-warning/15 px-3 py-1 text-sm font-semibold text-warning-text dark:text-warning">
                   ⚠ Pendiente de pago
+                </span>
+              ) : (
+                <span className="rounded-xl bg-danger-bg dark:bg-danger/15 px-3 py-1 text-sm font-semibold text-danger-text dark:text-danger">
+                  ❌ Pago vencido
                 </span>
               )}
             </div>

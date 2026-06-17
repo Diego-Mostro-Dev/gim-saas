@@ -13,6 +13,10 @@ from django.shortcuts import get_object_or_404
 from .serializers import MemberRoutineSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
+from subscriptions.services import (
+    get_first_day_of_next_month,
+    get_subscription_payment_status,
+)
 from attendance.models import AttendanceSchedule
 from payments.models import Payment
 from plans.models import MembershipPlan
@@ -340,6 +344,9 @@ class PublicRoutineView(APIView):
 
         if subscription:
             plan = subscription.plan
+            days_remaining = (
+                subscription.end_date - today
+            ).days
             subscription_data = {
                 "id": subscription.id,
                 "plan_id": plan.id,
@@ -350,10 +357,21 @@ class PublicRoutineView(APIView):
                 "start_date": subscription.start_date,
                 "end_date": subscription.end_date,
                 "paid": subscription.paid,
+                "payment_status": get_subscription_payment_status(subscription),
                 "auto_renew": subscription.auto_renew,
-                "days_remaining": (
-                    subscription.end_date - today
-                ).days,
+                "days_remaining": days_remaining,
+                "renewal_reminder": (
+                    subscription.auto_renew
+                    and 0 <= days_remaining <= 7
+                ),
+                "renewal_date": (
+                    get_first_day_of_next_month(
+                        subscription.end_date
+                    ).isoformat()
+                    if subscription.auto_renew
+                    and 0 <= days_remaining <= 7
+                    else None
+                ),
             }
 
         schedules = (
