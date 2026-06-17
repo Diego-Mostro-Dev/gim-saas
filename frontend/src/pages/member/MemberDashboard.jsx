@@ -321,7 +321,13 @@ function MemberDashboard() {
           subscription && activePlans.length > 0 && (
             <button
               onClick={() => setShowPlanModal(true)}
-              className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition hover:bg-primary/90"
+              disabled={subscription.payment_status === "blocked"}
+              title={
+                subscription.payment_status === "blocked"
+                  ? "No disponible por falta de pago"
+                  : ""
+              }
+              className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Solicitar cambio de plan
             </button>

@@ -21,14 +21,36 @@ class GymAdmin(admin.ModelAdmin):
         "public_register_link",
     )
 
-    fields = (
-        "name",
-        "slug",
-        "active",
-        "onboarding_code",
-        "created_at",
-        "public_register_link",
-    )
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": (
+                    "name", "slug", "active",
+                    "onboarding_code", "created_at", "public_register_link",
+                )
+            },
+        ),
+        (
+            "Configuración de Pagos",
+            {
+                "fields": (
+                    "payment_due_day", "access_block_day",
+                )
+            },
+        ),
+        (
+            "Configuración de Planes y Horarios",
+            {
+                "fields": (
+                    "allow_plan_changes", "allow_schedule_changes",
+                    "schedule_change_cooldown_hours",
+                    "max_schedule_changes_per_month",
+                    "schedule_change_notice_days",
+                )
+            },
+        ),
+    ]
 
     search_fields = (
         "name",

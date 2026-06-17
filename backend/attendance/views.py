@@ -383,7 +383,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_serializer_class(self):
-        if self.action in ("approve", "reject"):
+        if self.action in ("approve", "reject", "cancel"):
             return ScheduleChangeRequestActionSerializer
         return ScheduleChangeRequestSerializer
 
@@ -400,11 +400,15 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
-        return self._handle_action(request, pk, "approved")
+        return self._handle_action(request, pk, "executed")
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
         return self._handle_action(request, pk, "rejected")
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        return self._handle_action(request, pk, "cancelled_by_staff")
 
     def _handle_action(self, request, pk, new_status):
         instance = self.get_object()
@@ -422,7 +426,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
 
-        if new_status == "approved":
+        if new_status == "executed":
             current_schedule = instance.current_schedule
             requested_slot = instance.requested_slot
 

@@ -1,3 +1,4 @@
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,6 +14,7 @@ from attendance.models import AttendanceSchedule
 from config.api.throttles import (
     PublicMemberRateThrottle,
 )
+from subscriptions.services import can_member_operate
 
 from .models import Member
 from .serializers import (
@@ -77,11 +79,16 @@ class PublicMemberPhotoView(APIView):
     throttle_classes = [PublicMemberRateThrottle]
 
     def patch(self, request, token):
-
         member = get_object_or_404(
-        Member,
-        access_token=token,
-    )
+            Member,
+            access_token=token,
+        )
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         serializer = MemberPhotoSerializer(
             member,

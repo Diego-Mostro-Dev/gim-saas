@@ -46,6 +46,15 @@ class Gym(models.Model):
         default=24,
     )
 
+    # --- Phase 8A Gym Configuration ---
+    payment_due_day = models.PositiveIntegerField(default=10)
+    access_block_day = models.PositiveIntegerField(default=16)
+    allow_plan_changes = models.BooleanField(default=True)
+    allow_schedule_changes = models.BooleanField(default=True)
+    schedule_change_cooldown_hours = models.PositiveIntegerField(default=168)
+    max_schedule_changes_per_month = models.PositiveIntegerField(default=4)
+    schedule_change_notice_days = models.PositiveIntegerField(default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

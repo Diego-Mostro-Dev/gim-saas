@@ -360,7 +360,7 @@ class PlanChangeRequestTest(TestCase):
 
         resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
         self.assertEqual(resp2.status_code, 200)
-        self.assertEqual(resp2.data["status"], "cancelled")
+        self.assertEqual(resp2.data["status"], "cancelled_by_staff")
 
     def test_cannot_approve_already_approved(self):
         resp = self._create_request()
@@ -438,7 +438,7 @@ class PlanChangeRequestTest(TestCase):
 
         resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
         self.assertEqual(resp2.status_code, 200)
-        self.assertEqual(resp2.data["status"], "cancelled")
+        self.assertEqual(resp2.data["status"], "cancelled_by_staff")
 
         self.member.refresh_from_db()
         subscription = self.member.subscription_set.first()
@@ -446,8 +446,6 @@ class PlanChangeRequestTest(TestCase):
         self.assertNotEqual(subscription.plan, self.plan_target)
 
 
-    
-                
     def test_approve_deferred_creates_planned_schedules(self):
         resp = self._create_request()
         pk = resp.data["id"]
@@ -497,7 +495,7 @@ class PlanChangeRequestTest(TestCase):
         )
         self.assertEqual(
             ScheduleChangeRequest.objects.filter(
-                member=self.member, status="cancelled"
+                member=self.member, status="cancelled_by_staff"
             ).count(),
             1,
         )
@@ -842,6 +840,7 @@ class PublicPlanChangeRequestTest(TestCase):
         Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan_current,
             start_date=date.today(), end_date=date.today() + timedelta(days=30),
+            paid=True,
         )
 
         _create_slot(self.gym, "monday", "10:00")
@@ -906,7 +905,7 @@ class PublicPlanChangeRequestTest(TestCase):
             self._url(f"{pk}/cancel"), format="json",
         )
         self.assertEqual(cancel_resp.status_code, 200)
-        self.assertEqual(cancel_resp.data["status"], "cancelled")
+        self.assertEqual(cancel_resp.data["status"], "cancelled_by_member")
 
     # E) Invalid token returns 404
     def test_invalid_token(self):
@@ -1110,7 +1109,7 @@ class Phase3Test(TestCase):
 
         resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
         self.assertEqual(resp2.status_code, 200)
-        self.assertEqual(resp2.data["status"], "cancelled")
+        self.assertEqual(resp2.data["status"], "cancelled_by_staff")
 
         planned = PlannedSchedule.objects.filter(plan_change_id=pk)
         self.assertEqual(planned.count(), 0)
@@ -1152,7 +1151,7 @@ class Phase3Test(TestCase):
 
         resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
         self.assertEqual(resp2.status_code, 200)
-        self.assertEqual(resp2.data["status"], "cancelled")
+        self.assertEqual(resp2.data["status"], "cancelled_by_staff")
 
     def test_cannot_cancel_approved_executed(self):
         executed_member = Member.objects.create(
@@ -1192,6 +1191,7 @@ class Phase3Test(TestCase):
         Subscription.objects.create(
             gym=self.gym, member=pub_member, plan=self.plan_current,
             start_date=date.today(), end_date=date.today() + timedelta(days=30),
+            paid=True,
         )
         _create_schedules(pub_member, self.gym, [
             ("monday", "10:00"), ("tuesday", "10:00"),
@@ -1222,7 +1222,7 @@ class Phase3Test(TestCase):
             format="json",
         )
         self.assertEqual(cancel_resp.status_code, 200)
-        self.assertEqual(cancel_resp.data["status"], "cancelled")
+        self.assertEqual(cancel_resp.data["status"], "cancelled_by_member")
 
         planned = PlannedSchedule.objects.filter(plan_change_id=pk)
         self.assertEqual(planned.count(), 0)
@@ -1303,6 +1303,7 @@ class Phase3Test(TestCase):
         Subscription.objects.create(
             gym=self.gym, member=pub_member, plan=self.plan_current,
             start_date=date.today(), end_date=date.today() + timedelta(days=30),
+            paid=True,
         )
         _create_schedules(pub_member, self.gym, [
             ("monday", "10:00"), ("tuesday", "10:00"),
@@ -1551,6 +1552,7 @@ class MonthlySubscriptionPhase2Test(TestCase):
         sub = Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
             start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+            paid=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.views.now") as mock_now:
@@ -1564,6 +1566,7 @@ class MonthlySubscriptionPhase2Test(TestCase):
         sub = Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
             start_date=date(2026, 12, 1), end_date=date(2026, 12, 31),
+            paid=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.views.now") as mock_now:
@@ -1577,6 +1580,7 @@ class MonthlySubscriptionPhase2Test(TestCase):
         sub = Subscription.objects.create(
             gym=self.gym, member=self.member, plan=self.plan,
             start_date=date(2028, 1, 1), end_date=date(2028, 1, 31),
+            paid=True,
         )
         from unittest.mock import patch
         with patch("subscriptions.views.now") as mock_now:
@@ -1971,6 +1975,7 @@ class AutoRenewalCancelTest(TestCase):
             gym=self.gym, member=self.member, plan=self.plan,
             start_date=date.today() - timedelta(days=10),
             end_date=date.today() + timedelta(days=20),
+            paid=True,
             auto_renew=True,
         )
 
@@ -2280,3 +2285,132 @@ class PaymentStatusTest(TestCase):
         sub = self._create_sub(paid=False)
         with self._mock_today(date(2026, 6, 20)):
             self.assertEqual(get_subscription_payment_status(sub), "blocked")
+
+
+class BlockedMemberAccessTest(TestCase):
+    """Focused tests for blocked member access restrictions."""
+
+    def setUp(self):
+        self.gym = Gym.objects.create(
+            name="Block Gym", slug="block-gym", phone="123", email="block@gym.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Block", last_name="Test", phone="001",
+        )
+        from routines.models import RoutineAssignment, RoutineTemplate
+        template = RoutineTemplate.objects.create(
+            gym=self.gym, name="Test Routine",
+        )
+        RoutineAssignment.objects.create(
+            gym=self.gym, member=self.member,
+            routine_template=template, active=True,
+        )
+
+    def _create_sub(self, paid=True, start_date=None, end_date=None):
+        if start_date is None:
+            start_date = date(2026, 6, 1)
+        if end_date is None:
+            end_date = date(2026, 6, 30)
+        return Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start_date, end_date=end_date,
+            paid=paid, auto_renew=True,
+        )
+
+    def _mock_today(self, target_date):
+        from unittest.mock import patch
+        from django.utils import timezone
+        return patch.object(timezone, "localdate", return_value=target_date)
+
+    # --- can_member_operate helper ---
+
+    def test_helper_blocked_returns_false(self):
+        from subscriptions.services import can_member_operate
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 20)):
+            self.assertFalse(can_member_operate(self.member))
+
+    def test_helper_overdue_returns_true(self):
+        from subscriptions.services import can_member_operate
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 12)):
+            self.assertTrue(can_member_operate(self.member))
+
+    def test_helper_paid_returns_true(self):
+        from subscriptions.services import can_member_operate
+        self._create_sub(paid=True)
+        self.assertTrue(can_member_operate(self.member))
+
+    def test_helper_pending_returns_true(self):
+        from subscriptions.services import can_member_operate
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 5)):
+            self.assertTrue(can_member_operate(self.member))
+
+    def test_helper_no_subscription_returns_true(self):
+        from subscriptions.services import can_member_operate
+        self.assertTrue(can_member_operate(self.member))
+
+    # --- blocked member receives 403 on write endpoints ---
+
+    def test_blocked_plan_change_create_returns_403(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 20)):
+            resp = self.client.post(
+                f"/api/subscriptions/public/plan-change-requests/{self.member.access_token}/",
+                {"requested_plan": self.plan.id, "target_schedules_snapshot": []},
+                format="json",
+            )
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("suspendido", resp.data["detail"])
+
+    def test_blocked_cancel_renewal_returns_403(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 20)):
+            resp = self.client.post(
+                f"/api/subscriptions/public/cancel-renewal/{self.member.access_token}/",
+            )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_blocked_enable_renewal_returns_403(self):
+        self._create_sub(paid=False, end_date=date(2026, 7, 31))
+        with self._mock_today(date(2026, 7, 20)):
+            resp = self.client.post(
+                f"/api/subscriptions/public/enable-renewal/{self.member.access_token}/",
+            )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- non-blocked member allowed ---
+
+    def test_overdue_plan_change_create_allowed(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 12)):
+            resp = self.client.post(
+                f"/api/subscriptions/public/plan-change-requests/{self.member.access_token}/",
+                {"requested_plan": self.plan.id, "target_schedules_snapshot": []},
+                format="json",
+            )
+        self.assertNotEqual(resp.status_code, 403)
+
+    def test_paid_plan_change_create_allowed(self):
+        self._create_sub(paid=True)
+        resp = self.client.post(
+            f"/api/subscriptions/public/plan-change-requests/{self.member.access_token}/",
+            {"requested_plan": self.plan.id, "target_schedules_snapshot": []},
+            format="json",
+        )
+        self.assertNotEqual(resp.status_code, 403)
+
+    def test_pending_plan_change_create_allowed(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 5)):
+            resp = self.client.post(
+                f"/api/subscriptions/public/plan-change-requests/{self.member.access_token}/",
+                {"requested_plan": self.plan.id, "target_schedules_snapshot": []},
+                format="json",
+            )
+        self.assertNotEqual(resp.status_code, 403)
