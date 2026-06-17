@@ -1,5 +1,7 @@
 import json
 
+from decimal import Decimal
+
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.utils.timezone import now
@@ -13,7 +15,7 @@ from members.models import Member
 from plans.models import MembershipPlan
 from subscriptions.models import Subscription, PlanChangeRequest, PlannedSchedule
 from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
-from subscriptions.services import calculate_effective_date, compute_projected_occupancy
+from subscriptions.services import calculate_effective_date, compute_projected_occupancy, get_last_day_of_month, get_first_day_of_next_month
 
 
 def _to_time(hour_str):
@@ -976,7 +978,7 @@ class RegistrationSubscriptionTest(TestCase):
             Subscription.objects.filter(member__phone="999888777").exists()
         )
 
-    # C) Subscription dates calculated correctly
+    # C) Subscription dates calculated correctly (calendar month)
     def test_subscription_dates(self):
         resp = self._register(plan_id=self.plan.id)
         self.assertEqual(resp.status_code, 201)
@@ -984,7 +986,7 @@ class RegistrationSubscriptionTest(TestCase):
         self.assertEqual(sub.start_date, date.today())
         self.assertEqual(
             sub.end_date,
-            date.today() + timedelta(days=self.plan.duration_days),
+            get_last_day_of_month(date.today()),
         )
 
     # D) paid defaults to False
@@ -1005,6 +1007,44 @@ class RegistrationSubscriptionTest(TestCase):
         resp = self._register(plan_id=other_plan.id)
         self.assertEqual(resp.status_code, 400)
         self.assertIn("plan_id", resp.data)
+
+    # ── Prorated amount tests ──
+
+    def test_registration_returns_prorated_amount(self):
+        resp = self._register(plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 201)
+        self.assertIn("prorated_amount", resp.data)
+        self.assertIn("plan_price", resp.data)
+
+    def test_join_on_first_of_month_pays_full_price(self):
+        from unittest.mock import patch
+        with patch("members.public_views.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 1)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            resp = self._register(plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 201)
+        prorated = Decimal(resp.data["prorated_amount"])
+        self.assertEqual(prorated, Decimal("100.00"))
+
+    def test_join_mid_month_returns_partial_prorated_amount(self):
+        from unittest.mock import patch
+        with patch("members.public_views.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 15)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            resp = self._register(plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 201)
+        prorated = Decimal(resp.data["prorated_amount"])
+        self.assertEqual(prorated, Decimal("53.33"))
+
+    def test_join_on_last_day_of_month_pays_one_day(self):
+        from unittest.mock import patch
+        with patch("members.public_views.date") as mock_date:
+            mock_date.today.return_value = date(2026, 6, 30)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            resp = self._register(plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 201)
+        prorated = Decimal(resp.data["prorated_amount"])
+        self.assertEqual(prorated, Decimal("3.33"))
 
 
 class Phase3Test(TestCase):
@@ -1114,31 +1154,29 @@ class Phase3Test(TestCase):
         self.assertEqual(resp2.data["status"], "cancelled")
 
     def test_cannot_cancel_approved_executed(self):
-        expired_member = Member.objects.create(
-            gym=self.gym, first_name="Expired", last_name="Cancel", phone="889",
+        executed_member = Member.objects.create(
+            gym=self.gym, first_name="Executed", last_name="Cancel", phone="889",
         )
         Subscription.objects.create(
-            gym=self.gym, member=expired_member, plan=self.plan_current,
+            gym=self.gym, member=executed_member, plan=self.plan_current,
             start_date=date.today() - timedelta(days=60),
             end_date=date.today() - timedelta(days=30),
         )
-        _create_schedules(expired_member, self.gym, [
+        _create_schedules(executed_member, self.gym, [
             ("monday", "10:00"), ("tuesday", "10:00"),
         ])
 
-        data = {
-            "member": expired_member.id,
-            "requested_plan": self.plan_target.id,
-            "target_schedules_snapshot": [
-                {"day": "monday", "hour": "10:00"},
-                {"day": "tuesday", "hour": "10:00"},
-            ],
-        }
-        resp = self.client.post(self._url(), data, format="json")
-        pk = resp.data["id"]
-        self.client.post(self._url(f"{pk}/approve"), format="json")
+        pcr = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=executed_member,
+            requested_plan=self.plan_target,
+            status="executed",
+            effective_date=date.today() - timedelta(days=1),
+            target_schedules_snapshot=[{"day": "monday", "hour": "10:00"}, {"day": "tuesday", "hour": "10:00"}],
+            current_schedules_snapshot=[],
+        )
 
-        resp2 = self.client.post(self._url(f"{pk}/cancel"), format="json")
+        resp2 = self.client.post(self._url(f"{pcr.id}/cancel"), format="json")
         self.assertEqual(resp2.status_code, 400)
 
     # ── Feature 1: Cancel approved+future plan change (public) ──
@@ -1227,17 +1265,15 @@ class Phase3Test(TestCase):
             ("monday", "10:00"), ("tuesday", "10:00"),
         ])
 
-        data = {
-            "member": expired_member.id,
-            "requested_plan": target_plan_b.id,
-            "target_schedules_snapshot": [
-                {"day": "monday", "hour": "10:00"},
-                {"day": "tuesday", "hour": "10:00"},
-            ],
-        }
-        resp = self.client.post(self._url(), data, format="json")
-        pk = resp.data["id"]
-        self.client.post(self._url(f"{pk}/approve"), format="json")
+        pcr = PlanChangeRequest.objects.create(
+            gym=self.gym,
+            member=expired_member,
+            requested_plan=target_plan_b,
+            status="executed",
+            effective_date=date.today() - timedelta(days=1),
+            target_schedules_snapshot=[{"day": "monday", "hour": "10:00"}, {"day": "tuesday", "hour": "10:00"}],
+            current_schedules_snapshot=[],
+        )
 
         data2 = {
             "member": expired_member.id,
@@ -1314,12 +1350,13 @@ class Phase3Test(TestCase):
             start_date=date.today(), end_date=date.today() + timedelta(days=30),
         )
 
+        effective_date = calculate_effective_date(self.member)
         other_change = PlanChangeRequest.objects.create(
             gym=self.gym,
             member=other_member,
             requested_plan=self.plan_target,
             status="approved",
-            effective_date=date.today() + timedelta(days=31),
+            effective_date=effective_date,
             target_schedules_snapshot=[{"day": "wednesday", "hour": "10:00"}],
             current_schedules_snapshot=[],
         )
@@ -1358,12 +1395,13 @@ class Phase3Test(TestCase):
             start_date=date.today(), end_date=date.today() + timedelta(days=30),
         )
 
+        effective_date = calculate_effective_date(self.member)
         other_change = PlanChangeRequest.objects.create(
             gym=self.gym,
             member=other_member,
             requested_plan=self.plan_target,
             status="approved",
-            effective_date=date.today() + timedelta(days=31),
+            effective_date=effective_date,
             target_schedules_snapshot=[{"day": "wednesday", "hour": "10:00"}],
             current_schedules_snapshot=[],
         )
@@ -1449,3 +1487,100 @@ class MonthlyModelTest(TestCase):
         with patch("subscriptions.services.timezone.localdate", return_value=date(2026, 6, 28)):
             ed = calculate_effective_date()
         self.assertEqual(ed, date(2026, 7, 1))
+
+
+class MonthlySubscriptionPhase2Test(TestCase):
+    """Phase 2: Calendar-month periods for serializer, renew, and registration."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.gym = Gym.objects.create(
+            name="Phase2 Gym", slug="phase2-gym", phone="123", email="p2@gym.com",
+        )
+        self.user = User.objects.create_user(username="p2admin", password="pass1234")
+        self.user.profile.gym = self.gym
+        self.user.profile.save()
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Phase2", last_name="Member", phone="111",
+        )
+
+        _create_slot(self.gym, "monday", "10:00")
+        _create_slot(self.gym, "tuesday", "10:00")
+
+    # ── SubscriptionSerializer.create() ──
+
+    def test_serializer_create_sets_end_date_to_last_day_of_month(self):
+        resp = self.client.post("/api/subscriptions/", {
+            "member": self.member.id,
+            "plan": self.plan.id,
+            "start_date": date(2026, 6, 5).isoformat(),
+        }, format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["end_date"], "2026-06-30")
+
+    def test_serializer_create_january_end_date(self):
+        resp = self.client.post("/api/subscriptions/", {
+            "member": self.member.id,
+            "plan": self.plan.id,
+            "start_date": date(2026, 1, 15).isoformat(),
+        }, format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["end_date"], "2026-01-31")
+
+    def test_serializer_create_february_non_leap(self):
+        resp = self.client.post("/api/subscriptions/", {
+            "member": self.member.id,
+            "plan": self.plan.id,
+            "start_date": date(2026, 2, 1).isoformat(),
+        }, format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["end_date"], "2026-02-28")
+
+    # ── SubscriptionViewSet.renew() ──
+
+    def test_renew_creates_next_month_subscription(self):
+        sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.views.now") as mock_now:
+            mock_now.return_value.date.return_value = date(2026, 6, 15)
+            resp = self.client.post(f"/api/subscriptions/{sub.id}/renew/", format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["start_date"], "2026-07-01")
+        self.assertEqual(resp.data["end_date"], "2026-07-31")
+
+    def test_renew_across_year_boundary(self):
+        sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 12, 1), end_date=date(2026, 12, 31),
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.views.now") as mock_now:
+            mock_now.return_value.date.return_value = date(2026, 12, 15)
+            resp = self.client.post(f"/api/subscriptions/{sub.id}/renew/", format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["start_date"], "2027-01-01")
+        self.assertEqual(resp.data["end_date"], "2027-01-31")
+
+    def test_renew_leap_year_february(self):
+        sub = Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2028, 1, 1), end_date=date(2028, 1, 31),
+        )
+        from unittest.mock import patch
+        with patch("subscriptions.views.now") as mock_now:
+            mock_now.return_value.date.return_value = date(2028, 1, 31)
+            resp = self.client.post(f"/api/subscriptions/{sub.id}/renew/", format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["start_date"], "2028-02-01")
+        self.assertEqual(resp.data["end_date"], "2028-02-29")

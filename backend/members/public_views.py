@@ -1,4 +1,6 @@
-from datetime import date, timedelta
+from calendar import monthrange
+from datetime import date
+from decimal import Decimal
 
 from django.shortcuts import get_object_or_404
 
@@ -10,6 +12,7 @@ from gyms.models import Gym
 from attendance.models import ScheduleSlot
 from plans.models import MembershipPlan
 from subscriptions.models import Subscription
+from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer
 from config.api.throttles import PublicMemberRateThrottle
@@ -57,14 +60,28 @@ class PublicRegisterView(APIView):
                 )
 
             today = date.today()
+            end_date = get_last_day_of_month(today)
+
+            total_days = monthrange(today.year, today.month)[1]
+            remaining_days = (end_date - today).days + 1
+            prorated_amount = (
+                Decimal(str(remaining_days)) / Decimal(str(total_days))
+            ) * plan.price
+
             Subscription.objects.create(
                 gym=gym,
                 member=member,
                 plan=plan,
                 start_date=today,
-                end_date=today + timedelta(days=plan.duration_days),
+                end_date=end_date,
                 paid=False,
             )
+
+            data = MemberSerializer(member).data
+            data["prorated_amount"] = str(prorated_amount.quantize(Decimal("0.01")))
+            data["plan_price"] = str(plan.price)
+
+            return Response(data, status=status.HTTP_201_CREATED)
 
         return Response(
             MemberSerializer(member).data,

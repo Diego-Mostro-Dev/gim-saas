@@ -13,7 +13,9 @@ import {
 import { DAY_NAMES } from "../constants/days";
 
 function formatDate(date) {
-  return new Date(date).toLocaleDateString("es-AR");
+  if (!date) return "";
+  const [y, m, d] = date.split("-");
+  return new Date(+y, +m - 1, +d).toLocaleDateString("es-AR");
 }
 
 function PublicRoutine() {

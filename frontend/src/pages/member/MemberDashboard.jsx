@@ -8,7 +8,9 @@ import PlanChangeModal from "../../components/plans/PlanChangeModal";
 import { createPublicPlanChangeRequest, cancelPublicPlanChangeRequest } from "../../services/routines.service";
 
 function formatDate(date) {
-  return new Date(date).toLocaleDateString("es-AR");
+  if (!date) return "";
+  const [y, m, d] = date.split("-");
+  return new Date(+y, +m - 1, +d).toLocaleDateString("es-AR");
 }
 
 function getNextTraining(schedules) {
