@@ -59,7 +59,9 @@ function StatsCards({ data }) {
           {data?.overdueCount ?? 0}
         </h2>
 
-        <p className="mt-2 text-sm text-warning-text dark:text-warning">Día 11 al 15</p>
+        <p className="mt-2 text-sm text-warning-text dark:text-warning">
+          Entre día {((data?.paymentDueDay ?? 10) + 1)} y {((data?.accessBlockDay ?? 16) - 1)}
+        </p>
       </div>
 
       <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
@@ -73,7 +75,7 @@ function StatsCards({ data }) {
           {data?.blockedCount ?? 0}
         </h2>
 
-        <p className="mt-2 text-sm text-danger-text dark:text-danger">Sin pagar después del día 15</p>
+        <p className="mt-2 text-sm text-danger-text dark:text-danger">Desde día {data?.accessBlockDay ?? 16}</p>
       </div>
     </section>
   );

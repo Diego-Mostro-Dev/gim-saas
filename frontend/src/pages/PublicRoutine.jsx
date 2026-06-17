@@ -185,7 +185,7 @@ function PublicRoutine() {
                   key={schedule.id || idx}
                   className="rounded-xl bg-surface-input px-4 py-3"
                 >
-                  <div className={gym.allow_member_schedule_changes ? "mb-2" : ""}>
+                  <div className={gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false ? "mb-2" : ""}>
                     <span className="text-base font-semibold text-text-primary">
                       {DAY_NAMES[schedule.day] || schedule.day}
                     </span>
@@ -193,7 +193,7 @@ function PublicRoutine() {
                       {schedule.hour}
                     </span>
                   </div>
-                  {gym.allow_member_schedule_changes && (
+                  {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && (
                     <div className="flex flex-wrap gap-2">
                       {!hasPending && (
                         <button
@@ -228,7 +228,7 @@ function PublicRoutine() {
       </div>
 
       {/* SOLICITUDES DE CAMBIO */}
-      {gym.allow_member_schedule_changes && changeRequests.length > 0 && (
+      {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && changeRequests.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
@@ -316,7 +316,7 @@ function PublicRoutine() {
       )}
 
       {/* SOLICITUDES DE CAMBIO TEMPORAL */}
-      {gym.allow_member_schedule_changes && swapRequests.length > 0 && (
+      {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && swapRequests.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">

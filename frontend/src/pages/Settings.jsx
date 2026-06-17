@@ -24,7 +24,50 @@ function Settings() {
     phone: "",
     email: "",
     default_schedule_capacity: "",
+    payment_due_day: "",
+    access_block_day: "",
+    allow_plan_changes: false,
+    allow_schedule_changes: false,
+    schedule_change_cooldown_hours: "",
+    max_schedule_changes_per_month: "",
+    schedule_change_notice_days: "",
   });
+
+  const [errors, setErrors] = useState({});
+
+  function validate() {
+    const errs = {};
+    const due = Number(formData.payment_due_day);
+    const block = Number(formData.access_block_day);
+    const cooldown = Number(formData.schedule_change_cooldown_hours);
+    const maxChanges = Number(formData.max_schedule_changes_per_month);
+    const noticeDays = Number(formData.schedule_change_notice_days);
+
+    if (formData.payment_due_day !== "" && (isNaN(due) || due < 1)) {
+      errs.payment_due_day = "Debe ser mayor a 0";
+    }
+    if (formData.access_block_day !== "" && (isNaN(block) || block < 1)) {
+      errs.access_block_day = "Debe ser mayor a 0";
+    }
+    if (
+      formData.payment_due_day !== "" &&
+      formData.access_block_day !== "" &&
+      block <= due
+    ) {
+      errs.access_block_day = "Debe ser mayor al día de vencimiento";
+    }
+    if (formData.schedule_change_cooldown_hours !== "" && (isNaN(cooldown) || cooldown < 0)) {
+      errs.schedule_change_cooldown_hours = "No puede ser negativo";
+    }
+    if (formData.max_schedule_changes_per_month !== "" && (isNaN(maxChanges) || maxChanges < 0)) {
+      errs.max_schedule_changes_per_month = "No puede ser negativo";
+    }
+    if (formData.schedule_change_notice_days !== "" && (isNaN(noticeDays) || noticeDays < 0)) {
+      errs.schedule_change_notice_days = "No puede ser negativo";
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   const [logoFile, setLogoFile] = useState(null);
 
@@ -145,11 +188,20 @@ function Settings() {
       email: gym.email || "",
       default_schedule_capacity:
         gym.default_schedule_capacity ?? "",
+      payment_due_day: gym.payment_due_day ?? "",
+      access_block_day: gym.access_block_day ?? "",
+      allow_plan_changes: gym.allow_plan_changes ?? false,
+      allow_schedule_changes: gym.allow_schedule_changes ?? false,
+      schedule_change_cooldown_hours: gym.schedule_change_cooldown_hours ?? "",
+      max_schedule_changes_per_month: gym.max_schedule_changes_per_month ?? "",
+      schedule_change_notice_days: gym.schedule_change_notice_days ?? "",
     });
   }, [gym]);
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (!validate()) return;
 
     try {
       setIsSubmitting(true);
@@ -167,6 +219,24 @@ function Settings() {
           "default_schedule_capacity",
           formData.default_schedule_capacity,
         );
+      }
+
+      if (formData.payment_due_day !== "") {
+        data.append("payment_due_day", formData.payment_due_day);
+      }
+      if (formData.access_block_day !== "") {
+        data.append("access_block_day", formData.access_block_day);
+      }
+      data.append("allow_plan_changes", formData.allow_plan_changes);
+      data.append("allow_schedule_changes", formData.allow_schedule_changes);
+      if (formData.schedule_change_cooldown_hours !== "") {
+        data.append("schedule_change_cooldown_hours", formData.schedule_change_cooldown_hours);
+      }
+      if (formData.max_schedule_changes_per_month !== "") {
+        data.append("max_schedule_changes_per_month", formData.max_schedule_changes_per_month);
+      }
+      if (formData.schedule_change_notice_days !== "") {
+        data.append("schedule_change_notice_days", formData.schedule_change_notice_days);
       }
 
       if (logoFile) {
@@ -348,6 +418,132 @@ function Settings() {
             placeholder="Ej: 20"
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
+        </div>
+
+        <hr className="my-6 border-border" />
+
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Configuración de Pagos
+        </h3>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Día de vencimiento de pago
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={formData.payment_due_day}
+            onChange={(e) => setFormData({ ...formData, payment_due_day: e.target.value })}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+          {errors.payment_due_day && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.payment_due_day}</p>
+          )}
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-text-primary">
+            Día de bloqueo de acceso
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={formData.access_block_day}
+            onChange={(e) => setFormData({ ...formData, access_block_day: e.target.value })}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+          {errors.access_block_day && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.access_block_day}</p>
+          )}
+        </div>
+
+        <hr className="my-6 border-border" />
+
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Configuración de Planes y Horarios
+        </h3>
+
+        <div className="mb-4 flex items-center justify-between">
+          <label className="text-sm text-text-primary">Permitir cambios de plan</label>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, allow_plan_changes: !formData.allow_plan_changes })}
+            className={`relative h-6 w-11 rounded-full transition ${
+              formData.allow_plan_changes ? "bg-primary" : "bg-border"
+            }`}
+          >
+            <span
+              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                formData.allow_plan_changes ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mb-4 flex items-center justify-between">
+          <label className="text-sm text-text-primary">Permitir cambios de horario</label>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, allow_schedule_changes: !formData.allow_schedule_changes })}
+            className={`relative h-6 w-11 rounded-full transition ${
+              formData.allow_schedule_changes ? "bg-primary" : "bg-border"
+            }`}
+          >
+            <span
+              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                formData.allow_schedule_changes ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Cooldown entre cambios de horario (horas)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.schedule_change_cooldown_hours}
+            onChange={(e) => setFormData({ ...formData, schedule_change_cooldown_hours: e.target.value })}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+          {errors.schedule_change_cooldown_hours && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_cooldown_hours}</p>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Máximo de cambios de horario por mes
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.max_schedule_changes_per_month}
+            onChange={(e) => setFormData({ ...formData, max_schedule_changes_per_month: e.target.value })}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+          {errors.max_schedule_changes_per_month && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.max_schedule_changes_per_month}</p>
+          )}
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-text-primary">
+            Anticipación requerida para cambios (días)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.schedule_change_notice_days}
+            onChange={(e) => setFormData({ ...formData, schedule_change_notice_days: e.target.value })}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+          {errors.schedule_change_notice_days && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_notice_days}</p>
+          )}
         </div>
 
         <button

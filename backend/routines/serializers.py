@@ -131,6 +131,10 @@ class MemberPortalSerializer(serializers.Serializer):
     subscription = serializers.DictField(
         allow_null=True
     )
+    upcoming_subscription = serializers.DictField(
+        allow_null=True,
+        required=False,
+    )
     schedules = serializers.ListField()
     attendance_history = serializers.ListField(
         required=False

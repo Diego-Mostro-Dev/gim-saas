@@ -62,7 +62,7 @@ function MemberPortalLayout() {
       lastRefreshAt.current = Date.now();
       setRoutine(data);
 
-      if (data.gym?.allow_member_schedule_changes) {
+      if (data.gym?.allow_member_schedule_changes && data.gym?.allow_schedule_changes !== false) {
         const [slotsData, requestsData, swapData] = await Promise.all([
           getPublicSlots(token),
           getPublicScheduleChangeRequests(token),
@@ -93,7 +93,7 @@ function MemberPortalLayout() {
       setRoutine(data);
       lastRefreshAt.current = Date.now();
 
-      if (data.gym?.allow_member_schedule_changes) {
+      if (data.gym?.allow_member_schedule_changes && data.gym?.allow_schedule_changes !== false) {
         const [slotsData, requestsData, swapData] = await Promise.all([
           getPublicSlots(token),
           getPublicScheduleChangeRequests(token),
