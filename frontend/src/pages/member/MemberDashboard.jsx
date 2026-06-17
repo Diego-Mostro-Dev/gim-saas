@@ -166,6 +166,10 @@ function MemberDashboard() {
                 <span className="rounded-xl bg-success-bg dark:bg-success/15 px-3 py-1 text-sm font-semibold text-success-text dark:text-success">
                   ✓ Al día
                 </span>
+              ) : subscription.payment_status === "initial_pending" ? (
+                <span className="rounded-xl bg-info-bg dark:bg-info/15 px-3 py-1 text-sm font-semibold text-info-text dark:text-info">
+                  ⚠ Pago inicial pendiente
+                </span>
               ) : subscription.payment_status === "pending" ? (
                 <span className="rounded-xl bg-warning-bg dark:bg-warning/15 px-3 py-1 text-sm font-semibold text-warning-text dark:text-warning">
                   ⚠ Pendiente de pago
@@ -321,11 +325,13 @@ function MemberDashboard() {
           subscription && activePlans.length > 0 && gym.allow_plan_changes !== false && (
             <button
               onClick={() => setShowPlanModal(true)}
-              disabled={subscription.payment_status === "blocked"}
+              disabled={subscription.payment_status === "blocked" || subscription.payment_status === "initial_pending"}
               title={
                 subscription.payment_status === "blocked"
                   ? "No disponible por falta de pago"
-                  : ""
+                  : subscription.payment_status === "initial_pending"
+                    ? "Debe registrar el pago inicial"
+                    : ""
               }
               className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >

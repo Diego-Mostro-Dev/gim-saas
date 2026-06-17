@@ -36,6 +36,7 @@ class Command(BaseCommand):
         skipped_auto_renew = 0
         skipped_already = 0
         skipped_no_prev = 0
+        skipped_initial_pending = 0
 
         for sub in Subscription.objects.filter(
             id__in=latest_ids,
@@ -47,6 +48,18 @@ class Command(BaseCommand):
 
             if sub.member_id in members_with_next:
                 skipped_already += 1
+                continue
+
+            # Do not renew a member whose only subscription is unpaid
+            is_first_and_unpaid = (
+                not sub.paid
+                and not Subscription.objects.filter(
+                    member=sub.member,
+                    created_at__lt=sub.created_at,
+                ).exists()
+            )
+            if is_first_and_unpaid:
+                skipped_initial_pending += 1
                 continue
 
             approved_pcr = PlanChangeRequest.objects.filter(
@@ -71,3 +84,4 @@ class Command(BaseCommand):
         self.stdout.write(f"Skipped auto_renew=False: {skipped_auto_renew}")
         self.stdout.write(f"Skipped already renewed: {skipped_already}")
         self.stdout.write(f"Skipped no previous subscription: {skipped_no_prev}")
+        self.stdout.write(f"Skipped initial pending: {skipped_initial_pending}")

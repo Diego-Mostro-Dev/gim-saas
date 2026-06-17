@@ -13,6 +13,15 @@ def get_subscription_payment_status(subscription):
     today = timezone.localdate()
     if subscription.paid:
         return "paid"
+
+    is_first = not Subscription.objects.filter(
+        member=subscription.member,
+        created_at__lt=subscription.created_at,
+    ).exists()
+
+    if is_first:
+        return "initial_pending"
+
     gym = subscription.gym
     if today.day <= gym.payment_due_day:
         return "pending"
@@ -29,7 +38,8 @@ def can_member_operate(member):
     )
     if not subscription:
         return True
-    return get_subscription_payment_status(subscription) != "blocked"
+    status = get_subscription_payment_status(subscription)
+    return status not in ("blocked", "initial_pending")
 
 
 def get_last_day_of_month(d):

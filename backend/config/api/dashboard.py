@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Min, Q, Sum
 from django.utils.timezone import now
 
 from rest_framework.response import Response
@@ -184,6 +184,21 @@ class DashboardSummaryView(APIView):
             else 0
         )
 
+        # initial_pending: active unpaid subscriptions that are the member's first
+        first_sub_ids = Subscription.objects.filter(
+            gym=gym,
+        ).values("member").annotate(
+            first_id=Min("id"),
+        ).values("first_id")
+
+        initial_pending_count = Subscription.objects.filter(
+            gym=gym,
+            id__in=first_sub_ids,
+            paid=False,
+            start_date__lte=today,
+            end_date__gte=today,
+        ).count()
+
         return Response({
             "activeMembers": active_members,
             "currentMonthRevenue": float(current_month_revenue),
@@ -191,6 +206,7 @@ class DashboardSummaryView(APIView):
             "expiringSoon": expiring_soon,
             "overdueCount": overdue_count,
             "blockedCount": blocked_count,
+            "initialPendingCount": initial_pending_count,
             "paymentDueDay": payment_due_day,
             "accessBlockDay": access_block_day,
             "upcomingExpirations": upcoming_expirations_data,
