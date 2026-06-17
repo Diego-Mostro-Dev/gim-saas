@@ -9,7 +9,6 @@ from rest_framework.views import APIView
 from members.models import Member
 from payments.models import Payment
 from subscriptions.models import Subscription
-from subscriptions.services import PAYMENT_WINDOW_DAYS, ACCESS_GRACE_DAYS
 from attendance.models import Attendance, ScheduleSlot
 
 
@@ -170,15 +169,18 @@ class DashboardSummaryView(APIView):
             end_date__gte=today,
         )
 
+        payment_due_day = gym.payment_due_day
+        access_block_day = gym.access_block_day
+
         overdue_count = (
             unpaid_active.count()
-            if PAYMENT_WINDOW_DAYS < today.day <= PAYMENT_WINDOW_DAYS + ACCESS_GRACE_DAYS
+            if payment_due_day < today.day < access_block_day
             else 0
         )
 
         blocked_count = (
             unpaid_active.count()
-            if today.day > PAYMENT_WINDOW_DAYS + ACCESS_GRACE_DAYS
+            if today.day >= access_block_day
             else 0
         )
 

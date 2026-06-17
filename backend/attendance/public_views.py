@@ -15,6 +15,7 @@ from .serializers import (
 )
 from .utils import compute_effective_occupancy
 from config.api.throttles import PublicAttendanceRateThrottle
+from subscriptions.services import can_member_operate
 
 
 class PublicCheckinView(APIView):
@@ -34,6 +35,15 @@ class PublicCheckinView(APIView):
                     "message": "Socio no encontrado",
                 },
                 status=404,
+            )
+
+        if not can_member_operate(member):
+            return Response(
+                {
+                    "success": False,
+                    "message": "Acceso suspendido por falta de pago.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         today = timezone.localdate()
@@ -167,6 +177,12 @@ class PublicScheduleChangeRequestView(APIView):
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
 
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = PublicScheduleChangeRequestSerializer(
             data=request.data,
             context={"member": member},
@@ -183,6 +199,13 @@ class PublicCancelScheduleChangeRequestView(APIView):
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         change_request = get_object_or_404(
             ScheduleChangeRequest,
             pk=pk,
@@ -195,7 +218,7 @@ class PublicCancelScheduleChangeRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        change_request.status = "cancelled"
+        change_request.status = "cancelled_by_member"
         change_request.save(update_fields=["status"])
 
         return Response(
@@ -222,6 +245,12 @@ class PublicScheduleSwapRequestView(APIView):
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
 
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = PublicScheduleSwapRequestSerializer(
             data=request.data,
             context={"member": member},
@@ -238,6 +267,13 @@ class PublicCancelScheduleSwapRequestView(APIView):
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         swap_request = get_object_or_404(
             ScheduleSwapRequest,
             pk=pk,

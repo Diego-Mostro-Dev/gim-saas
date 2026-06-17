@@ -353,9 +353,9 @@ class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
         fields = ["status", "admin_notes"]
 
     def validate_status(self, value):
-        if value not in ("approved", "rejected"):
+        if value not in ("executed", "rejected", "cancelled_by_staff"):
             raise serializers.ValidationError(
-                "El estado debe ser 'approved' o 'rejected'."
+                "El estado debe ser 'executed', 'rejected' o 'cancelled_by_staff'."
             )
         return value
 
@@ -367,7 +367,7 @@ class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
                 f"No se puede modificar una solicitud con estado '{instance.status}'."
             )
 
-        if attrs.get("status") == "approved":
+        if attrs.get("status") == "executed":
             gym = instance.gym
             requested_slot = instance.requested_slot
 

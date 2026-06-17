@@ -15,7 +15,13 @@ from .serializers import (
     PlanChangeRequestSerializer,
     PlanChangeRequestActionSerializer,
 )
-from .services import calculate_effective_date, cancel_future_plan_change, get_first_day_of_next_month, get_last_day_of_month
+from .services import (
+    calculate_effective_date,
+    cancel_future_plan_change,
+    can_member_operate,
+    get_first_day_of_next_month,
+    get_last_day_of_month,
+)
 
 
 class SubscriptionViewSet(GymModelViewSet):
@@ -31,6 +37,12 @@ class SubscriptionViewSet(GymModelViewSet):
     )
     def renew(self, request, pk=None):
         subscription = self.get_object()
+
+        if not can_member_operate(subscription.member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         start_date = get_first_day_of_next_month(now().date())
         end_date = get_last_day_of_month(start_date)
@@ -79,13 +91,13 @@ class PlanChangeRequestViewSet(GymModelViewSet):
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
-        return self._handle_action(request, pk, "cancelled")
+        return self._handle_action(request, pk, "cancelled_by_staff")
 
     def _handle_action(self, request, pk, new_status):
         instance = self.get_object()
 
         allowed = instance.status == "pending"
-        if new_status == "cancelled" and instance.status == "approved" and (
+        if new_status == "cancelled_by_staff" and instance.status == "approved" and (
             instance.effective_date and instance.effective_date > now().date()
         ):
             allowed = True
@@ -140,8 +152,8 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     )
 
                     self._synchronize_schedules(instance)
-            elif new_status == "cancelled" and instance.status == "approved":
-                cancel_future_plan_change(instance)
+            elif new_status == "cancelled_by_staff" and instance.status == "approved":
+                cancel_future_plan_change(instance, cancel_status="cancelled_by_staff")
                 instance.refresh_from_db()
             else:
                 serializer.save(
@@ -222,7 +234,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
     def _cancel_pending_schedule_requests(self, member, gym):
         ScheduleChangeRequest.objects.filter(
             member=member, gym=gym, status="pending"
-        ).update(status="cancelled", reviewed_at=now(), admin_notes="Cancelled due to plan change approval")
+        ).update(status="cancelled_by_staff", reviewed_at=now(), admin_notes="Cancelled due to plan change approval")
 
         ScheduleSwapRequest.objects.filter(
             member=member, gym=gym, status="pending"

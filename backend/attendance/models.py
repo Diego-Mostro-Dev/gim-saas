@@ -121,8 +121,10 @@ class ScheduleChangeRequest(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pendiente"),
         ("approved", "Aprobado"),
+        ("executed", "Ejecutado"),
         ("rejected", "Rechazado"),
-        ("cancelled", "Cancelado"),
+        ("cancelled_by_member", "Cancelado por el socio"),
+        ("cancelled_by_staff", "Cancelado por el staff"),
     ]
 
     gym = models.ForeignKey(

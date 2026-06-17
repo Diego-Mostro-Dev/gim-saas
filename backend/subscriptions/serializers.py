@@ -210,9 +210,9 @@ class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
         fields = ["status", "admin_notes"]
 
     def validate_status(self, value):
-        if value not in ("approved", "rejected", "cancelled"):
+        if value not in ("approved", "rejected", "cancelled_by_staff", "cancelled_by_member"):
             raise serializers.ValidationError(
-                "El estado debe ser 'approved', 'rejected' o 'cancelled'."
+                "El estado debe ser 'approved', 'rejected', 'cancelled_by_staff' o 'cancelled_by_member'."
             )
         return value
 
@@ -220,7 +220,7 @@ class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
         instance = self.instance
         new_status = attrs.get("status")
 
-        if new_status == "cancelled":
+        if new_status in ("cancelled_by_staff", "cancelled_by_member"):
             if instance.status == "approved" and (
                 instance.effective_date and instance.effective_date > date.today()
             ):

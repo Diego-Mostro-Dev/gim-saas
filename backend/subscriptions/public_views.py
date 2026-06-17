@@ -11,7 +11,10 @@ from members.models import Member
 
 from .models import PlanChangeRequest, Subscription
 from .serializers import PublicPlanChangeRequestSerializer
-from .services import cancel_future_plan_change
+from .services import (
+    cancel_future_plan_change,
+    can_member_operate,
+)
 
 
 class PublicPlanChangeRequestView(APIView):
@@ -35,6 +38,12 @@ class PublicPlanChangeRequestView(APIView):
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
 
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = PublicPlanChangeRequestSerializer(
             data=request.data,
             context={"member": member},
@@ -53,6 +62,12 @@ class PublicCancelPlanChangeRequestView(APIView):
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         change_request = get_object_or_404(
             PlanChangeRequest,
@@ -78,9 +93,9 @@ class PublicCancelPlanChangeRequestView(APIView):
             )
 
         if change_request.status == "approved":
-            cancel_future_plan_change(change_request)
+            cancel_future_plan_change(change_request, cancel_status="cancelled_by_member")
         else:
-            change_request.status = "cancelled"
+            change_request.status = "cancelled_by_member"
             change_request.save(update_fields=["status"])
 
         change_request.refresh_from_db()
@@ -95,6 +110,12 @@ class PublicCancelRenewalView(APIView):
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         subscription = Subscription.objects.filter(
             member=member,
@@ -127,6 +148,12 @@ class PublicEnableRenewalView(APIView):
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         subscription = Subscription.objects.filter(
             member=member,

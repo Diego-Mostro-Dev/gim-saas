@@ -9,19 +9,27 @@ from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleSwapRequ
 from .models import PlanChangeRequest, Subscription, PlannedSchedule
 
 
-PAYMENT_WINDOW_DAYS = 10
-ACCESS_GRACE_DAYS = 5
-
-
 def get_subscription_payment_status(subscription):
     today = timezone.localdate()
     if subscription.paid:
         return "paid"
-    if today.day <= PAYMENT_WINDOW_DAYS:
+    gym = subscription.gym
+    if today.day <= gym.payment_due_day:
         return "pending"
-    if today.day <= PAYMENT_WINDOW_DAYS + ACCESS_GRACE_DAYS:
+    if today.day < gym.access_block_day:
         return "overdue"
     return "blocked"
+
+
+def can_member_operate(member):
+    subscription = (
+        Subscription.objects.filter(member=member)
+        .order_by("-end_date")
+        .first()
+    )
+    if not subscription:
+        return True
+    return get_subscription_payment_status(subscription) != "blocked"
 
 
 def get_last_day_of_month(d):
@@ -34,7 +42,7 @@ def get_first_day_of_next_month(d):
     return date(d.year, d.month + 1, 1)
 
 
-def cancel_future_plan_change(plan_change_request):
+def cancel_future_plan_change(plan_change_request, cancel_status="cancelled_by_staff"):
     if plan_change_request.status != "approved":
         return False
     if plan_change_request.effective_date and plan_change_request.effective_date <= date.today():
@@ -42,7 +50,7 @@ def cancel_future_plan_change(plan_change_request):
 
     with transaction.atomic():
         plan_change_request.planned_schedules.all().delete()
-        plan_change_request.status = "cancelled"
+        plan_change_request.status = cancel_status
         plan_change_request.save(update_fields=["status"])
 
     return True
