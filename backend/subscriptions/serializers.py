@@ -1,11 +1,11 @@
 from rest_framework import serializers
-from datetime import date, timedelta
+from datetime import date
 
 from attendance.models import AttendanceSchedule
 
 from .models import Subscription, PlanChangeRequest, PlannedSchedule
 from .validators import PlanChangeRequestValidator
-from .services import get_member_active_subscription, calculate_effective_date, compute_projected_occupancy
+from .services import get_member_active_subscription, calculate_effective_date, compute_projected_occupancy, get_last_day_of_month
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -71,13 +71,9 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        plan = validated_data["plan"]
         start_date = validated_data["start_date"]
 
-        validated_data["end_date"] = (
-            start_date
-            + timedelta(days=plan.duration_days)
-        )
+        validated_data["end_date"] = get_last_day_of_month(start_date)
 
         return super().create(validated_data)
 

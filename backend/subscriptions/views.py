@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.db import transaction
 from django.utils.timezone import now
 
@@ -17,7 +15,7 @@ from .serializers import (
     PlanChangeRequestSerializer,
     PlanChangeRequestActionSerializer,
 )
-from .services import get_member_active_subscription, calculate_effective_date, cancel_future_plan_change
+from .services import get_member_active_subscription, calculate_effective_date, cancel_future_plan_change, get_first_day_of_next_month, get_last_day_of_month
 
 
 class SubscriptionViewSet(GymModelViewSet):
@@ -34,22 +32,8 @@ class SubscriptionViewSet(GymModelViewSet):
     def renew(self, request, pk=None):
         subscription = self.get_object()
 
-        today = now().date()
-
-        if subscription.end_date < today:
-            start_date = today
-        else:
-            start_date = (
-                subscription.end_date +
-                timedelta(days=1)
-            )
-
-        end_date = (
-            start_date +
-            timedelta(
-                days=subscription.plan.duration_days
-            )
-        )
+        start_date = get_first_day_of_next_month(now().date())
+        end_date = get_last_day_of_month(start_date)
 
         new_subscription = Subscription.objects.create(
             gym=subscription.gym,

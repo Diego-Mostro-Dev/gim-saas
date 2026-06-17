@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import date
 
 from django.db import transaction
@@ -6,6 +7,16 @@ from django.utils import timezone
 from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
 
 from .models import PlanChangeRequest, Subscription, PlannedSchedule
+
+
+def get_last_day_of_month(d):
+    return date(d.year, d.month, monthrange(d.year, d.month)[1])
+
+
+def get_first_day_of_next_month(d):
+    if d.month == 12:
+        return date(d.year + 1, 1, 1)
+    return date(d.year, d.month + 1, 1)
 
 
 def cancel_future_plan_change(plan_change_request):
@@ -97,9 +108,7 @@ def get_member_active_schedule_count(member):
 
 def calculate_effective_date(member=None):
     today = timezone.localdate()
-    if today.month == 12:
-        return date(today.year + 1, 1, 1)
-    return date(today.year, today.month + 1, 1)
+    return get_first_day_of_next_month(today)
 
 
 def compute_projected_occupancy(slot, target_date, exclude_member=None):
