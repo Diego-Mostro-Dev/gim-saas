@@ -12,6 +12,7 @@ from subscriptions.models import Subscription
 from attendance.models import Attendance, ScheduleSlot
 
 
+
 class DashboardSummaryView(APIView):
 
     def get(self, request):
@@ -161,11 +162,23 @@ class DashboardSummaryView(APIView):
                 "count": attendance_counts.get(day, 0),
             })
 
+        overdue_count = (
+            Subscription.objects.filter(
+                gym=gym,
+                paid=False,
+                start_date__lte=today,
+                end_date__gte=today,
+            ).count()
+            if today.day > 10
+            else 0
+        )
+
         return Response({
             "activeMembers": active_members,
             "currentMonthRevenue": float(current_month_revenue),
             "previousMonthRevenue": float(previous_month_revenue),
             "expiringSoon": expiring_soon,
+            "overdueCount": overdue_count,
             "upcomingExpirations": upcoming_expirations_data,
             "recentActivity": recent_activity_data,
             "pendingPayments": pending_payments_data,

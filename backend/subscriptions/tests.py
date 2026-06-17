@@ -2038,3 +2038,212 @@ class AutoRenewalCancelTest(TestCase):
         self.assertIsNotNone(sub_data)
         self.assertIn("auto_renew", sub_data)
         self.assertTrue(sub_data["auto_renew"])
+
+
+class RenewalReminderTest(TestCase):
+    """Targeted tests for renewal reminder in the member dashboard."""
+
+    def setUp(self):
+        self.gym = Gym.objects.create(
+            name="Reminder Gym", slug="reminder-gym", phone="123", email="reminder@gym.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Reminder", last_name="Test", phone="001",
+        )
+        from routines.models import RoutineAssignment, RoutineTemplate
+        template = RoutineTemplate.objects.create(
+            gym=self.gym, name="Test Routine",
+        )
+        RoutineAssignment.objects.create(
+            gym=self.gym, member=self.member,
+            routine_template=template, active=True,
+        )
+
+    def _get_dashboard(self):
+        return self.client.get(
+            f"/api/routines/public/{self.member.access_token}/",
+        )
+
+    def _set_today(self, target_date):
+        from unittest.mock import patch
+        from django.utils import timezone
+        self.enterContext(
+            patch.object(timezone, "localdate", return_value=target_date)
+        )
+
+    def test_reminder_true_within_7_days_auto_renew(self):
+        """renewal_reminder True when end_date within 7 days and auto_renew=True"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 30),
+            auto_renew=True,
+        )
+        with self._subtest_today(date(2026, 6, 23)):
+            resp = self._get_dashboard()
+            sub = resp.data["subscription"]
+            self.assertTrue(sub["renewal_reminder"])
+            self.assertEqual(sub["renewal_date"], "2026-07-01")
+
+    def test_reminder_true_on_last_day(self):
+        """renewal_reminder True on end_date itself"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 30),
+            auto_renew=True,
+        )
+        with self._subtest_today(date(2026, 6, 30)):
+            resp = self._get_dashboard()
+            sub = resp.data["subscription"]
+            self.assertTrue(sub["renewal_reminder"])
+            self.assertEqual(sub["renewal_date"], "2026-07-01")
+
+    def test_reminder_false_outside_7_days(self):
+        """renewal_reminder False when end_date > 7 days away"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 30),
+            auto_renew=True,
+        )
+        with self._subtest_today(date(2026, 6, 22)):
+            resp = self._get_dashboard()
+            sub = resp.data["subscription"]
+            self.assertFalse(sub["renewal_reminder"])
+            self.assertIsNone(sub["renewal_date"])
+
+    def test_reminder_false_auto_renew_disabled(self):
+        """renewal_reminder False when auto_renew=False even within 7 days"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 30),
+            auto_renew=False,
+        )
+        with self._subtest_today(date(2026, 6, 23)):
+            resp = self._get_dashboard()
+            sub = resp.data["subscription"]
+            self.assertFalse(sub["renewal_reminder"])
+            self.assertIsNone(sub["renewal_date"])
+
+    def test_reminder_false_no_subscription(self):
+        """renewal_reminder absent when no subscription exists"""
+        with self._subtest_today(date(2026, 6, 23)):
+            resp = self._get_dashboard()
+            self.assertIsNone(resp.data["subscription"])
+
+    def test_reminder_false_expired_subscription_no_reminder(self):
+        """renewal_reminder False for already expired subscription"""
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 5, 31),
+            auto_renew=True,
+        )
+        with self._subtest_today(date(2026, 6, 23)):
+            resp = self._get_dashboard()
+            sub = resp.data["subscription"]
+            self.assertFalse(sub["renewal_reminder"])
+            self.assertIsNone(sub["renewal_date"])
+
+    def _subtest_today(self, target_date):
+        from unittest.mock import patch
+        from django.utils import timezone
+        return patch.object(timezone, "localdate", return_value=target_date)
+
+
+class PaymentStatusTest(TestCase):
+    """Targeted tests for payment status detection."""
+
+    def setUp(self):
+        self.gym = Gym.objects.create(
+            name="Pay Gym", slug="pay-gym", phone="123", email="pay@gym.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+            weekly_visits=None, active=True,
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Pay", last_name="Test", phone="001",
+        )
+        from routines.models import RoutineAssignment, RoutineTemplate
+        template = RoutineTemplate.objects.create(
+            gym=self.gym, name="Test Routine",
+        )
+        RoutineAssignment.objects.create(
+            gym=self.gym, member=self.member,
+            routine_template=template, active=True,
+        )
+
+    def _create_sub(self, paid=True, start_date=None, end_date=None):
+        if start_date is None:
+            start_date = date(2026, 6, 1)
+        if end_date is None:
+            end_date = date(2026, 6, 30)
+        return Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan,
+            start_date=start_date, end_date=end_date,
+            paid=paid, auto_renew=True,
+        )
+
+    def _get_dashboard(self):
+        return self.client.get(
+            f"/api/routines/public/{self.member.access_token}/",
+        )
+
+    def _mock_today(self, target_date):
+        from unittest.mock import patch
+        from django.utils import timezone
+        return patch.object(timezone, "localdate", return_value=target_date)
+
+    def test_status_paid(self):
+        self._create_sub(paid=True)
+        with self._mock_today(date(2026, 6, 5)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "paid")
+
+    def test_status_pending_before_day_10(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 5)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "pending")
+
+    def test_status_overdue_after_day_10(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 15)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "overdue")
+
+    def test_status_overdue_on_day_11(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 11)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "overdue")
+
+    def test_status_pending_on_day_10(self):
+        self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 10)):
+            resp = self._get_dashboard()
+            self.assertEqual(resp.data["subscription"]["payment_status"], "pending")
+
+    def test_helper_paid(self):
+        from subscriptions.services import get_subscription_payment_status
+        sub = self._create_sub(paid=True)
+        self.assertEqual(get_subscription_payment_status(sub), "paid")
+
+    def test_helper_pending(self):
+        from subscriptions.services import get_subscription_payment_status
+        sub = self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 5)):
+            self.assertEqual(get_subscription_payment_status(sub), "pending")
+
+    def test_helper_overdue(self):
+        from subscriptions.services import get_subscription_payment_status
+        sub = self._create_sub(paid=False)
+        with self._mock_today(date(2026, 6, 15)):
+            self.assertEqual(get_subscription_payment_status(sub), "overdue")
