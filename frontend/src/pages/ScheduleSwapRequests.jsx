@@ -9,6 +9,8 @@ import {
 } from "../services/attendance.service";
 import { getScheduleSwapsLastRefresh } from "../hooks/useScheduleSwapWatcher";
 import { DAY_NAMES } from "../constants/days";
+import { formatHumanDate } from "../utils/date.utils";
+import MemberAvatar from "../components/common/MemberAvatar";
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -159,15 +161,6 @@ function ScheduleSwapRequests() {
     return true;
   });
 
-  function formatDate(dateStr) {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  }
-
   function statusBadge(status) {
     const base =
       "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium";
@@ -262,9 +255,9 @@ function ScheduleSwapRequests() {
   return (
     <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
       <div className="mb-6 px-4">
-        <h1 className="text-3xl font-bold">Intercambios de día</h1>
+        <h1 className="text-3xl font-bold">Intercambios por única vez</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Cambios por única vez entre días disponibles.
+          Solicitudes de intercambio por única vez entre días disponibles.
         </p>
       </div>
 
@@ -359,16 +352,24 @@ function ScheduleSwapRequests() {
               className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
               <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">
-                    {req.member_name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-text-secondary">
-                    Solicitado el: {formatDate(req.requested_at)}
-                  </p>
-                  <p className="text-xs text-text-secondary">
-                    Fecha del intercambio: {formatDate(req.swap_date)}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <MemberAvatar
+                    photo={req.member_photo}
+                    firstName={req.member_name?.split(" ")[0]}
+                    lastName={req.member_name?.split(" ").slice(1).join(" ")}
+                    size="sm"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      {req.member_name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-text-secondary">
+                      Solicitado el: {formatHumanDate(req.requested_at)}
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      Fecha del intercambio: {formatHumanDate(req.swap_date)}
+                    </p>
+                  </div>
                 </div>
                 {statusBadge(req.status)}
               </div>
@@ -436,7 +437,7 @@ function ScheduleSwapRequests() {
               </div>
               <div>
                 <p className="text-sm text-text-secondary">Fecha del intercambio</p>
-                <p className="text-text-primary">{formatDate(approvalTarget.swap_date)}</p>
+                <p className="text-text-primary">{formatHumanDate(approvalTarget.swap_date)}</p>
               </div>
               <div className="flex items-center gap-3 rounded-xl bg-surface-input px-3 py-2">
                 <div className="flex-1 text-center">

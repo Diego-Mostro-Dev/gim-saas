@@ -53,7 +53,7 @@ export function useScheduleSwapWatcher() {
         for (const req of current) {
           if (!prevMap.has(req.id)) {
             toast.success(
-              `Nuevo cambio de fecha: ${req.member_name}`,
+              `Nuevo intercambio: ${req.member_name}`,
               { id: `ssr-new-${req.id}` },
             );
           }
@@ -64,15 +64,11 @@ export function useScheduleSwapWatcher() {
           if (prevReq && prevReq.status !== req.status) {
             let message;
             if (req.status === "approved") {
-              if (req.admin_notes === "Aprobado automáticamente" && !req.reviewed_by) {
-                message = `Tu cambio de fecha fue aprobado automáticamente.`;
-              } else {
-                message = `Tu cambio de fecha fue aprobado.`;
-              }
+              message = `Tu intercambio fue aprobado.`;
             } else if (req.status === "rejected") {
-              message = `Tu cambio de fecha fue rechazado.`;
+              message = `Tu intercambio fue rechazado.`;
             } else {
-              message = `Cambio de fecha cancelado: ${req.member_name}`;
+              message = `Intercambio cancelado: ${req.member_name}`;
             }
             toast.success(message, {
               id: `ssr-status-${req.id}-${req.status}`,

@@ -7,3 +7,13 @@ export const DAY_NAMES = {
   saturday: "Sábado",
   sunday: "Domingo",
 };
+
+export const DAY_ORDER = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];

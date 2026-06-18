@@ -1,8 +1,5 @@
 import { useOutletContext } from "react-router-dom";
-
-function formatDate(date) {
-  return new Date(date).toLocaleDateString("es-AR");
-}
+import { formatHumanDate } from "../../utils/date.utils";
 
 function MemberPayments() {
   const { routine } = useOutletContext();
@@ -54,7 +51,7 @@ function MemberPayments() {
               </div>
 
               <span className="text-sm text-text-secondary">
-                {formatDate(payment.paid_at)}
+                {formatHumanDate(payment.paid_at)}
               </span>
             </div>
           ))}

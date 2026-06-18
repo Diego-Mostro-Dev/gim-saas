@@ -104,17 +104,17 @@ class AttendanceSerializer(serializers.ModelSerializer):
         if swap_request:
             if swap_request.gym != gym:
                 raise serializers.ValidationError({
-                    "swap_request": "El cambio de fecha no pertenece a este gimnasio."
+                    "swap_request": "El intercambio no pertenece a este gimnasio."
                 })
 
             if swap_request.status != "approved":
                 raise serializers.ValidationError({
-                    "swap_request": "El cambio de fecha no está aprobado."
+                    "swap_request": "El intercambio no está aprobado."
                 })
 
             if swap_request.swap_date != date.today():
                 raise serializers.ValidationError({
-                    "swap_request": "El cambio de fecha no corresponde a hoy."
+                    "swap_request": "El intercambio no corresponde a hoy."
                 })
 
             if Attendance.objects.filter(
@@ -122,7 +122,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
                 date=date.today(),
             ).exists():
                 raise serializers.ValidationError({
-                    "swap_request": "La asistencia para este cambio de fecha ya fue registrada."
+                    "swap_request": "La asistencia para este intercambio ya fue registrada."
                 })
 
             attrs["schedule"] = swap_request.origin_schedule
@@ -209,6 +209,7 @@ def compute_next_occurrence(slot_day, slot_time):
 
 class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
     current_day = serializers.SerializerMethodField()
     current_hour = serializers.SerializerMethodField()
     requested_day = serializers.SerializerMethodField()
@@ -223,6 +224,7 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
             "gym",
             "member",
             "member_name",
+            "member_photo",
             "current_schedule",
             "current_day",
             "current_hour",
@@ -247,6 +249,14 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
     def get_current_day(self, obj):
         return obj.current_schedule.slot.day
@@ -388,6 +398,7 @@ class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
 
 class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
     current_day = serializers.SerializerMethodField()
     current_hour = serializers.SerializerMethodField()
     requested_day = serializers.SerializerMethodField()
@@ -401,6 +412,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
             "gym",
             "member",
             "member_name",
+            "member_photo",
             "current_schedule",
             "current_day",
             "current_hour",
@@ -423,6 +435,14 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
     def get_current_day(self, obj):
         return obj.current_schedule.slot.day
@@ -520,6 +540,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
 class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
     origin_day = serializers.SerializerMethodField()
     origin_hour = serializers.SerializerMethodField()
     destination_day = serializers.SerializerMethodField()
@@ -533,6 +554,7 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
             "gym",
             "member",
             "member_name",
+            "member_photo",
             "origin_schedule",
             "origin_day",
             "origin_hour",
@@ -557,6 +579,14 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
 
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
     def get_origin_day(self, obj):
         return obj.origin_schedule.slot.day
@@ -640,7 +670,7 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
                 swap_date=swap_date,
             ).exclude(status="cancelled").exists():
                 raise serializers.ValidationError(
-                    "El socio ya tiene una solicitud de cambio para esta fecha."
+                    "El socio ya tiene un intercambio pendiente para esta fecha."
                 )
 
             if ScheduleChangeRequest.objects.filter(
@@ -659,20 +689,7 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
         gym = request.user.profile.gym
         validated_data["gym"] = gym
 
-        instance = super().create(validated_data)
-
-        cap = instance.destination_slot.capacity or gym.default_schedule_capacity
-        if cap is not None:
-            effective = compute_effective_occupancy(
-                instance.destination_slot, instance.swap_date
-            )
-            if effective < cap:
-                instance.status = "approved"
-                instance.reviewed_at = timezone.now()
-                instance.admin_notes = "Aprobado automáticamente"
-                instance.save(update_fields=["status", "reviewed_at", "admin_notes"])
-
-        return instance
+        return super().create(validated_data)
 
 
 class ScheduleSwapRequestActionSerializer(serializers.ModelSerializer):
@@ -695,25 +712,12 @@ class ScheduleSwapRequestActionSerializer(serializers.ModelSerializer):
                 f"No se puede modificar una solicitud con estado '{instance.status}'."
             )
 
-        if attrs.get("status") == "approved":
-            gym = instance.gym
-            destination_slot = instance.destination_slot
-
-            cap = destination_slot.capacity or gym.default_schedule_capacity
-            if cap is not None:
-                effective = compute_effective_occupancy(
-                    destination_slot, instance.swap_date
-                )
-                if effective >= cap:
-                    raise serializers.ValidationError(
-                        "El horario de destino está completo para esa fecha."
-                    )
-
         return attrs
 
 
 class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
     origin_day = serializers.SerializerMethodField()
     origin_hour = serializers.SerializerMethodField()
     destination_day = serializers.SerializerMethodField()
@@ -726,6 +730,7 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
             "gym",
             "member",
             "member_name",
+            "member_photo",
             "origin_schedule",
             "origin_day",
             "origin_hour",
@@ -748,6 +753,14 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
 
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
     def get_origin_day(self, obj):
         return obj.origin_schedule.slot.day
@@ -825,7 +838,7 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
                 swap_date=swap_date,
             ).exclude(status="cancelled").exists():
                 raise serializers.ValidationError(
-                    "Ya tienes una solicitud de cambio para esta fecha."
+                    "Ya tienes un intercambio pendiente para esta fecha."
                 )
 
             if ScheduleChangeRequest.objects.filter(
@@ -844,17 +857,4 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
         validated_data["gym"] = member.gym
         validated_data["member"] = member
 
-        instance = super().create(validated_data)
-
-        cap = instance.destination_slot.capacity or member.gym.default_schedule_capacity
-        if cap is not None:
-            effective = compute_effective_occupancy(
-                instance.destination_slot, instance.swap_date
-            )
-            if effective < cap:
-                instance.status = "approved"
-                instance.reviewed_at = timezone.now()
-                instance.admin_notes = "Aprobado automáticamente"
-                instance.save(update_fields=["status", "reviewed_at", "admin_notes"])
-
-        return instance
+        return super().create(validated_data)

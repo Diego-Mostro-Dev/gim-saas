@@ -482,7 +482,7 @@ function Settings() {
         </div>
 
         <div className="mb-4 flex items-center justify-between">
-          <label className="text-sm text-text-primary">Permitir cambios de horario</label>
+          <label className="text-sm text-text-primary">Permitir cambios permanentes de horario</label>
           <button
             type="button"
             onClick={() => setFormData({ ...formData, allow_schedule_changes: !formData.allow_schedule_changes })}
@@ -500,7 +500,7 @@ function Settings() {
 
         <div className="mb-4">
           <label className="mb-2 block text-sm text-text-primary">
-            Cooldown entre cambios de horario (horas)
+            Cooldown entre cambios permanentes (horas)
           </label>
           <input
             type="number"
@@ -516,7 +516,7 @@ function Settings() {
 
         <div className="mb-4">
           <label className="mb-2 block text-sm text-text-primary">
-            Máximo de cambios de horario por mes
+            Máximo de cambios permanentes por mes
           </label>
           <input
             type="number"
@@ -532,7 +532,7 @@ function Settings() {
 
         <div className="mb-6">
           <label className="mb-2 block text-sm text-text-primary">
-            Anticipación requerida para cambios (días)
+            Anticipación requerida para cambios permanentes (días)
           </label>
           <input
             type="number"

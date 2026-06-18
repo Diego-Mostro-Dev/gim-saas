@@ -10,6 +10,7 @@ from .services import get_member_active_subscription, calculate_effective_date, 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
     plan_name = serializers.CharField(
         source="plan.name",
         read_only=True,
@@ -38,6 +39,14 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             f"{obj.member.first_name} "
             f"{obj.member.last_name}"
         )
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
     def validate(self, attrs):
         gym = self.context["request"].user.profile.gym
@@ -80,6 +89,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 class PlanChangeRequestSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
     plan_name = serializers.CharField(
         source="requested_plan.name",
         read_only=True,
@@ -95,6 +105,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             "gym",
             "member",
             "member_name",
+            "member_photo",
             "requested_plan",
             "plan_name",
             "current_schedules_snapshot",
@@ -127,6 +138,14 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
 
     def get_member_name(self, obj):
         return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
     def get_current_plan_name(self, obj):
         if obj.current_plan_name_snapshot:

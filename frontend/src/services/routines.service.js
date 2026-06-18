@@ -115,6 +115,19 @@ export async function bulkAssignRoutine(data) {
 
 /*
 |--------------------------------------------------------------------------
+| ASSIGNMENT CRUD
+|--------------------------------------------------------------------------
+*/
+
+export async function deactivateAssignment(id) {
+  return apiFetch(`/api/routines/assignments/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ active: false }),
+  });
+}
+
+/*
+|--------------------------------------------------------------------------
 | MEMBER ROUTINE
 |--------------------------------------------------------------------------
 */
@@ -123,6 +136,17 @@ export async function getMemberRoutine(memberId) {
   return apiFetch(
     `/api/routines/member/${memberId}/`
   );
+}
+
+export async function getWorkoutProgress(token) {
+  return apiFetch(`/api/routines/public/${token}/progress/`);
+}
+
+export async function toggleWorkoutSet(token, data) {
+  return apiFetch(`/api/routines/public/${token}/progress/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function getMemberWhatsapp(memberId) {

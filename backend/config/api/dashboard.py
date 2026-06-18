@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from members.models import Member
 from payments.models import Payment
 from subscriptions.models import Subscription
-from attendance.models import Attendance, ScheduleSlot
+from attendance.models import Attendance
 
 
 
@@ -79,7 +79,9 @@ class DashboardSummaryView(APIView):
         upcoming_expirations_data = [
             {
                 "id": sub.id,
+                "member_id": sub.member.id,
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
+                "member_photo": sub.member.photo.url if sub.member.photo else None,
                 "plan_name": sub.plan.name,
                 "days_remaining": (sub.end_date - today).days,
             }
@@ -106,7 +108,9 @@ class DashboardSummaryView(APIView):
         pending_payments_data = [
             {
                 "id": sub.id,
+                "member_id": sub.member.id,
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
+                "member_photo": sub.member.photo.url if sub.member.photo else None,
                 "plan_name": sub.plan.name,
                 "plan_price": float(sub.plan.price),
                 "end_date": sub.end_date.strftime("%d/%m/%Y"),
@@ -123,44 +127,28 @@ class DashboardSummaryView(APIView):
         # -------------------------
         # Attendance
         # -------------------------
+        monday = today - timedelta(days=today.weekday())
+
         attendance_counts = dict(
             Attendance.objects.filter(
                 gym=gym,
-                date__gte=today - timedelta(days=6),
-                date__lte=today,
+                date__gte=monday,
+                date__lte=monday + timedelta(days=6),
             )
             .values("date")
             .annotate(count=Count("id"))
             .values_list("date", "count")
         )
 
-        # Determine which weekdays the gym operates based on ScheduleSlots
         DAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-        DAY_CHOICE_MAP = {
-            "monday": 0, "tuesday": 1, "wednesday": 2,
-            "thursday": 3, "friday": 4, "saturday": 5,
-        }
-        operational_weekdays = set(
-            ScheduleSlot.objects.filter(gym=gym)
-            .values_list("day", flat=True)
-            .distinct()
-        )
-        operational_weekday_indices = {
-            DAY_CHOICE_MAP[d] for d in operational_weekdays if d in DAY_CHOICE_MAP
-        }
 
-        weekly_attendance = []
-
-        for days_ago in range(6, -1, -1):
-            day = today - timedelta(days=days_ago)
-
-            if operational_weekday_indices and day.weekday() not in operational_weekday_indices:
-                continue
-
-            weekly_attendance.append({
-                "day": DAY_LABELS[day.weekday()],
-                "count": attendance_counts.get(day, 0),
-            })
+        weekly_attendance = [
+            {
+                "day": DAY_LABELS[i],
+                "count": attendance_counts.get(monday + timedelta(days=i), 0),
+            }
+            for i in range(7)
+        ]
 
         unpaid_active = Subscription.objects.filter(
             gym=gym,

@@ -15,7 +15,7 @@ import RoutineTemplateList from "../components/routines/RoutineTemplateList";
 import RoutineAssignment from "../components/routines/RoutineAssignment";
 import ActiveRoutines from "../components/routines/ActiveRoutines";
 
-import TemplateDetails from "../components/routines/TemplateDetails";
+import RoutineBuilder from "../components/routines/RoutineBuilder";
 
 function Routines() {
   const navigate = useNavigate();
@@ -23,11 +23,15 @@ function Routines() {
 
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+  const [editingExercise, setEditingExercise] = useState(null);
+
   const {
     exercises,
     loading: exercisesLoading,
     error: exercisesError,
     addExercise,
+    editExercise,
+    removeExercise,
   } = useExercises();
 
   const {
@@ -39,7 +43,7 @@ function Routines() {
     removeTemplate,
   } = useRoutineTemplates();
 
-  const { routineExercises, addRoutineExercise, removeRoutineExercise } =
+  const { routineExercises, addRoutineExercise, editRoutineExercise, removeRoutineExercise } =
     useRoutineExercises();
 
   const tabs = [
@@ -113,7 +117,15 @@ function Routines() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-text-primary">Ejercicios</h2>
 
-            <ExerciseForm onSubmit={addExercise} />
+            <ExerciseForm
+              onSubmit={
+                editingExercise
+                  ? (data) => editExercise(editingExercise.id, data)
+                  : addExercise
+              }
+              editingExercise={editingExercise}
+              onCancelEdit={() => setEditingExercise(null)}
+            />
 
             {exercisesLoading && (
               <div className="rounded-xl border border-border p-6 text-center text-text-secondary">
@@ -127,7 +139,24 @@ function Routines() {
               </div>
             )}
 
-            {!exercisesLoading && <ExerciseList exercises={exercises} />}
+            {!exercisesLoading && (
+              <ExerciseList
+                exercises={exercises}
+                onEdit={(exercise) => {
+                  setEditingExercise(exercise);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onDelete={(exercise) => {
+                  if (
+                    window.confirm(
+                      `¿Eliminar el ejercicio "${exercise.name}"?`
+                    )
+                  ) {
+                    removeExercise(exercise.id);
+                  }
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -163,13 +192,14 @@ function Routines() {
 
                 {/* DETALLE DE LA RUTINA  */}
                 <div>
-                  <TemplateDetails
+                  <RoutineBuilder
                     template={selectedTemplate}
                     exercises={routineExercises.filter(
                       (item) => item.routine_template === selectedTemplate?.id,
                     )}
                     allExercises={exercises}
                     addRoutineExercise={addRoutineExercise}
+                    editRoutineExercise={editRoutineExercise}
                     removeRoutineExercise={removeRoutineExercise}
                     editTemplate={editTemplate}
                     removeTemplate={removeTemplate}

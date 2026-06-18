@@ -153,7 +153,7 @@ function AttendanceAnalytics() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard icon={CalendarDays} label="Asistencias totales" value={data.summary.total_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
             <StatCard icon={Users} label="Asistencias regulares" value={data.summary.regular_attendances} color="bg-success-bg dark:bg-success/15 text-success-text dark:text-success" />
-            <StatCard icon={Repeat} label="Asistencias por intercambio de día" value={data.summary.swap_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
+            <StatCard icon={Repeat} label="Asistencias por intercambio" value={data.summary.swap_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
             <StatCard icon={TrendingUp} label="Asistencias por QR" value={data.summary.walkin_attendances} color="bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning" />
           </div>
 
@@ -192,23 +192,18 @@ function AttendanceAnalytics() {
 
           <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
-              Intercambios de día
+              Intercambios por única vez
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: "Solicitados", value: data.swaps.requested, color: "text-warning-text dark:text-warning" },
-                { label: "Aprobados", value: data.swaps.approved, color: "text-success-text dark:text-success", autoValue: data.swaps.auto_approved },
+                { label: "Aprobados", value: data.swaps.approved, color: "text-success-text dark:text-success" },
                 { label: "Rechazados", value: data.swaps.rejected, color: "text-danger-text dark:text-danger" },
                 { label: "Cancelados", value: data.swaps.cancelled, color: "text-muted-text" },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl bg-surface-input p-3 text-center">
                   <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
                   <p className="text-xs text-text-secondary">{item.label}</p>
-                  {item.autoValue > 0 && (
-                    <p className="mt-0.5 text-[10px] text-blue-400">
-                      {item.autoValue} aprobados sin revisión (había lugar disponible)
-                    </p>
-                  )}
                 </div>
               ))}
             </div>

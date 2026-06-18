@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import MemberAvatar from "../common/MemberAvatar";
 
 function PendingPayments({ pendingPayments = [] }) {
   const navigate = useNavigate();
@@ -20,12 +21,6 @@ function PendingPayments({ pendingPayments = [] }) {
           </div>
         ) : (
           pendingPayments.map((item) => {
-            const initials = item.member_name
-              ?.split(" ")
-              .map((word) => word[0])
-              .join("")
-              .slice(0, 2);
-
             return (
               <button
                 key={item.id}
@@ -40,9 +35,12 @@ function PendingPayments({ pendingPayments = [] }) {
                 className="flex w-full items-center justify-between rounded-xl border border-border bg-surface-elevated p-4 text-left transition hover:bg-surface-input shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-input font-bold text-warning-text dark:text-warning">
-                    {initials}
-                  </div>
+                  <MemberAvatar
+                    photo={item.member_photo}
+                    firstName={item.member_name?.split(" ")[0]}
+                    lastName={item.member_name?.split(" ").slice(1).join(" ")}
+                    size="md"
+                  />
 
                   <div>
                     <p className="text-sm font-medium text-text-primary">

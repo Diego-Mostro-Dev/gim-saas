@@ -9,6 +9,7 @@ from .views import (
     MemberRoutineWhatsappView,
     ActiveRoutinesView,
     BulkAssignRoutineView,
+    PublicWorkoutProgressView,
     PublicRoutineView,
 )
 router = DefaultRouter()
@@ -59,8 +60,13 @@ urlpatterns = router.urls + [
         name="bulk-assign-routine",
     ),
     path(
-    "public/<str:token>/",
-    PublicRoutineView.as_view(),
-    name="public-routine",
+        "public/<str:token>/progress/",
+        PublicWorkoutProgressView.as_view(),
+        name="public-workout-progress",
+    ),
+    path(
+        "public/<str:token>/",
+        PublicRoutineView.as_view(),
+        name="public-routine",
     ),
 ]
