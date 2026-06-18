@@ -5,6 +5,7 @@ from .models import (
     RoutineTemplate,
     RoutineAssignment,
     RoutineExercise,
+    WorkoutSet,
 )
 
 
@@ -33,6 +34,12 @@ class RoutineExerciseSerializer(serializers.ModelSerializer):
     exercise_name = serializers.CharField(
         source="exercise.name",
         read_only=True,
+    )
+
+    exercise_category = serializers.CharField(
+        source="exercise.category",
+        read_only=True,
+        allow_null=True,
     )
 
     class Meta:
@@ -86,6 +93,10 @@ class MemberRoutineSerializer(serializers.ModelSerializer):
                 "weight": exercise.weight,
                 "notes": exercise.notes,
                 "order": exercise.order,
+                "rest_seconds": exercise.rest_seconds,
+                "exercise_type": exercise.exercise_type,
+                "rest_mode": exercise.rest_mode,
+                "next_exercise_rest_seconds": exercise.next_exercise_rest_seconds,
             }
             for exercise in obj.routine_template.routine_exercises.all()
         ]
@@ -93,6 +104,7 @@ class MemberRoutineSerializer(serializers.ModelSerializer):
 
 class ActiveRoutineSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
 
     routine_name = serializers.CharField(
         source="routine_template.name",
@@ -113,10 +125,14 @@ class ActiveRoutineSerializer(serializers.ModelSerializer):
         model = RoutineAssignment
 
         fields = [
+            "id",
             "member_id",
             "member_name",
+            "member_photo",
             "routine_id",
             "routine_name",
+            "assigned_at",
+            "active",
         ]
 
     def get_member_name(self, obj):
@@ -124,6 +140,14 @@ class ActiveRoutineSerializer(serializers.ModelSerializer):
             f"{obj.member.first_name} "
             f"{obj.member.last_name}"
         )
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
 
 class MemberPortalSerializer(serializers.Serializer):
     member = serializers.DictField()
@@ -150,3 +174,16 @@ class MemberPortalSerializer(serializers.Serializer):
     active_plans = serializers.ListField(
         required=False,
     )
+
+
+class WorkoutSetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkoutSet
+        fields = [
+            "id",
+            "routine_exercise",
+            "set_number",
+            "completed",
+            "completed_at",
+        ]
+        read_only_fields = ["id", "completed_at"]

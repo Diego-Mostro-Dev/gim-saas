@@ -1,9 +1,9 @@
 import { Pencil, Trash2, RefreshCw } from "lucide-react";
+import MemberAvatar from "../common/MemberAvatar";
 
 import {
   calculateRemainingDays,
   isSubscriptionExpired,
-  getMemberInitials,
 } from "../../utils/subscription.utils";
 
 function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
@@ -11,15 +11,16 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
 
   const daysRemaining = calculateRemainingDays(subscription.end_date);
 
-  const initials = getMemberInitials(subscription.member_name);
-
   return (
     <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface-input font-bold text-info-text dark:text-info">
-            {initials}
-          </div>
+          <MemberAvatar
+            photo={subscription.member_photo}
+            firstName={subscription.member_name?.split(" ")[0]}
+            lastName={subscription.member_name?.split(" ").slice(1).join(" ")}
+            size="md"
+          />
 
           <div>
             <p className="font-medium text-text-primary">{subscription.member_name}</p>

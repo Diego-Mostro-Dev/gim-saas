@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import MemberAvatar from "../common/MemberAvatar";
 
 function UpcomingExpirations({ expirations = [] }) {
   const navigate = useNavigate();
@@ -25,12 +26,6 @@ function UpcomingExpirations({ expirations = [] }) {
           </div>
         ) : (
           expirations.map((item) => {
-            const initials = item.member_name
-              ?.split(" ")
-              .map((word) => word[0])
-              .join("")
-              .slice(0, 2);
-
             const remainingText =
               Number(item.days_remaining) === 1
                 ? "día restante"
@@ -42,9 +37,12 @@ function UpcomingExpirations({ expirations = [] }) {
                 className="flex items-center justify-between rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-input font-bold text-info-text dark:text-info">
-                    {initials}
-                  </div>
+                  <MemberAvatar
+                    photo={item.member_photo}
+                    firstName={item.member_name?.split(" ")[0]}
+                    lastName={item.member_name?.split(" ").slice(1).join(" ")}
+                    size="md"
+                  />
 
                   <div>
                     <p className="text-sm font-medium text-text-primary">

@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from gyms.models import Gym
 from attendance.models import ScheduleSlot
+from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from plans.models import MembershipPlan
 from subscriptions.models import Subscription
 from subscriptions.services import get_last_day_of_month
@@ -102,7 +103,7 @@ class PublicSlotsView(APIView):
 
         slots = ScheduleSlot.objects.filter(
             gym=gym,
-        ).order_by("day", "hour")
+        ).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour")
 
         return Response([
             {

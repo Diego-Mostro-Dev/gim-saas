@@ -1,5 +1,36 @@
+import { DAY_ORDER } from "../../constants/days";
+
+const DAY_LABELS = {
+  monday: "Lun",
+  tuesday: "Mar",
+  wednesday: "Mié",
+  thursday: "Jue",
+  friday: "Vie",
+  saturday: "Sáb",
+  sunday: "Dom",
+};
+
+function getCurrentWeekRange() {
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { monday, sunday };
+}
+
 function WeeklyChart({ data = [] }) {
-  const maxValue = Math.max(...data.map((item) => item.count), 1);
+  const countByDay = Object.fromEntries(data.map((d) => [d.day, d.count]));
+
+  const days = DAY_ORDER.map((key) => ({
+    day: DAY_LABELS[key],
+    count: countByDay[DAY_LABELS[key]] || 0,
+  }));
+
+  const { monday, sunday } = getCurrentWeekRange();
+  const weekLabel = `Semana actual · ${monday.toLocaleDateString("es-AR")} – ${sunday.toLocaleDateString("es-AR")}`;
+
+  const maxValue = Math.max(...days.map((item) => item.count), 1);
 
   return (
     <section className="rounded-xl bg-surface-elevated p-4 shadow-sm">
@@ -8,11 +39,11 @@ function WeeklyChart({ data = [] }) {
           Asistencias Semanales
         </h3>
 
-        <p className="text-sm text-text-secondary">Últimos 7 días</p>
+        <p className="text-sm text-text-secondary">{weekLabel}</p>
       </div>
 
       <div className="flex h-56 items-end gap-3">
-        {data.map((item) => {
+        {days.map((item) => {
           const height = item.count === 0 ? 10 : (item.count / maxValue) * 180;
 
           return (

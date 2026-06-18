@@ -53,7 +53,7 @@ export function useScheduleChangeWatcher() {
         for (const req of current) {
           if (!prevMap.has(req.id)) {
             toast.success(
-              `Nueva solicitud de cambio: ${req.member_name}`,
+              `Nuevo cambio permanente: ${req.member_name}`,
               { id: `scr-new-${req.id}` },
             );
           }
@@ -64,12 +64,12 @@ export function useScheduleChangeWatcher() {
           if (prevReq && prevReq.status !== req.status) {
             const label =
               req.status === "approved"
-                ? "aprobada"
+                ? "aprobado"
                 : req.status === "rejected"
-                  ? "rechazada"
-                  : "cancelada";
+                  ? "rechazado"
+                  : "cancelado";
             toast.success(
-              `Solicitud ${label}: ${req.member_name}`,
+              `Cambio permanente ${label}: ${req.member_name}`,
               { id: `scr-status-${req.id}-${req.status}` },
             );
           }

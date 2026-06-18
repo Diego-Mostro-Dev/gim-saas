@@ -1,7 +1,12 @@
+from datetime import date
+
+from django.db import transaction
+
 from rest_framework import serializers
 
 from attendance.models import AttendanceSchedule, ScheduleSlot
-from subscriptions.services import get_member_schedule_limit, get_member_active_schedule_count
+from subscriptions.models import MembershipPlan, Subscription
+from subscriptions.services import get_last_day_of_month, get_member_schedule_limit, get_member_active_schedule_count
 
 from .models import Member
 
@@ -10,6 +15,7 @@ import json
 
 class MemberSerializer(serializers.ModelSerializer):
     schedules = serializers.SerializerMethodField()
+    plan_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Member
@@ -24,9 +30,22 @@ class MemberSerializer(serializers.ModelSerializer):
             "schedules",
             "gym",
             "photo",
+            "plan_id",
         ]
 
         read_only_fields = ["gym"]
+
+    def validate_plan_id(self, value):
+        if value is None:
+            return value
+        gym = self.context.get("gym")
+        if gym is None:
+            request = self.context.get("request")
+            if request and hasattr(request.user, "profile"):
+                gym = request.user.profile.gym
+        if not MembershipPlan.objects.filter(id=value, gym=gym).exists():
+            raise serializers.ValidationError("El plan seleccionado no es válido.")
+        return value
 
     def validate_phone(self, value):
         gym = self.context.get("gym")
@@ -140,32 +159,49 @@ class MemberSerializer(serializers.ModelSerializer):
         return schedules
 
     def create(self, validated_data):
+        plan_id = validated_data.pop("plan_id", None)
         schedules = self._parse_schedules()
 
-        member = Member.objects.create(
-            **validated_data
-        )
-
-        schedule_slots = []
-
-        for s in schedules:
-            slot = self._validate_schedule_slot(
-                member.gym, s["day"], s["hour"]
+        with transaction.atomic():
+            member = Member.objects.create(
+                **validated_data
             )
 
-            schedule_slots.append(
-                AttendanceSchedule(
-                    member=member,
-                    gym=member.gym,
-                    slot=slot,
+            schedule_slots = []
+
+            for s in schedules:
+                slot = self._validate_schedule_slot(
+                    member.gym, s["day"], s["hour"]
                 )
-            )
 
-        AttendanceSchedule.objects.bulk_create(schedule_slots)
+                schedule_slots.append(
+                    AttendanceSchedule(
+                        member=member,
+                        gym=member.gym,
+                        slot=slot,
+                    )
+                )
+
+            AttendanceSchedule.objects.bulk_create(schedule_slots)
+
+            if plan_id:
+                plan = MembershipPlan.objects.get(id=plan_id, gym=member.gym)
+                today = date.today()
+                end_date = get_last_day_of_month(today)
+                Subscription.objects.create(
+                    gym=member.gym,
+                    member=member,
+                    plan=plan,
+                    start_date=today,
+                    end_date=end_date,
+                    paid=False,
+                    auto_renew=True,
+                )
 
         return member
 
     def update(self, instance, validated_data):
+        validated_data.pop("plan_id", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 

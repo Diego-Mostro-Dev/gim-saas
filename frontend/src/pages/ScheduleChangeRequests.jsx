@@ -9,6 +9,8 @@ import {
 } from "../services/attendance.service";
 import { getScheduleChangesLastRefresh } from "../hooks/useScheduleChangeWatcher";
 import { DAY_NAMES } from "../constants/days";
+import { formatHumanDate } from "../utils/date.utils";
+import MemberAvatar from "../components/common/MemberAvatar";
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -50,7 +52,7 @@ function ScheduleChangeRequests() {
         new CustomEvent("schedule-changes-refreshed", { detail: data }),
       );
     } catch {
-      toast.error("Error al cargar solicitudes de cambio");
+      toast.error("Error al cargar solicitudes de cambio permanente");
     } finally {
       setLoading(false);
     }
@@ -105,17 +107,6 @@ function ScheduleChangeRequests() {
     return r.status === filter;
   });
 
-  function formatDate(dateStr) {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
   function statusBadge(status) {
     const base =
       "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium";
@@ -154,7 +145,7 @@ function ScheduleChangeRequests() {
 
     try {
       await approveScheduleChangeRequest(approvalTarget.id);
-      toast.success("Cambio de horario aprobado");
+      toast.success("Cambio permanente aprobado");
       setApprovalTarget(null);
       loadRequests();
     } catch (error) {
@@ -190,7 +181,7 @@ function ScheduleChangeRequests() {
         data.admin_notes = rejectionNotes.trim();
       }
       await rejectScheduleChangeRequest(rejectionTarget.id, data);
-      toast.success("Cambio de horario rechazado");
+      toast.success("Cambio permanente rechazado");
       setRejectionTarget(null);
       setRejectionNotes("");
       loadRequests();
@@ -208,13 +199,13 @@ function ScheduleChangeRequests() {
   }
 
   return (
-    <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
-      <div className="mb-6 px-4">
-        <h1 className="text-3xl font-bold">Cambios de horario</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Cambios permanentes del horario habitual de un socio.
-        </p>
-      </div>
+      <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
+        <div className="mb-6 px-4">
+          <h1 className="text-3xl font-bold">Cambios permanentes de horario</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Solicitudes de cambio permanente del horario habitual de un socio.
+          </p>
+        </div>
 
       <div className="mb-6 flex gap-2 overflow-x-auto px-4">
         {FILTERS.map((f) => (
@@ -239,7 +230,7 @@ function ScheduleChangeRequests() {
         {filteredRequests.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             {requests.length === 0
-              ? "No hay solicitudes de cambio"
+              ? "No hay solicitudes de cambio permanente"
               : "No hay solicitudes con este estado"}
           </div>
         ) : (
@@ -249,19 +240,27 @@ function ScheduleChangeRequests() {
               className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
               <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">
-                    {req.member_name}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <MemberAvatar
+                    photo={req.member_photo}
+                    firstName={req.member_name?.split(" ")[0]}
+                    lastName={req.member_name?.split(" ").slice(1).join(" ")}
+                    size="sm"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      {req.member_name}
+                    </p>
                   <p className="mt-0.5 text-xs text-text-secondary">
-                    Solicitado el: {formatDate(req.requested_at)}
+                    Solicitado el: {formatHumanDate(req.requested_at)}
                   </p>
                   {req.effective_date && (
                     <p className="text-xs text-text-secondary">
-                      Vigente desde: {formatDate(req.effective_date)}
+                      Vigente desde: {formatHumanDate(req.effective_date)}
                     </p>
                   )}
                 </div>
+              </div>
                 {statusBadge(req.status)}
               </div>
 
@@ -317,7 +316,7 @@ function ScheduleChangeRequests() {
           <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-text-primary">
-                Aprobar cambio de horario
+                Aprobar cambio permanente
               </h2>
             </div>
 
@@ -370,14 +369,14 @@ function ScheduleChangeRequests() {
                 <div className="mt-3 rounded-xl bg-surface-input px-3 py-2">
                   <p className="text-xs text-text-secondary">Vigente desde</p>
                   <p className="text-sm text-text-primary">
-                    {formatDate(rejectionTarget.effective_date)}
+                    {formatHumanDate(rejectionTarget.effective_date)}
                   </p>
                 </div>
               )}
 
               <div className="mb-4">
                 <h2 className="text-lg font-semibold text-text-primary">
-                  Rechazar cambio de horario
+                  Rechazar cambio permanente
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 {rejectionTarget.member_name}

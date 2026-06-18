@@ -68,12 +68,13 @@ def cancel_future_plan_change(plan_change_request, cancel_status="cancelled_by_s
 
 def suggest_alternative_slots(plan_change_request, failed_slot_key):
     from attendance.models import ScheduleSlot
+    from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 
     target_date = plan_change_request.effective_date or calculate_effective_date(plan_change_request.member)
     plan = plan_change_request.requested_plan
     gym = plan_change_request.gym
 
-    slots = ScheduleSlot.objects.filter(gym=gym).order_by("day", "hour")
+    slots = ScheduleSlot.objects.filter(gym=gym).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour")
 
     suggestions = []
     for slot in slots:

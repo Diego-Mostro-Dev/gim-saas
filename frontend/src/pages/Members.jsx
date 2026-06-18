@@ -15,6 +15,7 @@ import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
 import { getMemberWhatsapp } from "../services/routines.service";
 import { getSlots } from "../services/attendance.service";
+import { formatHumanDate } from "../utils/date.utils";
 import { getPlans } from "../services/plans.service";
 
 import {
@@ -392,10 +393,10 @@ function Members() {
                     </p>
 
                     <p>
-                      Fecha: {new Date(payment.paid_at).toLocaleDateString()}
+                      Fecha: {formatHumanDate(payment.paid_at)}
                     </p>
 
-                    <p>Vencimiento: {payment.subscription_end_date ?? "-"}</p>
+                    <p>Vencimiento: {formatHumanDate(payment.subscription_end_date)}</p>
                   </div>
                 ))
               )}

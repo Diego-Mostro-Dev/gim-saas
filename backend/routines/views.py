@@ -1,16 +1,16 @@
 from django.conf import settings
 from django.utils import timezone
 
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 
 from core.viewsets import GymModelViewSet
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import RoutineAssignment
+from .models import RoutineAssignment, WorkoutSet
 from members.models import Member
 from django.shortcuts import get_object_or_404
-from .serializers import MemberRoutineSerializer
+from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
 from subscriptions.services import (
@@ -167,14 +167,43 @@ class MemberRoutineWhatsappView(APIView):
                 f"🔹 *{item.exercise.name}*"
             )
 
-            lines.append(
-                f"   {item.sets} series × {item.reps}"
-            )
-
-            if item.weight:
+            if item.exercise_type == "cardio":
+                if item.reps:
+                    lines.append(f"   🏃 {item.reps} minutos")
+                lines.append("   Descanso libre")
+            else:
+                reps_str = f" × {item.reps}" if item.reps else ""
                 lines.append(
-                    f"   🏋️ Peso: {item.weight} kg"
+                    f"   {item.sets} series{reps_str}"
                 )
+
+                if item.exercise_type == "bodyweight":
+                    lines.append("   🏋️ Peso corporal")
+                elif item.weight and item.weight != "0":
+                    lines.append(f"   🏋️ Peso: {item.weight} kg")
+
+                rest_min = item.rest_seconds // 60
+                rest_sec = item.rest_seconds % 60
+                if rest_min > 0:
+                    rest_str = f"{rest_min}min" + (f" {rest_sec}s" if rest_sec else "")
+                else:
+                    rest_str = f"{rest_sec}s"
+
+                rest_mode_str = {
+                    "between_sets": "entre series",
+                    "after_exercise": "al finalizar",
+                    "none": "sin descanso",
+                }.get(item.rest_mode, "entre series")
+                lines.append(f"   ⏱ {rest_str} descanso ({rest_mode_str})")
+
+                if item.next_exercise_rest_seconds:
+                    next_min = item.next_exercise_rest_seconds // 60
+                    next_sec = item.next_exercise_rest_seconds % 60
+                    if next_min > 0:
+                        next_str = f"{next_min}min" + (f" {next_sec}s" if next_sec else "")
+                    else:
+                        next_str = f"{next_sec}s"
+                    lines.append(f"   🔄 {next_str} antes del próximo")
 
             if item.notes:
                 lines.append(
@@ -288,6 +317,58 @@ class BulkAssignRoutineView(APIView):
             "assigned_members": created,
             "routine": routine.name,
         })
+
+
+class PublicWorkoutProgressView(APIView):
+    permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
+
+    def get(self, request, token):
+        member = get_object_or_404(Member, access_token=token)
+
+        assignment = RoutineAssignment.objects.filter(
+            member=member, active=True
+        ).first()
+
+        if not assignment:
+            return Response([], status=200)
+
+        sets = WorkoutSet.objects.filter(
+            routine_assignment=assignment
+        )
+
+        serializer = WorkoutSetSerializer(sets, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, token):
+        member = get_object_or_404(Member, access_token=token)
+
+        assignment = RoutineAssignment.objects.filter(
+            member=member, active=True
+        ).first()
+
+        if not assignment:
+            return Response(
+                {"detail": "No active routine"},
+                status=400,
+            )
+
+        routine_exercise_id = request.data.get("routine_exercise")
+        set_number = request.data.get("set_number")
+        completed = request.data.get("completed", True)
+
+        ws, created = WorkoutSet.objects.update_or_create(
+            routine_assignment=assignment,
+            routine_exercise_id=routine_exercise_id,
+            set_number=set_number,
+            defaults={
+                "completed": completed,
+                "completed_at": timezone.now() if completed else None,
+            },
+        )
+
+        serializer = WorkoutSetSerializer(ws)
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 class PublicRoutineView(APIView):

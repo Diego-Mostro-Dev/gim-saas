@@ -10,6 +10,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework import status
 
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
+from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from members.models import Member
 from .serializers import (
     AttendanceScheduleSerializer,
@@ -354,7 +355,7 @@ class ScheduleSlotListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return ScheduleSlot.objects.filter(
             gym=self.request.user.profile.gym,
-        ).order_by("day", "hour")
+        ).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour")
 
     def perform_create(self, serializer):
         serializer.save(gym=self.request.user.profile.gym)

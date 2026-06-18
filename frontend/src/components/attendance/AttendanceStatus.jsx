@@ -33,7 +33,7 @@ function AttendanceStatus() {
           <span className="text-danger-text dark:text-danger">○</span> No asistió
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="text-blue-400">↔</span> Intercambio de día
+          <span className="text-blue-400">↔</span> Intercambio
         </span>
       </div>
 
@@ -144,7 +144,7 @@ function AttendanceStatus() {
                   {member.member_name}
                   {member.is_swap && (
                     <span className="ml-2 text-xs text-blue-400">
-                      ↔ Intercambio de día
+                      ↔ Intercambio
                     </span>
                   )}
                 </span>

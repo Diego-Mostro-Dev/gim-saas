@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getRoutineExercises,
   createRoutineExercise,
+  updateRoutineExercise,
   deleteRoutineExercise,
 } from "../services/routines.service";
 
@@ -55,6 +56,18 @@ export function useRoutineExercises() {
     return created;
   }
 
+  async function editRoutineExercise(id, payload) {
+    const updated = await updateRoutineExercise(id, payload);
+
+    setRoutineExercises((prev) =>
+      prev.map((item) =>
+        item.id === id ? updated : item
+      )
+    );
+
+    return updated;
+  }
+
   async function removeRoutineExercise(id) {
     await deleteRoutineExercise(id);
 
@@ -68,6 +81,7 @@ export function useRoutineExercises() {
     loading,
     error,
     addRoutineExercise,
+    editRoutineExercise,
     removeRoutineExercise,
     reloadRoutineExercises:
       loadRoutineExercises,

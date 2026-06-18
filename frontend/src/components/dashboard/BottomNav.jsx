@@ -79,7 +79,7 @@ function BottomNav() {
           )}
         </span>
 
-        <span className={`text-xs ${cambiosBlueClass}`}>Cambios de horario</span>
+        <span className={`text-xs ${cambiosBlueClass}`}>Cambios permanentes</span>
       </NavLink>
 
       <NavLink
@@ -99,7 +99,7 @@ function BottomNav() {
         </span>
 
         <span className={`text-xs ${swapPendingCount > 0 ? "text-info-text dark:text-info" : ""}`}>
-          Intercambios de día
+          Intercambios
         </span>
       </NavLink>
 

@@ -1,4 +1,5 @@
 import { Pencil, Trash2, Share2, Link } from "lucide-react";
+import { formatHumanDate } from "../../utils/date.utils";
 
 function MemberCard({
   member,
@@ -59,9 +60,7 @@ function MemberCard({
                             ? "1 día restante"
                             : `${member.subscription_days_remaining} días restantes`
                         }`
-                      : `hasta ${new Date(
-                          member.subscription_end_date,
-                        ).toLocaleDateString("es-AR")}`}
+                      : `hasta ${formatHumanDate(member.subscription_end_date)}`}
                   </span>
                 )}
               </div>

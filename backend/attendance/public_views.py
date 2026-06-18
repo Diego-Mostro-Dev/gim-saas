@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from members.models import Member
 from .models import Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
+from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from .serializers import (
     PublicScheduleChangeRequestSerializer,
     PublicScheduleSwapRequestSerializer,
@@ -64,7 +65,7 @@ class PublicCheckinView(APIView):
                 return Response(
                     {
                         "success": False,
-                        "message": "Ya registraste asistencia para este cambio de fecha hoy",
+                        "message": "Ya registraste asistencia para este intercambio hoy",
                     }
                 )
 
@@ -92,7 +93,7 @@ class PublicCheckinView(APIView):
             return Response(
                 {
                     "success": True,
-                    "message": "✓ Asistencia registrada (cambio de fecha)",
+                    "message": "✓ Asistencia registrada (intercambio)",
                 }
             )
 
@@ -138,7 +139,7 @@ class PublicMemberSlotsView(APIView):
 
         slots = ScheduleSlot.objects.filter(
             gym=member.gym,
-        ).order_by("day", "hour")
+        ).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour")
 
         result = []
         for s in slots:

@@ -1,3 +1,5 @@
+import { formatHumanDate } from "../../utils/date.utils";
+
 function getWeekRange(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr + "T12:00:00");
@@ -52,36 +54,49 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
   };
 
   const weekRange = getWeekRange(date);
+  const todayStr = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })();
 
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-center gap-3">
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <p className="text-xs text-text-secondary">Fecha seleccionada</p>
+        <p className="text-2xl font-bold text-text-primary">
+          {date ? formatHumanDate(date) : "—"}
+        </p>
+
+        <div className="mt-3 flex items-center gap-2">
           <input
             type="date"
             value={date}
             onChange={(e) => onDateChange(e.target.value)}
-            className="w-full rounded-lg bg-surface-input p-2 text-sm text-text-primary [color-scheme:dark]"
+            className="w-44 rounded-lg bg-surface-input p-2 text-sm text-text-primary [color-scheme:dark]"
           />
-          {date && (
-            <button
-              onClick={() => onDateChange("")}
-              className="shrink-0 rounded-lg bg-zinc-700 px-3 py-2 text-xs text-text-primary hover:bg-zinc-600"
-            >
-              Hoy
-            </button>
-          )}
+          <button
+            onClick={() => onDateChange(todayStr)}
+            className="shrink-0 rounded-lg bg-zinc-700 px-3 py-2 text-xs text-text-primary hover:bg-zinc-600"
+          >
+            Hoy
+          </button>
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          {date && (
-            <span className="rounded-md bg-info-bg px-2 py-1 text-xs text-info-text dark:bg-info/15 dark:text-info">
-              {weekRange}
-            </span>
-          )}
-          <p className="text-xs text-text-secondary">
+
+        {date && (
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="text-xs text-text-secondary">Semana mostrada</p>
+            <p className="text-lg font-medium text-text-primary">{weekRange}</p>
+          </div>
+        )}
+
+        {!date && (
+          <p className="mt-3 text-xs text-text-secondary">
             Seleccioná una fecha para ver la ocupación de la semana
           </p>
-        </div>
+        )}
       </div>
 
       {days.map((day) => {
@@ -153,7 +168,7 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
                           >
                             <span>{person.member_name}</span>
                             {person.id < 0 && (
-                              <span className="text-blue-400">↔ Intercambio de día</span>
+                              <span className="text-blue-400">↔ Intercambio</span>
                             )}
                           </div>
                         ))}

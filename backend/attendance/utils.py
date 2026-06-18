@@ -1,6 +1,19 @@
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 
 from .models import Attendance, AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
+
+
+SCHEDULE_SLOT_WEEKDAY_ORDER = Case(
+    When(day="monday", then=Value(0)),
+    When(day="tuesday", then=Value(1)),
+    When(day="wednesday", then=Value(2)),
+    When(day="thursday", then=Value(3)),
+    When(day="friday", then=Value(4)),
+    When(day="saturday", then=Value(5)),
+    When(day="sunday", then=Value(6)),
+    default=Value(99),
+    output_field=IntegerField(),
+)
 
 
 def compute_effective_occupancy(slot, target_date):
@@ -111,10 +124,5 @@ def get_swap_usage_metrics(gym, start_date, end_date):
         approved=Count("id", filter=Q(status="approved")),
         rejected=Count("id", filter=Q(status="rejected")),
         cancelled=Count("id", filter=Q(status="cancelled")),
-        auto_approved=Count("id", filter=Q(
-            status="approved",
-            reviewed_by__isnull=True,
-            admin_notes="Aprobado automáticamente",
-        )),
     )
     return stats

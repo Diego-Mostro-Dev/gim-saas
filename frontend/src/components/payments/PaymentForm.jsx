@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { formatHumanDate } from "../../utils/date.utils";
 
 function PaymentForm({
   formData,
@@ -90,8 +91,8 @@ function PaymentForm({
               <option key={subscription.id} value={subscription.id}>
                 {expired ? "[VENCIDA] " : ""}
                 {subscription.plan_name} •{" "}
-                {new Date(subscription.start_date).toLocaleDateString("es-AR")} →{" "}
-                {new Date(subscription.end_date).toLocaleDateString("es-AR")}
+                {formatHumanDate(subscription.start_date)} →{" "}
+                {formatHumanDate(subscription.end_date)}
               </option>
             );
           })}

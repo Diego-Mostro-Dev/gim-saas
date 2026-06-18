@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
 import { X, Clock, CheckCircle, RotateCcw } from "lucide-react";
+import { formatHumanDate } from "../../utils/date.utils";
 
 import CurrentPlanCard from "../../components/plans/CurrentPlanCard";
 import PlanChangeModal from "../../components/plans/PlanChangeModal";
@@ -11,12 +12,6 @@ import {
   cancelAutoRenewal,
   enableAutoRenewal,
 } from "../../services/routines.service";
-
-function formatDate(date) {
-  if (!date) return "";
-  const [y, m, d] = date.split("-");
-  return new Date(+y, +m - 1, +d).toLocaleDateString("es-AR");
-}
 
 function getNextTraining(schedules) {
   if (!schedules?.length) return null;
@@ -154,7 +149,7 @@ function MemberDashboard() {
           <div className="mb-4 rounded-xl bg-primary-bg/20 dark:bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-primary-text dark:text-primary">
             <p className="font-medium">
               Tu suscripción se renovará automáticamente el{" "}
-              {formatDate(subscription.renewal_date)}.
+              {formatHumanDate(subscription.renewal_date)}.
             </p>
           </div>
         )}
@@ -202,14 +197,14 @@ function MemberDashboard() {
               <div className="flex items-center justify-between">
                 <span className="text-text-secondary">Inicio</span>
                 <span className="text-text-primary">
-                  {formatDate(subscription.start_date)}
+                  {formatHumanDate(subscription.start_date)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-text-secondary">Vencimiento</span>
                 <span className="text-text-primary">
-                  {formatDate(subscription.end_date)}
+                  {formatHumanDate(subscription.end_date)}
                 </span>
               </div>
 
@@ -301,7 +296,7 @@ function MemberDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Fecha</span>
-                <span>{formatDate(pendingRequest.requested_at)}</span>
+                <span>{formatHumanDate(pendingRequest.requested_at)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Estado</span>
@@ -365,7 +360,7 @@ function MemberDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Activación</span>
-                <span>{formatDate(approvedFutureRequest.effective_date)}</span>
+                <span>{formatHumanDate(approvedFutureRequest.effective_date)}</span>
               </div>
             </div>
             {approvedFutureRequest.planned_schedules?.length > 0 && (
@@ -469,7 +464,7 @@ function MemberDashboard() {
                   ✓ Asistencia
                 </span>
                 <span className="text-text-primary">
-                  {formatDate(attendance.date)}
+                  {formatHumanDate(attendance.date)}
                 </span>
               </div>
             ))}
@@ -492,7 +487,7 @@ function MemberDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-text-secondary">Fecha</span>
               <span className="text-text-primary">
-                {formatDate(last_payment.paid_at)}
+                {formatHumanDate(last_payment.paid_at)}
               </span>
             </div>
 

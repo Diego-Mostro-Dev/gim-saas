@@ -1,8 +1,4 @@
-function formatDate(date) {
-  if (!date) return "";
-  const [y, m, d] = date.split("-");
-  return new Date(+y, +m - 1, +d).toLocaleDateString("es-AR");
-}
+import { formatHumanDate } from "../../utils/date.utils";
 
 function CurrentPlanCard({ subscription }) {
   if (!subscription) {
@@ -47,7 +43,7 @@ function CurrentPlanCard({ subscription }) {
           <p className="mt-2 text-sm text-text-secondary">
             Vence:{" "}
             <span className="text-text-primary">
-              {formatDate(subscription.end_date)}
+              {formatHumanDate(subscription.end_date)}
             </span>
           </p>
         </div>

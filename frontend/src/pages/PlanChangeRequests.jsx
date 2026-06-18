@@ -7,6 +7,8 @@ import {
   approvePlanChangeRequest,
   rejectPlanChangeRequest,
 } from "../services/plan-change-requests.service";
+import { formatHumanDate } from "../utils/date.utils";
+import MemberAvatar from "../components/common/MemberAvatar";
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -93,17 +95,6 @@ function PlanChangeRequests() {
     if (filter === "all") return true;
     return r.status === filter;
   });
-
-  function formatDate(dateStr) {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
 
   function statusBadge(status) {
     const base =
@@ -238,13 +229,21 @@ function PlanChangeRequests() {
               className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
             >
               <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">
-                    {req.member_name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-text-secondary">
-                    Solicitado el: {formatDate(req.requested_at)}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <MemberAvatar
+                    photo={req.member_photo}
+                    firstName={req.member_name?.split(" ")[0]}
+                    lastName={req.member_name?.split(" ").slice(1).join(" ")}
+                    size="sm"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      {req.member_name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-text-secondary">
+                      Solicitado el: {formatHumanDate(req.requested_at)}
+                    </p>
+                  </div>
                 </div>
                 {statusBadge(req.status)}
               </div>

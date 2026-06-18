@@ -45,6 +45,10 @@ export async function createMember(memberData) {
     );
   }
 
+  if (memberData.plan_id) {
+    formData.append("plan_id", memberData.plan_id);
+  }
+
   formData.append(
     "schedules",
     JSON.stringify(memberData.schedules || []),
