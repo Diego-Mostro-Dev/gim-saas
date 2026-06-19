@@ -111,4 +111,13 @@ const useAuthStore = create((set, get) => ({
   },
 }));
 
+if (typeof window !== "undefined") {
+  window.addEventListener("auth:unauthorized", () => {
+    const state = useAuthStore.getState();
+    if (state.token) {
+      state.logout();
+    }
+  });
+}
+
 export default useAuthStore;

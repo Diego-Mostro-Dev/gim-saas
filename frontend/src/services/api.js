@@ -1,46 +1,54 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiFetch(endpoint, options = {}) {
+  const { skipAuth = false, ...fetchOptions } = options;
+
   const token = localStorage.getItem("token");
 
   const headers = {
-    ...options.headers,
+    ...fetchOptions.headers,
   };
 
-  const isFormData = options.body instanceof FormData;
+  const isFormData = fetchOptions.body instanceof FormData;
 
   if (!isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) {
+  if (token && !skipAuth) {
     headers.Authorization = `Token ${token}`;
   }
 
   const res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
-  if (res.status === 401) {
-    localStorage.removeItem("token");
-    window.location.href = "/login";
-    return;
-  }
-
   if (!res.ok) {
-    let error = {};
+    let detail;
 
     try {
-      error = await res.json();
+      const body = await res.json();
+      detail = body.detail || body.message;
     } catch {
       // ignore parse errors
     }
 
-    throw new Error(
-      error.detail ||
-      error.message ||
-      "Error en la petición"
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
+
+    throw new ApiError(
+      detail || (res.status === 401 ? "Token inválido o expirado" : "Error en la petición"),
+      res.status,
     );
   }
 

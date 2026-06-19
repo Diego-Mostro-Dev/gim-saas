@@ -139,13 +139,14 @@ export async function getMemberRoutine(memberId) {
 }
 
 export async function getWorkoutProgress(token) {
-  return apiFetch(`/api/routines/public/${token}/progress/`);
+  return apiFetch(`/api/routines/public/${token}/progress/`, { skipAuth: true });
 }
 
 export async function toggleWorkoutSet(token, data) {
   return apiFetch(`/api/routines/public/${token}/progress/`, {
     method: "POST",
     body: JSON.stringify(data),
+    skipAuth: true,
   });
 }
 
@@ -158,6 +159,7 @@ export async function getMemberWhatsapp(memberId) {
 export async function getPublicRoutine(token) {
   return apiFetch(
     `/api/routines/public/${token}/`,
+    { skipAuth: true },
   );
 }
 
@@ -180,6 +182,7 @@ export async function updatePublicMemberPhoto(
     {
       method: "PATCH",
       body: formData,
+      skipAuth: true,
     }
   );
 }
@@ -192,40 +195,44 @@ export async function updatePublicMemberPhoto(
 
 export async function getPublicSlots(token, date) {
   const params = date ? `?date=${date}` : "";
-  return apiFetch(`/api/attendance/public/slots/${token}/${params}`);
+  return apiFetch(`/api/attendance/public/slots/${token}/${params}`, { skipAuth: true });
 }
 
 export async function getPublicScheduleChangeRequests(token) {
-  return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/`);
+  return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/`, { skipAuth: true });
 }
 
 export async function createPublicScheduleChangeRequest(token, data) {
   return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/`, {
     method: "POST",
     body: JSON.stringify(data),
+    skipAuth: true,
   });
 }
 
 export async function cancelPublicScheduleChangeRequest(token, id) {
   return apiFetch(`/api/attendance/public/schedule-change-requests/${token}/${id}/cancel/`, {
     method: "POST",
+    skipAuth: true,
   });
 }
 
 export async function getPublicScheduleSwapRequests(token) {
-  return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/`);
+  return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/`, { skipAuth: true });
 }
 
 export async function createPublicScheduleSwapRequest(token, data) {
   return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/`, {
     method: "POST",
     body: JSON.stringify(data),
+    skipAuth: true,
   });
 }
 
 export async function cancelPublicScheduleSwapRequest(token, id) {
   return apiFetch(`/api/attendance/public/schedule-swap-requests/${token}/${id}/cancel/`, {
     method: "POST",
+    skipAuth: true,
   });
 }
 
@@ -236,19 +243,21 @@ export async function cancelPublicScheduleSwapRequest(token, id) {
 */
 
 export async function getPublicPlanChangeRequests(token) {
-  return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/`);
+  return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/`, { skipAuth: true });
 }
 
 export async function createPublicPlanChangeRequest(token, data) {
   return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/`, {
     method: "POST",
     body: JSON.stringify(data),
+    skipAuth: true,
   });
 }
 
 export async function cancelPublicPlanChangeRequest(token, id) {
   return apiFetch(`/api/subscriptions/public/plan-change-requests/${token}/${id}/cancel/`, {
     method: "POST",
+    skipAuth: true,
   });
 }
 
@@ -261,11 +270,13 @@ export async function cancelPublicPlanChangeRequest(token, id) {
 export async function cancelAutoRenewal(token) {
   return apiFetch(`/api/subscriptions/public/cancel-renewal/${token}/`, {
     method: "POST",
+    skipAuth: true,
   });
 }
 
 export async function enableAutoRenewal(token) {
   return apiFetch(`/api/subscriptions/public/enable-renewal/${token}/`, {
     method: "POST",
+    skipAuth: true,
   });
 }
