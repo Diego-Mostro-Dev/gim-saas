@@ -22,6 +22,39 @@ function formatRestDisplay(seconds) {
   return String(seconds) + "s";
 }
 
+function formatRestShort(seconds) {
+  if (seconds >= 60) {
+    return Math.floor(seconds / 60) + "m";
+  }
+  return String(seconds) + "s";
+}
+
+function formatMobileExerciseSummary(exercise) {
+  const parts = [];
+
+  if (exercise.exercise_type === "cardio") {
+    parts.push((exercise.reps || "0") + " min");
+  } else {
+    if (exercise.sets && exercise.reps) {
+      parts.push(exercise.sets + "\u00d7" + exercise.reps);
+    } else if (exercise.sets) {
+      parts.push(exercise.sets + " series");
+    }
+
+    if (exercise.exercise_type === "bodyweight") {
+      parts.push("PC");
+    } else if (exercise.weight) {
+      parts.push(exercise.weight + "kg");
+    }
+  }
+
+  if (exercise.rest_seconds > 0) {
+    parts.push(formatRestShort(exercise.rest_seconds));
+  }
+
+  return parts.join(" \u00b7 ");
+}
+
 function ExerciseRow({ exercise, index, total, onMoveUp, onMoveDown, onEdit, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
@@ -75,9 +108,9 @@ function ExerciseRow({ exercise, index, total, onMoveUp, onMoveDown, onEdit, onR
   if (editing) {
     return (
       <div className="rounded-xl border border-info/30 bg-info-bg/30 p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="font-medium text-text-primary">{exercise.exercise_name}</h4>
-          <div className="flex gap-1">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h4 className="min-w-0 truncate font-medium text-text-primary">{exercise.exercise_name}</h4>
+          <div className="flex shrink-0 gap-1">
             <button onClick={handleSave} className="rounded-lg p-1.5 text-success hover:bg-success/15" title="Guardar">
               <Check size={16} />
             </button>
@@ -198,14 +231,19 @@ function ExerciseRow({ exercise, index, total, onMoveUp, onMoveDown, onEdit, onR
             <span className="shrink-0 rounded bg-surface-input px-1.5 py-0.5 text-[10px] uppercase text-text-secondary">{typeLabel}</span>
           </div>
 
-          <div className="ml-8 mt-1.5 space-y-0.5 text-sm text-text-secondary">
-            <span className="font-medium text-text-primary">{exercise.sets}</span> series
-            {exercise.reps ? <> &middot; <span className="font-medium text-text-primary">{exercise.reps}</span> reps</> : null}
-            {exercise.weight ? <> &middot; <span className="font-medium text-text-primary">{exercise.weight}</span> kg</> : null}
-            <span>{restLabel}</span>
-            {Number(exercise.next_exercise_rest_seconds) > 0 ? (
-              <> &middot; próximo: {formatRestDisplay(exercise.next_exercise_rest_seconds)}</>
-            ) : null}
+          <div className="ml-8 mt-1.5 text-sm text-text-secondary">
+            <span className="sm:hidden truncate">
+              {formatMobileExerciseSummary(exercise)}
+            </span>
+            <span className="hidden sm:inline">
+              <span className="font-medium text-text-primary">{exercise.sets}</span> series
+              {exercise.reps ? <> &middot; <span className="font-medium text-text-primary">{exercise.reps}</span> reps</> : null}
+              {exercise.weight ? <> &middot; <span className="font-medium text-text-primary">{exercise.weight}</span> kg</> : null}
+              <span>{restLabel}</span>
+              {Number(exercise.next_exercise_rest_seconds) > 0 ? (
+                <> &middot; próximo: {formatRestDisplay(exercise.next_exercise_rest_seconds)}</>
+              ) : null}
+            </span>
           </div>
 
           {exercise.notes && (

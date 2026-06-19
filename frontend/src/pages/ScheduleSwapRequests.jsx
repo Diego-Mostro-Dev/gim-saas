@@ -61,6 +61,12 @@ function isThisMonth(dateStr) {
   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
+function shortDate(date) {
+  if (!date) return "-";
+  const d = new Date(date);
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 function ScheduleSwapRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -264,19 +270,19 @@ function ScheduleSwapRequests() {
       {/* Stats cards */}
       <div className="mb-6 grid grid-cols-2 gap-3 px-4 sm:grid-cols-4">
         <div className="rounded-xl border border-warning/20 bg-warning-bg dark:bg-warning/5 p-3 text-center">
-          <p className="text-2xl font-bold text-warning-text dark:text-warning">{stats.pending}</p>
+          <p className="text-2xl font-bold tabular-nums text-warning-text dark:text-warning">{stats.pending}</p>
           <p className="text-xs text-text-secondary">Pendientes</p>
         </div>
         <div className="rounded-xl border border-success/20 bg-success-bg dark:bg-success/5 p-3 text-center">
-          <p className="text-2xl font-bold text-success-text dark:text-success">{stats.approved}</p>
+          <p className="text-2xl font-bold tabular-nums text-success-text dark:text-success">{stats.approved}</p>
           <p className="text-xs text-text-secondary">Aprobadas</p>
         </div>
         <div className="rounded-xl border border-danger/20 bg-danger-bg dark:bg-danger/5 p-3 text-center">
-          <p className="text-2xl font-bold text-danger-text dark:text-danger">{stats.rejected}</p>
+          <p className="text-2xl font-bold tabular-nums text-danger-text dark:text-danger">{stats.rejected}</p>
           <p className="text-xs text-text-secondary">Rechazadas</p>
         </div>
         <div className="rounded-xl border border-muted/20 bg-muted-bg p-3 text-center">
-          <p className="text-2xl font-bold text-muted-text">{stats.cancelled}</p>
+          <p className="text-2xl font-bold tabular-nums text-muted-text">{stats.cancelled}</p>
           <p className="text-xs text-text-secondary">Canceladas</p>
         </div>
       </div>
@@ -364,10 +370,14 @@ function ScheduleSwapRequests() {
                       {req.member_name}
                     </p>
                     <p className="mt-0.5 text-xs text-text-secondary">
-                      Solicitado el: {formatHumanDate(req.requested_at)}
+                      Solicitado:{" "}
+                      <span className="hidden sm:inline">{formatHumanDate(req.requested_at)}</span>
+                      <span className="sm:hidden">{shortDate(req.requested_at)}</span>
                     </p>
                     <p className="text-xs text-text-secondary">
-                      Fecha del intercambio: {formatHumanDate(req.swap_date)}
+                      Vigente:{" "}
+                      <span className="hidden sm:inline">{formatHumanDate(req.swap_date)}</span>
+                      <span className="sm:hidden">{shortDate(req.swap_date)}</span>
                     </p>
                   </div>
                 </div>

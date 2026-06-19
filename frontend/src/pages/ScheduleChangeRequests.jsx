@@ -19,6 +19,12 @@ const STATUS_LABELS = {
   cancelled: "Cancelado",
 };
 
+function shortDate(date) {
+  if (!date) return "-";
+  const d = new Date(date);
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 const FILTERS = [
   { key: "all", label: "Todas" },
   { key: "pending", label: "Pendientes" },
@@ -252,11 +258,15 @@ function ScheduleChangeRequests() {
                       {req.member_name}
                     </p>
                   <p className="mt-0.5 text-xs text-text-secondary">
-                    Solicitado el: {formatHumanDate(req.requested_at)}
+                    Solicitado:{" "}
+                    <span className="hidden sm:inline">{formatHumanDate(req.requested_at)}</span>
+                    <span className="sm:hidden">{shortDate(req.requested_at)}</span>
                   </p>
                   {req.effective_date && (
                     <p className="text-xs text-text-secondary">
-                      Vigente desde: {formatHumanDate(req.effective_date)}
+                      Vigente:{" "}
+                      <span className="hidden sm:inline">{formatHumanDate(req.effective_date)}</span>
+                      <span className="sm:hidden">{shortDate(req.effective_date)}</span>
                     </p>
                   )}
                 </div>

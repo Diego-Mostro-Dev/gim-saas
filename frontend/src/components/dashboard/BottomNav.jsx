@@ -20,7 +20,7 @@ function BottomNav() {
   const { pendingCount } = useScheduleChangeData();
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
 
-  const baseClass = "flex flex-col items-center px-2 py-2 transition";
+  const baseClass = "flex flex-col items-center px-3 py-3 transition";
 
   const activeClass = "rounded-xl bg-info-bg text-info-text dark:bg-info/15 dark:text-info";
 
@@ -29,7 +29,9 @@ function BottomNav() {
   const cambiosBlueClass = pendingCount > 0 ? "text-info-text dark:text-info" : "";
 
   return (
-    <nav className="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around gap-1 overflow-x-auto border-t border-border/10 bg-surface-elevated px-2">
+    <div className="fixed bottom-0 z-50 w-full">
+      <div className="relative">
+        <nav className="flex h-20 w-full items-center justify-around gap-1 overflow-x-auto border-t border-border/10 bg-surface-elevated px-2">
       <NavLink
         to="/dashboard"
         className={({ isActive }) =>
@@ -79,7 +81,8 @@ function BottomNav() {
           )}
         </span>
 
-        <span className={`text-xs ${cambiosBlueClass}`}>Cambios permanentes</span>
+        <span className={`text-xs max-[390px]:hidden ${cambiosBlueClass}`}>Cambios permanentes</span>
+          <span className={`hidden max-[390px]:inline text-[10px] ${cambiosBlueClass}`}>Cambios</span>
       </NavLink>
 
       <NavLink
@@ -171,6 +174,9 @@ function BottomNav() {
         <span className="text-xs">Pagos</span>
       </NavLink>
     </nav>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface-elevated to-transparent" />
+      </div>
+    </div>
   );
 }
 
