@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getDashboardData } from "../services/dashboard.service";
-import { getCached, isCacheFresh } from "../utils/cache";
+import { getCached, isCacheFresh, clearCached } from "../utils/cache";
 
 const CACHE_KEY = "dashboard";
 const TTL = 60 * 1000;
@@ -20,6 +20,14 @@ export function useDashboard() {
 
   useEffect(() => {
     loadDashboard();
+
+    function onDashboardRefresh() {
+      clearCached(CACHE_KEY);
+      loadDashboard();
+    }
+
+    window.addEventListener("dashboard-refresh", onDashboardRefresh);
+    return () => window.removeEventListener("dashboard-refresh", onDashboardRefresh);
   }, []);
 
   async function loadDashboard() {
