@@ -37,11 +37,11 @@ class AttendanceScheduleAdmin(admin.ModelAdmin):
         "member__last_name",
     )
 
-    @admin.display(description="day")
+    @admin.display(description="Día")
     def slot_day(self, obj):
         return obj.slot.day
 
-    @admin.display(description="hour")
+    @admin.display(description="Hora")
     def slot_hour(self, obj):
         return obj.slot.hour
 
