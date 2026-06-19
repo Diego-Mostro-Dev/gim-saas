@@ -14,14 +14,14 @@ function QuickActions() {
   const navigate = useNavigate();
 
   return (
-    <section className="flex gap-3 overflow-x-auto pb-2">
+    <section className="grid grid-cols-2 gap-2 pb-2 sm:flex sm:gap-3 sm:overflow-x-auto">
       <button
         onClick={() => navigate("/members?create=true")}
         className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-3 shadow-sm transition active:scale-95"
       >
         <UserPlus size={18} className="text-blue-400" />
 
-        <span className="whitespace-nowrap text-sm text-text-primary">
+        <span className="truncate text-sm text-text-primary">
           Agregar miembro
         </span>
       </button>
@@ -32,7 +32,7 @@ function QuickActions() {
       >
         <CreditCard size={18} className="text-blue-400" />
 
-        <span className="whitespace-nowrap text-sm text-text-primary">
+        <span className="truncate text-sm text-text-primary">
           Registrar pago
         </span>
       </button>
@@ -43,7 +43,7 @@ function QuickActions() {
       >
         <RefreshCw size={18} className="text-blue-400" />
 
-        <span className="whitespace-nowrap text-sm text-text-primary">
+        <span className="truncate text-sm text-text-primary">
           Crear suscripción
         </span>
       </button>
@@ -54,7 +54,7 @@ function QuickActions() {
       >
         <CheckCircle size={18} className="text-success-text dark:text-success" />
 
-        <span className="whitespace-nowrap text-sm text-text-primary">
+        <span className="truncate text-sm text-text-primary">
           Marcar asistencia
         </span>
       </button>
@@ -65,7 +65,7 @@ function QuickActions() {
       >
         <DollarSign size={18} className="text-success-text dark:text-success" />
 
-        <span className="whitespace-nowrap text-sm text-text-primary">Ver pagos</span>
+        <span className="truncate text-sm text-text-primary">Ver pagos</span>
       </button>
 
       <button
@@ -74,7 +74,7 @@ function QuickActions() {
       >
         <Dumbbell size={18} className="text-blue-400" />
 
-        <span className="whitespace-nowrap text-sm text-text-primary">Rutinas</span>
+        <span className="truncate text-sm text-text-primary">Rutinas</span>
       </button>
     </section>
   );

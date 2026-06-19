@@ -150,11 +150,11 @@ function AttendanceAnalytics() {
         <LoadingSkeleton />
       ) : data ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard icon={CalendarDays} label="Asistencias totales" value={data.summary.total_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
-            <StatCard icon={Users} label="Asistencias regulares" value={data.summary.regular_attendances} color="bg-success-bg dark:bg-success/15 text-success-text dark:text-success" />
-            <StatCard icon={Repeat} label="Asistencias por intercambio" value={data.summary.swap_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
-            <StatCard icon={TrendingUp} label="Asistencias por QR" value={data.summary.walkin_attendances} color="bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning" />
+          <div className="grid max-[340px]:grid-cols-1 grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard icon={CalendarDays} label={<><span className="sm:hidden">Totales</span><span className="hidden sm:inline">Asistencias totales</span></>} value={data.summary.total_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
+            <StatCard icon={Users} label={<><span className="sm:hidden">Regulares</span><span className="hidden sm:inline">Asistencias regulares</span></>} value={data.summary.regular_attendances} color="bg-success-bg dark:bg-success/15 text-success-text dark:text-success" />
+            <StatCard icon={Repeat} label={<><span className="sm:hidden">Intercambios</span><span className="hidden sm:inline">Asistencias por intercambio</span></>} value={data.summary.swap_attendances} color="bg-info-bg text-blue-400 dark:bg-info/15" />
+            <StatCard icon={TrendingUp} label={<><span className="sm:hidden">QR</span><span className="hidden sm:inline">Asistencias por QR</span></>} value={data.summary.walkin_attendances} color="bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning" />
           </div>
 
           {data.occupancy && (
@@ -202,7 +202,7 @@ function AttendanceAnalytics() {
                 { label: "Cancelados", value: data.swaps.cancelled, color: "text-muted-text" },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl bg-surface-input p-3 text-center">
-                  <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
+                  <p className={`text-xl font-bold tabular-nums ${item.color}`}>{item.value ?? 0}</p>
                   <p className="text-xs text-text-secondary">{item.label}</p>
                 </div>
               ))}

@@ -71,14 +71,14 @@ function MemberCard({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onEdit(member)}
-            className="rounded-lg bg-info-bg p-2 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/20"
+            className="rounded-lg bg-info-bg p-3 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/20"
           >
             <Pencil size={16} />
           </button>
 
           <button
             onClick={() => onDelete(member.id)}
-            className="rounded-lg bg-danger-bg dark:bg-danger/15 p-2 text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
+            className="rounded-lg bg-danger-bg dark:bg-danger/15 p-3 text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
           >
             <Trash2 size={16} />
           </button>
@@ -98,17 +98,17 @@ function MemberCard({
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <button
           onClick={() => onViewPayments(member)}
-          className="flex items-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
         >
           Historial
         </button>
 
         <button
           onClick={() => onSharePortal(member.id)}
-          className="flex items-center gap-1.5 rounded-lg bg-success-bg dark:bg-success/15 px-3 py-1.5 text-xs font-medium text-success-text dark:text-success transition hover:bg-success-bg dark:hover:bg-success/30"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-success-bg dark:bg-success/15 px-3 py-1.5 text-xs font-medium text-success-text dark:text-success transition hover:bg-success-bg dark:hover:bg-success/30"
         >
           <Share2 size={14} />
           Compartir acceso
@@ -116,7 +116,7 @@ function MemberCard({
 
         <button
           onClick={() => onCopyPortalLink(member.id)}
-          className="flex items-center gap-1.5 rounded-lg bg-zinc-600/20 px-3 py-1.5 text-xs font-medium text-text-primary transition hover:bg-zinc-600/30"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-zinc-600/20 px-3 py-1.5 text-xs font-medium text-text-primary transition hover:bg-zinc-600/30"
         >
           <Link size={14} />
           Copiar enlace

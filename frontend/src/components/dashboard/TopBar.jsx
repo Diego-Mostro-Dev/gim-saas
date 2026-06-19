@@ -50,7 +50,7 @@ function TopBar() {
           className="flex items-center gap-2 rounded-lg border border-danger/20 bg-danger-bg dark:bg-danger/15 px-3 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
         >
           <LogOut size={16} />
-          Salir
+          <span className="hidden sm:inline">Salir</span>
         </button>
       </div>
     </header>

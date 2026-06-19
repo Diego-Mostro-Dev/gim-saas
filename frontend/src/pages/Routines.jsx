@@ -180,7 +180,7 @@ function Routines() {
             )}
 
             {!templatesLoading && (
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* LISTA DE RUTINAS */}
                 <div>
                   <RoutineTemplateList

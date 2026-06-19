@@ -483,38 +483,40 @@ function MemberWorkout() {
         </div>
       )}
 
-      <div className="space-y-3">
-        {function () {
-          var cards = [];
-          for (var i = 0; i < exercises.length; i++) {
-            cards.push(renderExercise(exercises[i], i));
+      {!allComplete && (
+        <div className="space-y-3">
+          {function () {
+            var cards = [];
+            for (var i = 0; i < exercises.length; i++) {
+              cards.push(renderExercise(exercises[i], i));
 
-            // Rest between exercises
-            var ex = exercises[i];
-            var exComplete = isExerciseComplete(ex.id);
-            var hasNextRest = Number(ex.next_exercise_rest_seconds) > 0;
-            if (exComplete && hasNextRest && i < exercises.length - 1) {
-              cards.push(
-                <div key={"next-rest-" + ex.id} className="rounded-lg border border-info/20 bg-info-bg/30 p-3 text-center">
-                  <p className="text-xs font-medium text-text-secondary">
-                    {"Descanso antes del pr\u00f3ximo ejercicio"}
-                  </p>
-                  <RestTimer
-                    key={"between-rest-" + ex.id}
-                    seconds={ex.next_exercise_rest_seconds}
-                    autoStart={true}
-                  />
-                  <div className="mt-1 flex items-center justify-center gap-1 text-xs text-text-secondary">
-                    <ArrowRight size={12} />
-                    <span>{exercises[i + 1]?.name}</span>
+              // Rest between exercises
+              var ex = exercises[i];
+              var exComplete = isExerciseComplete(ex.id);
+              var hasNextRest = Number(ex.next_exercise_rest_seconds) > 0;
+              if (exComplete && hasNextRest && i < exercises.length - 1) {
+                cards.push(
+                  <div key={"next-rest-" + ex.id} className="rounded-lg border border-info/20 bg-info-bg/30 p-3 text-center">
+                    <p className="text-xs font-medium text-text-secondary">
+                      {"Descanso antes del pr\u00f3ximo ejercicio"}
+                    </p>
+                    <RestTimer
+                      key={"between-rest-" + ex.id}
+                      seconds={ex.next_exercise_rest_seconds}
+                      autoStart={true}
+                    />
+                    <div className="mt-1 flex items-center justify-center gap-1 text-xs text-text-secondary">
+                      <ArrowRight size={12} />
+                      <span>{exercises[i + 1]?.name}</span>
+                    </div>
                   </div>
-                </div>
-              );
+                );
+              }
             }
-          }
-          return cards;
-        }()}
-      </div>
+            return cards;
+          }()}
+        </div>
+      )}
     </div>
   );
 }
