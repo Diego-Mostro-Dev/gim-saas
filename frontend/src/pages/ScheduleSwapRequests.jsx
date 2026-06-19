@@ -80,8 +80,11 @@ function ScheduleSwapRequests() {
 
   const lastFetchTimestamp = useRef(0);
 
-  async function loadRequests() {
-    if (Date.now() - Math.max(lastFetchTimestamp.current, getScheduleSwapsLastRefresh()) < 60000) {
+  async function loadRequests(skipCooldown = false) {
+    if (
+      !skipCooldown &&
+      Date.now() - Math.max(lastFetchTimestamp.current, getScheduleSwapsLastRefresh()) < 60000
+    ) {
       setLoading(false);
       return;
     }
@@ -99,6 +102,11 @@ function ScheduleSwapRequests() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function forceRefresh() {
+    lastFetchTimestamp.current = 0;
+    loadRequests(true);
   }
 
   useEffect(() => {
@@ -207,7 +215,8 @@ function ScheduleSwapRequests() {
       await approveScheduleSwapRequest(approvalTarget.id);
       toast.success("Intercambio aprobado");
       setApprovalTarget(null);
-      loadRequests();
+      forceRefresh();
+      window.dispatchEvent(new CustomEvent("dashboard-refresh"));
     } catch (error) {
       toast.error(error.message || "Error al aprobar");
     }
@@ -244,7 +253,8 @@ function ScheduleSwapRequests() {
       toast.success("Intercambio rechazado");
       setRejectionTarget(null);
       setRejectionNotes("");
-      loadRequests();
+      forceRefresh();
+      window.dispatchEvent(new CustomEvent("dashboard-refresh"));
     } catch (error) {
       toast.error(error.message || "Error al rechazar");
     }

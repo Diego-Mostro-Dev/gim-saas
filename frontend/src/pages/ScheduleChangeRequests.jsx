@@ -43,8 +43,11 @@ function ScheduleChangeRequests() {
 
   const lastFetchTimestamp = useRef(0);
 
-  async function loadRequests() {
-    if (Date.now() - Math.max(lastFetchTimestamp.current, getScheduleChangesLastRefresh()) < 60000) {
+  async function loadRequests(skipCooldown = false) {
+    if (
+      !skipCooldown &&
+      Date.now() - Math.max(lastFetchTimestamp.current, getScheduleChangesLastRefresh()) < 60000
+    ) {
       setLoading(false);
       return;
     }
@@ -62,6 +65,11 @@ function ScheduleChangeRequests() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function forceRefresh() {
+    lastFetchTimestamp.current = 0;
+    loadRequests(true);
   }
 
   useEffect(() => {
@@ -153,7 +161,8 @@ function ScheduleChangeRequests() {
       await approveScheduleChangeRequest(approvalTarget.id);
       toast.success("Cambio permanente aprobado");
       setApprovalTarget(null);
-      loadRequests();
+      forceRefresh();
+      window.dispatchEvent(new CustomEvent("dashboard-refresh"));
     } catch (error) {
       toast.error(error.message || "Error al aprobar");
     }
@@ -190,7 +199,8 @@ function ScheduleChangeRequests() {
       toast.success("Cambio permanente rechazado");
       setRejectionTarget(null);
       setRejectionNotes("");
-      loadRequests();
+      forceRefresh();
+      window.dispatchEvent(new CustomEvent("dashboard-refresh"));
     } catch (error) {
       toast.error(error.message || "Error al rechazar");
     }

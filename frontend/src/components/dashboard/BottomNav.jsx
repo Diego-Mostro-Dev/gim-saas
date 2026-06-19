@@ -15,10 +15,12 @@ import { NavLink } from "react-router-dom";
 
 import { useScheduleChangeData } from "../../hooks/useScheduleChangeData";
 import { useScheduleSwapData } from "../../hooks/useScheduleSwapData";
+import { usePlanChangeData } from "../../hooks/usePlanChangeData";
 
 function BottomNav() {
   const { pendingCount } = useScheduleChangeData();
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
+  const { pendingCount: planPendingCount } = usePlanChangeData();
 
   const baseClass = "flex flex-col items-center px-3 py-3 transition";
 
@@ -124,10 +126,18 @@ function BottomNav() {
         }
       >
         <span className="relative">
-          <ArrowLeftRight size={20} />
+          <ArrowLeftRight size={20} className={planPendingCount > 0 ? "text-info-text dark:text-info" : ""} />
+
+          {planPendingCount > 0 && (
+            <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[18px] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold leading-none text-white">
+              {planPendingCount > 99 ? "99+" : planPendingCount}
+            </span>
+          )}
         </span>
 
-        <span className="text-xs">Cambios de plan</span>
+        <span className={`text-xs ${planPendingCount > 0 ? "text-info-text dark:text-info" : ""}`}>
+          Cambios de plan
+        </span>
       </NavLink>
 
       <NavLink

@@ -4,10 +4,12 @@ import TopBar from "../components/dashboard/TopBar";
 import BottomNav from "../components/dashboard/BottomNav";
 import { useScheduleChangeWatcher } from "../hooks/useScheduleChangeWatcher";
 import { useScheduleSwapWatcher } from "../hooks/useScheduleSwapWatcher";
+import { usePlanChangeWatcher } from "../hooks/usePlanChangeWatcher";
 
 export default function AppLayout() {
   useScheduleChangeWatcher();
   useScheduleSwapWatcher();
+  usePlanChangeWatcher();
   return (
     <div className="min-h-screen bg-surface text-text-primary">
       <TopBar />

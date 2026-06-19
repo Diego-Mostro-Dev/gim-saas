@@ -7,6 +7,7 @@ import {
   approvePlanChangeRequest,
   rejectPlanChangeRequest,
 } from "../services/plan-change-requests.service";
+import { getPlanChangesLastRefresh } from "../hooks/usePlanChangeWatcher";
 import { formatHumanDate } from "../utils/date.utils";
 import MemberAvatar from "../components/common/MemberAvatar";
 
@@ -38,8 +39,11 @@ function PlanChangeRequests() {
 
   const lastFetchTimestamp = useRef(0);
 
-  async function loadRequests() {
-    if (Date.now() - lastFetchTimestamp.current < 60000) {
+  async function loadRequests(skipCooldown = false) {
+    if (
+      !skipCooldown &&
+      Date.now() - Math.max(lastFetchTimestamp.current, getPlanChangesLastRefresh()) < 60000
+    ) {
       setLoading(false);
       return;
     }
@@ -49,6 +53,9 @@ function PlanChangeRequests() {
       setLoading(true);
       const data = await getPlanChangeRequests();
       setRequests(data);
+      window.dispatchEvent(
+        new CustomEvent("plan-changes-refreshed", { detail: data }),
+      );
     } catch {
       toast.error("Error al cargar solicitudes de cambio de plan");
     } finally {
@@ -56,8 +63,22 @@ function PlanChangeRequests() {
     }
   }
 
+  function forceRefresh() {
+    lastFetchTimestamp.current = 0;
+    loadRequests(true);
+  }
+
   useEffect(() => {
     loadRequests();
+  }, []);
+
+  useEffect(() => {
+    function onRefreshed(e) {
+      setRequests(e.detail);
+      setLoading(false);
+    }
+    window.addEventListener("plan-changes-refreshed", onRefreshed);
+    return () => window.removeEventListener("plan-changes-refreshed", onRefreshed);
   }, []);
 
   useEffect(() => {
@@ -136,7 +157,8 @@ function PlanChangeRequests() {
       await approvePlanChangeRequest(approvalTarget.id);
       toast.success("Solicitud de cambio de plan aprobada");
       setApprovalTarget(null);
-      loadRequests();
+      forceRefresh();
+      window.dispatchEvent(new CustomEvent("dashboard-refresh"));
     } catch (error) {
       toast.error(error.message || "Error al aprobar");
     }
@@ -173,7 +195,8 @@ function PlanChangeRequests() {
       toast.success("Solicitud de cambio de plan rechazada");
       setRejectionTarget(null);
       setRejectionNotes("");
-      loadRequests();
+      forceRefresh();
+      window.dispatchEvent(new CustomEvent("dashboard-refresh"));
     } catch (error) {
       toast.error(error.message || "Error al rechazar");
     }
