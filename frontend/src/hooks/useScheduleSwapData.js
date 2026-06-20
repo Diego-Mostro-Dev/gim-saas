@@ -5,10 +5,6 @@ export function useScheduleSwapData() {
 
   useEffect(() => {
     function onRefreshed(e) {
-      console.log("[DATA HOOK EVENT RECEIVED] schedule-swaps-refreshed", {
-        requestCount: Array.isArray(e.detail) ? e.detail.length : typeof e.detail,
-        pendingCount: Array.isArray(e.detail) ? e.detail.filter((r) => r.status === "pending").length : 0,
-      });
       setRequests(e.detail);
     }
 

@@ -27,12 +27,6 @@ export function usePlanChangeWatcher() {
       try {
         const current = await getPlanChangeRequests();
 
-        console.log("[WATCHER POLL] plan-change", {
-          initialized: initialized.current,
-          previousCount: Array.isArray(prevRef.current) ? prevRef.current.length : prevRef.current,
-          currentCount: Array.isArray(current) ? current.length : typeof current,
-        });
-
         if (current === undefined || current === null) {
           return;
         }
@@ -41,7 +35,6 @@ export function usePlanChangeWatcher() {
           initialized.current = true;
           prevRef.current = current;
 
-          console.log("[WATCHER EVENT DISPATCHED] plan-changes-refreshed (initial)");
           window.dispatchEvent(
             new CustomEvent("plan-changes-refreshed", { detail: current }),
           );
@@ -82,20 +75,11 @@ export function usePlanChangeWatcher() {
           }
         }
 
-        console.log("[WATCHER DIFF] plan-change", {
-          added: current.filter((r) => !prevMap.has(r.id)).map((r) => r.id),
-          removed: prev.filter((r) => !new Map(current.map((c) => [c.id, c])).has(r.id)).map((r) => r.id),
-          changed: current.filter((r) => prevMap.has(r.id) && prevMap.get(r.id).status !== r.status).map((r) => ({ id: r.id, to: r.status })),
-        });
-
         prevRef.current = current;
-
-        console.log("[WATCHER EVENT DISPATCHED] plan-changes-refreshed");
         window.dispatchEvent(
           new CustomEvent("plan-changes-refreshed", { detail: current }),
         );
       } catch (err) {
-        console.log("[WATCHER ERROR] plan-change", { name: err?.name, message: err?.message });
       }
     }
 

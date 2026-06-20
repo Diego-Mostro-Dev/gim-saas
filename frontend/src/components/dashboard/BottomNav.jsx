@@ -22,12 +22,6 @@ function BottomNav() {
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
   const { pendingCount: planPendingCount } = usePlanChangeData();
 
-  console.log("[BADGE RENDER]", {
-    scheduleChanges: pendingCount,
-    swaps: swapPendingCount,
-    plans: planPendingCount,
-  });
-
   const baseClass = "flex flex-col items-center px-3 py-3 transition";
 
   const activeClass = "rounded-xl bg-info-bg text-info-text dark:bg-info/15 dark:text-info";
