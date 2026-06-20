@@ -27,12 +27,6 @@ export function useScheduleSwapWatcher() {
       try {
         const current = await getScheduleSwapRequests();
 
-        console.log("[WATCHER POLL] schedule-swap", {
-          initialized: initialized.current,
-          previousCount: Array.isArray(prevRef.current) ? prevRef.current.length : prevRef.current,
-          currentCount: Array.isArray(current) ? current.length : typeof current,
-        });
-
         if (current === undefined || current === null) {
           return;
         }
@@ -41,7 +35,6 @@ export function useScheduleSwapWatcher() {
           initialized.current = true;
           prevRef.current = current;
 
-          console.log("[WATCHER EVENT DISPATCHED] schedule-swaps-refreshed (initial)");
           window.dispatchEvent(
             new CustomEvent("schedule-swaps-refreshed", { detail: current }),
           );
@@ -83,20 +76,11 @@ export function useScheduleSwapWatcher() {
           }
         }
 
-        console.log("[WATCHER DIFF] schedule-swap", {
-          added: current.filter((r) => !prevMap.has(r.id)).map((r) => r.id),
-          removed: prev.filter((r) => !new Map(current.map((c) => [c.id, c])).has(r.id)).map((r) => r.id),
-          changed: current.filter((r) => prevMap.has(r.id) && prevMap.get(r.id).status !== r.status).map((r) => ({ id: r.id, to: r.status })),
-        });
-
         prevRef.current = current;
-
-        console.log("[WATCHER EVENT DISPATCHED] schedule-swaps-refreshed");
         window.dispatchEvent(
           new CustomEvent("schedule-swaps-refreshed", { detail: current }),
         );
       } catch (err) {
-        console.log("[WATCHER ERROR] schedule-swap", { name: err?.name, message: err?.message });
       }
     }
 
