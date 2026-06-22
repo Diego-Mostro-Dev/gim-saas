@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 from gyms.models import Gym
 from members.models import Member
@@ -209,6 +210,11 @@ class WorkoutSet(models.Model):
         verbose_name="Fecha de finalización",
     )
 
+    date = models.DateField(
+        default=timezone.localdate,
+        verbose_name="Fecha",
+    )
+
     class Meta:
         verbose_name = "Serie de entrenamiento"
         verbose_name_plural = "Series de entrenamiento"
@@ -216,4 +222,5 @@ class WorkoutSet(models.Model):
             "routine_assignment",
             "routine_exercise",
             "set_number",
+            "date",
         ]
