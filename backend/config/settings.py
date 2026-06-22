@@ -61,11 +61,11 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
 
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -126,10 +126,13 @@ REST_FRAMEWORK = {
 # DATABASE
 # =========================
 
+# DATABASE_URL uses Neon PgBouncer pooler (transaction mode).
+# Persistent Django connections become stale when PgBouncer closes
+# idle backend mappings; conn_max_age=0 avoids stale connection errors.
 DATABASES = {
     "default": dj_database_url.parse(
         os.getenv("DATABASE_URL"),
-        conn_max_age=60,
+        conn_max_age=0,
     )
 }
 

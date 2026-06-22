@@ -151,12 +151,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
         if obj.current_plan_name_snapshot:
             return obj.current_plan_name_snapshot
 
-        subscription = get_member_active_subscription(obj.member)
-
-        if not subscription:
-            return None
-
-        return subscription.plan.name
+        return getattr(obj, "_fallback_plan_name", None)
 
     def get_reviewed_by_name(self, obj):
         if obj.reviewed_by:
@@ -336,12 +331,7 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         if obj.current_plan_name_snapshot:
             return obj.current_plan_name_snapshot
 
-        subscription = get_member_active_subscription(obj.member)
-
-        if not subscription:
-            return None
-
-        return subscription.plan.name
+        return getattr(obj, "_fallback_plan_name", None)
 
     def validate(self, attrs):
         member = self.context["member"]
