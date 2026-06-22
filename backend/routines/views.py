@@ -334,7 +334,8 @@ class PublicWorkoutProgressView(APIView):
             return Response([], status=200)
 
         sets = WorkoutSet.objects.filter(
-            routine_assignment=assignment
+            routine_assignment=assignment,
+            date=timezone.localdate(),
         )
 
         serializer = WorkoutSetSerializer(sets, many=True)
@@ -361,6 +362,7 @@ class PublicWorkoutProgressView(APIView):
             routine_assignment=assignment,
             routine_exercise_id=routine_exercise_id,
             set_number=set_number,
+            date=timezone.localdate(),
             defaults={
                 "completed": completed,
                 "completed_at": timezone.now() if completed else None,

@@ -208,6 +208,14 @@ function PlanChangeModal({
                     <div
                       key={plan.id}
                       onClick={() => handleSelectPlan(plan.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleSelectPlan(plan.id);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                       className={`cursor-pointer rounded-xl border p-4 transition ${
                         isActive
                           ? "border-info bg-info-bg"
@@ -273,6 +281,14 @@ function PlanChangeModal({
                     <div
                       key={slot.id}
                       onClick={() => handleToggleSlot(slot)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleToggleSlot(slot);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                       className={`flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3 transition ${
                         selected
                           ? "border-info bg-info-bg"

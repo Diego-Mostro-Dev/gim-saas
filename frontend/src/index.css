@@ -25,17 +25,19 @@
   --color-info: rgb(var(--info));
   --color-info-bg: rgb(var(--info-bg));
   --color-info-text: rgb(var(--info-text));
+  --color-focus-ring: rgb(var(--focus-ring));
 }
 
 :root {
   --surface: 226 232 240;
-  --surface-elevated: 255 255 255;
+  --surface-elevated: 248 250 252;
   --surface-input: 241 245 249;
-  --surface-modal: 255 255 255;
+  --surface-modal: 250 251 253;
   --surface-hover: 241 245 249;
   --text-primary: 15 23 42;
   --text-secondary: 100 116 139;
-  --border: 226 232 240;
+  --border: 176 188 205;
+  --focus-ring: 15 23 42;
   --primary: 59 130 246;
   --success: 34 197 94;
   --success-bg: 220 252 231;
@@ -62,7 +64,8 @@
   --surface-hover: 42 42 42;
   --text-primary: 255 255 255;
   --text-secondary: 161 161 170;
-  --border: 63 63 70;
+  --border: 82 82 91;
+  --focus-ring: 255 255 255;
   --primary: 59 130 246;
   --success: 34 197 94;
   --success-bg: 34 197 94;
@@ -87,4 +90,9 @@ body {
   overflow-x: hidden;
   background: rgb(var(--surface));
   color: rgb(var(--text-primary));
+}
+
+*:focus-visible {
+  outline: 2px solid rgb(var(--focus-ring));
+  outline-offset: 2px;
 }

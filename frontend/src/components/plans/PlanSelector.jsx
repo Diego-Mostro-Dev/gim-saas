@@ -20,6 +20,14 @@ function PlanSelector({ plans, selectedPlanId, onSelect }) {
             <div
               key={plan.id}
               onClick={() => onSelect(plan.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(plan.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
               className={`cursor-pointer rounded-xl border p-4 transition ${
                 isSelected
                   ? "border-info bg-info-bg"
