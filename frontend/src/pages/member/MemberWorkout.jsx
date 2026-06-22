@@ -72,6 +72,7 @@ function MemberWorkout() {
   const [progress, setProgress] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [expandedCompleted, setExpandedCompleted] = useState({});
+  const [processing, setProcessing] = useState({});
 
   useEffect(function () {
     if (!token) return;
@@ -139,6 +140,13 @@ function MemberWorkout() {
   }
 
   async function handleToggleSet(exerciseId, setNum) {
+    const key = exerciseId + "-" + setNum;
+    if (processing[key]) return;
+
+    setProcessing(function (prev) {
+      return { ...prev, [key]: true };
+    });
+
     var current = progress[exerciseId]?.[setNum] || false;
     var newCompleted = !current;
 
@@ -167,6 +175,12 @@ function MemberWorkout() {
             [setNum]: current,
           },
         };
+      });
+    } finally {
+      setProcessing(function (prev) {
+        var next = { ...prev };
+        delete next[key];
+        return next;
       });
     }
   }
@@ -237,6 +251,7 @@ function MemberWorkout() {
           {!complete && isCardio ? (
             <button
               onClick={function () { handleToggleSet(exercise.id, 1); }}
+              disabled={!!processing[exercise.id + "-1"]}
               className={
                 "mt-0.5 shrink-0 rounded-md p-1 transition " + (
                   complete
@@ -383,6 +398,7 @@ function MemberWorkout() {
                             <div key={s} className="flex items-center gap-2">
                               <button
                                 onClick={function () { handleToggleSet(exercise.id, s); }}
+                                disabled={!!processing[exercise.id + "-" + s]}
                                 className={
                                   "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition " + (
                                     done
