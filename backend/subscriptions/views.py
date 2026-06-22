@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.utils.timezone import now
 
 from rest_framework import status
@@ -79,6 +80,12 @@ class PlanChangeRequestViewSet(GymModelViewSet):
     def get_queryset(self):
         return super().get_queryset().select_related(
             "member", "requested_plan", "reviewed_by",
+        ).prefetch_related("planned_schedules").annotate(
+            _fallback_plan_name=Subquery(
+                Subscription.objects.filter(
+                    member=OuterRef("member"),
+                ).order_by("-created_at").values("plan__name")[:1]
+            ),
         )
 
     @action(detail=True, methods=["post"])

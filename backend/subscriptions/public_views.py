@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.db.models import OuterRef, Subquery
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -29,6 +30,12 @@ class PublicPlanChangeRequestView(APIView):
             "requested_plan",
         ).prefetch_related(
             "planned_schedules",
+        ).annotate(
+            _fallback_plan_name=Subquery(
+                Subscription.objects.filter(
+                    member=OuterRef("member"),
+                ).order_by("-created_at").values("plan__name")[:1]
+            ),
         ).order_by("-requested_at")
 
         return Response(
