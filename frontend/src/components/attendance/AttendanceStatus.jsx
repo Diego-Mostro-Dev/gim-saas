@@ -16,6 +16,7 @@ function AttendanceStatus() {
   } = useAttendanceStatus();
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [registeringId, setRegisteringId] = useState(null);
 
   const filteredMembers = members.filter((member) =>
     member.member_name.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -165,9 +166,16 @@ function AttendanceStatus() {
                 {!member.attended && !member.is_swap && (
                   <button
                     onClick={async () => {
-                      await markAttendance(member.schedule_id);
+                      if (registeringId === member.schedule_id) return;
+                      setRegisteringId(member.schedule_id);
+                      try {
+                        await markAttendance(member.schedule_id);
+                      } finally {
+                        setRegisteringId(null);
+                      }
                     }}
-                    className="rounded-lg bg-success px-3 py-1 text-xs font-medium text-white hover:bg-success"
+                    disabled={registeringId === member.schedule_id}
+                    className="rounded-lg bg-success px-3 py-1 text-xs font-medium text-white hover:bg-success disabled:opacity-50"
                   >
                     Registrar asistencia
                   </button>
