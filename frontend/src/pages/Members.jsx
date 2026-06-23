@@ -71,20 +71,16 @@ function Members() {
   const [paymentsMemberId, setPaymentsMemberId] = useState(null);
 
   const [availablePlans, setAvailablePlans] = useState(() => getCached("plans") || []);
-  const [loadingPlans, setLoadingPlans] = useState(() => !isCacheFresh("plans", 10 * 60 * 1000));
+  const [loadingPlans, setLoadingPlans] = useState(() => !isCacheFresh("plans", 30 * 60 * 1000));
 
   const [availableSlots, setAvailableSlots] = useState(() => getCached("slots") || []);
   const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
 
   useEffect(() => {
     async function load() {
-      if (isCacheFresh("plans", 10 * 60 * 1000)) {
+      if (isCacheFresh("plans", 30 * 60 * 1000)) {
         setAvailablePlans(getCached("plans"));
         setLoadingPlans(false);
-        try {
-          const data = await getPlans();
-          setAvailablePlans(data);
-        } catch {}
         return;
       }
       try {

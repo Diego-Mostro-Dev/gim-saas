@@ -51,14 +51,8 @@ export function usePayments() {
       setLoading(false);
       setError(null);
       try {
-        const [paymentsData, membersData, subscriptionsData] = await Promise.all([
-          getPayments(),
-          getMembers(),
-          getSubscriptions(),
-        ]);
+        const paymentsData = await getPayments();
         setPayments(paymentsData);
-        setMembers(membersData);
-        setSubscriptions(subscriptionsData);
       } catch (err) {
         console.error(err);
       }

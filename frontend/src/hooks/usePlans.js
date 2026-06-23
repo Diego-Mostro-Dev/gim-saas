@@ -23,12 +23,6 @@ export function usePlans() {
       setPlans(getCached(CACHE_KEY));
       setLoading(false);
       setError(null);
-      try {
-        const data = await getPlans();
-        setPlans(data);
-      } catch (err) {
-        console.error(err);
-      }
       return;
     }
     try {
