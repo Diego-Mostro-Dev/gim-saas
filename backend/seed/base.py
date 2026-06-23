@@ -12,9 +12,12 @@ from payments.models import Payment
 from plans.models import MembershipPlan
 from subscriptions.models import Subscription
 from subscriptions.services import get_last_day_of_month
+from routines.models import Exercise, RoutineTemplate, RoutineExercise, RoutineAssignment
 
 from .data.member_names import FIRST_NAMES, LAST_NAMES
 from .data.plans import DEMO_PLANS
+from .data.exercises import EXERCISES
+from .data.routines import ROUTINES
 
 
 class BaseSeeder:
@@ -241,6 +244,86 @@ class BaseSeeder:
         created = Payment.objects.bulk_create(payments)
         self.stats["payments"] = len(created)
 
+    def cleanup_phase3(self):
+        RoutineAssignment.objects.filter(gym=self.gym).delete()
+        RoutineExercise.objects.filter(routine_template__gym=self.gym).delete()
+        RoutineTemplate.objects.filter(gym=self.gym).delete()
+        Exercise.objects.filter(gym=self.gym).delete()
+
+    def seed_phase3(self):
+        with transaction.atomic():
+            self._seed_exercises()
+            self._seed_templates()
+            self._seed_routine_exercises()
+            self._seed_assignments()
+
+    def _seed_exercises(self):
+        exercises = [
+            Exercise(gym=self.gym, name=edef["name"], category=edef["category"], description=edef.get("description", ""))
+            for edef in EXERCISES
+        ]
+        created = Exercise.objects.bulk_create(exercises)
+        self._exercise_map = {e.name: e for e in created}
+        self.stats["exercises"] = len(created)
+
+    def _seed_templates(self):
+        templates = [
+            RoutineTemplate(gym=self.gym, name=rdef["name"])
+            for rdef in ROUTINES
+        ]
+        created = RoutineTemplate.objects.bulk_create(templates)
+        self._template_map = {t.name: t for t in created}
+        self.stats["templates"] = len(created)
+
+    def _seed_routine_exercises(self):
+        routine_exercises = []
+        for rdef in ROUTINES:
+            template = self._template_map[rdef["name"]]
+            for edef in rdef["exercises"]:
+                exercise = self._exercise_map[edef["exercise_name"]]
+                routine_exercises.append(RoutineExercise(
+                    routine_template=template,
+                    exercise=exercise,
+                    order=edef["order"],
+                    sets=edef.get("sets", 3),
+                    reps=edef.get("reps", "10"),
+                    rest_seconds=edef.get("rest_seconds", 60),
+                    exercise_type=edef.get("exercise_type", "strength"),
+                    notes=edef.get("notes", ""),
+                    rest_mode="between_sets",
+                ))
+        created = RoutineExercise.objects.bulk_create(routine_exercises)
+        self._routine_exercises = created
+        self.stats["routine_exercises"] = len(created)
+
+    def _seed_assignments(self):
+        random.seed(f"gym-demo-routines-{self.gym.id}")
+
+        template_names = ["Full Body Principiante", "Push Pull Legs", "Upper Lower", "Cardio + Core"]
+        template_counts = [10, 10, 10, 5]
+
+        active_members = list(
+            Member.objects.filter(gym=self.gym, active=True).order_by("id")
+        )
+        random.shuffle(active_members)
+
+        assignments = []
+        assigned_id = 0
+        for tname, count in zip(template_names, template_counts):
+            template = self._template_map[tname]
+            for _ in range(count):
+                member = active_members[assigned_id]
+                assigned_id += 1
+                assignments.append(RoutineAssignment(
+                    gym=self.gym,
+                    member=member,
+                    routine_template=template,
+                    active=True,
+                ))
+
+        created = RoutineAssignment.objects.bulk_create(assignments)
+        self.stats["assignments"] = len(created)
+
     def print_summary(self, stream):
         stream.write(f"\n=== Seed Summary for {self.gym.name} ===\n")
         if "plans" in self.stats:
@@ -252,3 +335,8 @@ class BaseSeeder:
             stream.write(f"  Subscriptions:      {self.stats['subscriptions']} ✓\n")
         if "payments" in self.stats:
             stream.write(f"  Payments:           {self.stats['payments']} ✓\n")
+        if "exercises" in self.stats:
+            stream.write(f"  Exercises:          {self.stats['exercises']} ✓\n")
+            stream.write(f"  Templates:          {self.stats['templates']} ✓\n")
+            stream.write(f"  Routine exercises:  {self.stats['routine_exercises']} ✓\n")
+            stream.write(f"  Assignments:        {self.stats['assignments']} ✓\n")
