@@ -22,15 +22,6 @@ export function useMembers() {
       setMembers(getCached(CACHE_KEY));
       setLoading(false);
       setError(null);
-      setRefreshing(true);
-      try {
-        const data = await getMembers();
-        setMembers(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setRefreshing(false);
-      }
       return;
     }
     try {

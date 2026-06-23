@@ -58,22 +58,6 @@ export function useSubscriptions() {
       setPlans(cached.plans);
       setLoading(false);
       setError(null);
-      try {
-        const [
-          subscriptionsData,
-          membersData,
-          plansData,
-        ] = await Promise.all([
-          getSubscriptions(),
-          getMembers(),
-          getPlans(),
-        ]);
-        setSubscriptions(subscriptionsData);
-        setMembers(membersData);
-        setPlans(plansData);
-      } catch (error) {
-        console.error(error);
-      }
       return;
     }
     try {

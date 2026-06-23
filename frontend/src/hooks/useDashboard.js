@@ -35,15 +35,6 @@ export function useDashboard() {
       setDashboardData(getCached(CACHE_KEY));
       setLoading(false);
       setError(null);
-      setRefreshing(true);
-      try {
-        const data = await getDashboardData();
-        setDashboardData(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setRefreshing(false);
-      }
       return;
     }
     try {
