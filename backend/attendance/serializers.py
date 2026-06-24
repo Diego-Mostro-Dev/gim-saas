@@ -477,6 +477,29 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
         self.validate_gym_allows_changes(gym)
 
+        cooldown_hours = gym.schedule_change_cooldown_hours
+        latest = ScheduleChangeRequest.objects.filter(
+            member=member,
+        ).order_by("-requested_at").first()
+        if latest:
+            elapsed = (timezone.now() - latest.requested_at).total_seconds()
+            if elapsed < cooldown_hours * 3600:
+                remaining_hours = int((cooldown_hours * 3600 - elapsed) / 3600)
+                raise serializers.ValidationError(
+                    f"Debes esperar {remaining_hours} hora(s) antes de solicitar otro cambio."
+                )
+
+        month_start = date.today().replace(day=1)
+        monthly_count = ScheduleChangeRequest.objects.filter(
+            member=member,
+            status__in=["pending", "approved", "executed"],
+            requested_at__gte=month_start,
+        ).count()
+        if monthly_count >= gym.max_schedule_changes_per_month:
+            raise serializers.ValidationError(
+                f"Has alcanzado el límite de {gym.max_schedule_changes_per_month} cambios de horario este mes."
+            )
+
         if current_schedule and requested_slot:
             if current_schedule.gym != gym:
                 raise serializers.ValidationError({
@@ -618,6 +641,11 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
         destination_slot = attrs.get("destination_slot")
         swap_date = attrs.get("swap_date")
 
+        if not gym.allow_member_schedule_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios de horario."
+            )
+
         if origin_schedule and destination_slot and swap_date:
             if origin_schedule.gym != gym:
                 raise serializers.ValidationError({
@@ -661,6 +689,17 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
             if swap_date <= timezone.localdate():
                 raise serializers.ValidationError(
                     "La fecha debe ser posterior a hoy."
+                )
+
+            swap_datetime = timezone.make_aware(
+                datetime.combine(swap_date, destination_slot.hour),
+                timezone.get_current_timezone(),
+            )
+            notice_hours = gym.schedule_change_notice_hours
+            if (swap_datetime - timezone.now()).total_seconds() < notice_hours * 3600:
+                raise serializers.ValidationError(
+                    f"Debes solicitar el intercambio con al menos "
+                    f"{notice_hours} horas de anticipación."
                 )
 
             member = origin_schedule.member
@@ -788,6 +827,11 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
         destination_slot = attrs.get("destination_slot")
         swap_date = attrs.get("swap_date")
 
+        if not gym.allow_member_schedule_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios de horario."
+            )
+
         if origin_schedule and destination_slot and swap_date:
             if origin_schedule.gym != gym:
                 raise serializers.ValidationError({
@@ -831,6 +875,17 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
             if swap_date <= timezone.localdate():
                 raise serializers.ValidationError(
                     "La fecha debe ser posterior a hoy."
+                )
+
+            swap_datetime = timezone.make_aware(
+                datetime.combine(swap_date, destination_slot.hour),
+                timezone.get_current_timezone(),
+            )
+            notice_hours = gym.schedule_change_notice_hours
+            if (swap_datetime - timezone.now()).total_seconds() < notice_hours * 3600:
+                raise serializers.ValidationError(
+                    f"Debes solicitar el intercambio con al menos "
+                    f"{notice_hours} horas de anticipación."
                 )
 
             if ScheduleSwapRequest.objects.filter(
