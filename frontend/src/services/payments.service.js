@@ -1,7 +1,7 @@
-import { apiFetch } from "./api";
+import { apiFetch, fetchAllPages } from "./api";
 
 export async function getPayments() {
-  return apiFetch(
+  return fetchAllPages(
     "/api/payments/",
   );
 }
