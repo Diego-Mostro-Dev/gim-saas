@@ -8,49 +8,48 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch(endpoint, options = {}) {
-  const { skipAuth = false, ...fetchOptions } = options;
-
+function buildAuthHeaders(options = {}) {
   const token = localStorage.getItem("token");
-
-  const headers = {
-    ...fetchOptions.headers,
-  };
-
-  const isFormData = fetchOptions.body instanceof FormData;
-
+  const headers = { ...options.headers };
+  const isFormData = options.body instanceof FormData;
   if (!isFormData) {
     headers["Content-Type"] = "application/json";
   }
-
-  if (token && !skipAuth) {
+  if (token && !options.skipAuth) {
     headers.Authorization = `Token ${token}`;
   }
+  return headers;
+}
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    ...fetchOptions,
-    headers,
-  });
-
+async function throwIfNotOk(res) {
   if (!res.ok) {
     let detail;
-
     try {
       const body = await res.json();
       detail = body.detail || body.message;
     } catch {
       // ignore parse errors
     }
-
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
-
     throw new ApiError(
       detail || (res.status === 401 ? "Token inválido o expirado" : "Error en la petición"),
       res.status,
     );
   }
+}
+
+export async function apiFetch(endpoint, options = {}) {
+  const { skipAuth = false, ...fetchOptions } = options;
+  const headers = buildAuthHeaders({ ...fetchOptions, skipAuth });
+
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    ...fetchOptions,
+    headers,
+  });
+
+  await throwIfNotOk(res);
 
   if (res.status === 204) {
     return null;
@@ -71,4 +70,35 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   return data;
+}
+
+export async function fetchAllPages(endpoint, options = {}) {
+  const { skipAuth = false, ...fetchOptions } = options;
+  const headers = buildAuthHeaders({ ...fetchOptions, skipAuth });
+
+  const allResults = [];
+  let url = `${API_URL}${endpoint}`;
+  let totalCount = 0;
+
+  while (url) {
+    const res = await fetch(url, {
+      headers,
+      signal: fetchOptions.signal,
+    });
+
+    await throwIfNotOk(res);
+
+    const data = await res.json();
+
+    if (Array.isArray(data?.results)) {
+      allResults.push(...data.results);
+      totalCount = data.count ?? totalCount;
+      url = data.next;
+    } else {
+      return data;
+    }
+  }
+
+  allResults.totalCount = totalCount;
+  return allResults;
 }

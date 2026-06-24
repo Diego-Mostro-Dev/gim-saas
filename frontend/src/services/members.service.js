@@ -1,8 +1,8 @@
-import { apiFetch } from "./api";
+import { apiFetch, fetchAllPages } from "./api";
 import { setCached } from "../utils/cache";
 
 export async function getMembers() {
-  const data = await apiFetch("/api/members/");
+  const data = await fetchAllPages("/api/members/");
   setCached("members", data);
   return data;
 }
