@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 import secrets
 import random
@@ -13,6 +13,7 @@ from plans.models import MembershipPlan
 from subscriptions.models import Subscription
 from subscriptions.services import get_last_day_of_month
 from routines.models import Exercise, RoutineTemplate, RoutineExercise, RoutineAssignment
+from attendance.models import Attendance, AttendanceSchedule, ScheduleSlot
 
 from .data.member_names import FIRST_NAMES, LAST_NAMES
 from .data.plans import DEMO_PLANS
@@ -83,6 +84,11 @@ class BaseSeeder:
             self._seed_payments()
 
     def _seed_plans(self):
+        if self.preserve_plans:
+            existing = MembershipPlan.objects.filter(gym=self.gym)
+            if existing.exists():
+                self.stats["plans"] = existing.count()
+                return
         plans = []
         for pdef in DEMO_PLANS:
             plans.append(MembershipPlan(
@@ -130,12 +136,13 @@ class BaseSeeder:
 
         plans = list(MembershipPlan.objects.filter(gym=self.gym).order_by("id"))
         members = list(Member.objects.filter(gym=self.gym).order_by("id"))
-        plan_pool = (
-            [plans[0]] * 15 +   # Básico
-            [plans[1]] * 15 +   # Estándar
-            [plans[2]] * 10 +   # Premium
-            [plans[3]] * 5      # Estudiante
-        )
+        n = len(plans)
+        base = 45 // n
+        rem = 45 % n
+        plan_pool = []
+        for i in range(n):
+            count = base + (1 if i < rem else 0)
+            plan_pool.extend([plans[i]] * count)
         random.shuffle(plan_pool)
 
         subscriptions = []
@@ -250,6 +257,174 @@ class BaseSeeder:
         RoutineTemplate.objects.filter(gym=self.gym).delete()
         Exercise.objects.filter(gym=self.gym).delete()
 
+    def cleanup_phase4(self):
+        AttendanceSchedule.objects.filter(gym=self.gym).delete()
+        ScheduleSlot.objects.filter(gym=self.gym).delete()
+
+    def cleanup_phase5(self):
+        Attendance.objects.filter(gym=self.gym).delete()
+
+    def seed_phase4(self):
+        with transaction.atomic():
+            self._seed_slots()
+            self._seed_schedules()
+
+    def _seed_slots(self):
+        DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+        HOURS = [time(8, 0), time(10, 0), time(18, 0)]
+        slots = [
+            ScheduleSlot(gym=self.gym, day=day, hour=h, capacity=15)
+            for day in DAYS
+            for h in HOURS
+        ]
+        created = ScheduleSlot.objects.bulk_create(slots)
+        self._all_slots = created
+        self._slot_usage = {s.id: 0 for s in created}
+        self.stats["slots"] = len(created)
+
+    def _seed_schedules(self):
+        random.seed(f"gym-demo-schedules-{self.gym.id}")
+
+        active_members = list(
+            Member.objects.filter(gym=self.gym, active=True).order_by("id")
+        )
+        random.shuffle(active_members)
+
+        counts = [1] * 15 + [2] * 20 + [3] * 10
+        random.shuffle(counts)
+
+        schedules = []
+        for member, n in zip(active_members, counts):
+            usage_groups = {}
+            for s in self._all_slots:
+                usage_groups.setdefault(self._slot_usage[s.id], []).append(s)
+            available = []
+            for usage in sorted(usage_groups):
+                group = usage_groups[usage][:]
+                random.shuffle(group)
+                available.extend(group)
+            chosen = 0
+            for slot in available:
+                if chosen >= n:
+                    break
+                schedules.append(AttendanceSchedule(
+                    gym=self.gym,
+                    member=member,
+                    slot=slot,
+                    active=True,
+                ))
+                self._slot_usage[slot.id] += 1
+                chosen += 1
+
+        created = AttendanceSchedule.objects.bulk_create(schedules)
+        self.stats["schedules"] = len(created)
+
+    def seed_phase5(self):
+        self._seed_attendance()
+
+    def _seed_attendance(self):
+        from django.db import connection
+
+        random.seed(f"gym-demo-attendance-{self.gym.id}")
+
+        today = self.ref_date
+        business_days = []
+        d = today - timedelta(days=1)
+        while d > today - timedelta(days=90):
+            if d.weekday() < 6:
+                business_days.append(d)
+            d -= timedelta(days=1)
+        business_days.reverse()
+
+        active_members = list(
+            Member.objects.filter(gym=self.gym, active=True).order_by("id")
+        )
+        random.shuffle(active_members)
+
+        tiers = [0.90] * 10 + [0.70] * 25 + [0.35] * 10
+
+        schedules = (
+            AttendanceSchedule.objects.filter(gym=self.gym, active=True)
+            .select_related("slot")
+        )
+        member_schedules = {}
+        for s in schedules:
+            member_schedules.setdefault(s.member_id, []).append(s)
+
+        day_map = {0: "monday", 1: "tuesday", 2: "wednesday",
+                   3: "thursday", 4: "friday", 5: "saturday"}
+
+        created_keys = set()
+        rows = []
+        now = timezone.now()
+        members_with_attendance = set()
+
+        for member, prob in zip(active_members, tiers):
+            member_scheds = member_schedules.get(member.id, [])
+            sched_by_weekday = {}
+            for s in member_scheds:
+                sched_by_weekday[s.slot.day] = s
+
+            for day_date in business_days:
+                day_name = day_map.get(day_date.weekday())
+                if not day_name or day_name not in sched_by_weekday:
+                    continue
+                if random.random() >= prob:
+                    continue
+                sched = sched_by_weekday[day_name]
+                key = (sched.id, day_date)
+                if key in created_keys:
+                    continue
+                created_keys.add(key)
+                row = (self.gym.id, member.id, sched.id, sched.slot_id, day_date, now)
+                rows.append(row)
+                members_with_attendance.add(member.id)
+
+        if rows:
+            with connection.cursor() as cursor:
+                batch_size = 100
+                for i in range(0, len(rows), batch_size):
+                    batch = rows[i:i + batch_size]
+                    placeholders = ",".join(
+                        ["(%s,%s,%s,%s,%s,%s)"] * len(batch)
+                    )
+                    flat = [v for r in batch for v in r]
+                    cursor.execute(
+                        "INSERT INTO attendance_attendance "
+                        "(gym_id, member_id, schedule_id, slot_id, date, created_at) "
+                        "VALUES " + placeholders + " "
+                        "ON CONFLICT (gym_id, schedule_id, date) DO NOTHING",
+                        flat,
+                    )
+
+        actual_count = Attendance.objects.filter(
+            gym=self.gym, member__in=active_members
+        ).count()
+
+        self.stats["attendance"] = actual_count
+        self.stats["attendance_members"] = len(members_with_attendance)
+        self.stats["attendance_without"] = len(active_members) - len(members_with_attendance)
+        if members_with_attendance:
+            self.stats["attendance_avg"] = actual_count / len(members_with_attendance)
+
+    def print_slot_summary(self, stream):
+        if "slots" not in self.stats:
+            return
+        stream.write(f"\n  Slot Occupancy:\n")
+        total_occupancy = 0
+        for slot in self._all_slots:
+            count = AttendanceSchedule.objects.filter(gym=self.gym, slot=slot, active=True).count()
+            cap = slot.capacity
+            pct = (count / cap * 100) if cap else 0
+            total_occupancy += pct
+            day_es = {
+                "monday": "Monday", "tuesday": "Tuesday", "wednesday": "Wednesday",
+                "thursday": "Thursday", "friday": "Friday", "saturday": "Saturday",
+            }
+            stream.write(f"    {day_es[slot.day]} {slot.hour.strftime('%H:%M')} -> {count} / {cap} ({pct:.0f}%)\n")
+        avg = total_occupancy / len(self._all_slots)
+        stream.write(f"  Average occupancy: {avg:.1f}%\n")
+
     def seed_phase3(self):
         with transaction.atomic():
             self._seed_exercises()
@@ -340,3 +515,11 @@ class BaseSeeder:
             stream.write(f"  Templates:          {self.stats['templates']} ✓\n")
             stream.write(f"  Routine exercises:  {self.stats['routine_exercises']} ✓\n")
             stream.write(f"  Assignments:        {self.stats['assignments']} ✓\n")
+        if "slots" in self.stats:
+            stream.write(f"  Schedule slots:     {self.stats['slots']} ✓\n")
+            stream.write(f"  Attendance schedules:{self.stats['schedules']} ✓\n")
+        if "attendance" in self.stats:
+            stream.write(f"  Attendance records: {self.stats['attendance']} ✓\n")
+            stream.write(f"  Members with attendance: {self.stats['attendance_members']}\n")
+            stream.write(f"  Members without:    {self.stats['attendance_without']}\n")
+            stream.write(f"  Avg per active:     {self.stats['attendance_avg']:.1f}\n")
