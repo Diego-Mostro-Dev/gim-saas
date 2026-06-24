@@ -12,4 +12,6 @@ dist/
 build/
 
 # OS
-.DS_Store.local/
+.DS_Store
+# Local AI context
+.local/
