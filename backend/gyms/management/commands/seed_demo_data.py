@@ -8,7 +8,7 @@ from seed.base import BaseSeeder
 
 
 class Command(BaseCommand):
-    help = "Seed demo data into a target gym (Phase 1: plans, members, subscriptions, payments; Phase 3: exercises, routines, assignments)"
+    help = "Seed demo data into a target gym (Phase 1: plans, members, subscriptions, payments; Phase 3: exercises, routines, assignments; Phase 5: attendance history)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -52,12 +52,17 @@ class Command(BaseCommand):
 
         if seeder.force:
             self.stdout.write(f"Cleaning existing data for {gym.name}...")
+            seeder.cleanup_phase5()
+            seeder.cleanup_phase4()
             seeder.cleanup_phase1()
             seeder.cleanup_phase3()
 
         self.stdout.write(f"Seeding {gym.name}...")
         seeder.seed_phase1()
         seeder.seed_phase3()
+        seeder.seed_phase4()
+        seeder.seed_phase5()
         seeder.print_summary(self.stdout)
+        seeder.print_slot_summary(self.stdout)
 
         self.stdout.write(self.style.SUCCESS("Done."))
