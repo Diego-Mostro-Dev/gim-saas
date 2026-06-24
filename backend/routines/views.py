@@ -14,6 +14,7 @@ from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
 from subscriptions.services import (
+    can_member_operate,
     get_first_day_of_next_month,
     get_subscription_payment_status,
 )
@@ -343,6 +344,12 @@ class PublicWorkoutProgressView(APIView):
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
+
+        if not can_member_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         assignment = RoutineAssignment.objects.filter(
             member=member, active=True
