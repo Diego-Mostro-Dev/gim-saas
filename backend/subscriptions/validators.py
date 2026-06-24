@@ -16,12 +16,19 @@ class PlanChangeRequestValidator:
 
     def validate(self):
         self._validate_active_subscription()
+        self._validate_plan_changes_allowed()
         self._validate_same_gym()
         self._validate_different_plan()
         self._validate_no_duplicate_pending()
         self._validate_no_future_approved()
         self._validate_schedule_capacity()
         self._validate_schedule_count()
+
+    def _validate_plan_changes_allowed(self):
+        if not self.gym.allow_plan_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios de plan."
+            )
 
     def _validate_active_subscription(self):
         sub = get_member_active_subscription(self.member)

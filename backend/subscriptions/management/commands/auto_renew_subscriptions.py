@@ -77,6 +77,7 @@ class Command(BaseCommand):
                     start_date=next_month_start,
                     end_date=next_month_end,
                     paid=False,
+                    auto_renew=sub.auto_renew,
                 )
             renewed += 1
 

@@ -55,6 +55,7 @@ class SubscriptionViewSet(GymModelViewSet):
             start_date=start_date,
             end_date=end_date,
             paid=False,
+            auto_renew=subscription.auto_renew,
         )
 
         serializer = self.get_serializer(
@@ -149,6 +150,9 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     effective = instance.effective_date
                     month_start = effective
                     month_end = get_last_day_of_month(effective)
+                    current_sub = Subscription.objects.filter(
+                        member=instance.member
+                    ).order_by("-created_at").first()
                     Subscription.objects.create(
                         gym=instance.gym,
                         member=instance.member,
@@ -156,6 +160,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                         start_date=month_start,
                         end_date=month_end,
                         paid=False,
+                        auto_renew=current_sub.auto_renew if current_sub else True,
                     )
 
                     self._synchronize_schedules(instance)

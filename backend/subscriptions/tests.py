@@ -1561,6 +1561,8 @@ class MonthlySubscriptionPhase2Test(TestCase):
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data["start_date"], "2026-07-01")
         self.assertEqual(resp.data["end_date"], "2026-07-31")
+        new_sub = Subscription.objects.get(pk=resp.data["id"])
+        self.assertEqual(new_sub.auto_renew, sub.auto_renew)
 
     def test_renew_across_year_boundary(self):
         sub = Subscription.objects.create(
@@ -1575,6 +1577,8 @@ class MonthlySubscriptionPhase2Test(TestCase):
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data["start_date"], "2027-01-01")
         self.assertEqual(resp.data["end_date"], "2027-01-31")
+        new_sub = Subscription.objects.get(pk=resp.data["id"])
+        self.assertEqual(new_sub.auto_renew, sub.auto_renew)
 
     def test_renew_leap_year_february(self):
         sub = Subscription.objects.create(
@@ -1589,6 +1593,8 @@ class MonthlySubscriptionPhase2Test(TestCase):
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data["start_date"], "2028-02-01")
         self.assertEqual(resp.data["end_date"], "2028-02-29")
+        new_sub = Subscription.objects.get(pk=resp.data["id"])
+        self.assertEqual(new_sub.auto_renew, sub.auto_renew)
 
 
 class AutoRenewCommandTest(TestCase):
@@ -1639,6 +1645,7 @@ class AutoRenewCommandTest(TestCase):
         self.assertEqual(new_sub.start_date, date(2026, 7, 1))
         self.assertEqual(new_sub.end_date, date(2026, 7, 31))
         self.assertFalse(new_sub.paid)
+        self.assertTrue(new_sub.auto_renew)
 
     # 2) Skips auto_renew=False
     def test_skips_auto_renew_false(self):
@@ -1793,6 +1800,9 @@ class AutoRenewCommandTest(TestCase):
         self.assertEqual(
             Subscription.objects.filter(member=self.member).count(), 3,
         )
+        aug_sub = Subscription.objects.filter(member=self.member, start_date=date(2026, 8, 1)).first()
+        self.assertIsNotNone(aug_sub)
+        self.assertTrue(aug_sub.auto_renew)
 
 
 class Phase3BTest(TestCase):
