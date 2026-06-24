@@ -12,7 +12,6 @@ from gyms.models import Gym
 from attendance.models import ScheduleSlot
 from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from plans.models import MembershipPlan
-from subscriptions.models import Subscription
 from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer
@@ -68,15 +67,6 @@ class PublicRegisterView(APIView):
             prorated_amount = (
                 Decimal(str(remaining_days)) / Decimal(str(total_days))
             ) * plan.price
-
-            Subscription.objects.create(
-                gym=gym,
-                member=member,
-                plan=plan,
-                start_date=today,
-                end_date=end_date,
-                paid=False,
-            )
 
             data = MemberSerializer(member).data
             data["prorated_amount"] = str(prorated_amount.quantize(Decimal("0.01")))
