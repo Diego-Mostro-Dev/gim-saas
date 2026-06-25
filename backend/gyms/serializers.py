@@ -30,6 +30,7 @@ class GymSerializer(serializers.ModelSerializer):
             "schedule_change_cooldown_hours",
             "max_schedule_changes_per_month",
             "schedule_change_notice_days",
+            "features",
             "onboarding_code",
             "onboarding_url",
             "register_url",

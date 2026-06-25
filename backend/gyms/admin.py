@@ -5,6 +5,13 @@ from django.conf import settings
 from .models import Gym
 
 
+def _features_help_text() -> str:
+    lines = ["Formato: {\"feature_name\": true, \"feature_name\": false}"]
+    for name, meta in Gym.FEATURE_REGISTRY.items():
+        lines.append(f"  • {name} — {meta['label']} (default: {meta['default']})")
+    return "\n".join(lines)
+
+
 @admin.register(Gym)
 class GymAdmin(admin.ModelAdmin):
     list_display = (
@@ -48,6 +55,13 @@ class GymAdmin(admin.ModelAdmin):
                     "max_schedule_changes_per_month",
                     "schedule_change_notice_days",
                 )
+            },
+        ),
+        (
+            "Feature Flags",
+            {
+                "fields": ("features",),
+                "description": _features_help_text(),
             },
         ),
     ]

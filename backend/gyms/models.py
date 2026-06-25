@@ -1,6 +1,8 @@
 import uuid
+from typing import ClassVar
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from cloudinary.models import CloudinaryField
 
 class Gym(models.Model):
@@ -62,6 +64,16 @@ class Gym(models.Model):
     max_schedule_changes_per_month = models.PositiveIntegerField(default=4, verbose_name="Máximo de cambios por mes")
     schedule_change_notice_days = models.PositiveIntegerField(default=0, verbose_name="Días de aviso para cambios")
 
+    features = models.JSONField(default=dict, blank=True, verbose_name="Características")
+
+    FEATURE_REGISTRY: ClassVar[dict[str, dict]] = {
+        "extra_activities": {
+            "default": False,
+            "label": "Actividades Extra",
+            "group": "modules",
+        },
+    }
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
 
     class Meta:
@@ -82,3 +94,23 @@ class Gym(models.Model):
             settings.FRONTEND_URL+
             f"/register/{self.onboarding_code}"
         )
+
+    def has_feature(self, feature_name: str) -> bool:
+        entry = self.FEATURE_REGISTRY.get(feature_name)
+        if entry is None:
+            return False
+        return self.features.get(feature_name, entry["default"])
+
+    def enabled_features(self) -> list[str]:
+        return [
+            name for name in self.FEATURE_REGISTRY
+            if self.features.get(name, self.FEATURE_REGISTRY[name]["default"])
+        ]
+
+    def clean(self):
+        unknown = set(self.features.keys()) - set(self.FEATURE_REGISTRY.keys())
+        if unknown:
+            raise ValidationError(
+                f"Características desconocidas: {', '.join(sorted(unknown))}. "
+                f"Características válidas: {', '.join(self.FEATURE_REGISTRY.keys())}."
+            )

@@ -568,6 +568,7 @@ class PublicRoutineView(APIView):
                 "schedule_change_notice_hours": assignment.gym.schedule_change_notice_hours,
                 "allow_plan_changes": assignment.gym.allow_plan_changes,
                 "allow_schedule_changes": assignment.gym.allow_schedule_changes,
+                "features": assignment.gym.features,
             },
             "subscription": subscription_data,
             "upcoming_subscription": upcoming_subscription_data,
