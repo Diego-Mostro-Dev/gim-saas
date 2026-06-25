@@ -280,6 +280,10 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios de horario."
             )
+        if not gym.allow_schedule_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios permanentes de horario."
+            )
 
     def validate_current_schedule(self, value):
         if not value.active:
@@ -460,6 +464,10 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         if not gym.allow_member_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios de horario."
+            )
+        if not gym.allow_schedule_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios permanentes de horario."
             )
 
     def validate_current_schedule(self, value):
@@ -644,6 +652,10 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
         if not gym.allow_member_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios de horario."
+            )
+        if not gym.allow_schedule_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios permanentes de horario."
             )
 
         if origin_schedule and destination_slot and swap_date:
@@ -830,6 +842,10 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
         if not gym.allow_member_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios de horario."
+            )
+        if not gym.allow_schedule_changes:
+            raise serializers.ValidationError(
+                "El gimnasio no permite cambios permanentes de horario."
             )
 
         if origin_schedule and destination_slot and swap_date:

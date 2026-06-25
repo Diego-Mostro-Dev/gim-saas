@@ -73,11 +73,13 @@ function MemberPortalLayout() {
         setSwapRequests(swapData);
       }
 
-      try {
-        const planRequestsData = await getPublicPlanChangeRequests(token);
-        setPlanChangeRequests(planRequestsData);
-      } catch {
-        // plan change requests are optional
+      if (data.gym?.allow_plan_changes !== false) {
+        try {
+          const planRequestsData = await getPublicPlanChangeRequests(token);
+          setPlanChangeRequests(planRequestsData);
+        } catch {
+          // plan change requests are optional
+        }
       }
     } catch (err) {
       console.error(err);
@@ -104,11 +106,13 @@ function MemberPortalLayout() {
         setSwapRequests(swapData);
       }
 
-      try {
-        const planRequestsData = await getPublicPlanChangeRequests(token);
-        setPlanChangeRequests(planRequestsData);
-      } catch {
-        // plan change requests are optional
+      if (data.gym?.allow_plan_changes !== false) {
+        try {
+          const planRequestsData = await getPublicPlanChangeRequests(token);
+          setPlanChangeRequests(planRequestsData);
+        } catch {
+          // plan change requests are optional
+        }
       }
     } catch (err) {
       console.error(err);
