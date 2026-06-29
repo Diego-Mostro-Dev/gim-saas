@@ -163,7 +163,9 @@ class MemberPortalSerializer(serializers.Serializer):
     attendance_history = serializers.ListField(
         required=False
     )
-    routine = serializers.DictField()
+    routine = serializers.DictField(
+        allow_null=True
+    )
     last_payment = serializers.DictField(
         allow_null=True,
         required=False,

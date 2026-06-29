@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   Repeat,
   BarChart3,
+  Activity,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -54,6 +55,17 @@ function BottomNav() {
         <CalendarDays size={20} />
 
         <span className="text-xs">Asistencia</span>
+      </NavLink>
+
+      <NavLink
+        to="/activities"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <Activity size={20} />
+
+        <span className="text-xs">Actividades</span>
       </NavLink>
 
       <NavLink

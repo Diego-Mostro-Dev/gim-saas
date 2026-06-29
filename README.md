@@ -1,95 +1,126 @@
 # Gym SaaS
 
+> **Actualizado — 2026-06-26**
+
 Full stack gym management SaaS built with Django REST Framework, PostgreSQL and React.
 
-This project focuses on creating a modern and scalable management system for gyms, including member management, subscriptions, payments and analytics.
-
-The goal of the MVP is to deliver a real usable product for small and medium gyms before adding advanced SaaS features.
+This project focuses on creating a modern and scalable management system for gyms and fitness centers, including member management, subscriptions, payments, attendance, routines, activities, and a member portal.
 
 ---
 
-# Current Status
+## Current Status
 
-Backend MVP in progress.
+Backend and frontend MVP in production. Active development on Sprint 2 (onboarding wizard).
 
-Current backend includes:
+## Current Features
 
-- Django REST Framework API
-- PostgreSQL database (Neon)
-- Modular app architecture
-- CRUD endpoints
-- Filtering support
-- Django Admin integration
-- Environment variables configuration
+### Members
+- CRUD members
+- Public registration via QR code
+- Member portal with access token
+- Photo upload (Cloudinary)
+- Entry mode tracking (gym / activity-only)
 
-Frontend development with React will begin next.
+### Membership Plans
+- Monthly/Weekly plans with pricing and duration
+- Configurable weekly visit limits
 
----
-
-# Features
-
-## Members
-
-- Create members
-- Edit members
-- Delete members
-- List members
-
-## Membership Plans
-
-- Monthly plans
-- Weekly plans
-- Premium plans
-- Pricing and duration
-
-## Subscriptions
-
+### Subscriptions
 - Member ↔ Plan relationship
-- Payment status
-- Expiration dates
-- Active/inactive subscriptions
+- Payment status tracking (paid, pending, overdue, blocked, initial_pending)
+- Auto-renewal
+- Plan change requests with schedule migration
 
-## Dashboard (planned)
+### Attendance
+- Schedule slots per gym (day + hour)
+- QR code check-in
+- Schedule change requests
+- Schedule swap requests
+- Attendance analytics
 
-- Active members
+### Routines
+- Exercise library per gym
+- Routine templates with exercises
+- Bulk assignment to members
+- Member workout tracking (sets, reps, weights)
+- WhatsApp routine sharing
+
+### Activities (feature-flagged)
+- Activity catalog per gym
+- Activity schedules with capacity
+- Member enrollment with overlap validation
+- Public enrollment management
+
+### Payments
+- Payment history
+- Prorated amounts for registrations after billing closing day
+
+### Member Portal
+- Token-based authentication (no password)
+- Dashboard with routine, schedule, payments, activities
+- Conditional tabs based on contracted services
+- Photo upload from portal
+
+### Admin Dashboard
+- Active members count
 - Monthly revenue
 - Expiring subscriptions
 - Recent payments
-- Gym analytics
 
----
+## Tech Stack
 
-# Tech Stack
-
-## Backend
-
-- Python
-- Django
+### Backend
+- Python / Django
 - Django REST Framework
-- PostgreSQL
+- PostgreSQL (Neon)
+- Cloudinary (media storage)
 - django-filter
 
-## Frontend (planned/in progress)
-
+### Frontend
 - React
 - Vite
 - React Router
+- Tailwind CSS
+- lucide-react (icons)
+- react-hot-toast
 
----
-
-# Project Structure
+## Project Structure
 
 ```txt
 gym-saas/
 ├── backend/
-│   ├── config/
-│   ├── members/
-│   ├── plans/
-│   ├── subscriptions/
+│   ├── config/             # Django project settings, URLs, API config
+│   ├── accounts/           # Auth, user management
+│   ├── members/            # Member model, CRUD, public registration
+│   ├── gyms/               # Gym model, onboarding setup
+│   ├── plans/              # Membership plans
+│   ├── subscriptions/      # Subscriptions, plan changes, payment status
+│   ├── attendance/         # Schedule slots, attendance, change/swap requests
+│   ├── routines/           # Exercises, templates, assignments, workout tracking
+│   ├── activities/         # Activities, schedules, enrollments (feature-flagged)
+│   ├── payments/           # Payment records
 │   ├── manage.py
 │   └── requirements.txt
-│
 ├── frontend/
-│
+│   ├── src/
+│   │   ├── pages/          # Route pages (admin + public portal)
+│   │   ├── components/     # Reusable UI components
+│   │   ├── hooks/          # Custom React hooks
+│   │   ├── services/       # API service functions
+│   │   ├── layouts/        # Layout components
+│   │   └── App.jsx         # Route definitions
+│   └── package.json
+├── docs/
+│   ├── specs/              # Functional specifications
+│   ├── architecture/       # Technical architecture docs
+│   └── sprint-2/           # Sprint 2 implementation plan
 └── README.md
 ```
+
+## Key Documentation
+
+- [Multi-Service Domain Architecture](./docs/architecture/multi-service-domain.md) — Single source of truth for business domain
+- [Product Vision & Onboarding](./docs/specs/member-services-and-onboarding.md)
+- [Activities Module Rules](./docs/activities-rules.md)
+- [Entry Mode Architecture](./docs/member-entry-mode.md)
+- [Documentation Audit Report](./docs/architecture/audit-report.md)

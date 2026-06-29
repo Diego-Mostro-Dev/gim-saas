@@ -150,6 +150,19 @@ The **AttendanceSchedule** model continues to represent the member's fixed gym s
 
 Other services (Yoga, Pilates, etc.) do NOT use AttendanceSchedule. They use Enrollments.
 
+### Billing Cycle
+
+Every **Gym** defines its own billing cycle. Two configuration values govern timing:
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| Closing day | Day of month when the billing cycle closes. Registrations on or before this day pay the full month. After this day, payment is prorated until the next closing day. | 10th |
+| Grace period | Number of days after closing day during which the member remains fully active even without payment. | 6 days (closing day 10 → grace until day 16) |
+
+The billing cycle runs from closing day of month N to closing day of month N+1. Every monthly invoice covers exactly one cycle.
+
+The `Gym` model stores these values as `payment_due_day` (closing day) and `access_block_day` (closing day + grace period). The documentation uses business language; the model field names are a legacy naming that will be aligned in a future refactor.
+
 ### Member
 
 The **Member** is the universal customer. There is one model, one table. Every service contracts the same entity. The member's data (subscription items, enrollments, schedules) determines what they have access to.
@@ -204,7 +217,8 @@ Gym
 ### Gym
 - Owns everything
 - Has features (capabilities) and services (products)
-- Configures business rules (payment terms, schedule policies)
+- Configures business rules (billing closing day, grace period, schedule policies)
+- Defines which services it sells and at what prices
 
 ### Service
 - Defines what the gym sells
@@ -302,14 +316,67 @@ Key constraints:
    - `SubscriptionItem` for each selected plan
    - `AttendanceSchedule` records (if Gym selected)
    - `Enrollment` records (if activity-based services selected)
-6. Member receives `access_token`
+6. Member receives `access_token` and immediately accesses the portal
+
+### Initial Payment
+
+The amount charged at registration depends on where the registration date falls relative to the gym's billing closing day.
+
+**Scenario A — Registration on or before the closing day**
+
+The member pays the FULL monthly price for every contracted service. No prorating.
+
+> Example: Closing day is the 10th. Member registers on July 3rd. They pay full price for Gym Premium + Yoga Monthly. They have until the grace period end (day 16) to complete payment.
+
+**Scenario B — Registration after the closing day**
+
+The member pays only the proportional amount from registration date until the next closing day. Starting next cycle (after the closing day), they pay the normal monthly amount.
+
+> Example: Closing day is the 10th. Member registers on July 18th. They pay the prorated amount for July 18–August 10. From August 10 onward, they pay full monthly price.
 
 ### Payment
 
 - One subscription per member
 - Payment is applied to the subscription as a whole (not per item)
-- The gym's payment terms, due days, and blocking rules operate on the subscription level
+- The gym's billing cycle, grace period, and blocking rules operate on the subscription level
 - `SubscriptionItem.price_snapshot` enables per-item billing history
+
+### Grace Period
+
+After the closing day, the member has a **grace period** during which they are considered fully active even if payment is still pending.
+
+During the grace period, the member can:
+
+- Attend the gym
+- Attend activities
+- Mark attendance (QR check-in)
+- Use the portal
+- View routines
+- Request schedule changes
+- Request plan changes
+- Everything works normally
+
+The grace period is configured per Gym via `access_block_day` (the day after the grace period ends). Default: closing day + 6 days.
+
+### Overdue
+
+When the grace period expires without payment, the subscription status changes to **overdue** (blocked).
+
+The member retains portal access and can:
+- Log in and view their information
+- See payment status and history
+- Pay outstanding balances
+- Contact the gym
+
+The member cannot:
+- Mark attendance (QR check-in)
+- Enroll in new activities
+- Access workout routines
+- Request plan changes
+- Request schedule changes
+- Consume any contracted service
+
+Service consumption is gated by `can_member_operate()`, which returns `False` for overdue subscriptions.
 
 ### Plan Changes
 
@@ -317,12 +384,14 @@ Key constraints:
 - The system creates a PlanChangeRequest for that item
 - Other items in the subscription are unaffected
 - Approval/execution follows existing workflow
+- **The change becomes effective at the start of the next billing cycle** (see Contract Stability)
 
 ### Renewal
 
 - Subscription auto-renewal renews all active SubscriptionItems
 - Cancelled or expired items are not renewed
 - Price snapshots capture the plan price at time of renewal
+- Renewal happens on the closing day of each billing cycle
 
 ---
 
@@ -456,6 +525,99 @@ When a service is contracted but has no data yet (e.g., Gym without routine assi
 
 ---
 
+## Contract Stability
+
+This section defines how commercial changes interact with the billing cycle.
+
+### The principle
+
+A contracted service NEVER changes during the current billing cycle. This is the most important operational rule in the system.
+
+All commercial changes — adding a service, removing a service, changing a plan, changing schedules, changing enrollments — are **stored immediately but applied at the beginning of the next billing cycle**.
+
+There are:
+- No mid-cycle commercial changes
+- No refunds
+- No partial recalculations
+- No service swaps inside the same cycle
+
+This keeps administration simple, preserves predictable revenue, and protects operational planning (staff scheduling, capacity allocation).
+
+### What is a commercial change
+
+| Change | Classification | Applies |
+|--------|---------------|---------|
+| Add Gym service | Commercial | Next cycle |
+| Remove Gym service | Commercial | Next cycle |
+| Add Yoga plan | Commercial | Next cycle |
+| Remove Yoga plan | Commercial | Next cycle |
+| Change Gym plan (e.g., Basic → Premium) | Commercial | Next cycle |
+| Change Yoga plan (e.g., Monthly → 8 Classes) | Commercial | Next cycle |
+| Modify attendance schedules | Commercial | Next cycle |
+| Enroll in / unenroll from activity schedules | Commercial | Next cycle |
+| Update phone, email, profile photo | Personal | Immediately |
+| Change portal preferences | Personal | Immediately |
+
+### Reservations
+
+When a future change is approved (e.g., member adds Yoga starting next cycle), the system should **reserve capacity** in the target activity schedules before the effective date.
+
+This means:
+- The enrollment is created with `active=False` and `effective_date = next_cycle_start`
+- The schedule's available capacity is reduced immediately (reserved, not consumed)
+- On the effective date, `active` flips to `True`
+- If the change is cancelled before the effective date, the reservation is released
+
+Capacity planning is performed ahead of the effective date so the gym can staff accordingly.
+
+### Implementation approach
+
+- The existing `PlanChangeRequest` mechanism is the model for all deferred changes
+- Each deferred change creates a pending record with `effective_date = next_cycle_start`
+- A scheduled job (or trigger on cycle rollover) executes pending changes
+- The portal shows pending future changes to the member: "Your plan will change to Premium on August 10th"
+
+### Overdue state
+
+After the grace period expires without payment, the subscription becomes **overdue** (blocked).
+
+The member retains:
+- Portal login
+- Viewing their information
+- Payment status and history
+- Ability to pay outstanding balances
+- Gym contact information
+
+The member loses:
+- Marking attendance (QR check-in)
+- Enrolling in new activities
+- Accessing workout routines
+- Requesting plan changes
+- Requesting schedule changes
+- Any other form of service consumption
+
+Portal access is always preserved. Service consumption is gated by `can_member_operate()`.
+
+### Overdue in the portal
+
+When the subscription is overdue, the portal still loads but shows:
+- A prominent banner: "Tu suscripción está vencida. Regularizá tu pago para seguir entrenando."
+- Payment tab is fully functional (pay now)
+- All other tabs show a locked state with the same message
+- Gym contact information is visible
+
+### Immediate changes
+
+Only personal information may be modified immediately:
+- Phone number
+- Email address
+- Profile photo
+- Any preference or setting that does not affect the commercial contract
+
+Everything else — anything that changes what the member pays or what services they receive — waits until the next cycle.
+
+---
+
 ## Features vs. Services
 
 This distinction is critical.
@@ -502,21 +664,30 @@ A feature can exist without the corresponding service being sold (a gym may have
 
 ## Future Roadmap
 
-### Sprint 2 — SubscriptionItem and onboarding
+### Sprint 2 — Billing cycle, subscription items, and onboarding
 
+- [ ] Formalize billing cycle model: closing day, grace period, prorated calculation
+- [ ] Implement initial payment logic: full price before/on closing day, prorated after
 - [ ] Create `SubscriptionItem` model
 - [ ] Migrate existing subscriptions: move plan FK from Subscription to SubscriptionItem
 - [ ] Update registration endpoint to create SubscriptionItems per service
 - [ ] Frontend onboarding wizard with multi-service selection
 - [ ] `Subscription.plan` becomes nullable or is removed
 - [ ] Update `can_member_operate()` to check SubscriptionItem existence
+- [ ] Implement grace period behavior (member fully active while payment pending)
+- [ ] Implement overdue/blocked state (portal preserved, service consumption blocked)
+- [ ] Overdue banner and locked state in portal
 
-### Sprint 3 — Service detection and portal modularity
+### Sprint 3 — Contract stability and deferred changes
 
-- [ ] Remove `entry_mode` dependency from portal
+- [ ] Implement deferred change mechanism: changes stored immediately, applied next cycle
+- [ ] Update PlanChangeRequest workflow to enforce next-cycle-only effective dates
+- [ ] Implement capacity reservation for future enrollments (active=False, effective_date)
+- [ ] Scheduled job or trigger to execute pending changes on cycle rollover
+- [ ] Portal shows pending future changes to the member
+- [ ] Remove `entry_mode` dependency from portal (second pass)
 - [ ] Portal renders tabs based on SubscriptionItem data
 - [ ] Each service registers its own portal modules
-- [ ] DashboardSelector reads SubscriptionItems instead of `entry_mode`
 
 ### Sprint 4 — Service model
 
@@ -526,6 +697,7 @@ A feature can exist without the corresponding service being sold (a gym may have
 - [ ] Move activity-service association from convention to FK
 - [ ] Deprecate `entry_mode` (keep as read-only historical field)
 - [ ] Admin UI for managing services per gym
+- [ ] Rename Gym model fields: `payment_due_day` → `closing_day`, `access_block_day` → `grace_period_end_day`
 
 ### Sprint 5+ — New services
 
@@ -553,6 +725,9 @@ A feature can exist without the corresponding service being sold (a gym may have
 - Activities are feature-flagged via `Gym.features["extra_activities"]`
 - Activity-service association is implicit (Activity belongs to Gym, not to Service)
 - Portal uses `entry_mode` as proxy for service detection
+- Billing cycle is configured via `payment_due_day` and `access_block_day` but the initial payment rules are not formally implemented
+- Plan changes can have arbitrary effective dates (pre-contract-stability)
+- Mid-cycle changes are technically possible (no enforcement)
 
 ### Phase B (Sprint 2)
 
@@ -561,12 +736,19 @@ A feature can exist without the corresponding service being sold (a gym may have
 - Registration endpoint creates SubscriptionItems
 - `Subscription.plan` becomes nullable (or removed)
 - `entry_mode` continues to be set but not used for business logic on new members
+- Billing cycle is formalized: closing day, grace period, initial payment calculation
+- Grace period behavior is implemented (member fully active while pending)
+- Overdue/blocked state is implemented (portal preserved, service blocked)
 
 ### Phase C (Sprint 3)
 
 - Portal detection switches from `entry_mode` to subscription data
 - No new members depend on `entry_mode`
 - Existing members still have `entry_mode` for read-only compatibility
+- Deferred change mechanism is implemented (changes stored now, applied next cycle)
+- PlanChangeRequest enforces next-cycle-only effective dates
+- Capacity reservation for future enrollments
+- Pending changes visible in portal
 
 ### Phase D (Sprint 4)
 
@@ -575,6 +757,7 @@ A feature can exist without the corresponding service being sold (a gym may have
 - Activities get a `service` FK
 - `ContractedService` is designed but may not replace SubscriptionItem yet
 - `entry_mode` is fully deprecated as a business field (kept for data history)
+- Gym model fields renamed for clarity
 
 ### Backward compatibility invariants
 

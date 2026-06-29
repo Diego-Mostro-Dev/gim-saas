@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/gyms/", include("gyms.urls")),
 
     path("api/routines/", include("routines.urls")),
+    path("api/activities/", include("activities.urls")),
 ]
 
 if settings.DEBUG:

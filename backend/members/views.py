@@ -34,7 +34,8 @@ class MemberViewSet(GymModelViewSet):
                 queryset=AttendanceSchedule.objects.filter(
                     active=True
                 ).select_related("slot"),
-            )
+            ),
+            "subscription_set__plan",
         )
 
     def update(self, request, *args, **kwargs):

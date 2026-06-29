@@ -16,6 +16,9 @@ import json
 class MemberSerializer(serializers.ModelSerializer):
     schedules = serializers.SerializerMethodField()
     plan_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    subscription_active = serializers.SerializerMethodField()
+    plan_name = serializers.SerializerMethodField()
+    subscription_days_remaining = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -27,13 +30,54 @@ class MemberSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "active",
+            "entry_mode",
             "schedules",
             "gym",
             "photo",
+            "access_token",
             "plan_id",
+            "subscription_active",
+            "plan_name",
+            "subscription_days_remaining",
         ]
 
-        read_only_fields = ["gym"]
+        read_only_fields = ["gym", "access_token"]
+
+    def _active_subscription(self, obj):
+        today = date.today()
+        subscriptions = obj.subscription_set.all()
+
+        active = None
+        latest = None
+
+        for sub in subscriptions:
+            if latest is None or sub.created_at > latest.created_at:
+                latest = sub
+            if sub.start_date <= today <= sub.end_date:
+                if active is None or sub.created_at > active.created_at:
+                    active = sub
+
+        return active or latest
+
+    def get_subscription_active(self, obj):
+        sub = self._active_subscription(obj)
+        if sub is None:
+            return False
+        today = date.today()
+        return sub.start_date <= today <= sub.end_date
+
+    def get_plan_name(self, obj):
+        sub = self._active_subscription(obj)
+        if sub is None:
+            return None
+        return sub.plan.name
+
+    def get_subscription_days_remaining(self, obj):
+        sub = self._active_subscription(obj)
+        if sub is None:
+            return None
+        today = date.today()
+        return (sub.end_date - today).days
 
     def validate_plan_id(self, value):
         if value is None:

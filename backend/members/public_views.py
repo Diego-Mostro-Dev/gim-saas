@@ -1,13 +1,16 @@
+import json
 from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from activities.models import Activity, ActivitySchedule, Enrollment
 from gyms.models import Gym
 from attendance.models import ScheduleSlot
 from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
@@ -16,6 +19,9 @@ from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer
 from config.api.throttles import PublicMemberRateThrottle
+
+
+VALID_SERVICES = frozenset({"gym", "activities"})
 
 
 class PublicRegisterView(APIView):
@@ -30,6 +36,13 @@ class PublicRegisterView(APIView):
             Gym,
             onboarding_code=gym_code,
         )
+
+        services = request.data.get("services")
+
+        if services is not None:
+            return self._onboarding_register(request, gym, services)
+
+        # ── Legacy flow (100% unchanged) ──────────────────────────────────
 
         serializer = MemberSerializer(
             data=request.data,
@@ -78,6 +91,160 @@ class PublicRegisterView(APIView):
             MemberSerializer(member).data,
             status=status.HTTP_201_CREATED,
         )
+
+    # ── New onboarding flow ───────────────────────────────────────────────
+
+    def _onboarding_register(self, request, gym, services):
+
+        if isinstance(services, str):
+            try:
+                services = json.loads(services)
+            except (json.JSONDecodeError, TypeError):
+                return Response(
+                    {"services": "Formato inválido."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if not isinstance(services, list) or not services:
+            return Response(
+                {"services": "Debe seleccionar al menos un servicio."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        invalid = [s for s in services if s not in VALID_SERVICES]
+        if invalid:
+            return Response(
+                {"services": f"Servicio(s) inválido(s): {', '.join(invalid)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        has_gym = "gym" in services
+        has_activities = "activities" in services
+        entry_mode = "GYM" if has_gym else "ACTIVITY_ONLY"
+
+        activity_entries = []
+        if has_activities:
+            raw = request.data.get("activity_schedules", [])
+
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    return Response(
+                        {"activity_schedules": "Formato inválido."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            if not isinstance(raw, list):
+                return Response(
+                    {"activity_schedules": "Debe ser una lista."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                activity_entries = self._validate_activity_schedules(gym, raw)
+            except ValueError as e:
+                return Response(
+                    {"activity_schedules": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        member_data = request.data.copy()
+        member_data.pop("services", None)
+        member_data.pop("activity_schedules", None)
+        member_data["entry_mode"] = entry_mode
+
+        with transaction.atomic():
+            serializer = MemberSerializer(
+                data=member_data,
+                context={"gym": gym},
+            )
+            serializer.is_valid(raise_exception=True)
+            member = serializer.save(gym=gym)
+
+            if activity_entries:
+                Enrollment.objects.bulk_create([
+                    Enrollment(
+                        gym=gym,
+                        member=member,
+                        schedule=entry["schedule"],
+                        active=True,
+                    )
+                    for entry in activity_entries
+                ])
+
+            if has_activities and not has_gym:
+                # Subscription creation for activity-only members is deferred.
+                # BLOCKER: Subscription.plan is a non-nullable FK to
+                # MembershipPlan. There is currently no dedicated "Activities
+                # Only" plan for the gym. can_member_operate() handles missing
+                # subscriptions gracefully (returns True), so the member can
+                # still log into the portal.
+                pass
+
+        return Response(
+            MemberSerializer(member).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @staticmethod
+    def _validate_activity_schedules(gym, raw_schedules):
+        seen = set()
+        result = []
+
+        for item in raw_schedules:
+            if not isinstance(item, dict):
+                raise ValueError(
+                    "Cada elemento debe ser un objeto con "
+                    "activity_id y schedule_id."
+                )
+
+            activity_id = item.get("activity_id")
+            schedule_id = item.get("schedule_id")
+
+            if not activity_id or not schedule_id:
+                raise ValueError(
+                    "Cada selección debe incluir "
+                    "activity_id y schedule_id."
+                )
+
+            if not Activity.objects.filter(
+                id=activity_id, gym=gym, active=True
+            ).exists():
+                raise ValueError(
+                    f"La actividad {activity_id} no existe "
+                    f"o no está activa."
+                )
+
+            schedule = ActivitySchedule.objects.filter(
+                id=schedule_id, activity__id=activity_id
+            ).first()
+
+            if not schedule:
+                raise ValueError(
+                    f"El horario {schedule_id} no pertenece "
+                    f"a la actividad {activity_id}."
+                )
+
+            if schedule_id in seen:
+                raise ValueError(
+                    f"El horario {schedule_id} está duplicado."
+                )
+            seen.add(schedule_id)
+
+            enrolled_count = Enrollment.objects.filter(
+                schedule=schedule, active=True
+            ).count()
+            if enrolled_count >= schedule.capacity:
+                raise ValueError(
+                    f"El horario {schedule_id} está completo."
+                )
+
+            result.append(
+                {"activity_id": activity_id, "schedule": schedule}
+            )
+
+        return result
 
 
 class PublicSlotsView(APIView):

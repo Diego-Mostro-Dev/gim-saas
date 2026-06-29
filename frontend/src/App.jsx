@@ -14,9 +14,10 @@ import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
 import Settings from "./pages/Settings";
 import MemberPortalLayout from "./pages/member/MemberPortalLayout";
-import MemberDashboard from "./pages/member/MemberDashboard";
+import DashboardSelector from "./pages/member/DashboardSelector";
 import MemberWorkout from "./pages/member/MemberWorkout";
 import MemberPayments from "./pages/member/MemberPayments";
+import MemberActivities from "./pages/MemberActivities";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
 import AttendanceQR from "./pages/AttendanceQR";
@@ -25,6 +26,9 @@ import ScheduleChangeRequests from "./pages/ScheduleChangeRequests";
 import ScheduleSwapRequests from "./pages/ScheduleSwapRequests";
 import PlanChangeRequests from "./pages/PlanChangeRequests";
 import AttendanceAnalytics from "./pages/AttendanceAnalytics";
+import Activities from "./pages/Activities";
+import ActivitySchedules from "./pages/ActivitySchedules";
+import ScheduleEnrollments from "./pages/ScheduleEnrollments";
 
 function App() {
   return (
@@ -36,9 +40,10 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymCode" element={<Register />} />
       <Route path="/routine/:token" element={<MemberPortalLayout />}>
-        <Route index element={<MemberDashboard />} />
+        <Route index element={<DashboardSelector />} />
         <Route path="workout" element={<MemberWorkout />} />
         <Route path="payments" element={<MemberPayments />} />
+        <Route path="activities" element={<MemberActivities />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>
       <Route path="/checkin/:gymCode" element={<Checkin />} />
@@ -67,6 +72,9 @@ function App() {
         <Route path="/schedule-swap-requests" element={<ScheduleSwapRequests />} />
         <Route path="/plan-change-requests" element={<PlanChangeRequests />} />
         <Route path="/attendance-analytics" element={<AttendanceAnalytics />} />
+        <Route path="/activities" element={<Activities />} />
+        <Route path="/activities/:activityId/schedules" element={<ActivitySchedules />} />
+        <Route path="/activities/schedules/:scheduleId/enrollments" element={<ScheduleEnrollments />} />
       </Route>
     </Routes>
   );

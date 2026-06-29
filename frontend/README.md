@@ -1,16 +1,54 @@
-# React + Vite
+# Gym SaaS — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Actualizado — 2026-06-26**
 
-Currently, two official plugins are available:
+React frontend for the Gym SaaS platform.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Tech Stack
+- React 18
+- Vite
+- React Router v6
+- Tailwind CSS
+- lucide-react
+- react-hot-toast
+- dayjs
 
-## React Compiler
+## Routes
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Public
+- `/register/:gymCode` — Member registration (onboarding wizard)
+- `/routine/:token` — Member portal (token-based auth)
+  - Index: DashboardSelector (GymDashboard or ActivityDashboard)
+  - `/workout` — Routine workout tracking
+  - `/payments` — Payment history
+  - `/activities` — Activity enrollments
+  - `/schedules` — Gym schedule management
+- `/checkin/:gymCode` — QR check-in
+- `/onboarding/:gymCode` — Gym initial setup
 
-## Expanding the ESLint configuration
+### Admin (authenticated)
+- `/dashboard` — Admin dashboard
+- `/members` — Member CRUD
+- `/subscriptions` — Subscription management
+- `/plans` — Membership plans
+- `/payments` — Payment records
+- `/attendance` — Attendance view
+- `/routines` — Exercise and routine management
+- `/activities` — Activities management (feature-flagged)
+- `/registration` — Manual member registration
+- `/settings` — Gym settings
+- `/attendance-qr` — QR code generator
+- `/schedule-change-requests` — Schedule change approvals
+- `/schedule-swap-requests` — Schedule swap approvals
+- `/plan-change-requests` — Plan change approvals
+- `/attendance-analytics` — Attendance metrics
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Build & Run
+
+```bash
+npm install
+npm run dev     # development server
+npm run build   # production build
+```
+
+Environment: `VITE_API_URL` points to the Django backend.

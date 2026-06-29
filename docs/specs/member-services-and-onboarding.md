@@ -1,11 +1,12 @@
 # Member Services & Onboarding — Functional Specification
 
-> **Actualizado según la nueva visión funcional del onboarding — 2026-06-26**
+> **Actualizado según la visión multi-servicio — 2026-06-29**
 >
-> Este documento fue reestructurado para reflejar el modelo de **servicios contratados**
-> en lugar del modelo anterior de "tipos de miembros". Las secciones históricas se
-> mantienen marcadas como `[HISTÓRICO]` al final del documento.
->
+> Este documento describe la especificación funcional del producto. Para la
+> arquitectura de dominio completa (modelo de negocio, ciclo de facturación,
+> estabilidad contractual, roadmap, migración), ver
+> [`docs/architecture/multi-service-domain.md`](../architecture/multi-service-domain.md).
+> 
 > Para la arquitectura técnica de `entry_mode`, ver [`docs/member-entry-mode.md`](../member-entry-mode.md).
 > Para las reglas del módulo de actividades, ver [`docs/activities-rules.md`](../activities-rules.md).
 
@@ -193,24 +194,114 @@ Resumen completo de todos los datos ingresados:
 
 1. Se crea `Member` con `access_token`
 2. Se crea `Subscription` con `paid=false`
-   - Si tiene gimnasio: plan = seleccionado
-   - Si solo actividades: ver decisiones pendientes (plan null o plan especial)
+   - Se crea un `SubscriptionItem` por cada plan seleccionado (gimnasio, yoga, etc.)
 3. Si tiene gimnasio: se crean `AttendanceSchedule` para los horarios elegidos
 4. Si tiene actividades: se crean `Enrollment` para cada actividad/horario seleccionado
-5. El miembro recibe su token de acceso al portal
+5. El miembro recibe su token de acceso al portal e ingresa inmediatamente
+
+### Cálculo del pago inicial
+
+El monto a pagar depende de la fecha de registro respecto al **día de cierre de facturación** del gimnasio.
+
+**Escenario A — Registro antes o el mismo día del cierre**
+
+El miembro paga el precio COMPLETO de cada servicio contratado. Sin prorrateo.
+
+> Ejemplo: Día de cierre = 10. Registro el 3 de julio. Paga: Gym Premium + Yoga Mensual completos. Tiene hasta el día 16 (fin del período de gracia) para pagar.
+
+**Escenario B — Registro después del día de cierre**
+
+El miembro paga solo la parte proporcional desde la fecha de registro hasta el próximo cierre. Desde el próximo ciclo en adelante, paga el monto mensual normal.
+
+> Ejemplo: Día de cierre = 10. Registro el 18 de julio. Paga proporcional 18 jul - 10 ago. Desde el 10 de agosto paga mes completo.
 
 ---
 
 ## Subscription
 
 - **Siempre existe una Subscription** para cada miembro.
-- `paid=false` al registrarse (el gimnasio define período de pago, vencimientos y bloqueo).
-- Representa los servicios contratados (gimnasio, actividades, o ambos).
+- `paid=false` al registrarse.
+- La Subscription contiene **SubscriptionItems**, uno por cada servicio contratado.
+- Cada SubscriptionItem referencia un `MembershipPlan` y un `Service`.
 - No hay un sistema paralelo de pagos para actividades. Todo pasa por Subscription.
 - El sistema de `can_member_operate` y `get_subscription_payment_status` se mantiene.
 
-> **Decisión pendiente:** Subscription.plan es FK a MembershipPlan (no nullable hoy).
-> Para ACTIVITY_ONLY se necesita resolver: ¿plan nullable o plan especial por gym?
+> **Nota:** Subscription.plan es actualmente FK no nullable a MembershipPlan. La migración a SubscriptionItem (Sprint 2) resuelve esto. Ver arquitectura para detalles.
+
+### Ciclo de facturación
+
+Cada gimnasio define:
+- **Día de cierre**: el día del mes en que se cierra el ciclo de facturación.
+- **Período de gracia**: días después del cierre durante los cuales el miembro sigue activo aunque no haya pagado.
+
+El ciclo va del día de cierre del mes N al día de cierre del mes N+1. Cada factura mensual cubre exactamente un ciclo.
+
+### Período de gracia
+
+Durante el período de gracia el miembro está considerado **ACTIVO**. Aunque el pago esté pendiente, puede:
+- Asistir al gimnasio
+- Asistir a actividades
+- Marcar asistencia
+- Usar el portal completo
+- Ver rutinas
+- Solicitar cambios de horario
+- Solicitar cambios de plan
+
+Todo funciona con normalidad.
+
+### Estado vencido (overdue)
+
+Cuando el período de gracia expira sin pago, la suscripción pasa a **vencida** (bloqueada).
+
+El miembro conserva:
+- Acceso al portal (login, ver información)
+- Estado de pago e historial
+- Posibilidad de pagar
+- Contacto del gimnasio
+
+El miembro NO puede:
+- Marcar asistencia (QR check-in)
+- Inscribirse en actividades
+- Acceder a rutinas de entrenamiento
+- Solicitar cambios de plan
+- Solicitar cambios de horario
+- Consumir ningún servicio contratado
+
+## Estabilidad contractual
+
+Esta es una de las reglas de negocio más importantes.
+
+Un servicio contratado NUNCA cambia durante el ciclo de facturación actual.
+
+Si un miembro quiere:
+- Agregar gimnasio
+- Eliminar gimnasio
+- Agregar yoga
+- Eliminar yoga
+- Cambiar plan de gimnasio
+- Cambiar plan de yoga
+- Modificar horarios de asistencia
+- Cambiar inscripciones en actividades
+
+la solicitud se almacena **inmediatamente**, pero se vuelve efectiva **al inicio del próximo ciclo de facturación**.
+
+No existen:
+- Cambios comerciales a mitad de ciclo
+- Reembolsos
+- Recalculos parciales
+- Intercambios de servicios dentro del mismo ciclo
+
+Esto mantiene la administración simple y preserva la planificación operativa.
+
+### Únicas excepciones
+
+Solo la información personal puede modificarse de inmediato:
+- Teléfono
+- Email
+- Foto de perfil
+- Preferencias del portal
+
+Todo lo que afecte el contrato comercial espera al próximo ciclo.
 
 ---
 
@@ -309,31 +400,43 @@ ninguna actividad que se superponga. Lo mismo aplica entre actividades.
 - [x] DashboardSelector que lee entry_mode del contexto
 - [x] Documentar arquitectura, regresiones, reglas
 
-### Sprint 2 — Nuevo onboarding (SIGUIENTE)
+### Sprint 2 — Nuevo onboarding y ciclo de facturación (SIGUIENTE)
 
 - [ ] Rediseñar pantalla de registro con selector de servicios (checkboxes)
 - [ ] Wizard GYM: datos → plan → horarios → confirmación
 - [ ] Wizard ACTIVITIES: datos → actividades → confirmación
 - [ ] Wizard BOTH: datos → plan → horarios → actividades → confirmación
-- [ ] Subscription siempre creada (también para solo actividades)
+- [ ] Subscription siempre creada con SubscriptionItems por servicio
 - [ ] Filtrado de horarios disponibles por cupo y compatibilidad
 - [ ] Endpoint público de actividades con cupo (`GET /api/public/activities/<gym_code>/`)
-- [ ] Resolver Subscription.plan para ACTIVITY_ONLY
+- [ ] Formalizar ciclo de facturación: día de cierre, período de gracia, pago inicial
+- [ ] Implementar lógica de pago inicial (completo antes del cierre, proporcional después)
+- [ ] Implementar período de gracia (miembro activo con pago pendiente)
+- [ ] Implementar estado vencido (portal preservado, servicios bloqueados)
+- [ ] Crear modelo SubscriptionItem y migrar datos existentes
 - [ ] Bug: agregar `access_token` a MemberSerializer.fields
 - [ ] Bug: MemberPortalSerializer.routine = DictField(allow_null=True)
 - [ ] Bug: PublicRoutineView no debe devolver 404 para GYM sin rutina
 - [ ] Aplicar migración 0009 a la base de datos
 
-### Sprint 3 — Portal modular
+### Sprint 3 — Estabilidad contractual y portal modular
 
+- [ ] Implementar cambios diferidos: cambios almacenados hoy, efectivos próximo ciclo
+- [ ] Actualizar PlanChangeRequest para respetar solo-próximo-ciclo
+- [ ] Reserva de cupo para inscripciones futuras (active=False, effective_date)
+- [ ] Job programado para ejecutar cambios pendientes al cierre del ciclo
+- [ ] Portal muestra cambios futuros pendientes al miembro
 - [ ] Refactorizar portal para que cargue independientemente de entry_mode
 - [ ] Separar vistas en módulos independientes
-- [ ] Cada módulo se renderiza según servicios contratados
+- [ ] Cada módulo se renderiza según SubscriptionItems contratados
 - [ ] Estado vacío para servicios no contratados
 
-### Sprint 4 — Servicios contratados (futuro)
+### Sprint 4 — Modelo Service y ContractedService
 
+- [ ] Diseñar e implementar modelo Service
+- [ ] Migrar MembershipPlan a FK → Service
 - [ ] Diseñar e implementar modelo ContractedService
+- [ ] Renombrar campos de Gym: payment_due_day → closing_day, access_block_day → grace_end_day
 - [ ] Migrar entry_mode a ContractedService
 - [ ] Deprecar entry_mode en Member
 - [ ] Actualizar vistas para consultar ContractedService
