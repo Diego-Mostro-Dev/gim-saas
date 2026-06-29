@@ -1,14 +1,18 @@
 # Member Entry Mode — Architecture
 
-> **Actualizado según la nueva visión funcional del onboarding — 2026-06-26**
->
+> **Actualizado — 2026-06-29**
+> 
 > Este documento describe la implementación técnica del campo `entry_mode`.
->
+> 
 > **Contexto actual:** `entry_mode` ya no es el eje del producto. La nueva visión
-> se basa en **servicios contratados** (gimnasio, actividades). `entry_mode`
+> se basa en **servicios contratados** y un modelo multi-servicio. `entry_mode`
 > se mantiene como campo técnico para compatibilidad hacia atrás y como guía
 > para el frontend, pero la lógica de negocio debe inspeccionar los datos
-> reales (AttendanceSchedule, Enrollment, etc.).
+> reales (AttendanceSchedule, Enrollment, SubscriptionItems, etc.).
+> 
+> Para la arquitectura de dominio completa (modelo de negocio, ciclo de facturación,
+> estabilidad contractual), ver
+> [`docs/architecture/multi-service-domain.md`](./architecture/multi-service-domain.md).
 >
 > Para la especificación funcional actualizada, ver
 > [`docs/specs/member-services-and-onboarding.md`](./specs/member-services-and-onboarding.md).

@@ -51,7 +51,7 @@ INSTALLED_APPS = [
     "gyms",
     "profiles",
     "routines",
-    
+    "activities",
 ]
 
 

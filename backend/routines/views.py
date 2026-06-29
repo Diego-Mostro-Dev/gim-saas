@@ -407,17 +407,12 @@ class PublicRoutineView(APIView):
             .first()
         )
 
-        if not assignment:
-            return Response(
-                {
-                    "detail": "No active routine assigned",
-                },
-                status=404,
-            )
+        gym = assignment.gym if assignment else member.gym
 
-        routine_serializer = MemberRoutineSerializer(
-            assignment
-        )
+        routine_data = None
+        if assignment:
+            routine_serializer = MemberRoutineSerializer(assignment)
+            routine_data = routine_serializer.data
 
         today = timezone.localdate()
 
@@ -552,23 +547,24 @@ class PublicRoutineView(APIView):
                         if member.photo
                         else None
                     ),
+                    "entry_mode": member.entry_mode,
                 },
             "gym": {
-                "id": assignment.gym.id,
-                "name": assignment.gym.name,
+                "id": gym.id,
+                "name": gym.name,
                 "logo_url": (
-                    assignment.gym.logo.url
-                    if assignment.gym.logo
+                    gym.logo.url
+                    if gym.logo
                     else None
                 ),
-                "whatsapp": assignment.gym.whatsapp,
-                "phone": assignment.gym.phone,
-                "email": assignment.gym.email,
-                "allow_member_schedule_changes": assignment.gym.allow_member_schedule_changes,
-                "schedule_change_notice_hours": assignment.gym.schedule_change_notice_hours,
-                "allow_plan_changes": assignment.gym.allow_plan_changes,
-                "allow_schedule_changes": assignment.gym.allow_schedule_changes,
-                "features": assignment.gym.features,
+                "whatsapp": gym.whatsapp,
+                "phone": gym.phone,
+                "email": gym.email,
+                "allow_member_schedule_changes": gym.allow_member_schedule_changes,
+                "schedule_change_notice_hours": gym.schedule_change_notice_hours,
+                "allow_plan_changes": gym.allow_plan_changes,
+                "allow_schedule_changes": gym.allow_schedule_changes,
+                "features": gym.features,
             },
             "subscription": subscription_data,
             "upcoming_subscription": upcoming_subscription_data,
@@ -586,7 +582,7 @@ class PublicRoutineView(APIView):
                 }
                 for attendance in attendances
             ],
-            "routine": routine_serializer.data,
+            "routine": routine_data,
             "last_payment": (
                 payments_list[0]
                 if payments_list

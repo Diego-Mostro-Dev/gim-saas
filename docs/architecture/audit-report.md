@@ -1,8 +1,58 @@
 # Documentation Audit Report
 
-> **Date:** 2026-06-29
+> **Date:** 2026-06-29 (updated 2026-06-29)
 > **Scope:** All markdown documentation in the repository
 > **Reference:** `docs/architecture/multi-service-domain.md`
+
+---
+
+## Session 2 Changes (2026-06-29)
+
+This section documents the changes made during the business rules consolidation session.
+
+### Files Modified
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `docs/architecture/multi-service-domain.md` | Added Billing Cycle business concept. Added Initial Payment, Grace Period, Overdue sections to Commercial Flow. Added Contract Stability section. Updated Plan Changes and Renewal to reference next-cycle. Updated Roadmap and Migration Strategy. |
+| 2 | `docs/specs/member-services-and-onboarding.md` | Updated header to reference architecture SSOT. Updated Post-registro to use SubscriptionItems. Added initial payment calculation. Replaced Subscription section with full billing cycle, grace period, overdue, and contract stability content. Updated Roadmap to match. |
+| 3 | `docs/activities-rules.md` | Updated header references. Added billing cycle relationship section under `can_member_operate`. |
+| 4 | `docs/member-entry-mode.md` | Updated header references to point to architecture SSOT. |
+| 5 | `README.md` | Fixed inaccurate "Prorated amounts for partial months" → "Prorated amounts for registrations after billing closing day". Added architecture doc and audit report to Key Documentation list. |
+| 6 | `docs/architecture/audit-report.md` | This file — documenting the current session. |
+
+### Contradictions Removed
+
+| # | Contradiction | Resolution |
+|---|---------------|------------|
+| **C13** | `README.md` line 57: "Prorated amounts for partial months" implied prorating is the general case. Rule 3 says full price before/on closing day, prorated only after. | Changed to "Prorated amounts for registrations after billing closing day". |
+| **C14** | Architecture document had no billing cycle concept. Rules 1, 3, 4, 5, 6 all depend on it. | Added Billing Cycle as a top-level business concept. Added initial payment, grace period, and overdue subsections to Commercial Flow. |
+| **C15** | Architecture document had no contract stability rules. Plan Changes section implied changes could be applied at any time. | Added full Contract Stability section. Updated Plan Changes to state "effective at start of next billing cycle". Updated Roadmap with deferred changes implementation. |
+| **C16** | Spec document Subscription section still described `Subscription` as directly referencing a single `MembershipPlan`. No mention of `SubscriptionItem` or multi-service bundling. | Replaced with SubscriptionItem model description. Added billing cycle, grace period, overdue, and contract stability sections. |
+| **C17** | Activities rules `can_member_operate` section had no link to billing cycle or overdue state. | Added "Relationship to billing cycle" subsection explaining grace period (active) vs overdue (blocked) vs portal (always preserved). |
+| **C18** | Spec and architecture documents had inconsistent roadmaps. Spec had Sprint 2-5+ without billing cycle or contract stability items. | Aligned both roadmaps. Moved contract stability to Sprint 3. Added billing cycle, grace period, overdue, and SubscriptionItem to Sprint 2. |
+| **C19** | `README.md` Key Documentation list did not include the architecture document (the SSOT). | Added architecture doc and audit report to the list, with the SSOT as the first entry. |
+
+### Remaining Open Business Questions
+
+1. **Activity-only plan**: `Subscription.plan` is non-nullable FK. For activity-only members, the architecture resolves this via SubscriptionItem (plan becomes nullable or is removed). But the product decision remains: create a default "Activities Only" plan or make `plan` nullable? The architecture recommends nullable + SubscriptionItem.
+
+2. **Contract stability enforcement**: Should contract stability be enforced at the API level (backend rejects mid-cycle changes) or at the business level (backend accepts but queues them)? The architecture describes the queue approach (PlanChangeRequest model), which aligns with the existing pattern.
+
+3. **Reservation capacity model**: When a future enrollment is approved (active=False, effective_date=next_cycle), should the capacity be reduced immediately or only on effective date? The architecture says immediate reduction (reserved) to prevent overbooking. This needs confirmation with the product team.
+
+4. **Grace period naming**: The Gym model fields are named `payment_due_day` and `access_block_day`. The business rules use "closing day" and "grace period end day". Should the model fields be renamed? The architecture schedules this for Sprint 4.
+
+5. **Mid-cycle changes for existing members**: Before contract stability is implemented (Sprint 3), do existing members continue to make mid-cycle changes? The architecture assumes yes — Phase A (current state) allows it, Phase C (Sprint 3) enforces it.
+
+### Rules That Still Need Future Architectural Decisions
+
+| Rule | Architectural Decision Needed | Sprint |
+|------|------------------------------|--------|
+| Rule 7 (Reservations) | How to model capacity reservation for future enrollments: new field on Enrollment (`effective_date`, `active=False` until date) vs separate table `FutureReservation`. | Sprint 3 |
+| Rule 6 (Contract stability) | Should deferred changes use the existing `PlanChangeRequest` model (extended) or a new `PendingChange` model? The current PlanChangeRequest is specific to plan changes. Service adds/removes need a different mechanism. | Sprint 3 |
+| Rule 3 (Initial payment) | Proration calculation algorithm: daily rate vs monthly rate. Formula: `(days_remaining_in_cycle / total_days_in_cycle) * monthly_price`. But what about February? What about 31-day months? A precise algorithm needs to be defined. | Sprint 2 |
+| Rule 1 (Billing cycle) | Does the billing closing day apply uniformly to all members of a gym, or can individual members have custom cycles? The architecture assumes per-gym. | Sprint 2 |
 
 ---
 

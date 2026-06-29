@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
-import { Home, Dumbbell, CreditCard, Calendar } from "lucide-react";
+import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
@@ -83,7 +83,7 @@ function MemberPortalLayout() {
       }
     } catch (err) {
       console.error(err);
-      setError("No se encontró la rutina.");
+      setError("No se pudo cargar el portal.");
     } finally {
       setLoading(false);
     }
@@ -160,13 +160,20 @@ function MemberPortalLayout() {
   }
 
   const { member, gym } = routine;
+  const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
 
-  const tabs = [
-    { path: `/routine/${token}`, label: "Inicio", icon: Home },
-    { path: `/routine/${token}/workout`, label: "Rutina", icon: Dumbbell },
-    { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
-    { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
-  ];
+  const tabs = isActivityOnly
+    ? [
+        { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
+        { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
+      ]
+    : [
+        { path: `/routine/${token}`, label: "Inicio", icon: Home },
+        { path: `/routine/${token}/workout`, label: "Rutina", icon: Dumbbell },
+        { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
+        { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
+        { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
+      ];
 
   return (
     <div className="min-h-screen bg-surface">
@@ -191,7 +198,9 @@ function MemberPortalLayout() {
                 <h1 className="text-2xl font-bold text-text-primary">
                   {member.first_name} {member.last_name}
                 </h1>
-                <p className="text-text-secondary">Socio de {gym.name}</p>
+                <p className="text-text-secondary">
+                  {isActivityOnly ? "Miembro de" : "Socio de"} {gym.name}
+                </p>
               </div>
             </div>
 

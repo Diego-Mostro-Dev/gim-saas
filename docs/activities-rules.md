@@ -1,10 +1,10 @@
 # Activities Module — Business Rules
 
-> **Actualizado según la nueva visión funcional del onboarding — 2026-06-26**
+> **Actualizado — 2026-06-29**
 >
-> La principal actualización en este documento es la sección "Member Types"
-> que fue reemplazada por "Service Detection" para alinearse con el nuevo modelo
-> de servicios contratados.
+> Para la arquitectura de dominio completa (modelo de negocio, ciclo de facturación,
+> estabilidad contractual), ver
+> [`docs/architecture/multi-service-domain.md`](./architecture/multi-service-domain.md).
 >
 > Para la especificación funcional del producto (visión completa, onboarding,
 > roadmap, casos de uso), ver
@@ -130,6 +130,14 @@ Both call `_times_overlap(start_a, end_a, start_b, end_b)` which returns `True` 
 > `can_member_operate` will never encounter a member without a subscription.
 > However, `plan` FK in Subscription may be `null` for activity-only members —
 > verify that `get_subscription_payment_status` handles null plan gracefully.
+
+### Relationship to billing cycle
+
+- **During the grace period** (after closing day, before block day): payment may be `pending`, but `can_member_operate` returns `True`. The member is fully active.
+- **After the grace period expires**: payment status becomes `blocked` (overdue). `can_member_operate` returns `False`. The member cannot enroll in activities, mark attendance, access routines, or request changes.
+- **Portal access is always preserved** regardless of `can_member_operate`. The member can log in, view their data, and pay.
+
+See [Billing Cycle](../architecture/multi-service-domain.md#billing-cycle) and [Overdue state](../architecture/multi-service-domain.md#overdue-state) in the architecture document.
 
 ## Clave Única y Soft-Delete
 

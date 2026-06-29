@@ -7,6 +7,17 @@ from gyms.models import Gym
 
 
 class Member(models.Model):
+    class EntryMode(models.TextChoices):
+        GYM = "GYM", "Gimnasio"
+        ACTIVITY_ONLY = "ACTIVITY_ONLY", "Solo actividades"
+
+    entry_mode = models.CharField(
+        max_length=20,
+        choices=EntryMode.choices,
+        default=EntryMode.GYM,
+        verbose_name="Modo de ingreso",
+    )
+
     first_name = models.CharField(
         max_length=100,
         verbose_name="Nombre",
