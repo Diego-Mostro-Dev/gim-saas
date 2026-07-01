@@ -17,6 +17,7 @@ function ActivitySchedules() {
     schedules,
     loading,
     error,
+    featureDisabled,
     handleCreateSchedule,
     handleUpdateSchedule,
     handleDeleteSchedule,
@@ -109,6 +110,16 @@ function ActivitySchedules() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
         Cargando horarios...
+      </div>
+    );
+  }
+
+  if (featureDisabled) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 text-text-primary">
+        <p className="text-text-secondary">
+          Las actividades no están habilitadas para este gimnasio.
+        </p>
       </div>
     );
   }

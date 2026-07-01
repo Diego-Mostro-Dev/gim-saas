@@ -1,10 +1,12 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code, feature) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.feature = feature;
   }
 }
 
@@ -32,6 +34,10 @@ async function throwIfNotOk(res) {
     }
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
+    if (res.status === 403 && detail?.includes("Actividades no está habilitado")) {
+      window.dispatchEvent(new Event("features:updated"));
+      throw new ApiError(detail, 403, "FEATURE_DISABLED", "activities");
     }
     throw new ApiError(
       detail || (res.status === 401 ? "Token inválido o expirado" : "Error en la petición"),

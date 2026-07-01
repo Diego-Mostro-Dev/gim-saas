@@ -37,6 +37,7 @@ export function useActivitySchedules(activityId) {
   );
 
   const [error, setError] = useState(null);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
 
   async function loadSchedules() {
     if (!activityId) return;
@@ -56,7 +57,11 @@ export function useActivitySchedules(activityId) {
       setSchedules(enriched);
     } catch (err) {
       console.error(err);
-      setError("Error al cargar horarios");
+      if (err.code === "FEATURE_DISABLED") {
+        setFeatureDisabled(true);
+      } else {
+        setError("Error al cargar horarios");
+      }
     } finally {
       setLoading(false);
     }
@@ -106,6 +111,7 @@ export function useActivitySchedules(activityId) {
     schedules,
     loading,
     error,
+    featureDisabled,
     handleCreateSchedule,
     handleUpdateSchedule,
     handleDeleteSchedule,
