@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import useAuthStore from "./store/auth.store";
 import { ThemeProvider } from "./context/ThemeContext";
+import { FeatureProvider } from "./features/FeatureProvider";
 
 import "./index.css";
 
@@ -22,7 +23,9 @@ useAuthStore.getState().hydrate().then(() => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <BrowserRouter>
-            <App />
+            <FeatureProvider mode="admin">
+              <App />
+            </FeatureProvider>
             <Toaster position="top-center" />
           </BrowserRouter>
         </ThemeProvider>
