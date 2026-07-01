@@ -209,7 +209,7 @@ class PublicRegisterView(APIView):
                 )
 
             if not Activity.objects.filter(
-                id=activity_id, gym=gym, active=True
+                id=activity_id, service__gym=gym, active=True
             ).exists():
                 raise ValueError(
                     f"La actividad {activity_id} no existe "

@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from gyms.features import require_extras
 from gyms.models import Gym
 from members.models import Member
 from subscriptions.services import can_member_operate
@@ -19,6 +20,7 @@ class PublicMemberEnrollmentsView(APIView):
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
+        require_extras(member.gym)
 
         enrollments = Enrollment.objects.filter(
             member=member,
@@ -32,6 +34,7 @@ class PublicMemberEnrollmentsView(APIView):
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
+        require_extras(member.gym)
 
         if not can_member_operate(member):
             return Response(
@@ -70,9 +73,10 @@ class PublicGymActivitiesView(APIView):
             Gym,
             onboarding_code=gym_code,
         )
+        require_extras(gym)
 
         activities = Activity.objects.filter(
-            gym=gym,
+            service__gym=gym,
             active=True,
         ).prefetch_related("schedules")
 

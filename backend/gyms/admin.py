@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from django.conf import settings
@@ -5,15 +6,33 @@ from django.conf import settings
 from .models import Gym
 
 
-def _features_help_text() -> str:
-    lines = ["Formato: {\"feature_name\": true, \"feature_name\": false}"]
-    for name, meta in Gym.FEATURE_REGISTRY.items():
-        lines.append(f"  • {name} — {meta['label']} (default: {meta['default']})")
-    return "\n".join(lines)
+class GymAdminForm(forms.ModelForm):
+    extras = forms.BooleanField(required=False, label="Actividades extra")
+
+    class Meta:
+        model = Gym
+        exclude = ("features",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            initial = self.instance.features.get("extras", False)
+            self.fields["extras"].initial = initial
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        features = instance.features or {}
+        features["extras"] = self.cleaned_data.get("extras", False)
+        instance.features = features
+        if commit:
+            instance.save()
+        return instance
 
 
 @admin.register(Gym)
 class GymAdmin(admin.ModelAdmin):
+    form = GymAdminForm
+
     list_display = (
         "name",
         "slug",
@@ -58,10 +77,9 @@ class GymAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Feature Flags",
+            "Características",
             {
-                "fields": ("features",),
-                "description": _features_help_text(),
+                "fields": ("extras",),
             },
         ),
     ]

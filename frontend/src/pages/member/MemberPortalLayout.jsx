@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
+
+import { useGymFeatures } from "../../hooks/useGymFeatures";
 import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -161,19 +163,26 @@ function MemberPortalLayout() {
 
   const { member, gym } = routine;
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
+  const { extrasEnabled } = useGymFeatures(gym?.features);
 
-  const tabs = isActivityOnly
+  const activitiesTab = [
+    { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
+  ];
+
+  const allTabs = isActivityOnly
     ? [
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
-        { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
+        ...activitiesTab,
       ]
     : [
         { path: `/routine/${token}`, label: "Inicio", icon: Home },
         { path: `/routine/${token}/workout`, label: "Rutina", icon: Dumbbell },
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
-        { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
+        ...activitiesTab,
         { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
       ];
+
+  const tabs = extrasEnabled ? allTabs : allTabs.filter((t) => t.path !== `/routine/${token}/activities`);
 
   return (
     <div className="min-h-screen bg-surface">

@@ -9,8 +9,8 @@ from django.utils import timezone
 
 from members.models import Member
 from payments.models import Payment
-from plans.models import MembershipPlan
-from subscriptions.models import Subscription
+from plans.models import MembershipPlan, Service
+from subscriptions.models import Subscription, SubscriptionItem
 from subscriptions.services import get_last_day_of_month
 from routines.models import Exercise, RoutineTemplate, RoutineExercise, RoutineAssignment
 from attendance.models import Attendance, AttendanceSchedule, ScheduleSlot
@@ -89,10 +89,14 @@ class BaseSeeder:
             if existing.exists():
                 self.stats["plans"] = existing.count()
                 return
+
+        service = Service.get_default_for_gym(self.gym)
+
         plans = []
         for pdef in DEMO_PLANS:
             plans.append(MembershipPlan(
                 gym=self.gym,
+                service=service,
                 name=pdef["name"],
                 description=pdef["description"],
                 price=pdef["price"],
@@ -196,6 +200,18 @@ class BaseSeeder:
 
         created = Subscription.objects.bulk_create(subscriptions)
         self.stats["subscriptions"] = len(created)
+
+        SubscriptionItem.objects.bulk_create([
+            SubscriptionItem(
+                subscription=sub,
+                plan=sub.plan,
+                status="active",
+                price_snapshot=sub.plan.price,
+                start_date=sub.start_date,
+                end_date=sub.end_date,
+            )
+            for sub in created
+        ])
 
     def _seed_payments(self):
         from collections import defaultdict

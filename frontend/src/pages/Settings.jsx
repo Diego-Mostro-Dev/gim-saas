@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, QrCode, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useGym } from "../hooks/useGym";
 import { updateGym } from "../services/gym.service";
@@ -16,6 +17,7 @@ import { getCached, isCacheFresh } from "../utils/cache";
 function Settings() {
   const navigate = useNavigate();
   const { gym } = useGym();
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -247,7 +249,7 @@ function Settings() {
 
       toast.success("Configuración actualizada correctamente");
 
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ["gym"] });
     } catch (error) {
       toast.error(error.message || "No se pudo actualizar la configuración");
     } finally {

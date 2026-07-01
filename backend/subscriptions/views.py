@@ -20,6 +20,7 @@ from .services import (
     calculate_effective_date,
     cancel_future_plan_change,
     can_member_operate,
+    ensure_subscription_item,
     get_first_day_of_next_month,
     get_last_day_of_month,
 )
@@ -57,6 +58,8 @@ class SubscriptionViewSet(GymModelViewSet):
             paid=False,
             auto_renew=subscription.auto_renew,
         )
+
+        ensure_subscription_item(new_subscription)
 
         serializer = self.get_serializer(
             new_subscription
@@ -153,7 +156,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     current_sub = Subscription.objects.filter(
                         member=instance.member
                     ).order_by("-created_at").first()
-                    Subscription.objects.create(
+                    new_subscription = Subscription.objects.create(
                         gym=instance.gym,
                         member=instance.member,
                         plan=instance.requested_plan,
@@ -162,6 +165,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                         paid=False,
                         auto_renew=current_sub.auto_renew if current_sub else True,
                     )
+                    ensure_subscription_item(new_subscription)
 
                     self._synchronize_schedules(instance)
             elif new_status == "cancelled_by_staff" and instance.status == "approved":

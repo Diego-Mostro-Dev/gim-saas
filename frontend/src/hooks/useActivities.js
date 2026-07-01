@@ -38,7 +38,7 @@ export function useActivities() {
       setActivities(data);
     } catch (err) {
       console.error(err);
-      setError("Error al cargar actividades");
+      setError(err);
     } finally {
       setLoading(false);
     }

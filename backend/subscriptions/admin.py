@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Subscription, PlanChangeRequest
+from .models import Subscription, SubscriptionItem, PlanChangeRequest
 
 
 @admin.register(Subscription)
@@ -53,3 +53,25 @@ class PlanChangeRequestAdmin(admin.ModelAdmin):
         "reviewed_at",
         "reviewed_by",
     )
+
+
+@admin.register(SubscriptionItem)
+class SubscriptionItemAdmin(admin.ModelAdmin):
+    list_display = (
+        "subscription",
+        "plan",
+        "status",
+        "start_date",
+        "end_date",
+        "price_snapshot",
+    )
+
+    list_filter = ("status", "plan")
+
+    search_fields = (
+        "subscription__member__first_name",
+        "subscription__member__last_name",
+        "plan__name",
+    )
+
+    readonly_fields = ("created_at",)
