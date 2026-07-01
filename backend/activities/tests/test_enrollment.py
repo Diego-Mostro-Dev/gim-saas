@@ -14,6 +14,8 @@ from subscriptions.models import Subscription
 from subscriptions.services import get_last_day_of_month
 
 from ..models import Activity, ActivitySchedule, Enrollment
+from plans.models import Service
+from subscriptions.models import SubscriptionItem
 
 
 BASE_REST_FW = {
@@ -41,7 +43,6 @@ class ScheduleEnrollTest(TestCase):
             slug="test-activity-enroll",
             phone="123",
             email="gym@test.com",
-            features={"extra_activities": True},
         )
 
         self.user = User.objects.create_user(
@@ -53,8 +54,9 @@ class ScheduleEnrollTest(TestCase):
         self.token = Token.objects.get_or_create(user=self.user)[0]
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
+        self.service = Service.get_default_for_gym(self.gym)
         self.activity = Activity.objects.create(
-            gym=self.gym,
+            service=self.service,
             name="Yoga",
             description="Clase de yoga",
             active=True,
@@ -78,6 +80,7 @@ class ScheduleEnrollTest(TestCase):
         end = get_last_day_of_month(now().date())
         self.plan = MembershipPlan.objects.create(
             gym=self.gym,
+            service=self.service,
             name="Mensual",
             price=100,
             duration_days=30,
@@ -92,6 +95,14 @@ class ScheduleEnrollTest(TestCase):
             end_date=end,
             paid=True,
             auto_renew=True,
+        )
+        SubscriptionItem.objects.create(
+            subscription=self.sub,
+            plan=self.plan,
+            price_snapshot=self.plan.price,
+            start_date=now().date(),
+            end_date=end,
+            status="active",
         )
 
         self.enroll_url = (
@@ -179,14 +190,6 @@ class ScheduleEnrollTest(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_enroll_rejects_when_feature_disabled(self):
-        self.gym.features["extra_activities"] = False
-        self.gym.save()
-        response = self.client.post(
-            self.enroll_url, {"member_id": self.member.id}, format="json"
-        )
-        self.assertEqual(response.status_code, 403)
-
     def test_list_enrollments(self):
         Enrollment.objects.create(
             gym=self.gym,
@@ -243,7 +246,6 @@ class ScheduleUnenrollTest(TestCase):
             slug="test-activity-unenroll",
             phone="123",
             email="gym@test.com",
-            features={"extra_activities": True},
         )
 
         self.user = User.objects.create_user(
@@ -255,8 +257,9 @@ class ScheduleUnenrollTest(TestCase):
         self.token = Token.objects.get_or_create(user=self.user)[0]
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
+        self.service = Service.get_default_for_gym(self.gym)
         self.activity = Activity.objects.create(
-            gym=self.gym,
+            service=self.service,
             name="CrossFit",
             description="WOD",
             active=True,
@@ -284,6 +287,7 @@ class ScheduleUnenrollTest(TestCase):
             price=100,
             duration_days=30,
             weekly_visits=5,
+            service=self.service,
             active=True,
         )
         self.sub = Subscription.objects.create(
@@ -294,6 +298,14 @@ class ScheduleUnenrollTest(TestCase):
             end_date=end,
             paid=True,
             auto_renew=True,
+        )
+        SubscriptionItem.objects.create(
+            subscription=self.sub,
+            plan=self.plan,
+            price_snapshot=self.plan.price,
+            start_date=now().date(),
+            end_date=end,
+            status="active",
         )
 
         self.enrollment = Enrollment.objects.create(
@@ -363,14 +375,6 @@ class ScheduleUnenrollTest(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_unenroll_rejects_when_feature_disabled(self):
-        self.gym.features["extra_activities"] = False
-        self.gym.save()
-        response = self.client.post(
-            self.unenroll_url, {"member_id": self.member.id}, format="json"
-        )
-        self.assertEqual(response.status_code, 403)
-
     def test_unenroll_requires_auth(self):
         self.client.credentials()
         response = self.client.post(
@@ -408,32 +412,4 @@ class ScheduleUnenrollTest(TestCase):
         self.assertEqual(response.data["active"], True)
 
 
-@override_settings(REST_FRAMEWORK=BASE_REST_FW)
-class EnrollmentViewSetFeatureFlagTest(TestCase):
-    def setUp(self):
-        self.client = APIClient()
 
-        self.gym = Gym.objects.create(
-            name="Test Gym",
-            slug="test-ff-enrollment",
-            phone="123",
-            email="gym@test.com",
-            features={"extra_activities": False},
-        )
-
-        self.user = User.objects.create_user(
-            username="staff3", password="Pass123!"
-        )
-        self.user.profile.gym = self.gym
-        self.user.profile.save()
-
-        self.token = Token.objects.get_or_create(user=self.user)[0]
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
-
-    def test_enrollment_viewset_rejects_when_feature_disabled(self):
-        response = self.client.get("/api/activities/enrollments/")
-        self.assertEqual(response.status_code, 403)
-        self.assertIn(
-            "no están habilitadas",
-            response.data.get("detail", "").lower(),
-        )

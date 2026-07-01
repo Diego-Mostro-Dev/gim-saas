@@ -3,6 +3,7 @@ from rest_framework import serializers
 from members.models import Member
 
 from .models import Activity, ActivitySchedule, Enrollment
+from .services import ActivityService
 
 
 class MemberBasicSerializer(serializers.ModelSerializer):
@@ -16,36 +17,26 @@ class ActivitySerializer(serializers.ModelSerializer):
         model = Activity
         fields = [
             "id",
-            "gym",
+            "service",
             "name",
             "description",
             "active",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["gym", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
 
-    def validate_name(self, value):
-        gym = self._get_gym()
-        if gym is None:
-            return value
-        qs = Activity.objects.filter(name=value, gym=gym)
-        instance = getattr(self, "instance", None)
-        if instance:
-            qs = qs.exclude(id=instance.id)
-        if qs.exists():
-            raise serializers.ValidationError(
-                "Ya existe una actividad con ese nombre."
-            )
-        return value
+    def create(self, validated_data):
+        gym = validated_data.pop("gym")
+        service = validated_data.pop("service")
+        return ActivityService.create_activity(
+            gym=gym, service=service, validated_data=validated_data
+        )
 
-    def _get_gym(self):
-        gym = self.context.get("gym")
-        if gym is None:
-            request = self.context.get("request")
-            if request and hasattr(request.user, "profile"):
-                gym = request.user.profile.gym
-        return gym
+    def update(self, instance, validated_data):
+        if "service" in validated_data:
+            validated_data.pop("service")
+        return ActivityService.update_activity(instance, validated_data)
 
 
 class ActivityScheduleSerializer(serializers.ModelSerializer):
@@ -94,7 +85,7 @@ class ActivityScheduleSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             gym = request.user.profile.gym if request else None
             try:
-                return Activity.objects.get(id=activity_id, gym=gym)
+                return Activity.objects.get(id=activity_id, service__gym=gym)
             except Activity.DoesNotExist:
                 raise serializers.ValidationError("La actividad no existe.")
         if self.instance:

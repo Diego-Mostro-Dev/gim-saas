@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Max
 
 from subscriptions.models import PlanChangeRequest, Subscription
-from subscriptions.services import get_first_day_of_next_month, get_last_day_of_month
+from subscriptions.services import ensure_subscription_item, get_first_day_of_next_month, get_last_day_of_month
 
 
 class Command(BaseCommand):
@@ -70,7 +70,7 @@ class Command(BaseCommand):
             plan = approved_pcr.requested_plan if approved_pcr else sub.plan
 
             with transaction.atomic():
-                Subscription.objects.create(
+                new_sub = Subscription.objects.create(
                     gym=sub.gym,
                     member=sub.member,
                     plan=plan,
@@ -79,6 +79,7 @@ class Command(BaseCommand):
                     paid=False,
                     auto_renew=sub.auto_renew,
                 )
+                ensure_subscription_item(new_sub)
             renewed += 1
 
         self.stdout.write(f"Created: {renewed}")

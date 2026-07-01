@@ -118,6 +118,21 @@ function Activities() {
     );
   }
 
+  if (error?.status === 403) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 text-center">
+        <div className="rounded-xl bg-surface-elevated p-8 shadow-sm max-w-md">
+          <h1 className="text-2xl font-bold text-text-primary mb-2">
+            Módulo desactivado
+          </h1>
+          <p className="text-text-secondary">
+            El módulo de actividades extra no está habilitado para este gimnasio.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       {/* HEADER */}
@@ -161,7 +176,7 @@ function Activities() {
       {/* ERROR */}
       {error && (
         <div className="mb-4 rounded-xl border border-danger/20 bg-danger-bg p-4 text-sm text-danger-text dark:bg-danger/10 dark:text-danger">
-          {error}
+          {error?.message || error}
         </div>
       )}
 

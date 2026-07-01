@@ -3,6 +3,7 @@ from django.db.models import Q
 from django.db.models import UniqueConstraint, CheckConstraint
 from gyms.models import Gym
 from members.models import Member
+from plans.models import Service
 
 
 DAY_CHOICES = [
@@ -16,11 +17,11 @@ DAY_CHOICES = [
 
 
 class Activity(models.Model):
-    gym = models.ForeignKey(
-        Gym,
-        on_delete=models.CASCADE,
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.PROTECT,
         related_name="activities",
-        verbose_name="Gimnasio",
+        verbose_name="Servicio",
     )
     name = models.CharField(max_length=100, verbose_name="Nombre")
     description = models.TextField(blank=True, verbose_name="Descripción")
@@ -31,11 +32,11 @@ class Activity(models.Model):
     class Meta:
         verbose_name = "Actividad"
         verbose_name_plural = "Actividades"
-        unique_together = ("gym", "name")
+        unique_together = ("service", "name")
         ordering = ["name"]
 
     def __str__(self):
-        return f"{self.name} ({self.gym.name})"
+        return f"{self.name} ({self.service.gym.name})"
 
 
 class ActivitySchedule(models.Model):

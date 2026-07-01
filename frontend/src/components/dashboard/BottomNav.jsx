@@ -17,8 +17,10 @@ import { NavLink } from "react-router-dom";
 import { useScheduleChangeData } from "../../hooks/useScheduleChangeData";
 import { useScheduleSwapData } from "../../hooks/useScheduleSwapData";
 import { usePlanChangeData } from "../../hooks/usePlanChangeData";
+import { useGymFeatures } from "../../hooks/useGymFeatures";
 
 function BottomNav() {
+  const { extrasEnabled } = useGymFeatures();
   const { pendingCount } = useScheduleChangeData();
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
   const { pendingCount: planPendingCount } = usePlanChangeData();
@@ -57,16 +59,18 @@ function BottomNav() {
         <span className="text-xs">Asistencia</span>
       </NavLink>
 
-      <NavLink
-        to="/activities"
-        className={({ isActive }) =>
-          `${baseClass} ${isActive ? activeClass : inactiveClass}`
-        }
-      >
-        <Activity size={20} />
+      {extrasEnabled && (
+        <NavLink
+          to="/activities"
+          className={({ isActive }) =>
+            `${baseClass} ${isActive ? activeClass : inactiveClass}`
+          }
+        >
+          <Activity size={20} />
 
-        <span className="text-xs">Actividades</span>
-      </NavLink>
+          <span className="text-xs">Actividades</span>
+        </NavLink>
+      )}
 
       <NavLink
         to="/attendance-analytics"

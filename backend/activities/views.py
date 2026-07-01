@@ -7,30 +7,34 @@ from rest_framework.response import Response
 
 from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
+from gyms.features import require_extras
 from members.models import Member
-from subscriptions.services import can_member_operate
 
+from .enrollment_service import EnrollmentError, EnrollmentService
 from .models import Activity, ActivitySchedule, Enrollment
 from .serializers import (
     ActivitySerializer,
     ActivityScheduleSerializer,
     EnrollmentSerializer,
 )
-from .services import validate_enrollment
 
 
-class ActivityViewSet(GymModelViewSet):
+class ActivitiesGuardMixin:
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        require_extras(self.get_gym())
+
+
+class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
     ordering = ["name"]
 
-    def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
-        if not self.get_gym().has_feature("extra_activities"):
-            self.permission_denied(
-                request,
-                message="Las actividades extra no están habilitadas para este gimnasio.",
-            )
+    def get_queryset(self):
+        return Activity.objects.filter(service__gym=self.get_gym())
+
+    def perform_create(self, serializer):
+        serializer.save(gym=self.get_gym())
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -47,17 +51,9 @@ class ActivityViewSet(GymModelViewSet):
             )
 
 
-class ActivityScheduleViewSet(viewsets.ModelViewSet):
+class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
     queryset = ActivitySchedule.objects.all()
     serializer_class = ActivityScheduleSerializer
-
-    def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
-        if not self.get_gym().has_feature("extra_activities"):
-            self.permission_denied(
-                request,
-                message="Las actividades extra no están habilitadas para este gimnasio.",
-            )
 
     def get_gym(self):
         user = self.request.user
@@ -67,7 +63,7 @@ class ActivityScheduleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         gym = self.get_gym()
-        qs = ActivitySchedule.objects.filter(activity__gym=gym)
+        qs = ActivitySchedule.objects.filter(activity__service__gym=gym)
         activity_id = self.kwargs.get("activity_id")
         if activity_id:
             qs = qs.filter(activity_id=activity_id)
@@ -76,7 +72,7 @@ class ActivityScheduleViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         gym = self.get_gym()
         activity_id = self.kwargs.get("activity_id")
-        activity = get_object_or_404(Activity, id=activity_id, gym=gym)
+        activity = get_object_or_404(Activity, id=activity_id, service__gym=gym)
         serializer.save(activity=activity)
 
     def destroy(self, request, *args, **kwargs):
@@ -94,38 +90,22 @@ class ActivityScheduleViewSet(viewsets.ModelViewSet):
             )
 
 
-class EnrollmentViewSet(GymModelViewSet):
+class EnrollmentViewSet(ActivitiesGuardMixin, GymModelViewSet):
     queryset = Enrollment.objects.all()
     serializer_class = EnrollmentSerializer
 
-    def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
-        if not self.get_gym().has_feature("extra_activities"):
-            self.permission_denied(
-                request,
-                message="Las actividades extra no están habilitadas para este gimnasio.",
-            )
 
-
-class ScheduleEnrollmentViewSet(GymQuerysetMixin, viewsets.GenericViewSet):
+class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.GenericViewSet):
     queryset = Enrollment.objects.all()
     serializer_class = EnrollmentSerializer
     ordering = ["-enrolled_at"]
-
-    def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
-        if not self.get_gym().has_feature("extra_activities"):
-            self.permission_denied(
-                request,
-                message="Las actividades extra no están habilitadas para este gimnasio.",
-            )
 
     def get_queryset(self):
         gym = self.get_gym()
         schedule = get_object_or_404(
             ActivitySchedule,
             id=self.kwargs["schedule_id"],
-            activity__gym=gym,
+            activity__service__gym=gym,
         )
         return Enrollment.objects.filter(
             gym=gym,
@@ -146,7 +126,7 @@ class ScheduleEnrollmentViewSet(GymQuerysetMixin, viewsets.GenericViewSet):
         schedule = get_object_or_404(
             ActivitySchedule,
             id=self.kwargs["schedule_id"],
-            activity__gym=gym,
+            activity__service__gym=gym,
             activity__active=True,
         )
 
@@ -159,43 +139,13 @@ class ScheduleEnrollmentViewSet(GymQuerysetMixin, viewsets.GenericViewSet):
 
         member = get_object_or_404(Member, id=member_id, gym=gym)
 
-        if not can_member_operate(member):
-            return Response(
-                {"detail": "El miembro no puede operar."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        active_count = Enrollment.objects.filter(
-            gym=gym, schedule=schedule, active=True
-        ).count()
-        if active_count >= schedule.capacity:
-            return Response(
-                {"detail": "El horario alcanzó su capacidad máxima."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if Enrollment.objects.filter(
-            gym=gym, member=member, schedule=schedule, active=True
-        ).exists():
-            return Response(
-                {"detail": "El miembro ya está inscripto en este horario."},
-                status=status.HTTP_409_CONFLICT,
-            )
-
         try:
-            validate_enrollment(member, schedule)
-        except ValueError as e:
+            enrollment = EnrollmentService.enroll_member(member, schedule)
+        except EnrollmentError as e:
             return Response(
                 {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=e.status_code,
             )
-
-        enrollment = Enrollment.objects.create(
-            gym=gym,
-            member=member,
-            schedule=schedule,
-            active=True,
-        )
 
         serializer = self.get_serializer(enrollment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -205,7 +155,7 @@ class ScheduleEnrollmentViewSet(GymQuerysetMixin, viewsets.GenericViewSet):
         schedule = get_object_or_404(
             ActivitySchedule,
             id=self.kwargs["schedule_id"],
-            activity__gym=gym,
+            activity__service__gym=gym,
         )
 
         member_id = request.data.get("member_id")
@@ -217,16 +167,13 @@ class ScheduleEnrollmentViewSet(GymQuerysetMixin, viewsets.GenericViewSet):
 
         member = get_object_or_404(Member, id=member_id, gym=gym)
 
-        enrollment = get_object_or_404(
-            Enrollment,
-            gym=gym,
-            member=member,
-            schedule=schedule,
-            active=True,
-        )
-
-        enrollment.active = False
-        enrollment.save(update_fields=["active"])
+        try:
+            enrollment = EnrollmentService.unenroll_member(member, schedule)
+        except EnrollmentError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
 
         serializer = self.get_serializer(enrollment)
         return Response(serializer.data, status=status.HTTP_200_OK)

@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from attendance.models import AttendanceSchedule, ScheduleSlot
 from subscriptions.models import MembershipPlan, Subscription
-from subscriptions.services import get_last_day_of_month, get_member_schedule_limit, get_member_active_schedule_count
+from subscriptions.services import get_last_day_of_month, get_member_schedule_limit, get_member_active_schedule_count, ensure_subscription_item
 
 from .models import Member
 
@@ -232,7 +232,7 @@ class MemberSerializer(serializers.ModelSerializer):
                 plan = MembershipPlan.objects.get(id=plan_id, gym=member.gym)
                 today = date.today()
                 end_date = get_last_day_of_month(today)
-                Subscription.objects.create(
+                sub = Subscription.objects.create(
                     gym=member.gym,
                     member=member,
                     plan=plan,
@@ -241,6 +241,7 @@ class MemberSerializer(serializers.ModelSerializer):
                     paid=False,
                     auto_renew=True,
                 )
+                ensure_subscription_item(sub)
 
         return member
 

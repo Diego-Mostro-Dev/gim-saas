@@ -1,64 +1,34 @@
-from datetime import datetime, timedelta
-
-from attendance.models import AttendanceSchedule
-from .models import Enrollment
+from .models import Activity
 
 
-def validate_enrollment(member, schedule):
-    active_gym_schedules = list(
-        AttendanceSchedule.objects.filter(
-            member=member, active=True
-        ).select_related("slot")
-    )
+class ActivityService:
+    @staticmethod
+    def create_activity(gym, service, validated_data):
+        if service.gym_id != gym.id:
+            raise ValueError("El servicio no pertenece a este gimnasio.")
+        _validate_name_unique(gym, validated_data.get("name"), exclude_id=None)
+        return Activity.objects.create(service=service, **validated_data)
 
-    if active_gym_schedules:
-        _check_gym_schedule_overlap(active_gym_schedules, schedule)
-
-    _check_activity_overlap(member, schedule)
-
-
-def _check_gym_schedule_overlap(active_gym_schedules, target_schedule):
-    for gs in active_gym_schedules:
-        if gs.slot.day != target_schedule.day:
-            continue
-
-        gym_start = gs.slot.hour
-        gym_end = _add_hour(gs.slot.hour)
-
-        if _times_overlap(
-            gym_start, gym_end,
-            target_schedule.start_time, target_schedule.end_time,
-        ):
-            raise ValueError(
-                "El miembro tiene un horario fijo del gimnasio que se superpone "
-                "con el horario de esta actividad."
-            )
+    @staticmethod
+    def update_activity(activity, validated_data):
+        gym = activity.service.gym
+        if "name" in validated_data:
+            _validate_name_unique(gym, validated_data["name"], exclude_id=activity.id)
+        if "service" in validated_data:
+            service = validated_data["service"]
+            if service.gym_id != gym.id:
+                raise ValueError("El servicio no pertenece a este gimnasio.")
+        for key, value in validated_data.items():
+            setattr(activity, key, value)
+        activity.save(update_fields=validated_data.keys())
+        return activity
 
 
-def _check_activity_overlap(member, target_schedule):
-    overlapping = Enrollment.objects.filter(
-        gym=member.gym,
-        member=member,
-        active=True,
-        schedule__day=target_schedule.day,
-    ).exclude(schedule=target_schedule).select_related("schedule")
-
-    for enrollment in overlapping:
-        existing = enrollment.schedule
-        if _times_overlap(
-            existing.start_time, existing.end_time,
-            target_schedule.start_time, target_schedule.end_time,
-        ):
-            raise ValueError(
-                "El miembro ya está inscripto en una actividad cuyo horario "
-                "se superpone con esta actividad."
-            )
-
-
-def _times_overlap(start_a, end_a, start_b, end_b):
-    return start_a < end_b and start_b < end_a
-
-
-def _add_hour(t):
-    dt = datetime.combine(datetime.today(), t) + timedelta(hours=1)
-    return dt.time()
+def _validate_name_unique(gym, name, exclude_id=None):
+    if name is None:
+        return
+    qs = Activity.objects.filter(name=name, service__gym=gym)
+    if exclude_id is not None:
+        qs = qs.exclude(id=exclude_id)
+    if qs.exists():
+        raise ValueError("Ya existe una actividad con ese nombre.")

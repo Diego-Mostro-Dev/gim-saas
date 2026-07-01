@@ -6,7 +6,20 @@ from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
 
-from .models import PlanChangeRequest, Subscription, PlannedSchedule
+from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSchedule
+
+
+def ensure_subscription_item(subscription):
+    SubscriptionItem.objects.update_or_create(
+        subscription=subscription,
+        defaults={
+            "plan": subscription.plan,
+            "status": "active",
+            "price_snapshot": subscription.plan.price,
+            "start_date": subscription.start_date,
+            "end_date": subscription.end_date,
+        },
+    )
 
 
 def get_subscription_payment_status(subscription):
@@ -37,9 +50,20 @@ def can_member_operate(member):
         .first()
     )
     if not subscription:
-        return True
+        return False
     status = get_subscription_payment_status(subscription)
     return status not in ("blocked", "initial_pending")
+
+
+def member_has_active_subscription_for_service(member, service):
+    now = timezone.localdate()
+    return SubscriptionItem.objects.filter(
+        subscription__member=member,
+        plan__service=service,
+        status="active",
+        subscription__start_date__lte=now,
+        subscription__end_date__gte=now,
+    ).exists()
 
 
 def get_last_day_of_month(d):

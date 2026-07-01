@@ -133,6 +133,60 @@ class PlanChangeRequest(models.Model):
         )
 
 
+class SubscriptionItem(models.Model):
+    STATUS_CHOICES = [
+        ("active", "Activo"),
+        ("cancelled", "Cancelado"),
+        ("expired", "Vencido"),
+    ]
+
+    subscription = models.ForeignKey(
+        Subscription,
+        on_delete=models.CASCADE,
+        related_name="items",
+        verbose_name="Suscripción",
+    )
+
+    plan = models.ForeignKey(
+        MembershipPlan,
+        on_delete=models.PROTECT,
+        related_name="subscription_items",
+        verbose_name="Plan",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="active",
+        verbose_name="Estado",
+    )
+
+    price_snapshot = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Precio al momento de contratación",
+    )
+
+    start_date = models.DateField(verbose_name="Fecha de inicio")
+    end_date = models.DateField(verbose_name="Fecha de vencimiento")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+
+    class Meta:
+        verbose_name = "Item de suscripción"
+        verbose_name_plural = "Items de suscripción"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subscription", "plan"],
+                condition=Q(status="active"),
+                name="unique_active_item_per_subscription",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.subscription.member} — {self.plan.name} ({self.status})"
+
+
 class PlannedSchedule(models.Model):
     gym = models.ForeignKey(
         Gym,
