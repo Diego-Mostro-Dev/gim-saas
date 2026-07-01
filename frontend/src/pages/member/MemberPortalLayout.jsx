@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 
 import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
-import { FeatureProvider, useFeature } from "../../features/FeatureProvider";
+import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import toast from "react-hot-toast";
 
 import {
@@ -162,7 +162,7 @@ function MemberPortalLayout() {
   }
 
   return (
-    <FeatureProvider mode="public" initialFeatures={routine?.gym?.features}>
+    <FeatureProvider mode="public" initialFeatures={routine?.gym?.features} onRefreshFeatures={refreshRoutine}>
       <MemberPortalLayoutContent
         routine={routine}
         token={token}
@@ -204,6 +204,28 @@ function MemberPortalLayoutContent({
   const { member, gym } = routine;
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
   const activitiesEnabled = useFeature("activities");
+  const { features } = useContext(FeatureContext);
+
+  const routeFeatureMap = {
+    [`/routine/${token}/activities`]: "activities",
+  };
+  const homeRoute = `/routine/${token}`;
+
+  // Pre-render guard: prevent flash of disabled feature content
+  const featureKey = routeFeatureMap[location.pathname];
+  if (featureKey && Object.keys(features).length > 0 && features[featureKey] === false) {
+    navigate(homeRoute, { replace: true });
+    return null;
+  }
+
+  useEffect(() => {
+    const featureName = routeFeatureMap[location.pathname];
+    if (!featureName) return;
+    if (Object.keys(features).length === 0) return;
+    if (features[featureName] === false) {
+      navigate(homeRoute, { replace: true });
+    }
+  }, [location.pathname, features, navigate]);
 
   const activitiesTab = [
     { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },

@@ -10,7 +10,7 @@ export async function getGym() {
 export async function updateGym(data) {
   const isFormData = data instanceof FormData;
 
-  return apiFetch("/api/gyms/me/", {
+  const result = await apiFetch("/api/gyms/me/", {
     method: "PATCH",
     body: isFormData ? data : JSON.stringify(data),
     headers: isFormData
@@ -19,4 +19,6 @@ export async function updateGym(data) {
           "Content-Type": "application/json",
         },
   });
+  window.dispatchEvent(new Event("features:updated"));
+  return result;
 }

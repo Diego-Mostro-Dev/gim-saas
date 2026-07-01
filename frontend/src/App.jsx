@@ -29,6 +29,7 @@ import AttendanceAnalytics from "./pages/AttendanceAnalytics";
 import Activities from "./pages/Activities";
 import ActivitySchedules from "./pages/ActivitySchedules";
 import ScheduleEnrollments from "./pages/ScheduleEnrollments";
+import ProtectedFeature from "./features/ProtectedFeature";
 
 function App() {
   return (
@@ -72,7 +73,7 @@ function App() {
         <Route path="/schedule-swap-requests" element={<ScheduleSwapRequests />} />
         <Route path="/plan-change-requests" element={<PlanChangeRequests />} />
         <Route path="/attendance-analytics" element={<AttendanceAnalytics />} />
-        <Route path="/activities" element={<Activities />} />
+        <Route path="/activities" element={<ProtectedFeature feature="activities"><Activities /></ProtectedFeature>} />
         <Route path="/activities/:activityId/schedules" element={<ActivitySchedules />} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ScheduleEnrollments />} />
       </Route>
