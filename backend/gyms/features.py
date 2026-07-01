@@ -1,8 +1,8 @@
 from django.core.exceptions import PermissionDenied
 
-FEATURE_EXTRAS = "extras"
+FEATURE_ACTIVITIES = "activities"
 
 
-def require_extras(gym):
-    if not gym.features.get(FEATURE_EXTRAS, False):
-        raise PermissionDenied("Extras no está habilitado para este gimnasio.")
+def require_activities(gym):
+    if not gym.features.get(FEATURE_ACTIVITIES, False):
+        raise PermissionDenied("Actividades no está habilitado para este gimnasio.")

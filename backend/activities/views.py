@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
-from gyms.features import require_extras
+from gyms.features import require_activities
 from members.models import Member
 
 from .enrollment_service import EnrollmentError, EnrollmentService
@@ -22,7 +22,7 @@ from .serializers import (
 class ActivitiesGuardMixin:
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
-        require_extras(self.get_gym())
+        require_activities(self.get_gym())
 
 
 class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):

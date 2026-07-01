@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 
-import { useGymFeatures } from "../../hooks/useGymFeatures";
 import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
+import { FeatureProvider, useFeature } from "../../features/FeatureProvider";
 import toast from "react-hot-toast";
 
 import {
@@ -161,9 +161,49 @@ function MemberPortalLayout() {
     );
   }
 
+  return (
+    <FeatureProvider mode="public" initialFeatures={routine?.gym?.features}>
+      <MemberPortalLayoutContent
+        routine={routine}
+        token={token}
+        location={location}
+        navigate={navigate}
+        photoFile={photoFile}
+        preview={preview}
+        uploadingPhoto={uploadingPhoto}
+        setPhotoFile={setPhotoFile}
+        setPreview={setPreview}
+        handlePhotoUpload={handlePhotoUpload}
+        slots={slots}
+        changeRequests={changeRequests}
+        swapRequests={swapRequests}
+        planChangeRequests={planChangeRequests}
+        refreshRoutine={refreshRoutine}
+      />
+    </FeatureProvider>
+  );
+}
+
+function MemberPortalLayoutContent({
+  routine,
+  token,
+  location,
+  navigate,
+  photoFile,
+  preview,
+  uploadingPhoto,
+  setPhotoFile,
+  setPreview,
+  handlePhotoUpload,
+  slots,
+  changeRequests,
+  swapRequests,
+  planChangeRequests,
+  refreshRoutine,
+}) {
   const { member, gym } = routine;
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
-  const { extrasEnabled } = useGymFeatures(gym?.features);
+  const activitiesEnabled = useFeature("activities");
 
   const activitiesTab = [
     { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
@@ -182,7 +222,7 @@ function MemberPortalLayout() {
         { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
       ];
 
-  const tabs = extrasEnabled ? allTabs : allTabs.filter((t) => t.path !== `/routine/${token}/activities`);
+  const tabs = activitiesEnabled ? allTabs : allTabs.filter((t) => t.path !== `/routine/${token}/activities`);
 
   return (
     <div className="min-h-screen bg-surface">

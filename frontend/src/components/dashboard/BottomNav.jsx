@@ -17,10 +17,10 @@ import { NavLink } from "react-router-dom";
 import { useScheduleChangeData } from "../../hooks/useScheduleChangeData";
 import { useScheduleSwapData } from "../../hooks/useScheduleSwapData";
 import { usePlanChangeData } from "../../hooks/usePlanChangeData";
-import { useGymFeatures } from "../../hooks/useGymFeatures";
+import { useFeature } from "../../hooks/useFeature";
 
 function BottomNav() {
-  const { extrasEnabled } = useGymFeatures();
+  const activitiesEnabled = useFeature("activities");
   const { pendingCount } = useScheduleChangeData();
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
   const { pendingCount: planPendingCount } = usePlanChangeData();
@@ -59,7 +59,7 @@ function BottomNav() {
         <span className="text-xs">Asistencia</span>
       </NavLink>
 
-      {extrasEnabled && (
+      {activitiesEnabled && (
         <NavLink
           to="/activities"
           className={({ isActive }) =>

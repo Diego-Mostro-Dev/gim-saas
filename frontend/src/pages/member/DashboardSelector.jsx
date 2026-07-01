@@ -1,15 +1,15 @@
 import { useOutletContext } from "react-router-dom";
 
-import { useGymFeatures } from "../../hooks/useGymFeatures";
+import { useFeature } from "../../hooks/useFeature";
 import GymDashboard from "./GymDashboard";
 import ActivityDashboard from "./ActivityDashboard";
 
 function DashboardSelector() {
   const { routine } = useOutletContext();
   const isActivityOnly = routine?.member?.entry_mode === "ACTIVITY_ONLY";
-  const { extrasEnabled } = useGymFeatures(routine?.gym?.features);
+  const activitiesEnabled = useFeature("activities");
 
-  if (isActivityOnly && extrasEnabled) {
+  if (isActivityOnly && activitiesEnabled) {
     return <ActivityDashboard />;
   }
 
