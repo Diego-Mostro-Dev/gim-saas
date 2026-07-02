@@ -8,6 +8,7 @@ import App from "./App";
 import useAuthStore from "./store/auth.store";
 import { ThemeProvider } from "./context/ThemeContext";
 import { FeatureProvider } from "./features/FeatureProvider";
+import { registerSW } from "virtual:pwa-register";
 
 import "./index.css";
 
@@ -32,4 +33,6 @@ useAuthStore.getState().hydrate().then(() => {
       </QueryClientProvider>
     </React.StrictMode>,
   );
+
+  registerSW();
 });
