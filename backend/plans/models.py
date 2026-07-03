@@ -37,6 +37,19 @@ class Service(models.Model):
         )
         return service
 
+    @classmethod
+    def get_default_activities_service(cls, gym):
+        service, _ = cls.objects.get_or_create(
+            gym=gym,
+            slug="activities",
+            defaults={
+                "name": "Activities",
+                "description": "Default service for gym activities",
+                "active": True,
+            },
+        )
+        return service
+
 
 class MembershipPlan(models.Model):
     gym = models.ForeignKey(

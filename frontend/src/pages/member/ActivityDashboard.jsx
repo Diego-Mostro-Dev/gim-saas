@@ -17,7 +17,7 @@ function ActivityDashboard() {
 
   const { member, gym, last_payment } = routine;
 
-  const activeEnrollments = enrollments.filter((e) => e.active !== false);
+  const activeEnrollments = enrollments.filter((e) => e.active !== false && e.activity_active !== false && e.schedule_active !== false);
 
   const upcomingActivities = (() => {
     if (!activeEnrollments.length) return [];

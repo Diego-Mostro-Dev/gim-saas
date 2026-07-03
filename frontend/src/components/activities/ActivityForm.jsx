@@ -5,6 +5,7 @@ function ActivityForm({
   onCancel,
   isSubmitting,
   editingActivity,
+  errors,
 }) {
   return (
     <form
@@ -31,6 +32,9 @@ function ActivityForm({
           className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring"
           required
         />
+        {errors?.name && (
+          <p className="mt-1 text-sm text-danger-text">{errors.name}</p>
+        )}
       </div>
 
       <div>

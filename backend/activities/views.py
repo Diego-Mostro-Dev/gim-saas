@@ -1,8 +1,8 @@
 from django.core.exceptions import PermissionDenied
-from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.mixins import GymQuerysetMixin
@@ -31,24 +31,36 @@ class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):
     ordering = ["name"]
 
     def get_queryset(self):
-        return Activity.objects.filter(service__gym=self.get_gym())
+        qs = Activity.objects.filter(service__gym=self.get_gym())
+        if self.action == "list":
+            active = self.request.query_params.get("active")
+            if active is not None:
+                active = active.lower() in ("true", "1", "yes")
+                qs = qs.filter(active=active)
+            else:
+                qs = qs.filter(active=True)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(gym=self.get_gym())
 
     def destroy(self, request, *args, **kwargs):
-        try:
-            return super().destroy(request, *args, **kwargs)
-        except ProtectedError:
-            return Response(
-                {
-                    "detail": (
-                        "No se puede eliminar la actividad porque tiene "
-                        "horarios con inscripciones activas."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        activity = self.get_object()
+        activity.active = False
+        activity.save(update_fields=["active"])
+        activity.schedules.all().update(active=False)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    def reactivate(self, request, pk=None):
+        activity = self.get_object()
+
+        activity.active = True
+        activity.save(update_fields=["active"])
+        ActivitySchedule.objects.filter(activity=activity).update(active=True)
+
+        serializer = self.get_serializer(activity)
+        return Response(serializer.data)
 
 
 class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
@@ -64,6 +76,13 @@ class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         gym = self.get_gym()
         qs = ActivitySchedule.objects.filter(activity__service__gym=gym)
+        if self.action == "list":
+            active = self.request.query_params.get("active")
+            if active is not None:
+                active = active.lower() in ("true", "1", "yes")
+                qs = qs.filter(active=active)
+            else:
+                qs = qs.filter(active=True)
         activity_id = self.kwargs.get("activity_id")
         if activity_id:
             qs = qs.filter(activity_id=activity_id)
@@ -73,21 +92,24 @@ class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
         gym = self.get_gym()
         activity_id = self.kwargs.get("activity_id")
         activity = get_object_or_404(Activity, id=activity_id, service__gym=gym)
-        serializer.save(activity=activity)
+        schedule = serializer.save(activity=activity)
+
+        if not activity.active and schedule.active and activity.schedules.filter(active=True).count() >= 1:
+            activity.active = True
+            activity.save(update_fields=["active"])
 
     def destroy(self, request, *args, **kwargs):
-        try:
-            return super().destroy(request, *args, **kwargs)
-        except ProtectedError:
+        schedule = self.get_object()
+        if schedule.activity.active and ActivitySchedule.objects.filter(
+            activity=schedule.activity, active=True
+        ).count() <= 1:
             return Response(
-                {
-                    "detail": (
-                        "No se puede eliminar el horario porque tiene "
-                        "inscripciones."
-                    )
-                },
+                {"detail": "No se puede desactivar el único horario activo de la actividad."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        schedule.active = False
+        schedule.save(update_fields=["active"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EnrollmentViewSet(ActivitiesGuardMixin, GymModelViewSet):
@@ -127,6 +149,7 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
             ActivitySchedule,
             id=self.kwargs["schedule_id"],
             activity__service__gym=gym,
+            active=True,
             activity__active=True,
         )
 

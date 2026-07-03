@@ -1,10 +1,9 @@
-import { Pencil, Trash2, Clock } from "lucide-react";
+import { Pencil, Clock, Power, ToggleLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 function ActivityCard({
   activity,
   onEdit,
-  onDelete,
   onToggleActive,
 }) {
   const navigate = useNavigate();
@@ -45,15 +44,6 @@ function ActivityCard({
           >
             <Pencil size={16} />
           </button>
-
-          <button
-            onClick={() => onDelete(activity.id)}
-            className="rounded-lg bg-danger-bg p-3 text-danger-text transition hover:bg-danger-bg dark:bg-danger/15 dark:text-danger"
-            title="Eliminar actividad"
-            aria-label="Eliminar actividad"
-          >
-            <Trash2 size={16} />
-          </button>
         </div>
       </div>
 
@@ -73,6 +63,7 @@ function ActivityCard({
           }`}
           aria-label={activity.active ? "Desactivar actividad" : "Activar actividad"}
         >
+          {activity.active ? <ToggleLeft size={14} /> : <Power size={14} />}
           {activity.active ? "Desactivar" : "Activar"}
         </button>
       </div>

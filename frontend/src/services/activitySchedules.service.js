@@ -27,3 +27,7 @@ export async function deleteActivitySchedule(id) {
     method: "DELETE",
   });
 }
+
+export async function getInactiveSchedules(activityId) {
+  return apiFetch(`/api/activities/${activityId}/schedules/?active=false`);
+}

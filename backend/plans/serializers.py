@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import MembershipPlan
+from .models import MembershipPlan, Service
+
+
+class ServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Service
+        fields = ["id", "name", "slug", "description", "active"]
 
 
 class MembershipPlanSerializer(serializers.ModelSerializer):

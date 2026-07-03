@@ -84,6 +84,18 @@ export function useActivities() {
     }
   }
 
+  function handleSetActivity(activity) {
+    setActivities((prev) => {
+      const idx = prev.findIndex((a) => a.id === activity.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = activity;
+        return next;
+      }
+      return [activity, ...prev];
+    });
+  }
+
   async function handleDeleteActivity(id) {
     try {
       await deleteActivity(id);
@@ -103,6 +115,7 @@ export function useActivities() {
     handleCreateActivity,
     handleUpdateActivity,
     handleToggleActive,
+    handleSetActivity,
     handleDeleteActivity,
   };
 }

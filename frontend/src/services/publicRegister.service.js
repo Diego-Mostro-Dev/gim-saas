@@ -49,3 +49,15 @@ export async function getPublicPlans(gymCode) {
 
   return response.json();
 }
+
+export async function getPublicActivities(gymCode) {
+  const response = await fetch(
+    `${API_PUBLIC}/activities/${gymCode}/`,
+  );
+
+  if (!response.ok) {
+    throw new Error("Error al cargar actividades disponibles");
+  }
+
+  return response.json();
+}

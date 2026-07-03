@@ -37,3 +37,14 @@ export async function deleteActivity(id) {
     method: "DELETE",
   });
 }
+
+export async function getInactiveActivities() {
+  return apiFetch("/api/activities/activities/?active=false");
+}
+
+export async function reactivateActivity(id, restoreSchedules = true) {
+  return apiFetch(`/api/activities/activities/${id}/reactivate/`, {
+    method: "POST",
+    body: JSON.stringify({ restore_schedules: restoreSchedules }),
+  });
+}

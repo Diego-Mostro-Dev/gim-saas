@@ -50,6 +50,7 @@ class ActivitySchedule(models.Model):
     start_time = models.TimeField(verbose_name="Hora inicio")
     end_time = models.TimeField(verbose_name="Hora fin")
     capacity = models.PositiveIntegerField(verbose_name="Capacidad")
+    active = models.BooleanField(default=True, verbose_name="Activo")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado")
 

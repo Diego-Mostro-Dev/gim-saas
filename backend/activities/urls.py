@@ -8,7 +8,11 @@ from .views import (
     EnrollmentViewSet,
     ScheduleEnrollmentViewSet,
 )
-from .public_views import PublicMemberEnrollmentsView
+from .public_views import (
+    PublicMemberEnrollmentsView,
+    PublicAvailableActivitiesView,
+    PublicMemberEnrollView,
+)
 
 
 router = DefaultRouter()
@@ -49,5 +53,15 @@ urlpatterns = [
         "public/<str:token>/",
         PublicMemberEnrollmentsView.as_view(),
         name="public-member-enrollments",
+    ),
+    path(
+        "public/<str:token>/available/",
+        PublicAvailableActivitiesView.as_view(),
+        name="public-available-activities",
+    ),
+    path(
+        "public/<str:token>/enroll/",
+        PublicMemberEnrollView.as_view(),
+        name="public-member-enroll",
     ),
 ] + router.urls

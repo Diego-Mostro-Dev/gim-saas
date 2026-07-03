@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from members.models import Member
+from plans.models import Service as PlanService
 
 from .models import Activity, ActivitySchedule, Enrollment
 from .services import ActivityService
@@ -13,6 +14,12 @@ class MemberBasicSerializer(serializers.ModelSerializer):
 
 
 class ActivitySerializer(serializers.ModelSerializer):
+    service = serializers.PrimaryKeyRelatedField(
+        queryset=PlanService.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = Activity
         fields = [
@@ -25,17 +32,22 @@ class ActivitySerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+        validators = []
 
     def create(self, validated_data):
         gym = validated_data.pop("gym")
-        service = validated_data.pop("service")
+        service = validated_data.pop("service", None)
+        if service is None:
+            service = PlanService.get_default_activities_service(gym)
         return ActivityService.create_activity(
             gym=gym, service=service, validated_data=validated_data
         )
 
     def update(self, instance, validated_data):
-        if "service" in validated_data:
-            validated_data.pop("service")
+        if validated_data.get("active") is True and not instance.schedules.filter(active=True).exists():
+            raise serializers.ValidationError(
+                {"active": "La actividad debe tener al menos un horario activo."}
+            )
         return ActivityService.update_activity(instance, validated_data)
 
 
@@ -49,6 +61,7 @@ class ActivityScheduleSerializer(serializers.ModelSerializer):
             "start_time",
             "end_time",
             "capacity",
+            "active",
             "created_at",
             "updated_at",
         ]
@@ -93,7 +106,7 @@ class ActivityScheduleSerializer(serializers.ModelSerializer):
         return None
 
     def _validate_no_overlap(self, activity, day, start_time, end_time):
-        qs = ActivitySchedule.objects.filter(activity=activity, day=day)
+        qs = ActivitySchedule.objects.filter(activity=activity, day=day, active=True)
         if self.instance:
             qs = qs.exclude(id=self.instance.id)
         for existing in qs:
@@ -123,6 +136,8 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 class PublicEnrollmentSerializer(serializers.ModelSerializer):
     activity_name = serializers.CharField(source="schedule.activity.name", read_only=True)
     activity_id = serializers.IntegerField(source="schedule.activity_id", read_only=True)
+    activity_active = serializers.BooleanField(source="schedule.activity.active", read_only=True)
+    schedule_active = serializers.BooleanField(source="schedule.active", read_only=True)
     day = serializers.CharField(source="schedule.day", read_only=True)
     start_time = serializers.TimeField(source="schedule.start_time", read_only=True)
     end_time = serializers.TimeField(source="schedule.end_time", read_only=True)
@@ -133,6 +148,8 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
             "id",
             "activity_name",
             "activity_id",
+            "activity_active",
+            "schedule_active",
             "schedule",
             "day",
             "start_time",
