@@ -34,9 +34,9 @@ function PlanSelector({ plans, selectedPlanId, onSelect }) {
                   : "border-border bg-surface-elevated hover:border-border"
               }`}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-text-primary">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold text-text-primary">
                     {plan.name}
                   </h3>
                   <p className="mt-0.5 text-sm text-text-secondary">

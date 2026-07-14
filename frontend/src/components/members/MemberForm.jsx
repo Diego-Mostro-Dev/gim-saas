@@ -219,6 +219,7 @@ function MemberForm({
                         checked={selected}
                         disabled={!selected && atLimit}
                         onChange={() => handleToggleDay(day.value)}
+                        className="h-5 w-5 rounded border border-border bg-surface-input text-blue-500"
                       />
                       {day.label}
                     </label>

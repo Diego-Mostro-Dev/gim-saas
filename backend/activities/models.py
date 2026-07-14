@@ -35,6 +35,23 @@ class Activity(models.Model):
         unique_together = ("service", "name")
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        creating = self.pk is None
+        if creating:
+            super().save(*args, **kwargs)
+            return
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or "active" in update_fields:
+            try:
+                old = Activity.objects.only("active").get(pk=self.pk)
+            except Activity.DoesNotExist:
+                old = None
+            if old is not None and old.active and not self.active:
+                super().save(*args, **kwargs)
+                self.schedules.filter(active=True).update(active=False)
+                return
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.name} ({self.service.gym.name})"
 

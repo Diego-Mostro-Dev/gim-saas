@@ -48,7 +48,6 @@ class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):
         activity = self.get_object()
         activity.active = False
         activity.save(update_fields=["active"])
-        activity.schedules.all().update(active=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"])

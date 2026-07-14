@@ -111,30 +111,31 @@ function ActivityStep({ activities, selections, onChange }) {
                                 handleToggle(activity.id, schedule.id);
                               }
                             }}
-                            className={`flex cursor-pointer items-center justify-between rounded-lg border p-3 transition ${
+                            className={`flex cursor-pointer flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-0 sm:justify-between rounded-lg border p-3 transition ${
                               selected
                                 ? "border-info bg-info-bg"
                                 : "border-border bg-surface-input hover:border-border"
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${
+                            <div className="flex items-start gap-3 sm:items-center">
+                              <div className={`mt-0.5 shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center ${
                                 selected ? "border-info bg-info" : "border-text-secondary"
                               }`}>
                                 {selected && (
-                                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                   </svg>
                                 )}
                               </div>
 
-                              <span className="text-sm text-text-primary">
-                                {DAY_NAMES[schedule.day] || schedule.day}
-                              </span>
-
-                              <span className="text-sm text-text-secondary">
-                                {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
-                              </span>
+                              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3 min-w-0">
+                                <span className="text-sm text-text-primary">
+                                  {DAY_NAMES[schedule.day] || schedule.day}
+                                </span>
+                                <span className="text-sm text-text-secondary">
+                                  {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+                                </span>
+                              </div>
                             </div>
 
                             <span className={`text-xs ${

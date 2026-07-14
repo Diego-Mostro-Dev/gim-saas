@@ -430,7 +430,7 @@ function Register() {
               <button
                 type="button"
                 onClick={goBack}
-                className="flex-1 rounded-xl border border-border px-4 py-3 text-sm font-medium text-text-primary transition active:scale-95"
+                className="flex-1 rounded-xl border border-border px-3 sm:px-4 py-3 text-sm font-medium text-text-primary transition active:scale-95"
               >
                 Anterior
               </button>

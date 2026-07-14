@@ -157,29 +157,29 @@ function PlanChangeModal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-10 pb-10">
       <div className="w-full max-w-lg rounded-3xl border border-border/10 bg-surface-modal shadow-2xl">
         {/* HEADER */}
-        <div className="flex items-center justify-between border-b border-border/5 px-6 py-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between border-b border-border/5 px-4 sm:px-6 py-4">
+          <div className="flex items-center gap-3 min-w-0">
             {step === "schedules" && (
               <button
                 onClick={() => setStep("select")}
-                className="text-text-secondary transition hover:text-text-primary"
+                className="shrink-0 text-text-secondary transition hover:text-text-primary"
               >
                 <ChevronLeft size={20} />
               </button>
             )}
-            <h2 className="text-lg font-semibold text-text-primary">
+            <h2 className="text-base sm:text-lg font-semibold text-text-primary break-words">
               {step === "select" ? "Solicitar cambio de plan" : "Configurar horarios"}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-text-secondary transition hover:text-text-primary"
+            className="shrink-0 text-text-secondary transition hover:text-text-primary"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           {step === "select" && (
             <>
               {currentSubscription && (

@@ -1,3 +1,5 @@
+import { formatHumanDate } from "../../utils/date.utils";
+
 function RecentActivity({ activity }) {
   return (
     <section className="space-y-3">
@@ -16,7 +18,7 @@ function RecentActivity({ activity }) {
               <div>
                 <p className="text-sm text-text-primary">{item.description}</p>
 
-                <p className="mt-1 text-xs text-text-secondary">{item.created_at}</p>
+                <p className="mt-1 text-xs text-text-secondary">{formatHumanDate(item.created_at)}</p>
               </div>
             </div>
           ))

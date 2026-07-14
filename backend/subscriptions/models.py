@@ -36,6 +36,18 @@ class Subscription(models.Model):
             models.Index(fields=["gym", "end_date"]),
             models.Index(fields=["gym", "paid"]),
             models.Index(fields=["gym", "-created_at"]),
+            models.Index(fields=["auto_renew", "end_date"]),
+            models.Index(fields=["member", "start_date"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["member", "start_date", "end_date"],
+                name="unique_subscription_member_period",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(end_date__gte=models.F("start_date")),
+                name="subscription_end_date_gte_start_date",
+            ),
         ]
 
 
@@ -180,6 +192,10 @@ class SubscriptionItem(models.Model):
                 fields=["subscription", "plan"],
                 condition=Q(status="active"),
                 name="unique_active_item_per_subscription",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(end_date__gte=models.F("start_date")),
+                name="subscriptionitem_end_date_gte_start_date",
             ),
         ]
 

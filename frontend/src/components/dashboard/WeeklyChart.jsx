@@ -1,4 +1,5 @@
 import { DAY_ORDER } from "../../constants/days";
+import { formatHumanDate } from "../../utils/date.utils";
 
 const DAY_LABELS = {
   monday: "Lun",
@@ -28,7 +29,7 @@ function WeeklyChart({ data = [] }) {
   }));
 
   const { monday, sunday } = getCurrentWeekRange();
-  const weekLabel = `Semana actual · ${monday.toLocaleDateString("es-AR")} – ${sunday.toLocaleDateString("es-AR")}`;
+  const weekLabel = `Semana actual · ${formatHumanDate(monday)} – ${formatHumanDate(sunday)}`;
 
   const maxValue = Math.max(...days.map((item) => item.count), 1);
 

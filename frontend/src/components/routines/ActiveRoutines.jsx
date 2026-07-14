@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Calendar, RefreshCw, XCircle } from "lucide-react";
 
+import { formatHumanDate } from "../../utils/date.utils";
 import { useActiveRoutines } from "../../hooks/useActiveRoutines";
 import { useMemberRoutine } from "../../hooks/useMemberRoutine";
 import { useRoutineTemplates } from "../../hooks/useRoutineTemplates";
@@ -70,16 +71,6 @@ function ActiveRoutines() {
     }
   }
 
-  function formatDate(dateStr) {
-    if (!dateStr) return "";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("es-AR", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  }
-
   if (loading) {
     return (
       <div className="rounded-xl border border-border p-6 text-center text-text-secondary">
@@ -131,7 +122,7 @@ function ActiveRoutines() {
 
                 <p className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
                   <Calendar size={12} />
-                  Asignado el {formatDate(routine.assigned_at)}
+                  Asignado el {formatHumanDate(routine.assigned_at)}
                 </p>
               </div>
             </div>

@@ -19,12 +19,6 @@ const STATUS_LABELS = {
   cancelled: "Cancelado",
 };
 
-function shortDate(date) {
-  if (!date) return "-";
-  const d = new Date(date);
-  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 const FILTERS = [
   { key: "all", label: "Todas" },
   { key: "pending", label: "Pendientes" },
@@ -217,7 +211,7 @@ function ScheduleChangeRequests() {
   return (
       <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
         <div className="mb-6 px-4">
-          <h1 className="text-3xl font-bold">Cambios permanentes de horario</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Cambios permanentes de horario</h1>
           <p className="mt-1 text-sm text-text-secondary">
             Solicitudes de cambio permanente del horario habitual de un socio.
           </p>
@@ -269,14 +263,12 @@ function ScheduleChangeRequests() {
                     </p>
                   <p className="mt-0.5 text-xs text-text-secondary">
                     Solicitado:{" "}
-                    <span className="hidden sm:inline">{formatHumanDate(req.requested_at)}</span>
-                    <span className="sm:hidden">{shortDate(req.requested_at)}</span>
+                    {formatHumanDate(req.requested_at)}
                   </p>
                   {req.effective_date && (
                     <p className="text-xs text-text-secondary">
                       Vigente:{" "}
-                      <span className="hidden sm:inline">{formatHumanDate(req.effective_date)}</span>
-                      <span className="sm:hidden">{shortDate(req.effective_date)}</span>
+                      {formatHumanDate(req.effective_date)}
                     </p>
                   )}
                 </div>
@@ -333,9 +325,9 @@ function ScheduleChangeRequests() {
       {/* Approval modal */}
       {approvalTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-4 sm:p-6 shadow-2xl">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-text-primary">
+              <h2 className="text-base sm:text-lg font-semibold text-text-primary break-words">
                 Aprobar cambio permanente
               </h2>
             </div>
@@ -384,7 +376,7 @@ function ScheduleChangeRequests() {
       {/* Rejection modal */}
       {rejectionTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-4 sm:p-6 shadow-2xl">
               {rejectionTarget.effective_date && (
                 <div className="mt-3 rounded-xl bg-surface-input px-3 py-2">
                   <p className="text-xs text-text-secondary">Vigente desde</p>
@@ -395,7 +387,7 @@ function ScheduleChangeRequests() {
               )}
 
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-text-primary">
+                <h2 className="text-base sm:text-lg font-semibold text-text-primary break-words">
                   Rechazar cambio permanente
               </h2>
               <p className="mt-1 text-sm text-text-secondary">

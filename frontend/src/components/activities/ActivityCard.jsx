@@ -58,7 +58,7 @@ function ActivityCard({
           onClick={() => onToggleActive(activity.id, !activity.active)}
           className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition sm:self-start ${
             activity.active
-              ? "bg-muted-bg text-muted-text hover:bg-danger-bg hover:text-danger-text dark:bg-muted-bg dark:text-muted-text"
+              ? "bg-muted-bg text-muted-text hover:bg-danger-bg hover:text-white dark:bg-muted-bg dark:text-muted-text"
               : "bg-success-bg text-success-text hover:brightness-90 dark:bg-success/15 dark:text-success"
           }`}
           aria-label={activity.active ? "Desactivar actividad" : "Activar actividad"}

@@ -61,12 +61,6 @@ function isThisMonth(dateStr) {
   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
-function shortDate(date) {
-  if (!date) return "-";
-  const d = new Date(date);
-  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 function ScheduleSwapRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -271,7 +265,7 @@ function ScheduleSwapRequests() {
   return (
     <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
       <div className="mb-6 px-4">
-        <h1 className="text-3xl font-bold">Intercambios por única vez</h1>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Intercambios por única vez</h1>
         <p className="mt-1 text-sm text-text-secondary">
           Solicitudes de intercambio por única vez entre días disponibles.
         </p>
@@ -381,13 +375,11 @@ function ScheduleSwapRequests() {
                     </p>
                     <p className="mt-0.5 text-xs text-text-secondary">
                       Solicitado:{" "}
-                      <span className="hidden sm:inline">{formatHumanDate(req.requested_at)}</span>
-                      <span className="sm:hidden">{shortDate(req.requested_at)}</span>
+                    {formatHumanDate(req.requested_at)}
                     </p>
                     <p className="text-xs text-text-secondary">
                       Vigente:{" "}
-                      <span className="hidden sm:inline">{formatHumanDate(req.swap_date)}</span>
-                      <span className="sm:hidden">{shortDate(req.swap_date)}</span>
+                    {formatHumanDate(req.swap_date)}
                     </p>
                   </div>
                 </div>

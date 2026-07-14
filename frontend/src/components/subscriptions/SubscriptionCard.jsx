@@ -1,5 +1,6 @@
 import { Pencil, Trash2, RefreshCw } from "lucide-react";
 import MemberAvatar from "../common/MemberAvatar";
+import { formatHumanDate } from "../../utils/date.utils";
 
 import {
   calculateRemainingDays,
@@ -56,17 +57,17 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm">
+      <div className="mt-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4 text-sm">
         <div>
           <p className="text-text-secondary">Inicio</p>
 
-          <p className="text-text-primary">{subscription.start_date}</p>
+          <p className="text-text-primary">{formatHumanDate(subscription.start_date)}</p>
         </div>
 
         <div>
           <p className="text-text-secondary">Fin</p>
 
-          <p className="text-text-primary">{subscription.end_date}</p>
+          <p className="text-text-primary">{formatHumanDate(subscription.end_date)}</p>
         </div>
       </div>
 

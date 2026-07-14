@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, X } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { useMembers } from "../../hooks/useMembers";
 import { useRoutineTemplates } from "../../hooks/useRoutineTemplates";
@@ -17,7 +18,6 @@ function RoutineAssignment() {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [routineTemplate, setRoutineTemplate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -61,14 +61,13 @@ function RoutineAssignment() {
         member_ids: selectedMembers,
       });
 
-      setSuccessMessage(
+      toast.success(
         `Rutina "${response.routine}" asignada a ${response.assigned_members} miembros.`,
       );
 
       setSelectedMembers([]);
     } catch (error) {
-      console.error(error);
-      alert("No se pudo asignar la rutina.");
+      toast.error("No se pudo asignar la rutina.");
     } finally {
       setIsSubmitting(false);
     }
@@ -224,19 +223,41 @@ function RoutineAssignment() {
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-xl bg-blue-500 py-3 font-medium text-white disabled:opacity-50"
-        >
-          {isSubmitting ? "Asignando..." : "Asignar rutina"}
-        </button>
       </form>
 
-      {successMessage && (
-        <div className="rounded-xl border border-success/20 bg-success-bg p-4 text-success-text dark:bg-success/15 dark:text-success">
-          {successMessage}
-        </div>
+      {selectedMembers.length > 0 && (
+        <>
+          <div className="h-20" />
+          <div className="fixed bottom-20 left-0 right-0 z-40 border-t border-border bg-surface-elevated px-4 py-3 shadow-lg shadow-black/5">
+            <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
+              <span className="text-sm font-medium text-text-primary">
+                {selectedMembers.length} miembro{selectedMembers.length !== 1 ? "s" : ""} seleccionado{selectedMembers.length !== 1 ? "s" : ""}
+              </span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={deselectAll}
+                  className="rounded-lg p-2 text-text-secondary transition hover:bg-surface-input hover:text-text-primary"
+                  aria-label="Deseleccionar"
+                >
+                  <X size={18} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    const form = document.querySelector("form");
+                    if (form) form.requestSubmit();
+                  }}
+                  disabled={isSubmitting || !routineTemplate}
+                  className="rounded-xl bg-blue-500 px-6 py-3 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {isSubmitting ? "Asignando..." : "Asignar rutina"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -23,6 +23,7 @@ function Activities() {
 
   const [showForm, setShowForm] = useState(false);
   const formRef = useRef(null);
+  const cancelledRef = useRef(false);
   const [editingActivity, setEditingActivity] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,6 +36,7 @@ function Activities() {
   const [inactiveActivities, setInactiveActivities] = useState([]);
   const [inactiveLoading, setInactiveLoading] = useState(false);
   const [inactiveExpanded, setInactiveExpanded] = useState(false);
+  const [hasLoadedInactive, setHasLoadedInactive] = useState(false);
 
   const [reactivateModal, setReactivateModal] = useState(null);
   const [reactivating, setReactivating] = useState(false);
@@ -61,22 +63,25 @@ function Activities() {
   }
 
   useEffect(() => {
-    let cancelled = false;
+    cancelledRef.current = false;
     async function load() {
       setInactiveLoading(true);
       try {
         const data = await getInactiveActivities();
-        if (!cancelled) setInactiveActivities(data);
+        if (!cancelledRef.current) {
+          setInactiveActivities(data);
+          setHasLoadedInactive(true);
+        }
       } catch {
         // silently fail
       } finally {
-        if (!cancelled) setInactiveLoading(false);
+        if (!cancelledRef.current) setInactiveLoading(false);
       }
     }
-    if (inactiveExpanded && inactiveActivities.length === 0 && !inactiveLoading) {
+    if (inactiveExpanded && !hasLoadedInactive && !inactiveLoading) {
       load();
     }
-    return () => { cancelled = true; };
+    return () => { cancelledRef.current = true; };
   }, [inactiveExpanded]);
 
   useEffect(() => {
@@ -264,7 +269,29 @@ function Activities() {
               ? "Completá el formulario para crear tu primera actividad."
               : inactiveActivities.length > 0
                 ? "No hay actividades activas. Expandí la sección de inactivas para reactivar."
-                : "No hay actividades creadas. Presioná \"Nueva\" para comenzar."}
+                : inactiveLoading
+                  ? "Buscando actividades desactivadas..."
+                  : hasLoadedInactive
+                    ? "No hay actividades creadas. Presioná \"Nueva\" para comenzar."
+                    : (
+                      <div>
+                        <p className="mb-4 font-medium text-text-primary">
+                          No hay actividades activas actualmente.
+                        </p>
+                        <p className="mb-4">
+                          Hay actividades desactivadas disponibles.
+                        </p>
+                        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                          <button
+                            onClick={() => setInactiveExpanded(true)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-hover"
+                          >
+                            <RotateCcw size={16} />
+                            Ver actividades desactivadas
+                          </button>
+                        </div>
+                      </div>
+                    )}
           </div>
         ) : (
           visibleActivities.map((activity) => (
@@ -279,7 +306,7 @@ function Activities() {
       </div>
 
       {/* INACTIVE ACTIVITIES */}
-      {inactiveActivities.length > 0 && (
+      {(inactiveActivities.length > 0 || inactiveLoading || hasLoadedInactive) && (
         <div className="mt-8">
           <button
             onClick={() => setInactiveExpanded((v) => !v)}
@@ -295,6 +322,10 @@ function Activities() {
             <div className="mt-3 space-y-3">
               {inactiveLoading ? (
                 <p className="py-4 text-center text-sm text-text-secondary">Cargando...</p>
+              ) : inactiveActivities.length === 0 ? (
+                <p className="py-4 text-center text-sm text-text-secondary">
+                  No hay actividades desactivadas.
+                </p>
               ) : (
                   inactiveActivities.map((activity) => (
                   <div

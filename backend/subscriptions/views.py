@@ -1,3 +1,8 @@
+from datetime import date
+from time import perf_counter  # TEMP DEBUG
+import logging  # TEMP DEBUG
+import uuid  # TEMP DEBUG
+
 from django.db import transaction
 from django.db.models import OuterRef, Subquery
 from django.utils.timezone import now
@@ -8,6 +13,8 @@ from rest_framework.response import Response
 
 from core.viewsets import GymModelViewSet
 
+logger = logging.getLogger(__name__)  # TEMP DEBUG
+
 from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
 
 from .models import Subscription, PlanChangeRequest, PlannedSchedule
@@ -17,7 +24,9 @@ from .serializers import (
     PlanChangeRequestActionSerializer,
 )
 from .services import (
+    auto_renew_subscriptions,
     calculate_effective_date,
+    gym_has_pending_auto_renewals,
     cancel_future_plan_change,
     can_member_operate,
     ensure_subscription_item,
@@ -32,6 +41,9 @@ class SubscriptionViewSet(GymModelViewSet):
 
     def get_queryset(self):
         return super().get_queryset().select_related("member", "plan")
+
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
     @action(
         detail=True,

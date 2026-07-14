@@ -370,7 +370,7 @@ function Members() {
       />
 
       {showPaymentsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-2xl rounded-2xl bg-surface-elevated p-6">
             <h2 className="mb-4 text-xl font-bold text-text-primary">
               Pagos de {paymentsMemberName}
