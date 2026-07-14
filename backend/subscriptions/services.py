@@ -6,16 +6,9 @@ from django.db.models import Max, Q
 from django.db.models.expressions import Exists, OuterRef
 from django.utils import timezone
 
-from time import perf_counter  # TEMP DEBUG
-
-from django.db import connection  # TEMP DEBUG
-import logging  # TEMP DEBUG
-
 from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
 
 from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSchedule
-
-logger = logging.getLogger(__name__)  # TEMP DEBUG
 
 
 def ensure_subscription_item(subscription):
@@ -229,139 +222,117 @@ def gym_has_pending_auto_renewals(gym):
     ).filter(~Exists(has_next)).exists()
 
 
-def auto_renew_subscriptions(gym=None, request_id=""):  # TEMP DEBUG added request_id
-    qs = Subscription.objects
-    if gym is not None:
-        qs = qs.filter(gym=gym)
-    renewed = 0
-    skipped_auto_renew = 0
-    skipped_already = 0
-    skipped_no_prev = 0
-    skipped_initial_pending = 0
+def _collect_renewal_candidates(queryset):
+    """Phase 1: Select expired auto_renew subscriptions and compute target periods.
 
-    # TEMP DEBUG: per-phase instrumentation
-    _t0 = perf_counter()
-    _qc0 = len(connection.queries)
-    _qc1 = _qc2 = _qc3 = _qc0
-    _expired_count = 0
-
-    # Phase 1: collect eligible candidates with computed target periods.
-    #
-    # Selection rule — a subscription is eligible for renewal iff:
-    #   1. auto_renew is True
-    #   2. end_date < today  (the subscription has expired)
-    #
-    # We do NOT use MAX(id) to pick "the latest subscription". That approach
-    # picks future subscriptions and causes an infinite renewal cascade.
-    # Instead we select ALL expired, auto_renew=True subscriptions. The
-    # idempotency check in Phase 2 naturally deduplicates: if the successor
-    # already exists for a given (member, target_start), the subscription is
-    # skipped.
+    Returns a list of (subscription, target_start, target_end) tuples.
+    """
     today = timezone.localdate()
-    expired_subs = qs.filter(
+    expired = queryset.filter(
         end_date__lt=today,
         auto_renew=True,
     ).select_related("member", "plan")
 
     candidates = []
-    for sub in expired_subs:
-        _expired_count += 1  # TEMP DEBUG
-
+    for sub in expired:
         target_start = get_first_day_of_next_month(sub.end_date)
         target_end = get_last_day_of_month(target_start)
         candidates.append((sub, target_start, target_end))
+    return candidates
 
-    # TEMP DEBUG: Phase 1 complete
-    _qc1 = len(connection.queries)
-    _t1 = perf_counter()
 
-    # Phase 2: bulk idempotency check — single query for all members
-    if candidates:
-        query = Q()
-        for sub, target_start, _ in candidates:
-            query |= Q(member_id=sub.member_id, start_date=target_start)
-        already_renewed_member_ids = set(
-            Subscription.objects.filter(query).values_list("member_id", flat=True)
-        )
-    else:
-        already_renewed_member_ids = set()
+def _find_already_renewed_members(candidates):
+    """Phase 2: Detect members who already have a subscription for the target period.
 
-    # TEMP DEBUG: Phase 2 complete
-    _qc2 = len(connection.queries)
-    _t2 = perf_counter()
-    logger.info(
-        "[%s] Phase 1&2: expired_subs=%d candidates=%d skipped_auto_renew=%d "
-        "already_renewed=%d elapsed_p1=%.4fs elapsed_p2=%.4fs queries_p1=%d queries_p2=%d",
-        request_id, _expired_count, len(candidates), skipped_auto_renew,
-        len(already_renewed_member_ids),
-        _t1 - _t0,
-        _t2 - _t1,
-        _qc1 - _qc0,
-        _qc2 - _qc1,
+    Builds a single OR query across all candidates to find existing successors
+    in one round-trip, then returns a set of member_ids to skip.
+    """
+    if not candidates:
+        return set()
+
+    query = Q()
+    for _sub, target_start, _end in candidates:
+        query |= Q(member_id=_sub.member_id, start_date=target_start)
+    return set(
+        Subscription.objects.filter(query).values_list("member_id", flat=True)
     )
 
-    # Phase 3: process candidates using pre-computed set
-    for sub, target_start, target_end in candidates:
-        if sub.member_id in already_renewed_member_ids:
+
+def _resolve_plan(member, expired_sub, target_start):
+    """Check for an approved plan change effective on or before target_start."""
+    approved_pcr = PlanChangeRequest.objects.filter(
+        member=member,
+        status="approved",
+        effective_date__lte=target_start,
+    ).first()
+    return approved_pcr.requested_plan if approved_pcr else expired_sub.plan
+
+
+def auto_renew_subscriptions(gym=None):
+    """Create the next monthly subscription for each eligible member.
+
+    A subscription is eligible when:
+      1. auto_renew is True
+      2. end_date < today  (it has expired)
+
+    Three phases:
+      1. Candidate selection — query expired subs, compute target periods.
+      2. Successor detection — bulk-check which members already have the
+         target subscription (idempotency guard).
+      3. Creation — for each non-duplicate candidate, resolve the plan
+         (honouring approved plan changes) and create the subscription
+         plus its SubscriptionItem inside a transaction.
+    """
+    qs = Subscription.objects
+    if gym is not None:
+        qs = qs.filter(gym=gym)
+
+    candidates = _collect_renewal_candidates(qs)
+    already_renewed = _find_already_renewed_members(candidates)
+
+    renewed = 0
+    skipped_already = 0
+    skipped_initial_pending = 0
+
+    for expired_sub, target_start, target_end in candidates:
+        # Skip if a subscription already exists for this member+period.
+        if expired_sub.member_id in already_renewed:
             skipped_already += 1
             continue
 
+        # Skip if this is the member's very first subscription and it was
+        # never paid — treat as initial_pending, not eligible for renewal.
         is_first_and_unpaid = (
-            not sub.paid
+            not expired_sub.paid
             and not Subscription.objects.filter(
-                member=sub.member,
-                created_at__lt=sub.created_at,
+                member=expired_sub.member,
+                created_at__lt=expired_sub.created_at,
             ).exists()
         )
         if is_first_and_unpaid:
             skipped_initial_pending += 1
             continue
 
-        approved_pcr = PlanChangeRequest.objects.filter(
-            member=sub.member,
-            status="approved",
-            effective_date__lte=target_start,
-        ).first()
-        plan = approved_pcr.requested_plan if approved_pcr else sub.plan
+        plan = _resolve_plan(expired_sub.member, expired_sub, target_start)
 
         with transaction.atomic():
             new_sub = Subscription.objects.create(
-                gym=sub.gym,
-                member=sub.member,
+                gym=expired_sub.gym,
+                member=expired_sub.member,
                 plan=plan,
                 start_date=target_start,
                 end_date=target_end,
                 paid=False,
-                auto_renew=sub.auto_renew,
+                auto_renew=expired_sub.auto_renew,
             )
             ensure_subscription_item(new_sub)
         renewed += 1
 
-    # TEMP DEBUG: Phase 3 complete
-    _qc3 = len(connection.queries)
-    _t3 = perf_counter()
-    logger.info(
-        "[%s] Phase 3: created=%d skipped_already=%d skipped_initial_pending=%d "
-        "elapsed_p3=%.4fs queries_p3=%d",
-        request_id, renewed, skipped_already, skipped_initial_pending,
-        _t3 - _t2,
-        _qc3 - _qc2,
-    )
-    # TEMP DEBUG: totals
-    _total_elapsed = _t3 - _t0
-    _total_queries = _qc3 - _qc0
-    logger.info(
-        "[%s] TOTAL: renewed=%d skipped_auto_renew=%d skipped_already=%d "
-        "skipped_initial_pending=%d elapsed=%.4fs queries=%d",
-        request_id, renewed, skipped_auto_renew, skipped_already,
-        skipped_initial_pending, _total_elapsed, _total_queries,
-    )
-
     return {
         "renewed": renewed,
-        "skipped_auto_renew": skipped_auto_renew,
+        "skipped_auto_renew": 0,
         "skipped_already": skipped_already,
-        "skipped_no_prev": skipped_no_prev,
+        "skipped_no_prev": 0,
         "skipped_initial_pending": skipped_initial_pending,
     }
 
