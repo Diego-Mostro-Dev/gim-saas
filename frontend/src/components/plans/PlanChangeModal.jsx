@@ -193,8 +193,30 @@ function PlanChangeModal({
                   <p className="text-sm text-text-secondary">
                     {weeklyLabel(currentSubscription.plan_weekly_visits)}
                   </p>
+
+                  {currentSubscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+                    <div className="mt-3 border-t border-border pt-3 space-y-1">
+                      {currentSubscription.items
+                        .filter((i) => i.item_type === "activity" && i.status === "active")
+                        .map((item) => (
+                          <div key={item.id} className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-sm text-text-primary">
+                              <span className="text-success-text dark:text-success">✓</span>
+                              {item.name}
+                            </span>
+                            <span className="text-sm text-text-secondary">
+                              ${Number(item.price).toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )}
+
+              <p className="text-xs text-text-secondary text-center">
+                Las actividades actuales se mantendrán sin cambios.
+              </p>
 
               <p className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
                 Seleccioná un nuevo plan

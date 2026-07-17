@@ -11,6 +11,22 @@ export class ApiError extends Error {
   }
 }
 
+export function extractApiErrorMessage(body) {
+  if (!body || typeof body !== "object") {
+    return null;
+  }
+
+  if (typeof body.detail === "string") return body.detail;
+  if (typeof body.message === "string") return body.message;
+  if (typeof body.error === "string") return body.error;
+
+  const messages = Object.values(body)
+    .flat()
+    .filter((v) => typeof v === "string" && v);
+
+  return messages.length > 0 ? messages.join(". ") : null;
+}
+
 function buildAuthHeaders(options = {}) {
   const token = localStorage.getItem("token");
   const headers = { ...options.headers };
@@ -30,7 +46,7 @@ async function throwIfNotOk(res) {
     let body;
     try {
       body = await res.json();
-      detail = body.detail || body.message;
+      detail = extractApiErrorMessage(body);
     } catch {
       // ignore parse errors
     }

@@ -13,7 +13,7 @@ from rest_framework.authtoken.models import Token
 
 from gyms.models import Gym
 from members.models import Member
-from plans.models import MembershipPlan
+from plans.models import MembershipPlan, Service
 from subscriptions.models import Subscription, PlanChangeRequest, PlannedSchedule
 from attendance.models import AttendanceSchedule, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
 from subscriptions.services import calculate_effective_date, compute_projected_occupancy, get_last_day_of_month, get_first_day_of_next_month
@@ -53,9 +53,11 @@ class MemberScheduleLimitTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.plan_limited = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Starter", price=10, duration_days=30, weekly_visits=2,
         )
         self.plan_unlimited = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Unlimited", price=20, duration_days=30, weekly_visits=None,
         )
 
@@ -234,12 +236,15 @@ class PlanChangeRequestTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.plan_current = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Current", price=10, duration_days=30, weekly_visits=2,
         )
         self.plan_target = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Premium", price=20, duration_days=30, weekly_visits=2,
         )
         self.plan_unlimited = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Unlimited", price=25, duration_days=30, weekly_visits=None,
         )
 
@@ -298,6 +303,7 @@ class PlanChangeRequestTest(TestCase):
             name="Other", slug="other-gym", phone="999", email="o@o.com",
         )
         other_plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(other_gym),
             gym=other_gym, name="Other", price=5, duration_days=30,
         )
         resp = self._create_request(plan=other_plan)
@@ -668,9 +674,11 @@ class PlanChangeExecutionTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.plan_old = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Old", price=10, duration_days=30, weekly_visits=2,
         )
         self.plan_new = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="New", price=20, duration_days=30, weekly_visits=2,
         )
 
@@ -824,9 +832,11 @@ class PublicPlanChangeRequestTest(TestCase):
         )
 
         self.plan_current = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Current", price=10, duration_days=30, weekly_visits=2,
         )
         self.plan_target = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Premium", price=20, duration_days=30, weekly_visits=3,
         )
 
@@ -917,6 +927,7 @@ class PublicPlanChangeRequestTest(TestCase):
     # F) Cross-gym protection — member cannot use another gym's plan
     def test_cross_gym_plan_rejected(self):
         other_plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.other_gym),
             gym=self.other_gym, name="Other Plan", price=50, duration_days=15, weekly_visits=2,
         )
         payload = {
@@ -939,6 +950,7 @@ class RegistrationSubscriptionTest(TestCase):
             name="Reg Gym", slug="reg-gym", phone="111", email="reg@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Basic", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -1002,6 +1014,7 @@ class RegistrationSubscriptionTest(TestCase):
             name="Other", slug="other-gym-r", phone="999", email="o@o.com",
         )
         other_plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(other_gym),
             gym=other_gym, name="Other Plan", price=50, duration_days=15,
         )
         resp = self._register(plan_id=other_plan.id)
@@ -1062,9 +1075,11 @@ class Phase3Test(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.plan_current = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Current", price=10, duration_days=30, weekly_visits=2,
         )
         self.plan_target = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Target", price=20, duration_days=30, weekly_visits=2,
         )
 
@@ -1183,6 +1198,7 @@ class Phase3Test(TestCase):
 
     def test_public_cancel_approved_future(self):
         pub_plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="PubTarget", price=25, duration_days=30, weekly_visits=2,
         )
         pub_member = Member.objects.create(
@@ -1249,9 +1265,11 @@ class Phase3Test(TestCase):
 
     def test_can_create_request_if_future_approved_was_executed(self):
         target_plan_b = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Plan B", price=30, duration_days=30, weekly_visits=2,
         )
         target_plan_c = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Plan C", price=40, duration_days=30, weekly_visits=2,
         )
         expired_member = Member.objects.create(
@@ -1458,6 +1476,7 @@ class MonthlyModelTest(TestCase):
             gym=gym, first_name="Monthly", last_name="User", phone="777",
         )
         plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(gym),
             gym=gym, name="Monthly", price=10, duration_days=30,
         )
         sub = Subscription.objects.create(
@@ -1506,6 +1525,7 @@ class MonthlySubscriptionPhase2Test(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -1605,6 +1625,7 @@ class AutoRenewCommandTest(TestCase):
             name="Auto Gym", slug="auto-gym", phone="123", email="auto@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -1820,9 +1841,11 @@ class Phase3BTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
 
         self.plan_old = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Current", price=10, duration_days=30, weekly_visits=2,
         )
         self.plan_new = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Premium", price=20, duration_days=30, weekly_visits=2,
         )
 
@@ -2034,6 +2057,7 @@ class AutoRenewalCancelTest(TestCase):
             name="Cancel Gym", slug="cancel-gym", phone="123", email="cancel@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -2122,6 +2146,7 @@ class RenewalReminderTest(TestCase):
             name="Reminder Gym", slug="reminder-gym", phone="123", email="reminder@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -2237,6 +2262,7 @@ class PaymentStatusTest(TestCase):
             name="Pay Gym", slug="pay-gym", phone="123", email="pay@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -2369,6 +2395,7 @@ class BlockedMemberAccessTest(TestCase):
             name="Block Gym", slug="block-gym", phone="123", email="block@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )
@@ -2495,6 +2522,7 @@ class InitialPendingTest(TestCase):
             name="Initial Gym", slug="initial-gym", phone="123", email="init@gym.com",
         )
         self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
             gym=self.gym, name="Monthly", price=100, duration_days=30,
             weekly_visits=None, active=True,
         )

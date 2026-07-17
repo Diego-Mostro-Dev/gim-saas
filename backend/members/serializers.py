@@ -4,13 +4,15 @@ from django.db import transaction
 
 from rest_framework import serializers
 
-from attendance.models import AttendanceSchedule, ScheduleSlot
+from attendance.models import AttendanceSchedule, DAY_CHOICES, ScheduleSlot
 from subscriptions.models import MembershipPlan, Subscription
 from subscriptions.services import get_last_day_of_month, get_member_schedule_limit, get_member_active_schedule_count, ensure_subscription_item
 
 from .models import Member
 
 import json
+
+DAY_LABELS = dict(DAY_CHOICES)
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -169,7 +171,7 @@ class MemberSerializer(serializers.ModelSerializer):
             )
         except ScheduleSlot.DoesNotExist:
             raise serializers.ValidationError(
-                f"El horario {day} {hour} no está disponible."
+                f"El horario {DAY_LABELS.get(day, day)} {hour} no está disponible."
             )
 
         cap = slot.capacity or gym.default_schedule_capacity
@@ -183,7 +185,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
             if current_count >= cap:
                 raise serializers.ValidationError(
-                    f"El horario {day} {hour} está completo."
+                    f"El horario {DAY_LABELS.get(day, day)} {hour} está completo."
                 )
 
         return slot

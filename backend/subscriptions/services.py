@@ -14,14 +14,52 @@ from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSc
 def ensure_subscription_item(subscription):
     SubscriptionItem.objects.update_or_create(
         subscription=subscription,
+        item_type="plan",
+        plan=subscription.plan,
         defaults={
-            "plan": subscription.plan,
             "status": "active",
+            "name_snapshot": subscription.plan.name,
             "price_snapshot": subscription.plan.price,
             "start_date": subscription.start_date,
             "end_date": subscription.end_date,
         },
     )
+
+
+def ensure_subscription_items(subscription, previous_subscription=None):
+    """Ensure all billing items exist for a subscription.
+
+    1. Creates/updates the plan item (gym membership or base plan).
+    2. If previous_subscription is provided, copies active activity items.
+    """
+    ensure_subscription_item(subscription)
+
+    if previous_subscription is None:
+        return
+
+    previous_items = SubscriptionItem.objects.filter(
+        subscription=previous_subscription,
+        item_type="activity",
+        status="active",
+    ).select_related("activity")
+
+    for prev_item in previous_items:
+        activity = prev_item.activity
+        if activity is None or not activity.active:
+            continue
+        SubscriptionItem.objects.update_or_create(
+            subscription=subscription,
+            activity=activity,
+            defaults={
+                "item_type": "activity",
+                "plan": None,
+                "status": "active",
+                "name_snapshot": activity.name,
+                "price_snapshot": activity.monthly_price,
+                "start_date": subscription.start_date,
+                "end_date": subscription.end_date,
+            },
+        )
 
 
 def get_subscription_payment_status(subscription):
@@ -58,14 +96,30 @@ def can_member_operate(member):
 
 
 def member_has_active_subscription_for_service(member, service):
+    """Check if member has an active subscription that grants access.
+
+    With the Base Plan architecture, any active subscription grants activity
+    access, subject to gym policy:
+    - Gym plan subscriptions always grant access.
+    - Base Plan subscriptions grant access only if gym allows activity-only.
+    """
+    from plans.services import get_base_plan_for_gym
+
     now = timezone.localdate()
-    return SubscriptionItem.objects.filter(
-        subscription__member=member,
-        plan__service=service,
-        status="active",
-        subscription__start_date__lte=now,
-        subscription__end_date__gte=now,
-    ).exists()
+    sub = Subscription.objects.filter(
+        member=member,
+        start_date__lte=now,
+        end_date__gte=now,
+    ).order_by("-created_at").first()
+
+    if sub is None:
+        return False
+
+    base_plan = get_base_plan_for_gym(member.gym)
+    if base_plan and sub.plan_id == base_plan.pk:
+        return member.gym.allow_activity_without_membership
+
+    return True
 
 
 def get_last_day_of_month(d):
@@ -226,15 +280,22 @@ def _collect_renewal_candidates(queryset):
     """Phase 1: Select expired auto_renew subscriptions and compute target periods.
 
     Returns a list of (subscription, target_start, target_end) tuples.
+    Skips Base Plan subscriptions when the gym no longer allows activity-only.
     """
+    from plans.services import get_base_plan_for_gym
+
     today = timezone.localdate()
     expired = queryset.filter(
         end_date__lt=today,
         auto_renew=True,
-    ).select_related("member", "plan")
+    ).select_related("member", "plan", "gym")
 
     candidates = []
     for sub in expired:
+        base_plan = get_base_plan_for_gym(sub.gym)
+        if base_plan and sub.plan_id == base_plan.pk:
+            if not sub.gym.allow_activity_without_membership:
+                continue
         target_start = get_first_day_of_next_month(sub.end_date)
         target_end = get_last_day_of_month(target_start)
         candidates.append((sub, target_start, target_end))
@@ -325,7 +386,7 @@ def auto_renew_subscriptions(gym=None):
                 paid=False,
                 auto_renew=expired_sub.auto_renew,
             )
-            ensure_subscription_item(new_sub)
+            ensure_subscription_items(new_sub, previous_subscription=expired_sub)
         renewed += 1
 
     return {

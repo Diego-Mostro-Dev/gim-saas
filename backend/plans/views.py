@@ -15,6 +15,6 @@ class ServiceViewSet(GymModelViewSet):
 
 
 class MembershipPlanViewSet(GymModelViewSet):
-    queryset = MembershipPlan.objects.all()
+    queryset = MembershipPlan.objects.filter(is_base=False)
     serializer_class = MembershipPlanSerializer
     pagination_class = None

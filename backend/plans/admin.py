@@ -11,8 +11,8 @@ class ServiceAdmin(admin.ModelAdmin):
 
 @admin.register(MembershipPlan)
 class MembershipPlanAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "service", "price", "duration_days", "weekly_visits", "active", "gym")
-    list_filter = ("gym", "service", "active")
+    list_display = ("id", "name", "service", "price", "duration_days", "weekly_visits", "active", "gym", "is_base")
+    list_filter = ("gym", "service", "active", "is_base")
     search_fields = ("name",)
 
     def get_queryset(self, request):
@@ -22,3 +22,13 @@ class MembershipPlanAdmin(admin.ModelAdmin):
             return qs
 
         return qs.filter(gym=request.user.profile.gym)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.is_base:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.is_base:
+            return False
+        return super().has_delete_permission(request, obj)

@@ -11,7 +11,7 @@ from rest_framework.authtoken.models import Token
 from gyms.models import Gym
 from members.models import Member
 from subscriptions.models import Subscription
-from plans.models import MembershipPlan
+from plans.models import MembershipPlan, Service
 from attendance.models import ScheduleSlot
 
 
@@ -254,10 +254,10 @@ class DashboardOptimizationTest(TestCase):
             ScheduleSlot.objects.create(gym=self.gym, day=day_key, hour=time(8, 0))
 
         plan = MembershipPlan.objects.create(
-            gym=self.gym, name="Basic", price=50, duration_days=30,
+            gym=self.gym, service=Service.get_default_for_gym(self.gym), name="Basic", price=50, duration_days=30,
         )
         plan2 = MembershipPlan.objects.create(
-            gym=self.gym, name="Premium", price=100, duration_days=30,
+            gym=self.gym, service=Service.get_default_for_gym(self.gym), name="Premium", price=100, duration_days=30,
         )
 
         for i in range(100):

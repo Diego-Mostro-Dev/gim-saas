@@ -73,6 +73,12 @@ class MembershipPlan(models.Model):
     weekly_visits = models.PositiveIntegerField(null=True, blank=True, verbose_name="Visitas semanales")
     active = models.BooleanField(default=True, verbose_name="Activo")
 
+    is_base = models.BooleanField(
+        default=False,
+        verbose_name="Plan base",
+        help_text="Plan interno para acceso sin membresía. No se muestra en listados.",
+    )
+
     class Meta:
         verbose_name = "Plan"
         verbose_name_plural = "Planes"

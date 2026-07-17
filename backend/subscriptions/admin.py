@@ -59,19 +59,22 @@ class PlanChangeRequestAdmin(admin.ModelAdmin):
 class SubscriptionItemAdmin(admin.ModelAdmin):
     list_display = (
         "subscription",
+        "item_type",
         "plan",
+        "activity",
         "status",
         "start_date",
         "end_date",
         "price_snapshot",
     )
 
-    list_filter = ("status", "plan")
+    list_filter = ("status", "item_type", "plan")
 
     search_fields = (
         "subscription__member__first_name",
         "subscription__member__last_name",
         "plan__name",
+        "activity__name",
     )
 
     readonly_fields = ("created_at",)

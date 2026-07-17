@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from members.models import Member
 from payments.models import Payment
-from subscriptions.models import Subscription
+from subscriptions.models import Subscription, SubscriptionItem
 from attendance.models import Attendance
 from routines.models import RoutineAssignment
 
@@ -149,24 +149,34 @@ class DashboardSummaryView(APIView):
         events.sort(key=lambda e: e[0], reverse=True)
         recent_activity_data = [item for _, item in events[:LIMIT]]
 
-        pending_payments_data = [
-            {
-                "id": sub.id,
-                "member_id": sub.member.id,
-                "member_name": f"{sub.member.first_name} {sub.member.last_name}",
-                "member_photo": sub.member.photo.url if sub.member.photo else None,
-                "plan_name": sub.plan.name,
-                "plan_price": float(sub.plan.price),
-                "end_date": sub.end_date.strftime("%d/%m/%Y"),
-            }
-            for sub in Subscription.objects.filter(
+        pending_subs = list(
+            Subscription.objects.filter(
                 gym=gym,
                 paid=False,
                 end_date__gte=today,
             )
             .select_related("member", "plan")
             .order_by("end_date")[:10]
-        ]
+        )
+
+        pending_payments_data = []
+        for sub in pending_subs:
+            total = float(sub.plan.price)
+            activity_sum = SubscriptionItem.objects.filter(
+                subscription=sub,
+                item_type="activity",
+                status="active",
+            ).aggregate(s=Sum("price_snapshot"))["s"]
+            total += float(activity_sum or 0)
+            pending_payments_data.append({
+                "id": sub.id,
+                "member_id": sub.member.id,
+                "member_name": f"{sub.member.first_name} {sub.member.last_name}",
+                "member_photo": sub.member.photo.url if sub.member.photo else None,
+                "plan_name": sub.plan.name,
+                "plan_price": total,
+                "end_date": sub.end_date.strftime("%d/%m/%Y"),
+            })
 
         # -------------------------
         # Attendance

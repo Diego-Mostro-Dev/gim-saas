@@ -25,6 +25,7 @@ class GymSerializer(serializers.ModelSerializer):
             "schedule_change_notice_hours",
             "payment_due_day",
             "access_block_day",
+            "allow_activity_without_membership",
             "allow_plan_changes",
             "allow_schedule_changes",
             "schedule_change_cooldown_hours",

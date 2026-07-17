@@ -30,6 +30,7 @@ from .services import (
     cancel_future_plan_change,
     can_member_operate,
     ensure_subscription_item,
+    ensure_subscription_items,
     get_first_day_of_next_month,
     get_last_day_of_month,
 )
@@ -71,7 +72,7 @@ class SubscriptionViewSet(GymModelViewSet):
             auto_renew=subscription.auto_renew,
         )
 
-        ensure_subscription_item(new_subscription)
+        ensure_subscription_items(new_subscription, previous_subscription=subscription)
 
         serializer = self.get_serializer(
             new_subscription
@@ -177,7 +178,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                         paid=False,
                         auto_renew=current_sub.auto_renew if current_sub else True,
                     )
-                    ensure_subscription_item(new_subscription)
+                    ensure_subscription_items(new_subscription, previous_subscription=current_sub)
 
                     self._synchronize_schedules(instance)
             elif new_status == "cancelled_by_staff" and instance.status == "approved":

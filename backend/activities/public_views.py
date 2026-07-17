@@ -104,6 +104,7 @@ class PublicGymActivitiesView(APIView):
                 "id": activity.id,
                 "name": activity.name,
                 "description": activity.description,
+                "monthly_price": str(activity.monthly_price),
                 "schedules": schedules,
             })
 
@@ -157,6 +158,7 @@ class PublicAvailableActivitiesView(APIView):
                 "id": activity.id,
                 "name": activity.name,
                 "description": activity.description,
+                "monthly_price": str(activity.monthly_price),
                 "schedules": schedules,
             })
 

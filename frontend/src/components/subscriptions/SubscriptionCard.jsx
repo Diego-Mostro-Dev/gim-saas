@@ -97,12 +97,39 @@ function SubscriptionCard({ subscription, onEdit, onDelete, onRenew }) {
         </div>
       </div>
 
-      <div className="mt-3 border-t border-border pt-3">
-        <p className="text-xs text-text-secondary">Valor del plan</p>
+      <div className="mt-3 border-t border-border pt-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-text-secondary">Plan</p>
+          <p className="text-sm text-text-primary">
+            ${Number(subscription.plan_price).toLocaleString("es-AR")}
+          </p>
+        </div>
 
-        <p className="text-sm font-semibold text-text-primary">
-          ${Number(subscription.plan_price).toLocaleString("es-AR")}
-        </p>
+        {subscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+          <>
+            <p className="text-xs text-text-secondary">Actividades</p>
+            {subscription.items
+              .filter((i) => i.item_type === "activity" && i.status === "active")
+              .map((item) => (
+                <div key={item.id} className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs text-text-primary">
+                    <span className="text-success-text dark:text-success">✓</span>
+                    {item.activity_name || item.name_snapshot}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    ${Number(item.price_snapshot).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              ))}
+          </>
+        )}
+
+        <div className="flex items-center justify-between border-t border-border pt-2">
+          <p className="text-xs font-semibold text-text-secondary">Total</p>
+          <p className="text-sm font-semibold text-text-primary">
+            ${Number(subscription.total ?? subscription.plan_price).toLocaleString("es-AR")}
+          </p>
+        </div>
       </div>
     </div>
   );

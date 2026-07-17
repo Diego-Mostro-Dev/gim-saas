@@ -26,6 +26,10 @@ function CurrentPlanCard({ subscription }) {
       ? "text-success-text dark:text-success"
       : "text-danger-text dark:text-danger";
 
+  const activityItems = subscription.items?.filter(
+    (i) => i.item_type === "activity" && i.status === "active"
+  ) || [];
+
   return (
     <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex items-start justify-between">
@@ -51,6 +55,31 @@ function CurrentPlanCard({ subscription }) {
           {statusLabel}
         </span>
       </div>
+
+      {activityItems.length > 0 && (
+        <div className="mt-4 border-t border-border pt-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Actividades
+          </p>
+          {activityItems.map((item) => (
+            <div key={item.id} className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-text-primary">
+                <span className="text-success-text dark:text-success">✓</span>
+                {item.name}
+              </span>
+              <span className="text-sm text-text-secondary">
+                ${Number(item.price).toLocaleString("es-AR")}
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between border-t border-border pt-2">
+            <p className="text-sm font-semibold text-text-secondary">Total</p>
+            <p className="text-sm font-bold text-info-text dark:text-info">
+              ${Number(subscription.total ?? subscription.plan_price).toLocaleString("es-AR")}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

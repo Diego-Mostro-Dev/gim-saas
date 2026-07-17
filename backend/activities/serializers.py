@@ -27,6 +27,7 @@ class ActivitySerializer(serializers.ModelSerializer):
             "service",
             "name",
             "description",
+            "monthly_price",
             "active",
             "created_at",
             "updated_at",
@@ -137,6 +138,12 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
     activity_name = serializers.CharField(source="schedule.activity.name", read_only=True)
     activity_id = serializers.IntegerField(source="schedule.activity_id", read_only=True)
     activity_active = serializers.BooleanField(source="schedule.activity.active", read_only=True)
+    monthly_price = serializers.DecimalField(
+        source="schedule.activity.monthly_price",
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+    )
     schedule_active = serializers.BooleanField(source="schedule.active", read_only=True)
     day = serializers.CharField(source="schedule.day", read_only=True)
     start_time = serializers.TimeField(source="schedule.start_time", read_only=True)
@@ -149,6 +156,7 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
             "activity_name",
             "activity_id",
             "activity_active",
+            "monthly_price",
             "schedule_active",
             "schedule",
             "day",

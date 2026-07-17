@@ -29,6 +29,7 @@ function Settings() {
     payment_due_day: "",
     access_block_day: "",
     allow_plan_changes: false,
+    allow_activity_without_membership: false,
     allow_schedule_changes: false,
     schedule_change_cooldown_hours: "",
     max_schedule_changes_per_month: "",
@@ -193,6 +194,7 @@ function Settings() {
       payment_due_day: gym.payment_due_day ?? "",
       access_block_day: gym.access_block_day ?? "",
       allow_plan_changes: gym.allow_plan_changes ?? false,
+      allow_activity_without_membership: gym.allow_activity_without_membership ?? false,
       allow_schedule_changes: gym.allow_schedule_changes ?? false,
       schedule_change_cooldown_hours: gym.schedule_change_cooldown_hours ?? "",
       max_schedule_changes_per_month: gym.max_schedule_changes_per_month ?? "",
@@ -230,6 +232,7 @@ function Settings() {
         data.append("access_block_day", formData.access_block_day);
       }
       data.append("allow_plan_changes", formData.allow_plan_changes);
+      data.append("allow_activity_without_membership", formData.allow_activity_without_membership);
       data.append("allow_schedule_changes", formData.allow_schedule_changes);
       if (formData.schedule_change_cooldown_hours !== "") {
         data.append("schedule_change_cooldown_hours", formData.schedule_change_cooldown_hours);
@@ -478,6 +481,23 @@ function Settings() {
             <span
               className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
                 formData.allow_plan_changes ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mb-4 flex items-center justify-between">
+          <label className="text-sm text-text-primary">Permitir actividades sin membresía</label>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, allow_activity_without_membership: !formData.allow_activity_without_membership })}
+            className={`relative h-6 w-11 rounded-full transition ${
+              formData.allow_activity_without_membership ? "bg-primary" : "bg-border"
+            }`}
+          >
+            <span
+              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                formData.allow_activity_without_membership ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>

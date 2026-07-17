@@ -177,6 +177,53 @@ function ActivityDashboard() {
           Estado de pagos
         </h2>
 
+        {routine.subscription && (
+          <div className="mb-3 rounded-lg bg-surface-input border border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-text-secondary">Plan</span>
+              <span className="text-sm font-medium text-text-primary">
+                {routine.subscription.plan}
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-sm text-text-secondary">Precio del plan</span>
+              <span className="text-sm text-text-primary">
+                ${Number(routine.subscription.plan_price).toLocaleString("es-AR")}
+              </span>
+            </div>
+
+            {routine.subscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+              <div className="mt-3 border-t border-border pt-3 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                  Actividades
+                </p>
+                {routine.subscription.items
+                  .filter((i) => i.item_type === "activity" && i.status === "active")
+                  .map((item) => (
+                    <div key={item.id} className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-sm text-text-primary">
+                        <span className="text-success-text dark:text-success">✓</span>
+                        {item.name}
+                      </span>
+                      <span className="text-sm text-text-secondary">
+                        ${Number(item.price).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {routine.subscription.total && Number(routine.subscription.total) > Number(routine.subscription.plan_price) && (
+              <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+                <span className="text-sm font-semibold text-text-secondary">Total mensual</span>
+                <span className="text-sm font-bold text-info-text dark:text-info">
+                  ${Number(routine.subscription.total).toLocaleString("es-AR")}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         {last_payment ? (
           <div className="rounded-lg bg-surface-input border border-border p-4">
             <div className="flex items-center justify-between">

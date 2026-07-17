@@ -195,6 +195,43 @@ function GymDashboard() {
               </div>
 
               <div className="flex items-center justify-between">
+                <span className="text-text-secondary">Precio del plan</span>
+                <span className="text-text-primary">
+                  ${Number(subscription.plan_price).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              {subscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+                <div className="rounded-xl bg-surface-input px-3 py-2 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                    Actividades
+                  </p>
+                  {subscription.items
+                    .filter((i) => i.item_type === "activity" && i.status === "active")
+                    .map((item) => (
+                      <div key={item.id} className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-sm text-text-primary">
+                          <span className="text-success-text dark:text-success">✓</span>
+                          {item.name}
+                        </span>
+                        <span className="text-sm text-text-secondary">
+                          ${Number(item.price).toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {subscription.total && Number(subscription.total) > Number(subscription.plan_price) && (
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <span className="text-sm font-semibold text-text-secondary">Total mensual</span>
+                  <span className="text-sm font-bold text-info-text dark:text-info">
+                    ${Number(subscription.total).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
                 <span className="text-text-secondary">Inicio</span>
                 <span className="text-text-primary">
                   {formatHumanDate(subscription.start_date)}

@@ -1,3 +1,5 @@
+import { formatCurrency } from "../../utils/currency.utils";
+
 function PlanSelector({ plans, selectedPlanId, onSelect }) {
   if (!plans || plans.length === 0) return null;
 
@@ -51,7 +53,7 @@ function PlanSelector({ plans, selectedPlanId, onSelect }) {
                 </div>
                 <div className="text-right">
                   <span className="text-base font-bold text-info-text dark:text-info">
-                    ${plan.price}
+                    {formatCurrency(plan.price)}
                   </span>
                 </div>
               </div>

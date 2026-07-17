@@ -110,13 +110,15 @@ class BaseSeeder:
     def _seed_members(self):
         random.seed(f"gym-demo-{self.gym.id}")
 
+        all_pairs = [(f, l) for f in FIRST_NAMES for l in LAST_NAMES]
+        random.shuffle(all_pairs)
+
         members = []
         is_active_flags = [True] * 45 + [False] * 5
         random.shuffle(is_active_flags)
 
         for i in range(50):
-            first = random.choice(FIRST_NAMES)
-            last = random.choice(LAST_NAMES)
+            first, last = all_pairs[i]
 
             members.append(Member(
                 gym=self.gym,

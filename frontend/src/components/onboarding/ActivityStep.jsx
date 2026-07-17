@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { DAY_NAMES } from "../../constants/days";
+import { formatCurrency } from "../../utils/currency.utils";
 
 function ActivityStep({ activities, selections, onChange }) {
   const [expanded, setExpanded] = useState(null);
@@ -19,7 +20,8 @@ function ActivityStep({ activities, selections, onChange }) {
     return selections.some((s) => s.schedule_id === scheduleId);
   }
 
-  function handleToggle(activityId, scheduleId) {
+  function handleToggle(activityId, scheduleId, availableSpots) {
+    if (availableSpots !== undefined && availableSpots <= 0) return;
     if (isSelected(scheduleId)) {
       onChange(selections.filter((s) => s.schedule_id !== scheduleId));
     } else {
@@ -78,9 +80,16 @@ function ActivityStep({ activities, selections, onChange }) {
                       </span>
                     )}
                   </div>
-                  {activity.description && (
-                    <p className="mt-0.5 text-sm text-text-secondary line-clamp-1">
-                      {activity.description}
+                  <div className="mt-0.5 flex items-center gap-2">
+                    {activity.description && (
+                      <p className="text-sm text-text-secondary line-clamp-1">
+                        {activity.description}
+                      </p>
+                    )}
+                  </div>
+                  {activity.monthly_price && Number(activity.monthly_price) > 0 && (
+                    <p className="mt-1 text-sm font-semibold text-info-text dark:text-info">
+                      {formatCurrency(activity.monthly_price)}/mes
                     </p>
                   )}
                 </div>
@@ -98,28 +107,35 @@ function ActivityStep({ activities, selections, onChange }) {
                     <div className="space-y-2">
                       {activity.schedules.map((schedule) => {
                         const selected = isSelected(schedule.id);
+                        const isFull = schedule.available_spots !== undefined && schedule.available_spots <= 0;
 
                         return (
                           <div
                             key={schedule.id}
-                            onClick={() => handleToggle(activity.id, schedule.id)}
+                            onClick={() => !isFull && handleToggle(activity.id, schedule.id, schedule.available_spots)}
                             role="button"
-                            tabIndex={0}
+                            tabIndex={isFull ? -1 : 0}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
+                              if (!isFull && (e.key === "Enter" || e.key === " ")) {
                                 e.preventDefault();
-                                handleToggle(activity.id, schedule.id);
+                                handleToggle(activity.id, schedule.id, schedule.available_spots);
                               }
                             }}
-                            className={`flex cursor-pointer flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-0 sm:justify-between rounded-lg border p-3 transition ${
-                              selected
-                                ? "border-info bg-info-bg"
-                                : "border-border bg-surface-input hover:border-border"
+                            className={`flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-0 sm:justify-between rounded-lg border p-3 transition ${
+                              isFull
+                                ? "border-border bg-surface-input opacity-50 cursor-not-allowed"
+                                : selected
+                                  ? "cursor-pointer border-info bg-info-bg"
+                                  : "cursor-pointer border-border bg-surface-input hover:border-border"
                             }`}
                           >
                             <div className="flex items-start gap-3 sm:items-center">
                               <div className={`mt-0.5 shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center ${
-                                selected ? "border-info bg-info" : "border-text-secondary"
+                                isFull
+                                  ? "border-text-secondary/40 bg-surface-input"
+                                  : selected
+                                    ? "border-info bg-info"
+                                    : "border-text-secondary"
                               }`}>
                                 {selected && (
                                   <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">

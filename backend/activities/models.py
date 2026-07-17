@@ -25,6 +25,13 @@ class Activity(models.Model):
     )
     name = models.CharField(max_length=100, verbose_name="Nombre")
     description = models.TextField(blank=True, verbose_name="Descripción")
+    monthly_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Precio mensual",
+        help_text="Costo mensual de la actividad. Se factura como SubscriptionItem.",
+    )
     active = models.BooleanField(default=True, verbose_name="Activo")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado")

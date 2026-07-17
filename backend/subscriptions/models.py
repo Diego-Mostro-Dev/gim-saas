@@ -152,6 +152,11 @@ class SubscriptionItem(models.Model):
         ("expired", "Vencido"),
     ]
 
+    ITEM_TYPE_CHOICES = [
+        ("plan", "Plan de membresía"),
+        ("activity", "Actividad"),
+    ]
+
     subscription = models.ForeignKey(
         Subscription,
         on_delete=models.CASCADE,
@@ -159,11 +164,36 @@ class SubscriptionItem(models.Model):
         verbose_name="Suscripción",
     )
 
+    item_type = models.CharField(
+        max_length=20,
+        choices=ITEM_TYPE_CHOICES,
+        default="plan",
+        verbose_name="Tipo de item",
+    )
+
     plan = models.ForeignKey(
         MembershipPlan,
         on_delete=models.PROTECT,
         related_name="subscription_items",
         verbose_name="Plan",
+        null=True,
+        blank=True,
+    )
+
+    activity = models.ForeignKey(
+        "activities.Activity",
+        on_delete=models.PROTECT,
+        related_name="subscription_items",
+        verbose_name="Actividad",
+        null=True,
+        blank=True,
+    )
+
+    name_snapshot = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name="Nombre al momento de contratación",
+        help_text="Snapshot del nombre del plan o actividad.",
     )
 
     status = models.CharField(
@@ -190,8 +220,13 @@ class SubscriptionItem(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["subscription", "plan"],
-                condition=Q(status="active"),
-                name="unique_active_item_per_subscription",
+                condition=Q(status="active", plan__isnull=False),
+                name="unique_active_plan_item_per_subscription",
+            ),
+            models.UniqueConstraint(
+                fields=["subscription", "activity"],
+                condition=Q(status="active", activity__isnull=False),
+                name="unique_active_activity_item_per_subscription",
             ),
             models.CheckConstraint(
                 condition=models.Q(end_date__gte=models.F("start_date")),
@@ -200,7 +235,12 @@ class SubscriptionItem(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.subscription.member} — {self.plan.name} ({self.status})"
+        label = self.name_snapshot or (
+            self.plan.name if self.plan else (
+                self.activity.name if self.activity else "—"
+            )
+        )
+        return f"{self.subscription.member} — {label} ({self.status})"
 
 
 class PlannedSchedule(models.Model):

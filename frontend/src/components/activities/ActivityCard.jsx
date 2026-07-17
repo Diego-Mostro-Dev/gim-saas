@@ -53,6 +53,12 @@ function ActivityCard({
         </p>
       )}
 
+      {Number(activity.monthly_price) > 0 && (
+        <p className="mt-2 text-sm font-medium text-primary">
+          ${Number(activity.monthly_price).toLocaleString()}/mes
+        </p>
+      )}
+
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
           onClick={() => onToggleActive(activity.id, !activity.active)}

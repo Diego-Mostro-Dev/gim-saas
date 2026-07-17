@@ -1,4 +1,6 @@
 import { DAY_NAMES } from "../../constants/days";
+import { formatCurrency } from "../../utils/currency.utils";
+import ValidationBanner from "../ui/ValidationBanner";
 
 function ReviewStep({
   formData,
@@ -8,6 +10,7 @@ function ReviewStep({
   schedules,
   activities,
   activitySelections,
+  validationMessage,
   onEditPersonal,
   onEditServices,
   onEditGym,
@@ -15,21 +18,14 @@ function ReviewStep({
 }) {
   const plan = plans.find((p) => p.id === selectedPlanId);
 
-  function getActivityName(activityId) {
-    const a = activities.find((a) => a.id === activityId);
-    return a ? a.name : "?";
+  function getActivity(activityId) {
+    return activities.find((a) => a.id === activityId) || null;
   }
 
-  function getActivityScheduleInfo(scheduleId) {
+  function findSchedule(scheduleId) {
     for (const a of activities) {
       const s = a.schedules?.find((s) => s.id === scheduleId);
-      if (s) {
-        return {
-          activityName: a.name,
-          day: DAY_NAMES[s.day] || s.day,
-          time: `${s.start_time?.slice(0, 5)} - ${s.end_time?.slice(0, 5)}`,
-        };
-      }
+      if (s) return { activity: a, schedule: s };
     }
     return null;
   }
@@ -39,11 +35,47 @@ function ReviewStep({
     return t.slice(0, 5);
   }
 
+  function groupSelectionsByActivity() {
+    const map = new Map();
+    for (const sel of activitySelections) {
+      if (!map.has(sel.activity_id)) {
+        const activity = getActivity(sel.activity_id);
+        map.set(sel.activity_id, {
+          activityId: sel.activity_id,
+          name: activity?.name || "?",
+          monthlyPrice: Number(activity?.monthly_price || 0),
+          schedules: [],
+        });
+      }
+      const found = findSchedule(sel.schedule_id);
+      if (found) {
+        map.get(sel.activity_id).schedules.push({
+          day: DAY_NAMES[found.schedule.day] || found.schedule.day,
+          time: `${formatTime(found.schedule.start_time)} - ${formatTime(found.schedule.end_time)}`,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  const groupedActivities = groupSelectionsByActivity();
+  const distinctActivityCount = groupedActivities.length;
+
+  const activitiesTotal = groupedActivities.reduce(
+    (sum, a) => sum + a.monthlyPrice,
+    0,
+  );
+
+  const planPrice = plan ? Number(plan.price) : 0;
+  const monthlyTotal = planPrice + activitiesTotal;
+
   return (
     <div className="space-y-6">
       <p className="text-sm font-medium text-text-primary">
         Revisá tus datos antes de confirmar
       </p>
+
+      {validationMessage && <ValidationBanner message={validationMessage} />}
 
       {/* Personal info */}
       <Section title="Información personal" onEdit={onEditPersonal}>
@@ -74,7 +106,7 @@ function ReviewStep({
           {plan ? (
             <>
               <Row label="Plan" value={plan.name} />
-              <Row label="Precio" value={`$${plan.price}`} />
+              <Row label="Precio" value={formatCurrency(plan.price)} />
               {plan.weekly_visits && (
                 <Row label="Visitas semanales" value={`${plan.weekly_visits}`} />
               )}
@@ -107,59 +139,100 @@ function ReviewStep({
 
       {/* Activities section */}
       {services.activities && (
-        <Section
-          title="Actividades"
-          onEdit={onEditActivities}
-          note={!services.gym ? "Suscripción pendiente de implementación" : undefined}
-        >
-          {activitySelections.length > 0 ? (
-            <div className="space-y-2">
-              {activitySelections.map((sel, i) => {
-                const info = getActivityScheduleInfo(sel.schedule_id);
-                return (
-                  <div
-                    key={i}
-                    className="rounded-lg bg-surface-input px-3 py-2"
-                  >
+        <Section title="Actividades" onEdit={onEditActivities}>
+          {groupedActivities.length > 0 ? (
+            <div className="space-y-3">
+              {groupedActivities.map((a) => (
+                <div
+                  key={a.activityId}
+                  className="rounded-lg bg-surface-input px-3 py-2"
+                >
+                  <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-text-primary">
-                      {info?.activityName || getActivityName(sel.activity_id)}
+                      {a.name}
                     </p>
-                    <p className="text-xs text-text-secondary">
-                      {info?.day} · {info?.time}
-                    </p>
+                    {a.monthlyPrice > 0 && (
+                      <span className="text-sm font-semibold text-info-text dark:text-info">
+                        {formatCurrency(a.monthlyPrice)}/mes
+                      </span>
+                    )}
                   </div>
-                );
-              })}
+                  {a.schedules.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      {a.schedules.map((s, i) => (
+                        <p key={i} className="text-xs text-text-secondary">
+                          {s.day} {s.time}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           ) : (
             <p className="text-sm text-text-secondary">
-              No seleccionaste horarios de actividades.
+              No seleccionaste actividades.
             </p>
           )}
         </Section>
       )}
 
-      {/* Total */}
-      <div className="rounded-xl border border-border bg-surface-elevated p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-text-primary">
-            Total estimado
+      {/* Summary */}
+      <div className="rounded-xl border border-border bg-surface-elevated p-4 space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+          Resumen
+        </p>
+
+        {services.gym && plan && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-text-secondary">Plan de gimnasio</span>
+            <span className="text-sm font-medium text-text-primary">
+              {formatCurrency(plan.price)}
+            </span>
+          </div>
+        )}
+
+        {services.activities && groupedActivities.length > 0 && (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-text-secondary">
+                Actividades ({distinctActivityCount})
+              </span>
+              <span className="text-sm font-medium text-text-primary">
+                {formatCurrency(activitiesTotal)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1 pl-2">
+              {groupedActivities.map((a) => (
+                <div key={a.activityId} className="flex items-center justify-between">
+                  <span className="text-xs text-text-secondary">
+                    {a.name}
+                  </span>
+                  {a.monthlyPrice > 0 && (
+                    <span className="text-xs text-text-secondary">
+                      {formatCurrency(a.monthlyPrice)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="border-t border-border pt-3 flex items-center justify-between">
+          <span className="text-sm font-semibold text-text-primary">
+            Total mensual estimado
           </span>
-          <span className="text-lg font-bold text-info">
-            {plan ? `$${plan.price}` : "—"}
+          <span className="text-lg font-bold text-info-text dark:text-info">
+            {formatCurrency(monthlyTotal)}
           </span>
         </div>
-        {services.activities && (
-          <p className="mt-1 text-xs text-text-secondary">
-            El precio de las actividades se definirá próximamente.
-          </p>
-        )}
       </div>
     </div>
   );
 }
 
-function Section({ title, children, onEdit, note }) {
+function Section({ title, children, onEdit }) {
   return (
     <div className="rounded-xl border border-border bg-surface-elevated p-4">
       <div className="mb-2 flex items-center justify-between">
@@ -176,9 +249,6 @@ function Section({ title, children, onEdit, note }) {
           </button>
         )}
       </div>
-      {note && (
-        <p className="mb-2 text-xs text-warning-text">{note}</p>
-      )}
       {children}
     </div>
   );

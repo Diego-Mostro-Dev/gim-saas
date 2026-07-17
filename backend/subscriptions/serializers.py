@@ -1,11 +1,37 @@
 from rest_framework import serializers
 from datetime import date
+from decimal import Decimal
 
 from attendance.models import AttendanceSchedule
 
-from .models import Subscription, PlanChangeRequest, PlannedSchedule
+from .models import Subscription, SubscriptionItem, PlanChangeRequest, PlannedSchedule
 from .validators import PlanChangeRequestValidator
 from .services import get_member_active_subscription, calculate_effective_date, compute_projected_occupancy, get_last_day_of_month
+
+
+class SubscriptionItemSerializer(serializers.ModelSerializer):
+    activity_name = serializers.CharField(
+        source="activity.name",
+        read_only=True,
+        default=None,
+    )
+
+    class Meta:
+        model = SubscriptionItem
+        fields = [
+            "id",
+            "item_type",
+            "plan",
+            "activity",
+            "activity_name",
+            "name_snapshot",
+            "status",
+            "price_snapshot",
+            "start_date",
+            "end_date",
+            "created_at",
+        ]
+        read_only_fields = ["created_at"]
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -22,6 +48,9 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
+
+    items = SubscriptionItemSerializer(many=True, read_only=True)
+    total = serializers.SerializerMethodField()
 
     class Meta:
         model = Subscription
@@ -47,6 +76,14 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             except Exception:
                 return str(obj.member.photo)
         return None
+
+    def get_total(self, obj):
+        plan_price = obj.plan.price if obj.plan else Decimal("0")
+        items_total = sum(
+            item.price_snapshot
+            for item in obj.items.filter(status="active", item_type="activity")
+        )
+        return str(plan_price + items_total)
 
     def validate(self, attrs):
         gym = self.context["request"].user.profile.gym

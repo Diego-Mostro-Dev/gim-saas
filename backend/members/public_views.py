@@ -1,6 +1,6 @@
 import json
 from calendar import monthrange
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 
 from django.db import transaction
@@ -11,10 +11,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from activities.models import Activity, ActivitySchedule, Enrollment
+from activities.overlap import validate_gym_activity_overlap, validate_schedule_batch
 from gyms.models import Gym
 from attendance.models import ScheduleSlot
 from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from plans.models import MembershipPlan
+from plans.services import ensure_base_plan_for_gym
+from subscriptions.models import Subscription, SubscriptionItem
 from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer
@@ -122,6 +125,20 @@ class PublicRegisterView(APIView):
         has_activities = "activities" in services
         entry_mode = "GYM" if has_gym else "ACTIVITY_ONLY"
 
+        if has_gym:
+            raw_schedules = request.data.get("schedules", [])
+            if isinstance(raw_schedules, str):
+                try:
+                    raw_schedules = json.loads(raw_schedules)
+                except (json.JSONDecodeError, TypeError):
+                    raw_schedules = []
+
+            if not isinstance(raw_schedules, list) or not raw_schedules:
+                return Response(
+                    {"schedules": "Debe seleccionar al menos un horario de gimnasio."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         activity_entries = []
         if has_activities:
             raw = request.data.get("activity_schedules", [])
@@ -149,6 +166,37 @@ class PublicRegisterView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        if has_gym and has_activities:
+            raw_gym = request.data.get("schedules", [])
+            if isinstance(raw_gym, str):
+                try:
+                    raw_gym = json.loads(raw_gym)
+                except (json.JSONDecodeError, TypeError):
+                    raw_gym = []
+
+            if raw_gym:
+                gym_slots = []
+                for s in raw_gym:
+                    h, m = map(int, s["hour"].split(":"))
+                    gym_slot = ScheduleSlot.objects.filter(
+                        gym=gym, day=s["day"],
+                        hour=time(h, m),
+                    ).first()
+                    if gym_slot:
+                        gym_slots.append(gym_slot)
+
+                if gym_slots:
+                    try:
+                        validate_gym_activity_overlap(
+                            gym_slots,
+                            [e["schedule"] for e in activity_entries],
+                        )
+                    except ValueError as e:
+                        return Response(
+                            {"activity_schedules": str(e)},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
         member_data = request.data.copy()
         member_data.pop("services", None)
         member_data.pop("activity_schedules", None)
@@ -174,13 +222,30 @@ class PublicRegisterView(APIView):
                 ])
 
             if has_activities and not has_gym:
-                # Subscription creation for activity-only members is deferred.
-                # BLOCKER: Subscription.plan is a non-nullable FK to
-                # MembershipPlan. There is currently no dedicated "Activities
-                # Only" plan for the gym. can_member_operate() handles missing
-                # subscriptions gracefully (returns True), so the member can
-                # still log into the portal.
-                pass
+                if gym.allow_activity_without_membership:
+                    base_plan = ensure_base_plan_for_gym(gym)
+                    today = date.today()
+                    sub = Subscription.objects.create(
+                        gym=gym,
+                        member=member,
+                        plan=base_plan,
+                        start_date=today,
+                        end_date=get_last_day_of_month(today),
+                        auto_renew=True,
+                        paid=False,
+                    )
+                    for entry in activity_entries:
+                        activity = Activity.objects.get(id=entry["activity_id"])
+                        SubscriptionItem.objects.create(
+                            subscription=sub,
+                            item_type="activity",
+                            activity=activity,
+                            name_snapshot=activity.name,
+                            price_snapshot=activity.monthly_price,
+                            start_date=today,
+                            end_date=get_last_day_of_month(today),
+                            status="active",
+                        )
 
         return Response(
             MemberSerializer(member).data,
@@ -243,6 +308,9 @@ class PublicRegisterView(APIView):
             result.append(
                 {"activity_id": activity_id, "schedule": schedule}
             )
+
+        selected_schedules = [entry["schedule"] for entry in result]
+        validate_schedule_batch(selected_schedules)
 
         return result
 

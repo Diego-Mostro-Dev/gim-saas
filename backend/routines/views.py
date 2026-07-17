@@ -423,6 +423,7 @@ class PublicRoutineView(APIView):
                 start_date__lte=today,
                 end_date__gte=today,
             )
+            .prefetch_related("items")
             .first()
         )
 
@@ -436,6 +437,7 @@ class PublicRoutineView(APIView):
                     member=member,
                     start_date__gt=today,
                 )
+                .prefetch_related("items")
                 .order_by("start_date")
                 .first()
             )
@@ -449,6 +451,18 @@ class PublicRoutineView(APIView):
             days_remaining = (
                 sub.end_date - today
             ).days
+
+            activity_items = list(
+                sub.items.filter(
+                    status="active",
+                    item_type="activity",
+                )
+            )
+            items_total = sum(
+                item.price_snapshot for item in activity_items
+            )
+            total = plan.price + items_total
+
             return {
                 "id": sub.id,
                 "plan_id": plan.id,
@@ -474,6 +488,17 @@ class PublicRoutineView(APIView):
                     and 0 <= days_remaining <= 7
                     else None
                 ),
+                "items": [
+                    {
+                        "id": item.id,
+                        "item_type": item.item_type,
+                        "name": item.name_snapshot,
+                        "price": str(item.price_snapshot),
+                        "activity_id": item.activity_id,
+                    }
+                    for item in activity_items
+                ],
+                "total": str(total),
             }
 
         if active_subscription:

@@ -29,6 +29,7 @@ function Activities() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    monthly_price: "",
     active: true,
   });
   const [fieldErrors, setFieldErrors] = useState({});
@@ -171,6 +172,7 @@ function Activities() {
     setFormData({
       name: activity.name,
       description: activity.description || "",
+      monthly_price: activity.monthly_price ?? "",
       active: activity.active,
     });
     setFieldErrors({});
@@ -184,6 +186,7 @@ function Activities() {
     setFormData({
       name: "",
       description: "",
+      monthly_price: "",
       active: true,
     });
   }

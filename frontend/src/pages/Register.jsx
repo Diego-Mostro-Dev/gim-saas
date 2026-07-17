@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { ApiError } from "../services/api";
 import {
   registerPublicMember,
   getPublicSlots,
@@ -14,6 +15,7 @@ import ServiceStep from "../components/onboarding/ServiceStep";
 import GymStep from "../components/onboarding/GymStep";
 import ActivityStep from "../components/onboarding/ActivityStep";
 import ReviewStep from "../components/onboarding/ReviewStep";
+import ValidationBanner from "../components/ui/ValidationBanner";
 
 const INITIAL_FORM = {
   first_name: "",
@@ -59,6 +61,7 @@ function Register() {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [activitySelections, setActivitySelections] = useState([]);
+  const [validationMessage, setValidationMessage] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -99,6 +102,10 @@ function Register() {
     setStepIdx((prev) => Math.min(prev, maxIdx));
   }, [loadingData, services.gym, services.activities]);
 
+  useEffect(() => {
+    setValidationMessage(null);
+  }, [formData, services, selectedPlanId, schedules, activitySelections]);
+
   if (loadingData) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface">
@@ -122,18 +129,23 @@ function Register() {
   function goNext() {
     if (stepIdx < stepQueue.length - 1) {
       setStepIdx(stepIdx + 1);
+      setValidationMessage(null);
     }
   }
 
   function goBack() {
     if (stepIdx > 0) {
       setStepIdx(stepIdx - 1);
+      setValidationMessage(null);
     }
   }
 
   function goToStep(stepId) {
     const idx = stepQueue.indexOf(stepId);
-    if (idx >= 0) setStepIdx(idx);
+    if (idx >= 0) {
+      setStepIdx(idx);
+      setValidationMessage(null);
+    }
   }
 
   function canProceed() {
@@ -147,7 +159,7 @@ function Register() {
         return services.gym || services.activities;
 
       case STEPS.GYM:
-        return selectedPlanId !== null;
+        return selectedPlanId !== null && schedules.length > 0;
 
       case STEPS.ACTIVITIES:
         return activitySelections.length > 0;
@@ -208,7 +220,11 @@ function Register() {
       setSuccess(true);
       toast.success("Registro realizado correctamente");
     } catch (error) {
-      toast.error(error.message || "Error al registrarse");
+      if (error instanceof ApiError && error.status === 400) {
+        setValidationMessage(error.message);
+      } else {
+        toast.error(error.message || "Error al registrarse");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -347,6 +363,7 @@ function Register() {
         schedules={schedules}
         activities={availableActivities}
         activitySelections={activitySelections}
+        validationMessage={validationMessage}
         loading={isSubmitting}
         onEditPersonal={() => goToStep(STEPS.PERSONAL)}
         onEditServices={() => goToStep(STEPS.SERVICES)}

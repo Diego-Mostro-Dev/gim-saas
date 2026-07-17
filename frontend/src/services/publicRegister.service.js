@@ -1,3 +1,5 @@
+import { ApiError, extractApiErrorMessage } from "./api";
+
 const API_PUBLIC =
   `${import.meta.env.VITE_API_URL}/api/public`;
 
@@ -16,10 +18,9 @@ export async function registerPublicMember(
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(
-      data?.phone?.[0] ||
-      data?.detail ||
-      "Error al registrarse"
+    throw new ApiError(
+      extractApiErrorMessage(data) || "Error al registrarse",
+      response.status,
     );
   }
 

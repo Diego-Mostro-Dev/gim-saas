@@ -199,6 +199,11 @@ function MemberActivities() {
                 {dayLabel} · {formatTime(enrollment.start_time)} -{" "}
                 {formatTime(enrollment.end_time)}
               </p>
+              {enrollment.monthly_price && Number(enrollment.monthly_price) > 0 && (
+                <p className="mt-0.5 text-xs font-medium text-info-text dark:text-info">
+                  ${Number(enrollment.monthly_price).toLocaleString("es-AR")}/mes
+                </p>
+              )}
             </div>
 
             <button
@@ -243,6 +248,11 @@ function MemberActivities() {
                       {dayLabel} · {formatTime(enrollment.start_time)} -{" "}
                       {formatTime(enrollment.end_time)}
                     </p>
+                    {enrollment.monthly_price && Number(enrollment.monthly_price) > 0 && (
+                      <p className="mt-0.5 text-xs font-medium text-info-text dark:text-info">
+                        ${Number(enrollment.monthly_price).toLocaleString("es-AR")}/mes
+                      </p>
+                    )}
 
                     <div className="mt-3 flex items-start gap-2 rounded-lg bg-warning-bg/50 dark:bg-warning/5 p-3">
                       <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning-text dark:text-warning" />
@@ -459,6 +469,11 @@ function MemberActivities() {
             <p className="text-sm font-medium text-text-primary truncate">
               {activity.name}
             </p>
+            {activity.monthly_price && Number(activity.monthly_price) > 0 && (
+              <p className="text-xs font-medium text-info-text dark:text-info mt-0.5">
+                ${Number(activity.monthly_price).toLocaleString("es-AR")}/mes
+              </p>
+            )}
             {activity.description && (
               <p className="text-xs text-text-secondary truncate mt-0.5">
                 {activity.description}

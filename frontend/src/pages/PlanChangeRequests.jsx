@@ -281,6 +281,9 @@ function PlanChangeRequests() {
                   <p className="text-sm text-success-text dark:text-success">{req.plan_name}</p>
                 </div>
               </div>
+              <p className="text-xs text-text-secondary text-center">
+                Las actividades actuales se mantendrán sin cambios.
+              </p>
 
               {req.status === "pending" && (
                 <div className="flex gap-2">

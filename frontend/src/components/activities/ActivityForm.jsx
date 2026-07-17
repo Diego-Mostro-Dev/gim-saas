@@ -54,6 +54,28 @@ function ActivityForm({
         />
       </div>
 
+      <div>
+        <label htmlFor="activity-price" className="mb-1 block text-sm font-medium text-text-primary">
+          Precio mensual
+        </label>
+
+        <input
+          id="activity-price"
+          type="number"
+          min="0"
+          step="100"
+          placeholder="0"
+          value={formData.monthly_price ?? ""}
+          onChange={(e) =>
+            setFormData({ ...formData, monthly_price: e.target.value })
+          }
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring"
+        />
+        <p className="mt-1 text-xs text-text-secondary">
+          Costo adicional por actividad (0 = incluida en la membresía)
+        </p>
+      </div>
+
       <label className="flex cursor-pointer items-center gap-3">
         <input
           type="checkbox"

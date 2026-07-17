@@ -9,7 +9,7 @@ from rest_framework.test import APIClient, APIRequestFactory
 from gyms.models import Gym
 from members.models import Member
 from subscriptions.models import Subscription
-from plans.models import MembershipPlan
+from plans.models import MembershipPlan, Service
 from payments.models import Payment
 from payments.serializers import PaymentSerializer
 
@@ -45,7 +45,7 @@ class PaymentMemberFKTest(TestCase):
         user.profile.save()
         member = Member.objects.create(gym=gym, first_name="PM", last_name="Ember",
                                         phone="1", email="p@m.com")
-        plan = MembershipPlan.objects.create(gym=gym, name="PBasic", price=10, duration_days=30)
+        plan = MembershipPlan.objects.create(gym=gym, service=Service.get_default_for_gym(gym), name="PBasic", price=10, duration_days=30)
         sub = Subscription.objects.create(gym=gym, member=member, plan=plan,
                                            start_date=date.today(),
                                            end_date=date.today() + timedelta(days=30),
@@ -75,7 +75,7 @@ class PaymentMemberFKTest(TestCase):
         user.profile.save()
         member = Member.objects.create(gym=gym, first_name="F", last_name="Member",
                                         phone="1", email="f@m.com")
-        plan = MembershipPlan.objects.create(gym=gym, name="FBasic", price=10, duration_days=30)
+        plan = MembershipPlan.objects.create(gym=gym, service=Service.get_default_for_gym(gym), name="FBasic", price=10, duration_days=30)
         sub = Subscription.objects.create(gym=gym, member=member, plan=plan,
                                            start_date=date.today(),
                                            end_date=date.today() + timedelta(days=30),
@@ -112,7 +112,7 @@ class ConcurrencyProtectionTest(TestCase):
         user.profile.save()
         member = Member.objects.create(gym=gym, first_name="C", last_name="Member",
                                         phone="1", email="c@m.com")
-        plan = MembershipPlan.objects.create(gym=gym, name="CBasic", price=10, duration_days=30)
+        plan = MembershipPlan.objects.create(gym=gym, service=Service.get_default_for_gym(gym), name="CBasic", price=10, duration_days=30)
         sub = Subscription.objects.create(gym=gym, member=member, plan=plan,
                                            start_date=date.today(),
                                            end_date=date.today() + timedelta(days=30),

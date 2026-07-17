@@ -57,6 +57,12 @@ class Gym(models.Model):
     # --- Phase 8A Gym Configuration ---
     payment_due_day = models.PositiveIntegerField(default=10, verbose_name="Día de vencimiento")
     access_block_day = models.PositiveIntegerField(default=16, verbose_name="Día de bloqueo")
+    allow_activity_without_membership = models.BooleanField(
+        default=False,
+        verbose_name="Permitir actividades sin membresía",
+        help_text="Si está activo, los socios pueden inscribirse en actividades sin comprar una membresía de gimnasio.",
+    )
+
     allow_plan_changes = models.BooleanField(default=True, verbose_name="Permitir cambios de plan")
     allow_schedule_changes = models.BooleanField(default=True, verbose_name="Permitir cambios de horario")
     schedule_change_cooldown_hours = models.PositiveIntegerField(default=168, verbose_name="Horas de espera entre cambios")

@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 from rest_framework import status
 
 from gyms.models import Gym
+from plans.models import Service
 from subscriptions.models import MembershipPlan, Subscription
 from subscriptions.services import get_last_day_of_month
 
@@ -24,6 +25,7 @@ class MemberCreateWithPlanTest(TestCase):
         )
         self.plan = MembershipPlan.objects.create(
             gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
             name="Basico",
             price=10000,
             duration_days=30,
