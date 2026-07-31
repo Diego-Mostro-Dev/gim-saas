@@ -14,7 +14,8 @@ from attendance.models import AttendanceSchedule
 from config.api.throttles import (
     PublicMemberRateThrottle,
 )
-from subscriptions.services import can_member_operate
+from members.eligibility import MemberEligibility
+from plans.services import public_plan_name_from_snapshot
 
 from .models import Member
 from .serializers import (
@@ -53,7 +54,7 @@ class MemberViewSet(GymModelViewSet):
     def payments(self, request, pk=None):
         member = self.get_object()
 
-        payments = (
+        payments = list(
             Payment.objects.filter(
                 gym=member.gym,
                 member=member,
@@ -70,6 +71,9 @@ class MemberViewSet(GymModelViewSet):
             )
         )
 
+        for pay in payments:
+            pay["plan_name"] = public_plan_name_from_snapshot(pay["plan_name"])
+
         return Response(payments)
 
 
@@ -85,7 +89,7 @@ class PublicMemberPhotoView(APIView):
             access_token=token,
         )
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,

@@ -38,7 +38,7 @@ class ActivityScheduleAdmin(admin.ModelAdmin):
 
 @admin.register(Enrollment)
 class EnrollmentAdmin(admin.ModelAdmin):
-    list_display = ("member", "schedule", "active", "enrolled_at")
+    list_display = ("member", "subscription_item", "schedule", "active", "enrolled_at")
     list_filter = ("active",)
     search_fields = ("member__first_name", "member__last_name", "schedule__activity__name")
 

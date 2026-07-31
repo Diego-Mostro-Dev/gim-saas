@@ -1,15 +1,10 @@
-import { useEffect, useState, useRef } from "react";
-import { Plus } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
-import toast from "react-hot-toast";
+import { useState } from "react";
 
-import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
-import SubscriptionForm from "../components/subscriptions/SubscriptionForm";
+import MemberSubscriptionCard from "../components/subscriptions/MemberSubscriptionCard";
 import SubscriptionFilters from "../components/subscriptions/SubscriptionFilters";
 import SubscriptionStats from "../components/subscriptions/SubscriptionStats";
 
 import { useSubscriptions } from "../hooks/useSubscriptions";
-import { useSubscriptionForm } from "../hooks/useSubscriptionForm";
 import { useFilteredSubscriptions } from "../hooks/useFilteredSubscriptions";
 import { useSubscriptionStats } from "../hooks/useSubscriptionStats";
 
@@ -20,186 +15,52 @@ function Subscriptions() {
     plans,
     loading,
     error,
-    createNewSubscription,
-    editSubscription,
-    removeSubscription,
-    renewExistingSubscription,
   } = useSubscriptions();
-
-  const {
-    showForm,
-    formData,
-    editingSubscription,
-    setFormData,
-    openCreateForm,
-    openEditForm,
-    closeForm,
-    resetForm,
-  } = useSubscriptionForm();
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [renewalFilter, setRenewalFilter] = useState("all");
 
-  const [searchParams] = useSearchParams();
-
-  const formRef = useRef(null);
-
-  const { filteredSubscriptions } = useFilteredSubscriptions({
+  const { filteredMembers } = useFilteredSubscriptions({
+    members,
     subscriptions,
     searchTerm,
     statusFilter,
-    paymentFilter,
+    renewalFilter,
   });
 
-  const stats = useSubscriptionStats(subscriptions);
+  const stats = useSubscriptionStats(members, subscriptions);
 
-  useEffect(() => {
-    const shouldOpenForm = searchParams.get("create");
+  const subsByMember = {};
+  subscriptions.forEach((sub) => {
+    if (!subsByMember[sub.member]) subsByMember[sub.member] = [];
+    subsByMember[sub.member].push(sub);
+  });
 
-    if (shouldOpenForm === "true") {
-      openCreateForm();
-    }
-  }, [searchParams, openCreateForm]);
-
-  useEffect(() => {
-    if (showForm && editingSubscription && formRef.current) {
-      formRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }
-  }, [showForm, editingSubscription]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
-
-    try {
-      let result;
-
-      if (editingSubscription) {
-        result = await editSubscription(editingSubscription.id, formData);
-
-        if (!result.success) {
-          throw new Error();
-        }
-
-        toast.success("Suscripción actualizada");
-      } else {
-        result = await createNewSubscription(formData);
-
-        if (!result.success) {
-          throw new Error();
-        }
-
-        toast.success("Suscripción creada");
-      }
-
-      resetForm();
-      closeForm();
-    } catch (error) {
-      console.error(error);
-
-      toast.error("Ocurrió un error");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleDeleteSubscription(id) {
-    const confirmed = window.confirm("¿Eliminar suscripción?");
-
-    if (!confirmed) return;
-
-    try {
-      const result = await removeSubscription(id);
-
-      if (!result.success) {
-        throw new Error();
-      }
-
-      toast.success("Suscripción eliminada");
-    } catch (error) {
-      console.error(error);
-
-      toast.error("No se pudo eliminar la suscripción");
-    }
-  }
-
-  async function handleRenewSubscription(id) {
-    const confirmed = window.confirm("¿Renovar esta suscripción?");
-
-    if (!confirmed) return;
-
-    try {
-      const result = await renewExistingSubscription(id);
-
-      if (!result.success) {
-        throw new Error();
-      }
-
-      toast.success("Suscripción renovada");
-    } catch (error) {
-      console.error(error);
-
-      toast.error("No se pudo renovar");
-    }
-  }
+  Object.values(subsByMember).forEach((subs) => {
+    subs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  });
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
-        Cargando suscripciones...
+        Cargando miembros...
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Suscripciones</h1>
-
-          <p className="mt-1 text-sm text-text-secondary">Gestión de membresías</p>
+          <h1 className="text-3xl font-bold">Estado comercial</h1>
+          <p className="mt-1 text-sm text-text-secondary">Situación actual de cada miembro</p>
         </div>
-
-        <button
-          onClick={() => {
-            if (showForm) {
-              closeForm();
-            } else {
-              openCreateForm();
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-        >
-          <Plus size={18} />
-          {showForm ? "Cerrar" : "Nueva"}
-        </button>
       </div>
 
       {error && (
         <div className="mb-4 rounded-xl bg-danger-bg dark:bg-danger/15 p-4 text-sm text-danger-text dark:text-danger">
           {error}
-        </div>
-      )}
-
-      {showForm && (
-        <div ref={formRef}>
-          <SubscriptionForm
-            formData={formData}
-            setFormData={setFormData}
-            onSubmit={handleSubmit}
-            members={members}
-            plans={plans}
-            editingSubscription={editingSubscription}
-            isSubmitting={isSubmitting}
-          />
         </div>
       )}
 
@@ -210,23 +71,22 @@ function Subscriptions() {
         setSearchTerm={setSearchTerm}
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
-        paymentFilter={paymentFilter}
-        setPaymentFilter={setPaymentFilter}
+        renewalFilter={renewalFilter}
+        setRenewalFilter={setRenewalFilter}
       />
 
-      {filteredSubscriptions.length === 0 ? (
+      {filteredMembers.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center text-text-secondary">
-          No hay suscripciones que coincidan con los filtros
+          No hay miembros que coincidan con los filtros
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredSubscriptions.map((subscription) => (
-            <SubscriptionCard
-              key={subscription.id}
-              subscription={subscription}
-              onEdit={openEditForm}
-              onDelete={handleDeleteSubscription}
-              onRenew={handleRenewSubscription}
+          {filteredMembers.map((member) => (
+            <MemberSubscriptionCard
+              key={member.id}
+              member={member}
+              subscriptions={subsByMember[member.id] || []}
+              plans={plans}
             />
           ))}
         </div>

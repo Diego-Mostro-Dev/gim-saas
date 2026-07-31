@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from attendance.models import AttendanceSchedule
+from subscriptions.domain import SubscriptionDomain
 from .models import Enrollment
 
 
@@ -36,8 +37,9 @@ def _check_gym_schedule_overlap(active_gym_schedules, target_schedule):
 
 
 def _check_activity_overlap(member, target_schedule):
+    gym = SubscriptionDomain.resolve_gym(member)
     overlapping = Enrollment.objects.filter(
-        gym=member.gym,
+        gym=gym,
         member=member,
         active=True,
         schedule__day=target_schedule.day,

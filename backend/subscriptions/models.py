@@ -6,6 +6,13 @@ from plans.models import MembershipPlan
 
 
 class Subscription(models.Model):
+
+    ORIGIN_CHOICES = [
+        ("onboarding", "Alta"),
+        ("auto_renewal", "Renovación automática"),
+        ("plan_change", "Cambio de plan"),
+    ]
+
     gym = models.ForeignKey(
         Gym,
         on_delete=models.CASCADE,
@@ -25,6 +32,14 @@ class Subscription(models.Model):
         default=True,
         verbose_name="Renovación automática",
         help_text="Si la suscripción se renueva automáticamente al próximo mes",
+    )
+
+    origin = models.CharField(
+        max_length=20,
+        choices=ORIGIN_CHOICES,
+        default="onboarding",
+        verbose_name="Origen",
+        help_text="Flujo que originó esta suscripción (auditoría).",
     )
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
@@ -73,6 +88,15 @@ class PlanChangeRequest(models.Model):
         on_delete=models.CASCADE,
         related_name="plan_change_requests",
         verbose_name="Miembro",
+    )
+
+    subscription = models.ForeignKey(
+        "Subscription",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="plan_change_requests",
+        verbose_name="Suscripción",
     )
 
     requested_plan = models.ForeignKey(

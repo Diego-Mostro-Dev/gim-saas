@@ -62,6 +62,15 @@ class AttendanceSchedule(models.Model):
         verbose_name="Horario",
     )
 
+    subscription = models.ForeignKey(
+        "subscriptions.Subscription",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="attendance_schedules",
+        verbose_name="Suscripción",
+    )
+
     active = models.BooleanField(default=True, db_index=True, verbose_name="Activo")
 
     class Meta:

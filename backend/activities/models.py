@@ -116,6 +116,16 @@ class Enrollment(models.Model):
         related_name="enrollments",
         verbose_name="Horario",
     )
+
+    subscription_item = models.ForeignKey(
+        "subscriptions.SubscriptionItem",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="enrollments",
+        verbose_name="Item de suscripción",
+    )
+
     active = models.BooleanField(default=True, verbose_name="Activo")
     enrolled_at = models.DateTimeField(auto_now_add=True, verbose_name="Inscripto")
 

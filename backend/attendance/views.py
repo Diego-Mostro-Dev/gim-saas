@@ -12,6 +12,7 @@ from rest_framework import status
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
 from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from members.models import Member
+from subscriptions.domain import ScheduleDomain, SubscriptionDomain
 from .serializers import (
     AttendanceScheduleSerializer,
     AttendanceSerializer,
@@ -434,21 +435,11 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
             current_schedule.active = False
             current_schedule.save(update_fields=["active"])
 
-            existing = AttendanceSchedule.objects.filter(
-                member=instance.member,
-                slot=requested_slot,
-            ).first()
-
-            if existing:
-                existing.active = True
-                existing.save(update_fields=["active"])
-            else:
-                AttendanceSchedule.objects.create(
-                    member=instance.member,
-                    gym=instance.gym,
-                    slot=requested_slot,
-                    active=True,
-                )
+            subscription = SubscriptionDomain.get_current_subscription(instance.member)
+            ScheduleDomain.activate_schedule(
+                instance.member, instance.gym, requested_slot,
+                subscription=subscription,
+            )
 
         serializer.save(
             reviewed_by=request.user,

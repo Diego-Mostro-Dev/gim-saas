@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from members.models import Member
 from payments.models import Payment
+from plans.services import public_plan_name
 from subscriptions.models import Subscription, SubscriptionItem
 from attendance.models import Attendance
 from routines.models import RoutineAssignment
@@ -83,7 +84,7 @@ class DashboardSummaryView(APIView):
                 "member_id": sub.member.id,
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "member_photo": sub.member.photo.url if sub.member.photo else None,
-                "plan_name": sub.plan.name,
+                "plan_name": public_plan_name(sub.plan),
                 "days_remaining": (sub.end_date - today).days,
             }
             for sub in expiring_subs_list
@@ -118,7 +119,7 @@ class DashboardSummaryView(APIView):
                     "id": f"subscription-{sub.id}",
                     "description": (
                         f"Nueva suscripción — {sub.member.first_name} "
-                        f"{sub.member.last_name} — {sub.plan.name}"
+                        f"{sub.member.last_name} — {public_plan_name(sub.plan)}"
                     ),
                     "created_at": sub.created_at.strftime("%d/%m/%Y"),
                 },
@@ -173,7 +174,7 @@ class DashboardSummaryView(APIView):
                 "member_id": sub.member.id,
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "member_photo": sub.member.photo.url if sub.member.photo else None,
-                "plan_name": sub.plan.name,
+                "plan_name": public_plan_name(sub.plan),
                 "plan_price": total,
                 "end_date": sub.end_date.strftime("%d/%m/%Y"),
             })

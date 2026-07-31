@@ -3,14 +3,14 @@ function SubscriptionFilters({
   setSearchTerm,
   statusFilter,
   setStatusFilter,
-  paymentFilter,
-  setPaymentFilter,
+  renewalFilter,
+  setRenewalFilter,
 }) {
   return (
     <div className="mb-4 space-y-3">
       <input
         type="text"
-        placeholder="Buscar miembro o plan..."
+        placeholder="Buscar miembro o teléfono..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
@@ -22,19 +22,20 @@ function SubscriptionFilters({
           onChange={(e) => setStatusFilter(e.target.value)}
           className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         >
-          <option value="all">Todas</option>
-          <option value="active">Activas</option>
-          <option value="expired">Vencidas</option>
+          <option value="all">Todos los miembros</option>
+          <option value="active">Activos</option>
+          <option value="pending">Pendientes de pago</option>
+          <option value="expired">Sin ciclo vigente</option>
         </select>
 
         <select
-          value={paymentFilter}
-          onChange={(e) => setPaymentFilter(e.target.value)}
+          value={renewalFilter}
+          onChange={(e) => setRenewalFilter(e.target.value)}
           className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         >
-          <option value="all">Todos los pagos</option>
-          <option value="paid">Pagadas</option>
-          <option value="pending">Pendientes</option>
+          <option value="all">Renovación: Todas</option>
+          <option value="with_renewal">Con renovación automática</option>
+          <option value="without_renewal">Sin renovación automática</option>
         </select>
       </div>
     </div>

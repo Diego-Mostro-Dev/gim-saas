@@ -4,15 +4,15 @@ from django.db import transaction
 
 from rest_framework import serializers
 
-from attendance.models import AttendanceSchedule, DAY_CHOICES, ScheduleSlot
-from subscriptions.models import MembershipPlan, Subscription
-from subscriptions.services import get_last_day_of_month, get_member_schedule_limit, get_member_active_schedule_count, ensure_subscription_item
+from subscriptions.models import MembershipPlan
+from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
+from subscriptions.services import get_last_day_of_month
+from plans.services import public_plan_name
+from members.eligibility import MemberEligibility
 
 from .models import Member
 
 import json
-
-DAY_LABELS = dict(DAY_CHOICES)
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -21,6 +21,7 @@ class MemberSerializer(serializers.ModelSerializer):
     subscription_active = serializers.SerializerMethodField()
     plan_name = serializers.SerializerMethodField()
     subscription_days_remaining = serializers.SerializerMethodField()
+    member_created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -41,25 +42,13 @@ class MemberSerializer(serializers.ModelSerializer):
             "subscription_active",
             "plan_name",
             "subscription_days_remaining",
+            "member_created_at",
         ]
 
         read_only_fields = ["gym", "access_token"]
 
     def _active_subscription(self, obj):
-        today = date.today()
-        subscriptions = obj.subscription_set.all()
-
-        active = None
-        latest = None
-
-        for sub in subscriptions:
-            if latest is None or sub.created_at > latest.created_at:
-                latest = sub
-            if sub.start_date <= today <= sub.end_date:
-                if active is None or sub.created_at > active.created_at:
-                    active = sub
-
-        return active or latest
+        return SubscriptionDomain.get_active_subscription(obj)
 
     def get_subscription_active(self, obj):
         sub = self._active_subscription(obj)
@@ -72,14 +61,17 @@ class MemberSerializer(serializers.ModelSerializer):
         sub = self._active_subscription(obj)
         if sub is None:
             return None
-        return sub.plan.name
+        return public_plan_name(sub.plan)
 
     def get_subscription_days_remaining(self, obj):
-        sub = self._active_subscription(obj)
+        sub = SubscriptionDomain.get_current_subscription(obj)
         if sub is None:
             return None
         today = date.today()
         return (sub.end_date - today).days
+
+    def get_member_created_at(self, obj):
+        return obj.created_at.isoformat() if obj.created_at else None
 
     def validate_plan_id(self, value):
         if value is None:
@@ -89,7 +81,7 @@ class MemberSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             if request and hasattr(request.user, "profile"):
                 gym = request.user.profile.gym
-        if not MembershipPlan.objects.filter(id=value, gym=gym).exists():
+        if not MembershipPlan.objects.filter(id=value, gym=gym, is_base=False).exists():
             raise serializers.ValidationError("El plan seleccionado no es válido.")
         return value
 
@@ -131,9 +123,9 @@ class MemberSerializer(serializers.ModelSerializer):
             new_set = {(s["day"], s["hour"]) for s in schedules}
             new_count = len(new_set)
 
-            limit = get_member_schedule_limit(self.instance)
+            limit = MemberEligibility.get_schedule_limit(self.instance)
             if limit is not None:
-                current_count = get_member_active_schedule_count(self.instance)
+                current_count = MemberEligibility.get_active_schedule_count(self.instance)
                 if new_count > limit and new_count > current_count:
                     raise serializers.ValidationError(
                         f"Your plan allows a maximum of {limit} weekly schedules."
@@ -164,31 +156,9 @@ class MemberSerializer(serializers.ModelSerializer):
 
     def _validate_schedule_slot(self, gym, day, hour):
         try:
-            slot = ScheduleSlot.objects.get(
-                gym=gym,
-                day=day,
-                hour=hour,
-            )
-        except ScheduleSlot.DoesNotExist:
-            raise serializers.ValidationError(
-                f"El horario {DAY_LABELS.get(day, day)} {hour} no está disponible."
-            )
-
-        cap = slot.capacity or gym.default_schedule_capacity
-
-        if cap is not None:
-            current_count = AttendanceSchedule.objects.filter(
-                gym=gym,
-                slot=slot,
-                active=True,
-            ).count()
-
-            if current_count >= cap:
-                raise serializers.ValidationError(
-                    f"El horario {DAY_LABELS.get(day, day)} {hour} está completo."
-                )
-
-        return slot
+            return ScheduleDomain.validate_slot(gym, day, hour)
+        except ScheduleError as e:
+            raise serializers.ValidationError(str(e))
 
     def _parse_schedules(self):
         schedules = self.initial_data.get(
@@ -213,37 +183,22 @@ class MemberSerializer(serializers.ModelSerializer):
                 **validated_data
             )
 
-            schedule_slots = []
-
-            for s in schedules:
-                slot = self._validate_schedule_slot(
-                    member.gym, s["day"], s["hour"]
-                )
-
-                schedule_slots.append(
-                    AttendanceSchedule(
-                        member=member,
-                        gym=member.gym,
-                        slot=slot,
-                    )
-                )
-
-            AttendanceSchedule.objects.bulk_create(schedule_slots)
-
+            subscription = None
             if plan_id:
                 plan = MembershipPlan.objects.get(id=plan_id, gym=member.gym)
                 today = date.today()
-                end_date = get_last_day_of_month(today)
-                sub = Subscription.objects.create(
-                    gym=member.gym,
+                subscription = SubscriptionDomain.open_subscription(
                     member=member,
                     plan=plan,
                     start_date=today,
-                    end_date=end_date,
-                    paid=False,
-                    auto_renew=True,
+                    end_date=get_last_day_of_month(today),
+                    origin="onboarding",
                 )
-                ensure_subscription_item(sub)
+
+            try:
+                ScheduleDomain.create_bulk(member, member.gym, schedules, subscription=subscription)
+            except ScheduleError as e:
+                raise serializers.ValidationError(str(e))
 
         return member
 
@@ -256,46 +211,12 @@ class MemberSerializer(serializers.ModelSerializer):
 
         if "schedules" in self.initial_data:
             schedules = self._parse_schedules()
+            subscription = SubscriptionDomain.get_current_subscription(instance)
 
-            current = {
-                (s.slot.day, s.slot.hour.strftime("%H:%M")): s
-                for s in AttendanceSchedule.objects.filter(
-                    member=instance,
-                ).select_related("slot")
-            }
-
-            new_set = {
-                (s["day"], s["hour"])
-                for s in schedules
-            }
-
-            # Soft-delete removed active schedules
-            for key, schedule in current.items():
-                if schedule.active and key not in new_set:
-                    schedule.active = False
-                    schedule.save(update_fields=["active"])
-
-            # Create or reactivate
-            for day, hour in new_set:
-                key = (day, hour)
-
-                if key in current:
-                    schedule = current[key]
-
-                    if not schedule.active:
-                        schedule.active = True
-                        schedule.save(update_fields=["active"])
-                else:
-                    slot = self._validate_schedule_slot(
-                        instance.gym, day, hour
-                    )
-
-                    AttendanceSchedule.objects.create(
-                        member=instance,
-                        gym=instance.gym,
-                        slot=slot,
-                        active=True,
-                    )
+            try:
+                ScheduleDomain.sync_schedules(instance, instance.gym, schedules, subscription=subscription)
+            except ScheduleError as e:
+                raise serializers.ValidationError(str(e))
 
         return instance
 

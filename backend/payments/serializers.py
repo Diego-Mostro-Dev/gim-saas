@@ -2,6 +2,8 @@ from django.db import transaction
 
 from rest_framework import serializers
 
+from plans.services import public_plan_name
+
 from subscriptions.models import Subscription
 
 from .models import Payment
@@ -32,7 +34,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         )
 
         validated_data["plan_name"] = (
-            subscription.plan.name
+            public_plan_name(subscription.plan)
         )
         validated_data["subscription_end_date"] = (
             subscription.end_date

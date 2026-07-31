@@ -3,7 +3,6 @@ from calendar import monthrange
 from datetime import date, time
 from decimal import Decimal
 
-from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -12,15 +11,14 @@ from rest_framework.views import APIView
 
 from activities.models import Activity, ActivitySchedule, Enrollment
 from activities.overlap import validate_gym_activity_overlap, validate_schedule_batch
-from gyms.models import Gym
 from attendance.models import ScheduleSlot
 from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
+from gyms.models import Gym
 from plans.models import MembershipPlan
-from plans.services import ensure_base_plan_for_gym
-from subscriptions.models import Subscription, SubscriptionItem
 from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer
+from .services import RegistrationError, RegistrationService
 from config.api.throttles import PublicMemberRateThrottle
 
 
@@ -68,6 +66,7 @@ class PublicRegisterView(APIView):
                 plan = MembershipPlan.objects.get(
                     id=plan_id,
                     gym=gym,
+                    is_base=False,
                 )
             except (MembershipPlan.DoesNotExist, ValueError):
                 return Response(
@@ -200,52 +199,45 @@ class PublicRegisterView(APIView):
         member_data = request.data.copy()
         member_data.pop("services", None)
         member_data.pop("activity_schedules", None)
+        raw_schedules = request.data.get("schedules", [])
+        plan_id = request.data.get("plan_id")
+        member_data.pop("schedules", None)
+        member_data.pop("plan_id", None)
         member_data["entry_mode"] = entry_mode
 
-        with transaction.atomic():
-            serializer = MemberSerializer(
-                data=member_data,
-                context={"gym": gym},
+        if isinstance(raw_schedules, str):
+            try:
+                raw_schedules = json.loads(raw_schedules)
+            except (json.JSONDecodeError, TypeError):
+                raw_schedules = []
+
+        if plan_id is not None:
+            if not MembershipPlan.objects.filter(
+                id=plan_id, gym=gym, is_base=False
+            ).exists():
+                return Response(
+                    {"plan_id": "El plan seleccionado no es válido."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        serializer = MemberSerializer(
+            data=member_data,
+            context={"gym": gym},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            member = RegistrationService.register(
+                gym=gym,
+                validated_member_data=serializer.validated_data,
+                plan_id=plan_id,
+                activity_entries=activity_entries,
+                has_gym=has_gym,
+                has_activities=has_activities,
+                raw_schedules=raw_schedules,
             )
-            serializer.is_valid(raise_exception=True)
-            member = serializer.save(gym=gym)
-
-            if activity_entries:
-                Enrollment.objects.bulk_create([
-                    Enrollment(
-                        gym=gym,
-                        member=member,
-                        schedule=entry["schedule"],
-                        active=True,
-                    )
-                    for entry in activity_entries
-                ])
-
-            if has_activities and not has_gym:
-                if gym.allow_activity_without_membership:
-                    base_plan = ensure_base_plan_for_gym(gym)
-                    today = date.today()
-                    sub = Subscription.objects.create(
-                        gym=gym,
-                        member=member,
-                        plan=base_plan,
-                        start_date=today,
-                        end_date=get_last_day_of_month(today),
-                        auto_renew=True,
-                        paid=False,
-                    )
-                    for entry in activity_entries:
-                        activity = Activity.objects.get(id=entry["activity_id"])
-                        SubscriptionItem.objects.create(
-                            subscription=sub,
-                            item_type="activity",
-                            activity=activity,
-                            name_snapshot=activity.name,
-                            price_snapshot=activity.monthly_price,
-                            start_date=today,
-                            end_date=get_last_day_of_month(today),
-                            status="active",
-                        )
+        except RegistrationError as e:
+            return Response(e.detail, status=e.status_code)
 
         return Response(
             MemberSerializer(member).data,
@@ -354,6 +346,7 @@ class PublicPlansView(APIView):
         plans = MembershipPlan.objects.filter(
             gym=gym,
             active=True,
+            is_base=False,
         ).order_by("price")
 
         return Response([

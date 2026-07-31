@@ -11,6 +11,7 @@ from .models import (
     ScheduleSwapRequest,
 )
 from .utils import compute_effective_occupancy
+from subscriptions.domain import SubscriptionDomain
 
 
 class AttendanceScheduleSerializer(serializers.ModelSerializer):
@@ -479,7 +480,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         member = self.context["member"]
-        gym = member.gym
+        gym = SubscriptionDomain.resolve_gym(member)
         current_schedule = attrs.get("current_schedule")
         requested_slot = attrs.get("requested_slot")
 
@@ -564,7 +565,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         member = self.context["member"]
-        validated_data["gym"] = member.gym
+        validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member
         return super().create(validated_data)
 
@@ -834,7 +835,7 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         member = self.context["member"]
-        gym = member.gym
+        gym = SubscriptionDomain.resolve_gym(member)
         origin_schedule = attrs.get("origin_schedule")
         destination_slot = attrs.get("destination_slot")
         swap_date = attrs.get("swap_date")
@@ -925,7 +926,7 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         member = self.context["member"]
-        validated_data["gym"] = member.gym
+        validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member
 
         return super().create(validated_data)

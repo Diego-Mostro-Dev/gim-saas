@@ -1,40 +1,44 @@
 import { useMemo } from "react";
 
-export function useSubscriptionStats(subscriptions) {
+export function useSubscriptionStats(members, subscriptions) {
   const stats = useMemo(() => {
     const today = new Date();
 
+    const subsByMember = {};
+    subscriptions.forEach((sub) => {
+      if (!subsByMember[sub.member]) subsByMember[sub.member] = [];
+      subsByMember[sub.member].push(sub);
+    });
+
     let active = 0;
-    let expired = 0;
-    let paid = 0;
     let pending = 0;
+    let noRenewal = 0;
 
-    subscriptions.forEach((subscription) => {
-      const endDate = new Date(subscription.end_date);
+    members.forEach((member) => {
+      const memberSubs = (subsByMember[member.id] || []).sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at),
+      );
+      const current = memberSubs[0];
+      if (!current) return;
 
-      const isExpired = endDate < today;
+      const isActive =
+        new Date(current.start_date) <= today &&
+        new Date(current.end_date) >= today;
 
-      if (isExpired) {
-        expired++;
-      } else {
+      if (isActive) {
         active++;
-      }
-
-      if (subscription.paid) {
-        paid++;
-      } else {
-        pending++;
+        if (!current.paid) pending++;
+        if (!current.auto_renew) noRenewal++;
       }
     });
 
     return {
-      total: subscriptions.length,
+      total: members.length,
       active,
-      expired,
-      paid,
       pending,
+      noRenewal,
     };
-  }, [subscriptions]);
+  }, [members, subscriptions]);
 
   return stats;
 }

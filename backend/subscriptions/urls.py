@@ -2,7 +2,7 @@ from django.urls import path
 
 from rest_framework.routers import DefaultRouter
 
-from .views import SubscriptionViewSet, PlanChangeRequestViewSet
+from .views import PlanChangeRequestViewSet, SubscriptionView
 from .public_views import (
     PublicPlanChangeRequestView,
     PublicCancelPlanChangeRequestView,
@@ -12,7 +12,7 @@ from .public_views import (
 
 
 router = DefaultRouter()
-router.register(r'subscriptions', SubscriptionViewSet)
+router.register(r'subscriptions', SubscriptionView, basename='subscriptions')
 router.register(
     r'plan-change-requests',
     PlanChangeRequestViewSet,

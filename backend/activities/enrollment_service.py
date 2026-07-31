@@ -2,14 +2,9 @@ from datetime import date
 
 from django.db import transaction
 
+from members.eligibility import MemberEligibility
+from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import (
-    can_member_operate,
-    get_last_day_of_month,
-    get_member_active_subscription,
-    member_has_active_subscription_for_service,
-)
-from plans.services import ensure_base_plan_for_gym
 
 from .models import Enrollment
 from .overlap import validate_enrollment
@@ -23,24 +18,27 @@ class EnrollmentError(ValueError):
 
 class EnrollmentService:
     @staticmethod
-    def enroll_member(member, schedule):
-        if not can_member_operate(member):
-            raise EnrollmentError("El miembro no puede operar.")
+    def enroll_member(member, schedule, skip_eligibility_check=False):
+        if not skip_eligibility_check:
+            if not MemberEligibility.can_operate(member):
+                raise EnrollmentError("El miembro no puede operar.")
 
-        if not member_has_active_subscription_for_service(member, schedule.activity.service):
-            raise EnrollmentError(
-                "El miembro no tiene una suscripción activa "
-                "para el servicio de esta actividad."
-            )
+            if not MemberEligibility.has_active_subscription_for_service(member, schedule.activity.service):
+                raise EnrollmentError(
+                    "El miembro no tiene una suscripción activa "
+                    "para el servicio de esta actividad."
+                )
+
+        gym = SubscriptionDomain.resolve_gym(member)
 
         active_count = Enrollment.objects.filter(
-            gym=member.gym, schedule=schedule, active=True
+            gym=gym, schedule=schedule, active=True
         ).count()
         if active_count >= schedule.capacity:
             raise EnrollmentError("El horario alcanzó su capacidad máxima.")
 
         if Enrollment.objects.filter(
-            gym=member.gym, member=member, schedule=schedule, active=True
+            gym=gym, member=member, schedule=schedule, active=True
         ).exists():
             raise EnrollmentError(
                 "El miembro ya está inscripto en este horario.",
@@ -52,22 +50,29 @@ class EnrollmentService:
         except ValueError as e:
             raise EnrollmentError(str(e))
 
+        sub = SubscriptionDomain.get_current_subscription(member)
+
         with transaction.atomic():
+            activity_item = None
+            if sub is not None:
+                activity_item = _ensure_activity_item(sub, schedule.activity)
+
             enrollment = Enrollment.objects.create(
-                gym=member.gym,
+                gym=gym,
                 member=member,
                 schedule=schedule,
+                subscription_item=activity_item,
                 active=True,
             )
-
-            _ensure_activity_item(member, schedule.activity)
 
         return enrollment
 
     @staticmethod
     def unenroll_member(member, schedule):
+        gym = SubscriptionDomain.resolve_gym(member)
+
         enrollment = Enrollment.objects.filter(
-            gym=member.gym,
+            gym=gym,
             member=member,
             schedule=schedule,
             active=True,
@@ -78,51 +83,59 @@ class EnrollmentService:
                 status_code=404,
             )
 
+        sub = SubscriptionDomain.get_current_subscription(member)
+
         with transaction.atomic():
             enrollment.active = False
             enrollment.save(update_fields=["active"])
 
-            _cancel_activity_item(member, schedule.activity)
+            if sub is not None:
+                _cancel_activity_item(sub, schedule.activity)
 
         return enrollment
 
 
-def _ensure_activity_item(member, activity):
-    """Create a SubscriptionItem for an activity in the member's current subscription."""
-    sub = get_member_active_subscription(member)
-    if sub is None:
-        return
+def _ensure_activity_item(subscription, activity):
+    """Create a SubscriptionItem for an activity in the given subscription.
 
+    Returns the existing or newly created SubscriptionItem.
+    """
     activity_item = SubscriptionItem.objects.filter(
-        subscription=sub,
+        subscription=subscription,
         activity=activity,
         status="active",
     ).first()
 
     if activity_item is not None:
-        return
+        return activity_item
 
-    SubscriptionItem.objects.create(
-        subscription=sub,
+    return SubscriptionItem.objects.create(
+        subscription=subscription,
         item_type="activity",
         plan=None,
         activity=activity,
         name_snapshot=activity.name,
         price_snapshot=activity.monthly_price,
         status="active",
-        start_date=sub.start_date,
-        end_date=sub.end_date,
+        start_date=subscription.start_date,
+        end_date=subscription.end_date,
     )
 
 
-def _cancel_activity_item(member, activity):
-    """Cancel the SubscriptionItem for an activity when unenrolling."""
-    sub = get_member_active_subscription(member)
-    if sub is None:
+def _cancel_activity_item(subscription, activity):
+    """Cancel the SubscriptionItem for an activity when unenrolling.
+
+    Only operates on subscriptions that are currently active
+    (start_date <= today <= end_date) to preserve historical immutability.
+    """
+    from django.utils import timezone
+
+    today = timezone.localdate()
+    if not (subscription.start_date <= today <= subscription.end_date):
         return
 
     SubscriptionItem.objects.filter(
-        subscription=sub,
+        subscription=subscription,
         activity=activity,
         status="active",
     ).update(status="cancelled")

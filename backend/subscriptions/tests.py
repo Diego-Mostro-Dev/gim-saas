@@ -2723,3 +2723,371 @@ class InitialPendingTest(TestCase):
         self.assertTrue(can_member_operate(self.member))
 
 
+# ── open_subscription tests ─────────────────────────────────────────────
+
+
+class OpenSubscriptionTest(TestCase):
+    """Tests for SubscriptionDomain.open_subscription — the single canonical
+    entry point for creating Subscriptions."""
+
+    def setUp(self):
+        self.gym = Gym.objects.create(
+            name="Test Gym", slug="test-gym", phone="123", email="g@test.com",
+        )
+        self.member = Member.objects.create(
+            gym=self.gym, first_name="Nico", last_name="Test",
+            phone="555-0001", email="nico@test.com",
+        )
+        self.plan = MembershipPlan.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            gym=self.gym, name="Monthly", price=100, duration_days=30,
+        )
+
+    # ── successful creation ──────────────────────────────────────────
+
+    def test_creates_subscription_with_correct_fields(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+            paid=True,
+            auto_renew=True,
+            origin="onboarding",
+        )
+
+        self.assertEqual(sub.member, self.member)
+        self.assertEqual(sub.plan, self.plan)
+        self.assertEqual(sub.start_date, date(2026, 7, 1))
+        self.assertEqual(sub.end_date, date(2026, 7, 31))
+        self.assertTrue(sub.paid)
+        self.assertTrue(sub.auto_renew)
+        self.assertEqual(sub.origin, "onboarding")
+        self.assertEqual(sub.gym, self.gym)
+
+    def test_creates_subscription_item(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        item = sub.items.filter(item_type="plan", status="active").first()
+        self.assertIsNotNone(item)
+        self.assertEqual(item.plan, self.plan)
+        self.assertEqual(item.price_snapshot, self.plan.price)
+
+    def test_origin_defaults_to_onboarding(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        self.assertEqual(sub.origin, "onboarding")
+
+    # ── Rule 1: overlap ──────────────────────────────────────────────
+
+    def test_rejects_exact_overlap(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        with self.assertRaises(SubscriptionConflictError) as ctx:
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 1),
+                end_date=date(2026, 7, 31),
+            )
+        self.assertIn("se superpone", str(ctx.exception))
+
+    def test_rejects_partial_overlap_start_inside(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        with self.assertRaises(SubscriptionConflictError):
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 15),
+                end_date=date(2026, 8, 15),
+            )
+
+    def test_rejects_partial_overlap_end_inside(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        with self.assertRaises(SubscriptionConflictError):
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 6, 15),
+                end_date=date(2026, 7, 15),
+            )
+
+    def test_rejects_new_inside_existing(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        with self.assertRaises(SubscriptionConflictError):
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 10),
+                end_date=date(2026, 7, 20),
+            )
+
+    def test_rejects_existing_inside_new(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 10),
+            end_date=date(2026, 7, 20),
+        )
+
+        with self.assertRaises(SubscriptionConflictError):
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 1),
+                end_date=date(2026, 7, 31),
+            )
+
+    def test_allows_adjacent_periods(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 30),
+        )
+
+        sub2 = SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+        self.assertIsNotNone(sub2)
+
+    # ── Rule 2: no more than one future ──────────────────────────────
+
+    def test_rejects_second_future_subscription(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+
+        with self.assertRaises(SubscriptionConflictError) as ctx:
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 9, 1),
+                end_date=date(2026, 9, 30),
+            )
+        self.assertIn("futura", str(ctx.exception))
+
+    def test_allows_one_future_subscription(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+        self.assertIsNotNone(sub)
+
+    def test_allows_active_plus_consecutive_future(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        future = SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+        self.assertIsNotNone(future)
+
+    def test_rejects_second_active_subscription(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        SubscriptionDomain.open_subscription(
+            member=self.member,
+            plan=self.plan,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 31),
+        )
+
+        with self.assertRaises(SubscriptionConflictError) as ctx:
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 23),
+                end_date=date(2026, 8, 31),
+            )
+        self.assertIn("superpone", str(ctx.exception))
+
+    # ── date validation ──────────────────────────────────────────────
+
+    def test_rejects_end_before_start(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        with self.assertRaises(SubscriptionConflictError) as ctx:
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 31),
+                end_date=date(2026, 7, 1),
+            )
+        self.assertIn("end_date", str(ctx.exception))
+
+    def test_rejects_none_dates(self):
+        from subscriptions.domain import SubscriptionDomain, SubscriptionConflictError
+
+        with self.assertRaises(SubscriptionConflictError):
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=None,
+                end_date=date(2026, 7, 31),
+            )
+
+        with self.assertRaises(SubscriptionConflictError):
+            SubscriptionDomain.open_subscription(
+                member=self.member,
+                plan=self.plan,
+                start_date=date(2026, 7, 1),
+                end_date=None,
+            )
+
+    # ── origin tracking ──────────────────────────────────────────────
+
+    def test_stores_origin_onboarding(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+            origin="onboarding",
+        )
+        self.assertEqual(sub.origin, "onboarding")
+
+    def test_stores_origin_auto_renewal(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+            origin="auto_renewal",
+        )
+        self.assertEqual(sub.origin, "auto_renewal")
+
+    def test_stores_origin_manual_renewal(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+            origin="manual_renewal",
+        )
+        self.assertEqual(sub.origin, "manual_renewal")
+
+    def test_stores_origin_plan_change(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+            origin="plan_change",
+        )
+        self.assertEqual(sub.origin, "plan_change")
+
+    # ── different members are independent ─────────────────────────────
+
+    def test_different_members_can_have_overlapping_subscriptions(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        member2 = Member.objects.create(
+            gym=self.gym, first_name="Other", last_name="Member",
+            phone="555-0002", email="other@test.com",
+        )
+
+        SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+        )
+
+        sub2 = SubscriptionDomain.open_subscription(
+            member=member2, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+        )
+        self.assertIsNotNone(sub2)
+
+    # ── paid / auto_renew flags ──────────────────────────────────────
+
+    def test_paid_false_by_default(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+        )
+        self.assertFalse(sub.paid)
+
+    def test_auto_renew_true_by_default(self):
+        from subscriptions.domain import SubscriptionDomain
+
+        sub = SubscriptionDomain.open_subscription(
+            member=self.member, plan=self.plan,
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 31),
+        )
+        self.assertTrue(sub.auto_renew)
+
+

@@ -2,6 +2,27 @@ from .models import MembershipPlan, Service
 
 
 BASE_PLAN_NAME = "Base Access"
+BASE_PLAN_PUBLIC_LABEL = "Solo actividades"
+
+
+def public_plan_name(plan):
+    """Return the user-facing name for a plan.
+
+    The internal Base Plan is translated to a functional label so end
+    users never see internal system concepts.
+    """
+    if plan is None:
+        return None
+    if plan.is_base:
+        return BASE_PLAN_PUBLIC_LABEL
+    return plan.name
+
+
+def public_plan_name_from_snapshot(name):
+    """Translate a stored plan-name snapshot for public display."""
+    if name == BASE_PLAN_NAME:
+        return BASE_PLAN_PUBLIC_LABEL
+    return name
 
 
 def ensure_base_plan_for_gym(gym):

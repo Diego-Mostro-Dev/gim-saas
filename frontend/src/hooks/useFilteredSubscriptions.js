@@ -1,49 +1,44 @@
 import { useMemo } from "react";
 
 export function useFilteredSubscriptions({
+  members,
   subscriptions,
   searchTerm,
   statusFilter,
-  paymentFilter,
+  renewalFilter,
 }) {
-  const filteredSubscriptions = useMemo(() => {
-    return subscriptions.filter((subscription) => {
-      const memberMatch = subscription.member_name
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+  const filteredMembers = useMemo(() => {
+    return members.filter((member) => {
+      const memberSubs = subscriptions
+        .filter((s) => s.member === member.id)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-      const planMatch = subscription.plan_name
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
-
-      const matchesSearch = memberMatch || planMatch;
-
+      const currentSub = memberSubs[0];
       const today = new Date();
+      const isActive = currentSub &&
+        new Date(currentSub.start_date) <= today &&
+        new Date(currentSub.end_date) >= today;
 
-      const endDate = new Date(subscription.end_date);
-
-      const isExpired = endDate < today;
+      const memberName = `${member.first_name} ${member.last_name}`.toLowerCase();
+      const search = searchTerm.toLowerCase();
+      const matchesSearch =
+        memberName.includes(search) ||
+        (member.phone || "").includes(searchTerm);
 
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "active" && !isExpired) ||
-        (statusFilter === "expired" && isExpired);
+        (statusFilter === "active" && isActive) ||
+        (statusFilter === "pending" && isActive && currentSub && !currentSub.paid) ||
+        (statusFilter === "expired" && !isActive);
 
-      const matchesPayment =
-        paymentFilter === "all" ||
-        (paymentFilter === "paid" && subscription.paid) ||
-        (paymentFilter === "pending" && !subscription.paid);
+      const matchesRenewal =
+        renewalFilter === "all" ||
+        (renewalFilter === "with_renewal" && currentSub?.auto_renew) ||
+        (renewalFilter === "without_renewal" && currentSub && !currentSub.auto_renew);
 
-      return matchesSearch && matchesStatus && matchesPayment;
+      return matchesSearch && matchesStatus && matchesRenewal;
     });
-  }, [
-    subscriptions,
-    searchTerm,
-    statusFilter,
-    paymentFilter,
-  ]);
+  }, [members, subscriptions, searchTerm, statusFilter, renewalFilter]);
 
-  return {
-    filteredSubscriptions,
-  };
+  return { filteredMembers };
 }

@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from attendance.models import ScheduleSlot, AttendanceSchedule
 
-from .services import get_member_active_subscription
+from .domain import SubscriptionDomain
 
 
 class PlanChangeRequestValidator:
@@ -13,6 +13,14 @@ class PlanChangeRequestValidator:
         self.requested_plan = requested_plan
         self.target_schedules = target_schedules
         self.gym = gym or member.gym
+        self._subscription = None
+
+    @property
+    def subscription(self):
+        """Cache the subscription lookup — used by multiple validators."""
+        if self._subscription is None:
+            self._subscription = SubscriptionDomain.get_current_subscription(self.member)
+        return self._subscription
 
     def validate(self):
         self._validate_active_subscription()
@@ -38,8 +46,7 @@ class PlanChangeRequestValidator:
             )
 
     def _validate_active_subscription(self):
-        sub = get_member_active_subscription(self.member)
-        if sub is None:
+        if self.subscription is None:
             raise serializers.ValidationError(
                 "El socio no tiene una suscripción activa."
             )
@@ -51,8 +58,7 @@ class PlanChangeRequestValidator:
             })
 
     def _validate_different_plan(self):
-        sub = get_member_active_subscription(self.member)
-        if sub and sub.plan == self.requested_plan:
+        if self.subscription and self.subscription.plan == self.requested_plan:
             raise serializers.ValidationError(
                 "El plan solicitado es el mismo que el actual."
             )

@@ -16,7 +16,8 @@ from .serializers import (
 )
 from .utils import compute_effective_occupancy
 from config.api.throttles import PublicAttendanceRateThrottle
-from subscriptions.services import can_member_operate
+from members.eligibility import MemberEligibility
+from subscriptions.domain import SubscriptionDomain
 
 
 class PublicCheckinView(APIView):
@@ -38,7 +39,7 @@ class PublicCheckinView(APIView):
                 status=404,
             )
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {
                     "success": False,
@@ -47,6 +48,7 @@ class PublicCheckinView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        gym = SubscriptionDomain.resolve_gym(member)
         today = timezone.localdate()
 
         approved_swap = ScheduleSwapRequest.objects.filter(
@@ -70,7 +72,7 @@ class PublicCheckinView(APIView):
                 )
 
             slot = approved_swap.destination_slot
-            cap = slot.capacity or member.gym.default_schedule_capacity
+            cap = slot.capacity or gym.default_schedule_capacity
             if cap is not None:
                 effective = compute_effective_occupancy(slot, today)
                 if effective >= cap:
@@ -83,7 +85,7 @@ class PublicCheckinView(APIView):
                     )
 
             Attendance.objects.create(
-                gym=member.gym,
+                gym=gym,
                 member=member,
                 schedule=approved_swap.origin_schedule,
                 swap_request=approved_swap,
@@ -115,7 +117,7 @@ class PublicCheckinView(APIView):
             )
 
         Attendance.objects.create(
-            gym=member.gym,
+            gym=gym,
             member=member,
             schedule=None,
         )
@@ -134,11 +136,12 @@ class PublicMemberSlotsView(APIView):
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
+        gym = SubscriptionDomain.resolve_gym(member)
         target_date_str = request.GET.get("date")
         target_date = date.fromisoformat(target_date_str) if target_date_str else None
 
         slots = ScheduleSlot.objects.filter(
-            gym=member.gym,
+            gym=gym,
         ).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour")
 
         result = []
@@ -151,7 +154,7 @@ class PublicMemberSlotsView(APIView):
             }
             if target_date:
                 occ = compute_effective_occupancy(s, target_date)
-                cap = s.capacity or member.gym.default_schedule_capacity
+                cap = s.capacity or gym.default_schedule_capacity
                 entry["occupancy"] = occ
                 entry["available"] = max(0, cap - occ)
             result.append(entry)
@@ -178,7 +181,7 @@ class PublicScheduleChangeRequestView(APIView):
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -201,7 +204,7 @@ class PublicCancelScheduleChangeRequestView(APIView):
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -246,7 +249,7 @@ class PublicScheduleSwapRequestView(APIView):
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -269,7 +272,7 @@ class PublicCancelScheduleSwapRequestView(APIView):
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,

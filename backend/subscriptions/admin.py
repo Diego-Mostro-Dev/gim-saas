@@ -29,6 +29,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
 class PlanChangeRequestAdmin(admin.ModelAdmin):
     list_display = (
         "member",
+        "subscription",
         "requested_plan",
         "status",
         "requested_at",

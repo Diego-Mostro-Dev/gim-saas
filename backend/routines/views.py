@@ -14,13 +14,15 @@ from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
 from subscriptions.services import (
-    can_member_operate,
     get_first_day_of_next_month,
     get_subscription_payment_status,
 )
+from members.eligibility import MemberEligibility
 from attendance.models import AttendanceSchedule
 from payments.models import Payment
 from plans.models import MembershipPlan
+from plans.services import public_plan_name, public_plan_name_from_snapshot
+from subscriptions.domain import SubscriptionDomain
 from config.api.throttles import PublicMemberRateThrottle
 from .models import (
     Exercise,
@@ -345,7 +347,7 @@ class PublicWorkoutProgressView(APIView):
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -407,7 +409,7 @@ class PublicRoutineView(APIView):
             .first()
         )
 
-        gym = assignment.gym if assignment else member.gym
+        gym = assignment.gym if assignment else SubscriptionDomain.resolve_gym(member)
 
         routine_data = None
         if assignment:
@@ -466,7 +468,7 @@ class PublicRoutineView(APIView):
             return {
                 "id": sub.id,
                 "plan_id": plan.id,
-                "plan": plan.name,
+                "plan": public_plan_name(plan),
                 "plan_price": str(plan.price),
                 "plan_duration_days": plan.duration_days,
                 "plan_weekly_visits": plan.weekly_visits,
@@ -528,7 +530,7 @@ class PublicRoutineView(APIView):
         payments_qs = (
             Payment.objects
             .filter(
-                gym=member.gym,
+                gym=gym,
                 member=member,
             )
             .order_by("-paid_at")
@@ -543,9 +545,12 @@ class PublicRoutineView(APIView):
 
         payments_list = list(payments_qs[:10])
 
+        for pay in payments_list:
+            pay["plan_name"] = public_plan_name_from_snapshot(pay["plan_name"])
+
         active_plans = (
             MembershipPlan.objects
-            .filter(gym=member.gym, active=True)
+            .filter(gym=gym, active=True, is_base=False)
             .order_by("price")
         )
 

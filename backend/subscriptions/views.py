@@ -1,87 +1,63 @@
 from datetime import date
-from time import perf_counter  # TEMP DEBUG
-import logging  # TEMP DEBUG
-import uuid  # TEMP DEBUG
 
 from django.db import transaction
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Prefetch, Subquery
 from django.utils.timezone import now
 
 from rest_framework import status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.viewsets import GymModelViewSet
 
-logger = logging.getLogger(__name__)  # TEMP DEBUG
-
 from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
 
-from .models import Subscription, PlanChangeRequest, PlannedSchedule
+from .models import Subscription, SubscriptionItem, PlanChangeRequest, PlannedSchedule
 from .serializers import (
     SubscriptionSerializer,
     PlanChangeRequestSerializer,
     PlanChangeRequestActionSerializer,
 )
+from .domain import SubscriptionDomain
 from .services import (
-    auto_renew_subscriptions,
+    _copy_activity_items,
     calculate_effective_date,
-    gym_has_pending_auto_renewals,
     cancel_future_plan_change,
-    can_member_operate,
-    ensure_subscription_item,
-    ensure_subscription_items,
-    get_first_day_of_next_month,
     get_last_day_of_month,
 )
 
 
-class SubscriptionViewSet(GymModelViewSet):
-    queryset = Subscription.objects.all()
+class SubscriptionView(viewsets.ReadOnlyModelViewSet):
+    queryset = (
+        Subscription.objects.all()
+        .select_related("member", "plan", "gym")
+        .prefetch_related(
+            Prefetch(
+                "items",
+                queryset=SubscriptionItem.objects.select_related("activity", "plan"),
+            ),
+            Prefetch(
+                "member__plan_change_requests",
+                queryset=PlanChangeRequest.objects.filter(
+                    status="approved",
+                    effective_date__gt=date.today(),
+                ).select_related("requested_plan"),
+                to_attr="_pending_plan_change_requests",
+            ),
+        )
+    )
     serializer_class = SubscriptionSerializer
+    pagination_class = None
 
     def get_queryset(self):
-        return super().get_queryset().select_related("member", "plan")
-
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @action(
-        detail=True,
-        methods=["post"],
-    )
-    def renew(self, request, pk=None):
-        subscription = self.get_object()
-
-        if not can_member_operate(subscription.member):
-            return Response(
-                {"detail": "Acceso suspendido por falta de pago."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        start_date = get_first_day_of_next_month(now().date())
-        end_date = get_last_day_of_month(start_date)
-
-        new_subscription = Subscription.objects.create(
-            gym=subscription.gym,
-            member=subscription.member,
-            plan=subscription.plan,
-            start_date=start_date,
-            end_date=end_date,
-            paid=False,
-            auto_renew=subscription.auto_renew,
-        )
-
-        ensure_subscription_items(new_subscription, previous_subscription=subscription)
-
-        serializer = self.get_serializer(
-            new_subscription
-        )
-
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED,
-        )
+        queryset = super().get_queryset()
+        gym = self.request.user.profile.gym
+        member_id = self.request.query_params.get("member")
+        queryset = queryset.filter(gym=gym)
+        if member_id:
+            queryset = queryset.filter(member_id=member_id)
+        return queryset
 
 
 class PlanChangeRequestViewSet(GymModelViewSet):
@@ -169,16 +145,16 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     current_sub = Subscription.objects.filter(
                         member=instance.member
                     ).order_by("-created_at").first()
-                    new_subscription = Subscription.objects.create(
-                        gym=instance.gym,
+                    new_subscription = SubscriptionDomain.open_subscription(
                         member=instance.member,
                         plan=instance.requested_plan,
                         start_date=month_start,
                         end_date=month_end,
-                        paid=False,
                         auto_renew=current_sub.auto_renew if current_sub else True,
+                        origin="plan_change",
                     )
-                    ensure_subscription_items(new_subscription, previous_subscription=current_sub)
+                    if current_sub:
+                        _copy_activity_items(current_sub, new_subscription)
 
                     self._synchronize_schedules(instance)
             elif new_status == "cancelled_by_staff" and instance.status == "approved":

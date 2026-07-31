@@ -7,7 +7,8 @@ from rest_framework.response import Response
 from gyms.features import require_activities
 from gyms.models import Gym
 from members.models import Member
-from subscriptions.services import can_member_operate
+from members.eligibility import MemberEligibility
+from subscriptions.domain import SubscriptionDomain
 from config.api.throttles import PublicMemberRateThrottle
 
 from .enrollment_service import EnrollmentError, EnrollmentService
@@ -21,7 +22,8 @@ class PublicMemberEnrollmentsView(APIView):
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
-        require_activities(member.gym)
+        gym = SubscriptionDomain.resolve_gym(member)
+        require_activities(gym)
 
         enrollments = Enrollment.objects.filter(
             member=member,
@@ -35,9 +37,10 @@ class PublicMemberEnrollmentsView(APIView):
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
-        require_activities(member.gym)
+        gym = SubscriptionDomain.resolve_gym(member)
+        require_activities(gym)
 
-        if not can_member_operate(member):
+        if not MemberEligibility.can_operate(member):
             return Response(
                 {"detail": "Acceso suspendido por falta de pago."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -50,16 +53,19 @@ class PublicMemberEnrollmentsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        enrollment = get_object_or_404(
-            Enrollment,
-            gym=member.gym,
-            member=member,
-            schedule_id=schedule_id,
-            active=True,
+        schedule = get_object_or_404(
+            ActivitySchedule,
+            id=schedule_id,
+            activity__service__gym=gym,
         )
 
-        enrollment.active = False
-        enrollment.save(update_fields=["active"])
+        try:
+            enrollment = EnrollmentService.unenroll_member(member, schedule)
+        except EnrollmentError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
 
         serializer = PublicEnrollmentSerializer(enrollment)
         return Response(serializer.data)
@@ -117,7 +123,8 @@ class PublicAvailableActivitiesView(APIView):
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
-        require_activities(member.gym)
+        gym = SubscriptionDomain.resolve_gym(member)
+        require_activities(gym)
 
         activity_id = request.query_params.get("activity_id")
         day = request.query_params.get("day")
@@ -125,7 +132,7 @@ class PublicAvailableActivitiesView(APIView):
         end_time = request.query_params.get("end_time")
 
         activities = Activity.objects.filter(
-            service__gym=member.gym,
+            service__gym=gym,
             active=True,
         ).prefetch_related("schedules")
 
@@ -179,7 +186,8 @@ class PublicMemberEnrollView(APIView):
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
-        require_activities(member.gym)
+        gym = SubscriptionDomain.resolve_gym(member)
+        require_activities(gym)
 
         schedule_id = request.data.get("schedule_id")
         if not schedule_id:
@@ -191,7 +199,7 @@ class PublicMemberEnrollView(APIView):
         schedule = get_object_or_404(
             ActivitySchedule,
             id=schedule_id,
-            activity__service__gym=member.gym,
+            activity__service__gym=gym,
             active=True,
             activity__active=True,
         )

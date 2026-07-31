@@ -22,6 +22,7 @@ class ScheduleSlotAdmin(admin.ModelAdmin):
 class AttendanceScheduleAdmin(admin.ModelAdmin):
     list_display = (
         "member",
+        "subscription",
         "slot_day",
         "slot_hour",
         "slot",

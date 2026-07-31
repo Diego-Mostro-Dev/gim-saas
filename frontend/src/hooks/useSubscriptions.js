@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react";
 
-import {
-  getSubscriptions,
-  createSubscription,
-  deleteSubscription,
-  updateSubscription,
-  renewSubscription,
-} from "../services/subscriptions.service";
+import { getSubscriptions } from "../services/subscriptions.service";
 
 import { getMembers } from "../services/members.service";
 
@@ -91,115 +85,11 @@ export function useSubscriptions() {
     }
   }
 
-  async function createNewSubscription(
-    formData,
-  ) {
-    try {
-      const newSubscription =
-        await createSubscription(formData);
-
-      setSubscriptions((prev) => [
-        newSubscription,
-        ...prev,
-      ]);
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
-    }
-  }
-
-  async function editSubscription(
-    id,
-    formData,
-  ) {
-    try {
-      const updatedSubscription =
-        await updateSubscription(id, formData);
-
-      setSubscriptions((prev) =>
-        prev.map((subscription) =>
-          subscription.id === updatedSubscription.id
-            ? updatedSubscription
-            : subscription,
-        ),
-      );
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
-    }
-  }
-
-  async function removeSubscription(id) {
-    try {
-      await deleteSubscription(id);
-
-      setSubscriptions((prev) =>
-        prev.filter(
-          (subscription) =>
-            subscription.id !== id,
-        ),
-      );
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
-    }
-  }
-
-  async function renewExistingSubscription(
-    id,
-  ) {
-    try {
-      const newSubscription =
-        await renewSubscription(id);
-
-      setSubscriptions((prev) => [
-        newSubscription,
-        ...prev,
-      ]);
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error(error);
-
-      return {
-        success: false,
-      };
-    }
-  }
-
   return {
     subscriptions,
     members,
     plans,
     loading,
     error,
-
-    createNewSubscription,
-    editSubscription,
-    removeSubscription,
-    renewExistingSubscription,
   };
 }

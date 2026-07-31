@@ -1,7 +1,6 @@
 import {
   UserPlus,
   CreditCard,
-  RefreshCw,
   QrCode,
   Dumbbell,
   DollarSign,
@@ -34,17 +33,6 @@ function QuickActions() {
 
         <span className="truncate text-sm text-text-primary">
           Registrar pago
-        </span>
-      </button>
-
-      <button
-        onClick={() => navigate("/subscriptions?create=true")}
-        className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-3 shadow-sm transition active:scale-95"
-      >
-        <RefreshCw size={18} className="text-blue-400" />
-
-        <span className="truncate text-sm text-text-primary">
-          Crear suscripción
         </span>
       </button>
 

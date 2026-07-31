@@ -4,9 +4,16 @@ from decimal import Decimal
 
 from attendance.models import AttendanceSchedule
 
-from .models import Subscription, SubscriptionItem, PlanChangeRequest, PlannedSchedule
+from plans.services import public_plan_name, public_plan_name_from_snapshot
+
+from .models import Subscription, SubscriptionItem, PlanChangeRequest
 from .validators import PlanChangeRequestValidator
-from .services import get_member_active_subscription, calculate_effective_date, compute_projected_occupancy, get_last_day_of_month
+from .domain import SubscriptionDomain
+from .services import (
+    calculate_effective_date,
+    compute_projected_occupancy,
+    get_subscription_payment_status,
+)
 
 
 class SubscriptionItemSerializer(serializers.ModelSerializer):
@@ -15,6 +22,7 @@ class SubscriptionItemSerializer(serializers.ModelSerializer):
         read_only=True,
         default=None,
     )
+    name_snapshot = serializers.SerializerMethodField()
 
     class Meta:
         model = SubscriptionItem
@@ -31,16 +39,16 @@ class SubscriptionItemSerializer(serializers.ModelSerializer):
             "end_date",
             "created_at",
         ]
-        read_only_fields = ["created_at"]
+        read_only_fields = fields
+
+    def get_name_snapshot(self, obj):
+        return public_plan_name_from_snapshot(obj.name_snapshot)
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
     member_photo = serializers.SerializerMethodField()
-    plan_name = serializers.CharField(
-        source="plan.name",
-        read_only=True,
-    )
+    plan_name = serializers.SerializerMethodField()
 
     plan_price = serializers.DecimalField(
         source="plan.price",
@@ -51,6 +59,10 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
     items = SubscriptionItemSerializer(many=True, read_only=True)
     total = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+    has_pending_plan_change = serializers.SerializerMethodField()
+    future_plan_name = serializers.SerializerMethodField()
+    future_effective_date = serializers.SerializerMethodField()
 
     class Meta:
         model = Subscription
@@ -58,16 +70,25 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
         read_only_fields = [
-        "gym",
-        "end_date",
-        "paid",
-    ]
+            "gym",
+            "member",
+            "plan",
+            "start_date",
+            "end_date",
+            "paid",
+            "auto_renew",
+            "origin",
+            "created_at",
+        ]
 
     def get_member_name(self, obj):
         return (
             f"{obj.member.first_name} "
             f"{obj.member.last_name}"
         )
+
+    def get_plan_name(self, obj):
+        return public_plan_name(obj.plan)
 
     def get_member_photo(self, obj):
         if obj.member.photo:
@@ -81,47 +102,41 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         plan_price = obj.plan.price if obj.plan else Decimal("0")
         items_total = sum(
             item.price_snapshot
-            for item in obj.items.filter(status="active", item_type="activity")
+            for item in obj.items.all()
+            if item.status == "active" and item.item_type == "activity"
         )
         return str(plan_price + items_total)
 
-    def validate(self, attrs):
-        gym = self.context["request"].user.profile.gym
+    def get_payment_status(self, obj):
+        return get_subscription_payment_status(obj)
 
-        member = attrs.get(
-            "member",
-            self.instance.member if self.instance else None,
-        )
+    def _get_pending_plan_change(self, obj):
+        if hasattr(obj, "_pending_plan_change"):
+            return obj._pending_plan_change
 
-        plan = attrs.get(
-            "plan",
-            self.instance.plan if self.instance else None,
-        )
+        changes = getattr(obj.member, "_pending_plan_change_requests", None)
+        if changes is None:
+            changes = PlanChangeRequest.objects.filter(
+                member=obj.member,
+                status="approved",
+                effective_date__gt=date.today(),
+            ).select_related("requested_plan")
 
-        if member and member.gym != gym:
-            raise serializers.ValidationError(
-                {
-                    "member":
-                    "El socio no pertenece a este gimnasio."
-                }
-            )
+        ordered = sorted(changes, key=lambda r: r.effective_date, reverse=True)
+        pcr = ordered[0] if ordered else None
+        obj._pending_plan_change = pcr
+        return pcr
 
-        if plan and plan.gym != gym:
-            raise serializers.ValidationError(
-                {
-                    "plan":
-                    "El plan no pertenece a este gimnasio."
-                }
-            )
+    def get_has_pending_plan_change(self, obj):
+        return self._get_pending_plan_change(obj) is not None
 
-        return attrs
+    def get_future_plan_name(self, obj):
+        pcr = self._get_pending_plan_change(obj)
+        return pcr.requested_plan.name if pcr else None
 
-    def create(self, validated_data):
-        start_date = validated_data["start_date"]
-
-        validated_data["end_date"] = get_last_day_of_month(start_date)
-
-        return super().create(validated_data)
+    def get_future_effective_date(self, obj):
+        pcr = self._get_pending_plan_change(obj)
+        return str(pcr.effective_date) if pcr else None
 
 
 class PlanChangeRequestSerializer(serializers.ModelSerializer):
@@ -143,6 +158,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             "member",
             "member_name",
             "member_photo",
+            "subscription",
             "requested_plan",
             "plan_name",
             "current_schedules_snapshot",
@@ -159,6 +175,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "gym",
+            "subscription",
             "status",
             "effective_date",
             "planned_schedules",
@@ -185,10 +202,13 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
         return None
 
     def get_current_plan_name(self, obj):
-        if obj.current_plan_name_snapshot:
-            return obj.current_plan_name_snapshot
+        if obj.subscription:
+            return public_plan_name(obj.subscription.plan)
 
-        return getattr(obj, "_fallback_plan_name", None)
+        if obj.current_plan_name_snapshot:
+            return public_plan_name_from_snapshot(obj.current_plan_name_snapshot)
+
+        return None
 
     def get_reviewed_by_name(self, obj):
         if obj.reviewed_by:
@@ -247,9 +267,10 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             for s in schedules_qs
         ]
 
-        subscription = get_member_active_subscription(validated_data["member"])
+        subscription = SubscriptionDomain.get_active_subscription(validated_data["member"])
+        validated_data["subscription"] = subscription
         if subscription:
-            validated_data["current_plan_name_snapshot"] = subscription.plan.name
+            validated_data["current_plan_name_snapshot"] = public_plan_name(subscription.plan)
 
         validated_data["gym"] = gym
         return super().create(validated_data)
@@ -336,6 +357,7 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         model = PlanChangeRequest
         fields = [
             "id",
+            "subscription",
             "requested_plan",
             "plan_name",
             "current_schedules_snapshot",
@@ -351,6 +373,7 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "gym",
             "member",
+            "subscription",
             "status",
             "effective_date",
             "planned_schedules",
@@ -365,14 +388,17 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         )
 
     def get_current_plan_name(self, obj):
-        if obj.current_plan_name_snapshot:
-            return obj.current_plan_name_snapshot
+        if obj.subscription:
+            return public_plan_name(obj.subscription.plan)
 
-        return getattr(obj, "_fallback_plan_name", None)
+        if obj.current_plan_name_snapshot:
+            return public_plan_name_from_snapshot(obj.current_plan_name_snapshot)
+
+        return None
 
     def validate(self, attrs):
         member = self.context["member"]
-        gym = member.gym
+        gym = SubscriptionDomain.resolve_gym(member)
 
         requested_plan = attrs.get("requested_plan")
         if requested_plan and requested_plan.gym != gym:
@@ -415,10 +441,11 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
             for s in schedules_qs
         ]
 
-        subscription = get_member_active_subscription(member)
+        subscription = SubscriptionDomain.get_active_subscription(member)
+        validated_data["subscription"] = subscription
         if subscription:
-            validated_data["current_plan_name_snapshot"] = subscription.plan.name
+            validated_data["current_plan_name_snapshot"] = public_plan_name(subscription.plan)
 
-        validated_data["gym"] = member.gym
+        validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member
         return super().create(validated_data)
