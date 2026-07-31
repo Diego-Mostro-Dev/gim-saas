@@ -17,3 +17,5 @@ class Command(BaseCommand):
         self.stdout.write(f"Created: {result['renewed']}")
         self.stdout.write(f"Skipped already renewed: {result['skipped_already']}")
         self.stdout.write(f"Failed: {result['failed']}")
+        self.stdout.write(f"Plan changes applied: {result['plan_changes_applied']}")
+        self.stdout.write(f"Plan changes failed: {result['plan_changes_failed']}")

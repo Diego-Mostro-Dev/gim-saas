@@ -71,10 +71,23 @@ class P04PlanChangeFlowTest(TestCase):
             {"day": "wednesday", "hour": "10:00"},
         ]
 
-    def _create_approved_pcr(self, effective=None, target=None):
+    def _month_range(self, offset=0):
+        year = self.month_start.year
+        month = self.month_start.month + offset
+        while month < 1:
+            month += 12
+            year -= 1
+        while month > 12:
+            month -= 12
+            year += 1
+        start = date(year, month, 1)
+        return start, get_last_day_of_month(start)
+
+    def _create_approved_pcr(self, effective=None, target=None, member=None):
+        member = member or self.member
         pcr = PlanChangeRequest.objects.create(
             gym=self.gym,
-            member=self.member,
+            member=member,
             requested_plan=self.plan_new,
             status="approved",
             effective_date=effective or self.effective,
@@ -89,7 +102,7 @@ class P04PlanChangeFlowTest(TestCase):
                 gym=self.gym, day=s["day"], hour=_to_time(s["hour"]),
             )
             PlannedSchedule.objects.create(
-                gym=self.gym, member=self.member, plan_change=pcr,
+                gym=self.gym, member=member, plan_change=pcr,
                 slot=slot, slot_name=str(slot), day=s["day"], hour=s["hour"],
             )
         return pcr
@@ -115,10 +128,11 @@ class P04PlanChangeFlowTest(TestCase):
             call_command("apply_plan_changes", stdout=out)
             return out.getvalue()
 
-    def _active_days(self):
+    def _active_days(self, member=None):
+        member = member or self.member
         return set(
             AttendanceSchedule.objects.filter(
-                member=self.member, active=True,
+                member=member, active=True,
             ).values_list("slot__day", flat=True)
         )
 
@@ -244,6 +258,35 @@ class P04PlanChangeFlowTest(TestCase):
         ).first()
         self.assertEqual(new_sub.plan, self.plan_old)
 
+    # 6b) La renovación ejecuta la PCR vencida aunque la sub del período ya exista
+    def test_renewal_executes_due_pcr_when_period_sub_preexists(self):
+        Subscription.objects.create(
+            gym=self.gym, member=self.member, plan=self.plan_new,
+            start_date=self.effective,
+            end_date=get_last_day_of_month(self.effective),
+            paid=False, auto_renew=True, origin="onboarding",
+        )
+        pcr = self._create_approved_pcr()
+
+        self._run_auto_renew(self.effective)
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+
+        period_sub = Subscription.objects.filter(
+            member=self.member, start_date=self.effective,
+        ).first()
+        self.assertEqual(pcr.subscription_id, period_sub.id)
+        self.assertTrue(
+            all(ps.activated for ps in PlannedSchedule.objects.filter(plan_change=pcr))
+        )
+        self.assertEqual(self._active_days(), {"monday", "wednesday"})
+        self.assertFalse(
+            PlanChangeRequest.objects.filter(
+                status="approved", effective_date__lte=self.effective,
+            ).exists()
+        )
+
     # 7) Flujo completo por API: solicitar + aprobar + renovar + ejecutar
     def test_api_full_flow(self):
         from django.contrib.auth.models import User
@@ -292,3 +335,185 @@ class P04PlanChangeFlowTest(TestCase):
         self.assertEqual(new_sub.plan, self.plan_new)
         self.assertTrue(all(ps.activated for ps in planned))
         self.assertEqual(self._active_days(), {"monday", "wednesday"})
+
+    # 8) Socio bloqueado: la PCR se ejecuta aunque no renueve
+    def test_blocked_member_pcr_executes(self):
+        from subscriptions.services import get_subscription_payment_status
+
+        member = Member.objects.create(
+            gym=self.gym, first_name="Blocked", last_name="User", phone="B1",
+        )
+        prior_start, prior_end = self._month_range(-2)
+        Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=prior_start, end_date=prior_end,
+            paid=True, auto_renew=True,
+        )
+        exp_start, exp_end = self._month_range(-1)
+        expired = Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=exp_start, end_date=exp_end,
+            paid=False, auto_renew=True,
+        )
+        self.assertEqual(
+            get_subscription_payment_status(expired, at_date=expired.end_date),
+            "blocked",
+        )
+        pcr = self._create_approved_pcr(effective=self.effective, member=member)
+
+        self._run_auto_renew(self.effective)
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+
+        new_sub = Subscription.objects.filter(
+            member=member, start_date=self.effective,
+        ).first()
+        self.assertIsNotNone(new_sub)
+        self.assertEqual(new_sub.plan, self.plan_new)
+        self.assertEqual(new_sub.origin, "plan_change")
+        self.assertFalse(
+            Subscription.objects.filter(member=member, origin="auto_renewal").exists()
+        )
+        self.assertTrue(
+            all(ps.activated for ps in PlannedSchedule.objects.filter(plan_change=pcr))
+        )
+        self.assertEqual(self._active_days(member), {"monday", "wednesday"})
+        self.assertFalse(
+            PlanChangeRequest.objects.filter(
+                status="approved", effective_date__lte=self.effective,
+            ).exists()
+        )
+
+    # 9) Socio pendiente (impago, no bloqueado): renueva y ejecuta la PCR
+    def test_pending_member_pcr_executes(self):
+        from subscriptions.services import get_subscription_payment_status
+
+        self.gym.payment_due_day = 31
+        self.gym.save(update_fields=["payment_due_day"])
+        member = Member.objects.create(
+            gym=self.gym, first_name="Pending", last_name="User", phone="P1",
+        )
+        prior_start, prior_end = self._month_range(-2)
+        Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=prior_start, end_date=prior_end,
+            paid=True, auto_renew=True,
+        )
+        exp_start, exp_end = self._month_range(-1)
+        expired = Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=exp_start, end_date=exp_end,
+            paid=False, auto_renew=True,
+        )
+        self.assertEqual(
+            get_subscription_payment_status(expired, at_date=expired.end_date),
+            "pending",
+        )
+        pcr = self._create_approved_pcr(effective=self.effective, member=member)
+
+        self._run_auto_renew(self.effective)
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+        new_sub = Subscription.objects.filter(
+            member=member, start_date=self.effective,
+        ).first()
+        self.assertIsNotNone(new_sub)
+        self.assertEqual(new_sub.plan, self.plan_new)
+        self.assertEqual(new_sub.origin, "plan_change")
+        self.assertEqual(self._active_days(member), {"monday", "wednesday"})
+
+    # 10) auto_renew=False: la PCR se ejecuta sin renovar
+    def test_auto_renew_false_member_pcr_executes(self):
+        member = Member.objects.create(
+            gym=self.gym, first_name="Manual", last_name="User", phone="M1",
+        )
+        exp_start, exp_end = self._month_range(-1)
+        Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=exp_start, end_date=exp_end,
+            paid=True, auto_renew=False,
+        )
+        pcr = self._create_approved_pcr(effective=self.effective, member=member)
+
+        self._run_auto_renew(self.effective)
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+        new_sub = Subscription.objects.filter(
+            member=member, start_date=self.effective,
+        ).first()
+        self.assertIsNotNone(new_sub)
+        self.assertEqual(new_sub.plan, self.plan_new)
+        self.assertEqual(new_sub.origin, "plan_change")
+        self.assertFalse(
+            Subscription.objects.filter(member=member, origin="auto_renewal").exists()
+        )
+        self.assertEqual(self._active_days(member), {"monday", "wednesday"})
+        self.assertFalse(
+            PlanChangeRequest.objects.filter(
+                status="approved", effective_date__lte=self.effective,
+            ).exists()
+        )
+
+    # 11) Doble ejecución del proceso: sin duplicados ni re-aplicación
+    def test_double_execution_no_duplicates(self):
+        pcr = self._create_approved_pcr()
+
+        self._run_auto_renew(self.effective)
+        output2 = self._run_auto_renew(self.effective)
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+        self.assertEqual(
+            Subscription.objects.filter(member=self.member).count(), 2,
+        )
+        self.assertEqual(
+            Subscription.objects.filter(
+                member=self.member, start_date=self.effective,
+            ).count(), 1,
+        )
+        self.assertEqual(self._active_days(), {"monday", "wednesday"})
+        self.assertIn("Plan changes applied: 0", output2)
+
+    # 12) Doble ejecución para socio bloqueado: sin duplicados
+    def test_blocked_member_double_execution_no_duplicates(self):
+        from subscriptions.services import get_subscription_payment_status
+
+        member = Member.objects.create(
+            gym=self.gym, first_name="Blocked2", last_name="User", phone="B2",
+        )
+        prior_start, prior_end = self._month_range(-2)
+        Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=prior_start, end_date=prior_end,
+            paid=True, auto_renew=True,
+        )
+        exp_start, exp_end = self._month_range(-1)
+        Subscription.objects.create(
+            gym=self.gym, member=member, plan=self.plan_old,
+            start_date=exp_start, end_date=exp_end,
+            paid=False, auto_renew=True,
+        )
+        pcr = self._create_approved_pcr(effective=self.effective, member=member)
+
+        self._run_auto_renew(self.effective)
+        self._run_auto_renew(self.effective)
+
+        pcr.refresh_from_db()
+        self.assertEqual(pcr.status, "executed")
+        self.assertEqual(
+            Subscription.objects.filter(member=member).count(), 3,
+        )
+        self.assertEqual(
+            Subscription.objects.filter(
+                member=member, start_date=self.effective,
+            ).count(), 1,
+        )
+        self.assertEqual(self._active_days(member), {"monday", "wednesday"})
+        self.assertFalse(
+            PlanChangeRequest.objects.filter(
+                status="approved", effective_date__lte=self.effective,
+            ).exists()
+        )

@@ -300,6 +300,51 @@ def _find_already_renewed_members(candidates):
     )
 
 
+def _apply_due_plan_changes(member_id):
+    """Execute approved plan changes whose effective_date has arrived.
+
+    Used by the renewal job so a due plan change is still completed when
+    the member was skipped because its successor subscription already
+    exists (apply_plan_change is idempotent).
+    """
+    for pcr in PlanChangeRequest.objects.filter(
+        member_id=member_id,
+        status="approved",
+        effective_date__lte=timezone.localdate(),
+    ):
+        try:
+            apply_plan_change(pcr)
+        except Exception:
+            logger.exception("Failed to apply plan change %s", pcr.pk)
+
+
+def _apply_all_due_plan_changes(gym=None):
+    """Execute every approved plan change whose effective_date has arrived.
+
+    A plan change is an administrative decision: its execution is never
+    conditioned by the member's payment status, the auto_renew flag, or
+    membership activity. This guarantees no approved plan change is left
+    hanging because the member was not a renewal candidate.
+    """
+    due = PlanChangeRequest.objects.filter(
+        status="approved",
+        effective_date__lte=timezone.localdate(),
+    )
+    if gym is not None:
+        due = due.filter(gym=gym)
+
+    applied = 0
+    failed = 0
+    for pcr in due:
+        try:
+            apply_plan_change(pcr)
+            applied += 1
+        except Exception:
+            failed += 1
+            logger.exception("Failed to apply plan change %s", pcr.pk)
+    return applied, failed
+
+
 def _resolve_plan(member, expired_sub, target_start):
     """Resolve the plan for the renewal, honouring approved plan changes.
 
@@ -407,6 +452,11 @@ def auto_renew_subscriptions(gym=None):
          member is logged and does not stop the rest, so a later run can
          retry the failed member.
 
+    A final phase applies every approved plan change whose effective date
+    has arrived, for all members. A plan change is an administrative
+    decision and never depends on the member's payment status or renewal
+    eligibility, so it cannot be left hanging by the financial state.
+
     Safe to run on any day of the month; pending renewals are caught up.
     """
     qs = Subscription.objects
@@ -423,6 +473,7 @@ def auto_renew_subscriptions(gym=None):
     for expired_sub, _target_start, _target_end in candidates:
         if expired_sub.member_id in already_renewed:
             skipped_already += 1
+            _apply_due_plan_changes(expired_sub.member_id)
             continue
 
         try:
@@ -439,10 +490,14 @@ def auto_renew_subscriptions(gym=None):
         if new_sub is not None:
             renewed += 1
 
+    plan_changes_applied, plan_changes_failed = _apply_all_due_plan_changes(gym)
+
     return {
         "renewed": renewed,
         "skipped_already": skipped_already,
         "failed": failed,
+        "plan_changes_applied": plan_changes_applied,
+        "plan_changes_failed": plan_changes_failed,
     }
 
 
