@@ -528,7 +528,6 @@ def apply_plan_change(plan_change_request):
             return None
 
         member = plan_change_request.member
-        gym = plan_change_request.gym
         month_start = plan_change_request.effective_date
         month_end = get_last_day_of_month(month_start)
 
@@ -553,20 +552,7 @@ def apply_plan_change(plan_change_request):
             if current_sub:
                 _copy_activity_items(current_sub, period_sub)
 
-        plan_change_request.subscription = period_sub
-        plan_change_request.status = "executed"
-        plan_change_request.save(update_fields=["status", "subscription"])
-
-        ScheduleDomain.sync_schedules(
-            member,
-            gym,
-            plan_change_request.target_schedules_snapshot or [],
-            subscription=period_sub,
-        )
-
-        plan_change_request.planned_schedules.filter(
-            activated=False
-        ).update(activated=True)
+        _finalize_plan_change(plan_change_request, period_sub)
 
     return plan_change_request
 
