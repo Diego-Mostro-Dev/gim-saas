@@ -1,6 +1,7 @@
 import logging
 from calendar import monthrange
 from datetime import date
+from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Q
@@ -62,6 +63,23 @@ def ensure_subscription_items(subscription, previous_subscription=None):
 
     if previous_subscription is not None:
         _copy_activity_items(previous_subscription, subscription)
+
+
+def calculate_subscription_total(subscription):
+    """Return the total amount to pay for a subscription.
+
+    Plan price for the period plus every active activity SubscriptionItem.
+    This is the single source of truth for the subscription total and must
+    stay identical to what the member portal displays (see
+    SubscriptionSerializer.get_total).
+    """
+    plan_price = subscription.plan.price if subscription.plan else Decimal("0")
+    items_total = sum(
+        item.price_snapshot
+        for item in subscription.items.all()
+        if item.status == "active" and item.item_type == "activity"
+    )
+    return plan_price + items_total
 
 
 def get_subscription_payment_status(subscription, at_date=None):

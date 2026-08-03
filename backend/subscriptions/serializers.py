@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from datetime import date
-from decimal import Decimal
 
 from attendance.models import AttendanceSchedule
 
@@ -10,6 +9,7 @@ from .models import Subscription, SubscriptionItem, PlanChangeRequest
 from .validators import PlanChangeRequestValidator
 from .domain import SubscriptionDomain
 from .services import (
+    calculate_subscription_total,
     calculate_effective_date,
     compute_projected_occupancy,
     get_subscription_payment_status,
@@ -99,13 +99,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         return None
 
     def get_total(self, obj):
-        plan_price = obj.plan.price if obj.plan else Decimal("0")
-        items_total = sum(
-            item.price_snapshot
-            for item in obj.items.all()
-            if item.status == "active" and item.item_type == "activity"
-        )
-        return str(plan_price + items_total)
+        return str(calculate_subscription_total(obj))
 
     def get_payment_status(self, obj):
         return get_subscription_payment_status(obj)

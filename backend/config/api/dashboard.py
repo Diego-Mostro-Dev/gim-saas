@@ -9,7 +9,8 @@ from rest_framework.views import APIView
 from members.models import Member
 from payments.models import Payment
 from plans.services import public_plan_name
-from subscriptions.models import Subscription, SubscriptionItem
+from subscriptions.models import Subscription
+from subscriptions.services import calculate_subscription_total
 from attendance.models import Attendance
 from routines.models import RoutineAssignment
 
@@ -162,13 +163,7 @@ class DashboardSummaryView(APIView):
 
         pending_payments_data = []
         for sub in pending_subs:
-            total = float(sub.plan.price)
-            activity_sum = SubscriptionItem.objects.filter(
-                subscription=sub,
-                item_type="activity",
-                status="active",
-            ).aggregate(s=Sum("price_snapshot"))["s"]
-            total += float(activity_sum or 0)
+            total = float(calculate_subscription_total(sub))
             pending_payments_data.append({
                 "id": sub.id,
                 "member_id": sub.member.id,

@@ -14,6 +14,7 @@ from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
 from subscriptions.services import (
+    calculate_subscription_total,
     get_first_day_of_next_month,
     get_subscription_payment_status,
 )
@@ -460,10 +461,7 @@ class PublicRoutineView(APIView):
                     item_type="activity",
                 )
             )
-            items_total = sum(
-                item.price_snapshot for item in activity_items
-            )
-            total = plan.price + items_total
+            total = calculate_subscription_total(sub)
 
             return {
                 "id": sub.id,

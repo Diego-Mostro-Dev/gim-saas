@@ -1,10 +1,14 @@
+from decimal import Decimal
+
 from django.db import transaction
+from django.db.models import Sum
 
 from rest_framework import serializers
 
 from plans.services import public_plan_name
 
 from subscriptions.models import Subscription
+from subscriptions.services import calculate_subscription_total
 
 from .models import Payment
 
@@ -47,7 +51,11 @@ class PaymentSerializer(serializers.ModelSerializer):
             )
             payment = super().create(validated_data)
             if not sub.paid:
-                sub.paid = True
-                sub.save(update_fields=["paid"])
+                paid_total = Payment.objects.filter(subscription=sub).aggregate(
+                    total=Sum("amount")
+                )["total"] or Decimal("0")
+                if paid_total >= calculate_subscription_total(sub):
+                    sub.paid = True
+                    sub.save(update_fields=["paid"])
 
         return payment

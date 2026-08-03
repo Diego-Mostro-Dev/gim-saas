@@ -1,8 +1,12 @@
+from decimal import Decimal
+
 from django.db import transaction
+from django.db.models import Sum
 
 from core.viewsets import GymModelViewSet
 
 from subscriptions.models import Subscription
+from subscriptions.services import calculate_subscription_total
 
 from .models import Payment
 from .serializers import PaymentSerializer
@@ -26,10 +30,10 @@ class PaymentViewSet(GymModelViewSet):
                 .select_for_update()
                 .get(pk=subscription.pk)
             )
-            has_payments = Payment.objects.filter(
+            paid_total = Payment.objects.filter(
                 subscription=sub
-            ).exists()
+            ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
-            if not has_payments and sub.paid:
+            if sub.paid and paid_total < calculate_subscription_total(sub):
                 sub.paid = False
                 sub.save(update_fields=["paid"])
