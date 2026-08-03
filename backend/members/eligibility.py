@@ -38,7 +38,9 @@ class MemberEligibility:
         - Member.active is True.
         - The member has a currently-valid Subscription
           (start_date <= today <= end_date).
-        - The subscription's payment status is not "blocked".
+        - The subscription's payment status is neither "blocked" nor
+          "initial_pending" (a member cannot operate until their first
+          payment is recorded; see INVARIANT INV-008).
 
         This is the single function that should guard every member-facing
         write operation (check-in, enrollment, schedule/plan changes, etc.).
@@ -53,7 +55,7 @@ class MemberEligibility:
             return False
 
         status = SubscriptionDomain.get_payment_status(subscription)
-        return status != "blocked"
+        return status not in ("blocked", "initial_pending")
 
     # -- subscription date-range check --------------------------------------
 
