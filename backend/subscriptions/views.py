@@ -3,7 +3,7 @@ from datetime import date
 from django.db import transaction
 from django.db.models import OuterRef, Prefetch, Subquery
 from django.shortcuts import get_object_or_404
-from django.utils.timezone import localdate, now
+from django.utils.timezone import now
 
 from rest_framework import status
 from rest_framework import viewsets
@@ -14,7 +14,6 @@ from core.viewsets import GymModelViewSet
 
 from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
 from members.models import Member
-from plans.models import MembershipPlan
 
 from .models import Subscription, SubscriptionItem, PlanChangeRequest, PlannedSchedule
 from .serializers import (
@@ -28,6 +27,7 @@ from .services import (
     calculate_effective_date,
     cancel_future_plan_change,
     get_last_day_of_month,
+    recover_member,
 )
 
 
@@ -67,61 +67,24 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         gym = request.user.profile.gym
 
         member_id = request.data.get("member_id")
-        plan_id = request.data.get("plan_id")
-        if member_id is None or plan_id is None:
+        if member_id is None:
             return Response(
-                {"detail": "member_id y plan_id son obligatorios."},
+                {"detail": "member_id es obligatorio."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             member_id = int(member_id)
-            plan_id = int(plan_id)
         except (TypeError, ValueError):
             return Response(
-                {"detail": "member_id y plan_id deben ser enteros válidos."},
+                {"detail": "member_id debe ser un entero válido."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         member = get_object_or_404(Member, id=member_id, gym=gym)
-        plan = get_object_or_404(MembershipPlan, id=plan_id, gym=gym)
-
-        if plan.is_base:
-            return Response(
-                {"detail": "No se puede solicitar el plan base."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        start_date = request.data.get("start_date")
-        end_date = request.data.get("end_date")
 
         try:
-            if start_date:
-                start_date = date.fromisoformat(start_date)
-            else:
-                start_date = localdate()
-            if end_date:
-                end_date = date.fromisoformat(end_date)
-            else:
-                end_date = get_last_day_of_month(start_date)
-        except ValueError:
-            return Response(
-                {"detail": "start_date y end_date deben tener formato YYYY-MM-DD."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        auto_renew = _coerce_bool(request.data.get("auto_renew"), default=True)
-
-        try:
-            sub = SubscriptionDomain.open_subscription(
-                member=member,
-                plan=plan,
-                start_date=start_date,
-                end_date=end_date,
-                paid=False,
-                auto_renew=auto_renew,
-                origin="onboarding",
-            )
+            sub = recover_member(member)
         except SubscriptionConflictError as exc:
             return Response(
                 {"detail": str(exc)},
@@ -132,14 +95,6 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
             SubscriptionSerializer(sub).data,
             status=status.HTTP_201_CREATED,
         )
-
-
-def _coerce_bool(value, default):
-    if value is None:
-        return default
-    if isinstance(value, str):
-        return value.strip().lower() in ("1", "true", "yes")
-    return bool(value)
 
 
 class PlanChangeRequestViewSet(GymModelViewSet):

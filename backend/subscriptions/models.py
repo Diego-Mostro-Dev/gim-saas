@@ -11,6 +11,7 @@ class Subscription(models.Model):
         ("onboarding", "Alta"),
         ("auto_renewal", "Renovación automática"),
         ("plan_change", "Cambio de plan"),
+        ("recovery", "Recuperación"),
     ]
 
     gym = models.ForeignKey(

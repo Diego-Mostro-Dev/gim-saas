@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
-from .domain import ScheduleDomain, SubscriptionDomain
+from .domain import ScheduleDomain, SubscriptionConflictError, SubscriptionDomain
 
 from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSchedule
 
@@ -256,6 +256,88 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
     return new_sub
 
 
+def recover_member(member):
+    """Re-open a lapsed member's subscription once their debt is settled.
+
+    Recovery is always a manual staff action. It creates a new subscription
+    for the current period only when every precondition holds:
+    1. The latest subscription (the overdue one) has its debt fully settled
+       (paid=True).
+    2. No subscription covers today (no current subscription).
+    3. No subscription starts in the future (no future subscription).
+    4. The plan is the approved plan change's requested plan when one is due,
+       otherwise the latest subscription's plan. The base plan is rejected.
+    5. Active activity items are copied from the latest subscription and the
+       auto_renew flag is inherited.
+    6. The new subscription starts today, ends on the last day of the current
+       month, is unpaid, and has origin="recovery".
+
+    When an approved plan change is used, it is fully executed inside the same
+    transaction: linked to the new subscription, marked as executed, schedules
+    synchronized and PlannedSchedule rows activated, so the apply_plan_changes
+    job never retries it.
+
+    Args:
+        member: The Member being recovered.
+
+    Returns:
+        The new Subscription.
+
+    Raises:
+        SubscriptionConflictError: When a recovery precondition fails.
+    """
+    today = timezone.localdate()
+    month_end = get_last_day_of_month(today)
+
+    latest_sub = Subscription.objects.filter(
+        member=member,
+    ).order_by("-start_date", "-created_at").first()
+
+    if latest_sub is None:
+        raise SubscriptionConflictError(
+            "No se puede recuperar: el socio no tiene una suscripción previa."
+        )
+
+    if not latest_sub.paid:
+        raise SubscriptionConflictError(
+            "No se puede recuperar: la deuda de la suscripción anterior no está saldada."
+        )
+
+    if SubscriptionDomain.get_current_subscription(member) is not None:
+        raise SubscriptionConflictError(
+            "No se puede recuperar: el socio ya tiene una suscripción vigente."
+        )
+
+    if Subscription.objects.filter(member=member, start_date__gt=today).exists():
+        raise SubscriptionConflictError(
+            "No se puede recuperar: el socio ya tiene una suscripción futura."
+        )
+
+    plan, approved_pcr = _resolve_plan(member, latest_sub, today)
+
+    if plan.is_base:
+        raise SubscriptionConflictError(
+            "No se puede recuperar con el plan base."
+        )
+
+    with transaction.atomic():
+        new_sub = SubscriptionDomain.open_subscription(
+            member=member,
+            plan=plan,
+            start_date=today,
+            end_date=month_end,
+            paid=False,
+            auto_renew=latest_sub.auto_renew,
+            origin="recovery",
+        )
+        _copy_activity_items(latest_sub, new_sub)
+
+        if approved_pcr is not None:
+            _finalize_plan_change(approved_pcr, new_sub)
+
+    return new_sub
+
+
 def _collect_renewal_candidates(queryset):
     """Select expired auto_renew subscriptions that have not been renewed yet.
 
@@ -378,6 +460,40 @@ def _resolve_plan(member, expired_sub, target_start):
     if approved_pcr is not None:
         return approved_pcr.requested_plan, approved_pcr
     return expired_sub.plan, None
+
+
+def _finalize_plan_change(plan_change_request, subscription):
+    """Execute a due approved plan change against an existing subscription.
+
+    Mirrors the finalization performed by apply_plan_change so that recovery
+    and the scheduled job share the same execution semantics:
+    1. Links the request to the subscription and marks it as executed.
+    2. Synchronizes AttendanceSchedule with the target schedules.
+    3. Marks PlannedSchedule rows as activated.
+
+    Args:
+        plan_change_request: The approved PlanChangeRequest to execute.
+        subscription: The Subscription the plan change took effect on.
+
+    Returns:
+        The executed PlanChangeRequest.
+    """
+    plan_change_request.subscription = subscription
+    plan_change_request.status = "executed"
+    plan_change_request.save(update_fields=["status", "subscription"])
+
+    ScheduleDomain.sync_schedules(
+        plan_change_request.member,
+        plan_change_request.gym,
+        plan_change_request.target_schedules_snapshot or [],
+        subscription=subscription,
+    )
+
+    plan_change_request.planned_schedules.filter(
+        activated=False
+    ).update(activated=True)
+
+    return plan_change_request
 
 
 def apply_plan_change(plan_change_request):
