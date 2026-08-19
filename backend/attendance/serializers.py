@@ -277,10 +277,6 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
         return None
 
     def validate_gym_allows_changes(self, gym):
-        if not gym.allow_member_schedule_changes:
-            raise serializers.ValidationError(
-                "El gimnasio no permite cambios de horario."
-            )
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios permanentes de horario."
@@ -462,10 +458,6 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         return obj.requested_slot.hour.strftime("%H:%M")
 
     def validate_gym_allows_changes(self, gym):
-        if not gym.allow_member_schedule_changes:
-            raise serializers.ValidationError(
-                "El gimnasio no permite cambios de horario."
-            )
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios permanentes de horario."
@@ -650,10 +642,6 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
         destination_slot = attrs.get("destination_slot")
         swap_date = attrs.get("swap_date")
 
-        if not gym.allow_member_schedule_changes:
-            raise serializers.ValidationError(
-                "El gimnasio no permite cambios de horario."
-            )
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios permanentes de horario."
@@ -728,10 +716,10 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
             if ScheduleChangeRequest.objects.filter(
                 member=member,
                 status="pending",
-                current_schedule__slot__day=destination_slot.day,
+                requested_slot=destination_slot,
             ).exists():
                 raise serializers.ValidationError(
-                    "El socio tiene un cambio de horario pendiente que afecta el mismo día."
+                    "El socio tiene un cambio de horario pendiente para ese horario."
                 )
 
         return attrs
@@ -840,10 +828,6 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
         destination_slot = attrs.get("destination_slot")
         swap_date = attrs.get("swap_date")
 
-        if not gym.allow_member_schedule_changes:
-            raise serializers.ValidationError(
-                "El gimnasio no permite cambios de horario."
-            )
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios permanentes de horario."
@@ -916,10 +900,10 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
             if ScheduleChangeRequest.objects.filter(
                 member=member,
                 status="pending",
-                current_schedule__slot__day=destination_slot.day,
+                requested_slot=destination_slot,
             ).exists():
                 raise serializers.ValidationError(
-                    "Tienes un cambio de horario pendiente que afecta el mismo día."
+                    "Tienes un cambio de horario pendiente para ese horario."
                 )
 
         return attrs
