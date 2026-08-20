@@ -703,6 +703,14 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
                     f"{notice_hours} horas de anticipación."
                 )
 
+            cap = destination_slot.capacity or gym.default_schedule_capacity
+            if cap is not None:
+                effective = compute_effective_occupancy(destination_slot, swap_date)
+                if effective >= cap:
+                    raise serializers.ValidationError(
+                        "El horario seleccionado está completo."
+                    )
+
             member = origin_schedule.member
 
             if ScheduleSwapRequest.objects.filter(
@@ -888,6 +896,14 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
                     f"Debes solicitar el intercambio con al menos "
                     f"{notice_hours} horas de anticipación."
                 )
+
+            cap = destination_slot.capacity or gym.default_schedule_capacity
+            if cap is not None:
+                effective = compute_effective_occupancy(destination_slot, swap_date)
+                if effective >= cap:
+                    raise serializers.ValidationError(
+                        "El horario seleccionado está completo."
+                    )
 
             if ScheduleSwapRequest.objects.filter(
                 member=member,
