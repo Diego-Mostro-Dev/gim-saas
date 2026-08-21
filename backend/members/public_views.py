@@ -13,6 +13,7 @@ from activities.models import Activity, ActivitySchedule, Enrollment
 from activities.overlap import validate_gym_activity_overlap, validate_schedule_batch
 from attendance.models import ScheduleSlot
 from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
+from gyms.features import require_activities
 from gyms.models import Gym
 from plans.models import MembershipPlan
 from subscriptions.services import get_last_day_of_month
@@ -123,6 +124,9 @@ class PublicRegisterView(APIView):
         has_gym = "gym" in services
         has_activities = "activities" in services
         entry_mode = "GYM" if has_gym else "ACTIVITY_ONLY"
+
+        if has_activities:
+            require_activities(gym)
 
         if has_gym:
             raw_schedules = request.data.get("schedules", [])

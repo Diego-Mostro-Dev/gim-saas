@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Min, Q, Sum
 from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
@@ -68,29 +68,244 @@ def ensure_subscription_items(subscription, previous_subscription=None):
 def calculate_subscription_total(subscription):
     """Return the total amount to pay for a subscription.
 
-    Plan price for the period plus every active activity SubscriptionItem.
-    This is the single source of truth for the subscription total and must
-    stay identical to what the member portal displays (see
+    The total is the contract price for the period and is computed
+    exclusively from the SubscriptionItem price snapshots:
+
+    - the plan item's price_snapshot: the membership price the member
+      actually contracted when the subscription was created;
+    - every active activity item's price_snapshot.
+
+    MembershipPlan.price is intentionally NOT used so a later change to the
+    plan price never alters the total of subscriptions created before the
+    change. This is the single source of truth for the subscription total
+    and must stay identical to what the member portal displays (see
     SubscriptionSerializer.get_total).
+
+    Defensive fallback: a subscription created before the SubscriptionItem
+    backfill may lack a plan item; only then is the current plan price used
+    as a last resort.
     """
-    plan_price = subscription.plan.price if subscription.plan else Decimal("0")
-    items_total = sum(
-        item.price_snapshot
-        for item in subscription.items.all()
-        if item.status == "active" and item.item_type == "activity"
+    total = Decimal("0")
+    has_plan_item = False
+
+    for item in subscription.items.all():
+        if item.status != "active":
+            continue
+        if item.item_type == "plan":
+            has_plan_item = True
+        total += item.price_snapshot
+
+    if not has_plan_item and subscription.plan is not None:
+        total += subscription.plan.price
+
+    return total
+
+
+def sync_subscription_paid(subscription):
+    """Reconcile the denormalized ``paid`` flag with the real balance.
+
+    Rule: after any Payment mutation (create/update/delete),
+
+        subscription.paid == (subscription_remaining_balance(subscription)["remaining"] == 0)
+
+    Must be called inside a transaction with the subscription locked with
+    select_for_update so concurrent mutations cannot leave the flag stale.
+    ``payment_status`` keeps being derived from the real balance and is not
+    replaced by this flag.
+
+    Args:
+        subscription: The Subscription instance (locked).
+
+    Returns:
+        The Subscription instance.
+    """
+    balance = subscription_remaining_balance(subscription)
+    should_be_paid = balance["remaining"] == 0
+
+    if subscription.paid != should_be_paid:
+        subscription.paid = should_be_paid
+        subscription.save(update_fields=["paid"])
+
+    return subscription
+
+
+def subscription_remaining_balance(subscription, paid_amount=None):
+    """Return the pending balance of a subscription.
+
+    Single source of truth for a subscription's balance:
+
+    - total: the full amount to pay for the period, computed through
+      calculate_subscription_total, which remains the source of truth
+      for billing amounts.
+    - paid_amount: the sum of every Payment linked to the subscription.
+    - remaining: total minus paid_amount, clamped at zero.
+
+    Args:
+        subscription: The Subscription instance.
+        paid_amount: Optional precomputed paid total. When provided it is
+            used as-is to avoid an extra query in bulk contexts.
+
+    Returns:
+        A dict with "total", "paid_amount" and "remaining" Decimals.
+    """
+    from payments.models import Payment
+
+    total = calculate_subscription_total(subscription)
+
+    if paid_amount is None:
+        paid_amount = (
+            Payment.objects.filter(subscription=subscription).aggregate(
+                paid=Sum("amount")
+            )["paid"]
+            or Decimal("0")
+        )
+
+    remaining = total - paid_amount
+    if remaining < 0:
+        remaining = Decimal("0")
+
+    return {
+        "total": total,
+        "paid_amount": paid_amount,
+        "remaining": remaining,
+    }
+
+
+def member_total_outstanding_debt(member):
+    """Return the member's total outstanding debt.
+
+    The debt is composed of every subscription of the member with a positive
+    remaining balance, computed through subscription_remaining_balance, which
+    stays the single source of truth for subscription balances. It does not
+    rely on the paid=False denormalized flag: a subscription flagged as paid
+    but with an unpaid balance still counts as outstanding.
+
+    Returns:
+        A dict with:
+        - subscriptions: list of {"subscription": Subscription, "total": Decimal,
+          "paid": Decimal, "remaining": Decimal} for every unpaid
+          subscription with a positive remaining balance, ordered by period
+          ascending.
+        - total: the sum of all remaining balances as a Decimal.
+    """
+    from payments.models import Payment
+
+    outstanding_subs = (
+        Subscription.objects.filter(
+            member=member,
+        )
+        .select_related("plan")
+        .prefetch_related("items")
+        .order_by("start_date", "created_at")
     )
-    return plan_price + items_total
+
+    paid_by_subscription = {
+        row["subscription"]: row["paid"]
+        for row in Payment.objects.filter(
+            subscription__in=outstanding_subs
+        ).values("subscription").annotate(paid=Sum("amount"))
+    }
+
+    subscriptions = []
+    for sub in outstanding_subs:
+        balance = subscription_remaining_balance(
+            sub,
+            paid_amount=paid_by_subscription.get(sub.id) or Decimal("0"),
+        )
+        if balance["remaining"] <= 0:
+            continue
+        subscriptions.append(
+            {
+                "subscription": sub,
+                "total": balance["total"],
+                "paid_amount": balance["paid_amount"],
+                "remaining": balance["remaining"],
+            }
+        )
+
+    total = sum(
+        (entry["remaining"] for entry in subscriptions),
+        Decimal("0"),
+    )
+
+    return {
+        "subscriptions": subscriptions,
+        "total": total,
+    }
 
 
-def get_subscription_payment_status(subscription, at_date=None):
+def gym_outstanding_subscriptions(gym):
+    """Return every subscription in the gym with a positive remaining balance.
+
+    Unlike member_total_outstanding_debt, this is gym-wide and does NOT rely
+    on the paid=False denormalized flag: the remaining balance is always
+    computed from the actual payments through subscription_remaining_balance,
+    and only subscriptions with remaining > 0 are returned.
+
+    Args:
+        gym: The Gym instance.
+
+    Returns:
+        A list of {"subscription": Subscription, "total": Decimal,
+        "paid_amount": Decimal, "remaining": Decimal}, ordered by period
+        ascending.
+    """
+    from payments.models import Payment
+
+    subscriptions = (
+        Subscription.objects.filter(gym=gym)
+        .select_related("member", "plan", "gym")
+        .prefetch_related("items__activity")
+        .order_by("start_date", "created_at")
+    )
+
+    paid_by_subscription = {
+        row["subscription"]: row["paid"]
+        for row in Payment.objects.filter(
+            subscription__in=subscriptions
+        ).values("subscription").annotate(paid=Sum("amount"))
+    }
+
+    earliest_first_created = dict(
+        Subscription.objects.filter(gym=gym)
+        .values("member")
+        .annotate(first_created=Min("created_at"))
+        .values_list("member", "first_created")
+    )
+
+    outstanding = []
+    for sub in subscriptions:
+        balance = subscription_remaining_balance(
+            sub,
+            paid_amount=paid_by_subscription.get(sub.id) or Decimal("0"),
+        )
+        if balance["remaining"] > 0:
+            outstanding.append({
+                "subscription": sub,
+                **balance,
+                "is_first": (
+                    sub.created_at == earliest_first_created.get(sub.member_id)
+                ),
+            })
+
+    return outstanding
+
+
+def get_subscription_payment_status(subscription, at_date=None, remaining=None,
+                                    is_first=None):
     today = at_date or timezone.localdate()
-    if subscription.paid:
+
+    if remaining is None:
+        remaining = subscription_remaining_balance(subscription)["remaining"]
+
+    if remaining == 0:
         return "paid"
 
-    is_first = not Subscription.objects.filter(
-        member=subscription.member,
-        created_at__lt=subscription.created_at,
-    ).exists()
+    if is_first is None:
+        is_first = not Subscription.objects.filter(
+            member=subscription.member,
+            created_at__lt=subscription.created_at,
+        ).exists()
 
     if is_first:
         return "initial_pending"
@@ -257,12 +472,24 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
 
 
 def recover_member(member):
-    """Re-open a lapsed member's subscription once their debt is settled.
+    """Reactivate a member, optionally opening a new subscription.
 
+    Two distinct scenarios are handled:
+
+    Case A — Reactivation: the member already has a Subscription covering
+    today and every subscription is fully settled. No new subscription is
+    created; the member is simply reactivated (active=True) and the existing
+    current Subscription is returned.
+
+    Case B — Recovery: the member has no subscription covering today.
     Recovery is always a manual staff action. It creates a new subscription
     for the current period only when every precondition holds:
-    1. The latest subscription (the overdue one) has its debt fully settled
-       (paid=True).
+    1. No subscription of the member has a positive remaining balance
+       (computed through subscription_remaining_balance), so no historical
+       debt remains. The denormalized ``paid`` flag is deliberately not
+       used: a subscription flagged as paid with an unpaid balance still
+       counts as debt, and a flagged unpaid one with a zero balance does
+       not.
     2. No subscription covers today (no current subscription).
     3. No subscription starts in the future (no future subscription).
     4. The plan is the approved plan change's requested plan when one is due,
@@ -281,7 +508,8 @@ def recover_member(member):
         member: The Member being recovered.
 
     Returns:
-        The new Subscription.
+        The current Subscription when reactivating (Case A), or the new
+        Subscription created for the current period (Case B).
 
     Raises:
         SubscriptionConflictError: When a recovery precondition fails.
@@ -298,15 +526,17 @@ def recover_member(member):
             "No se puede recuperar: el socio no tiene una suscripción previa."
         )
 
-    if not latest_sub.paid:
+    if member_total_outstanding_debt(member)["total"] > 0:
         raise SubscriptionConflictError(
-            "No se puede recuperar: la deuda de la suscripción anterior no está saldada."
+            "No se puede recuperar: el socio todavía posee deuda pendiente."
         )
 
-    if SubscriptionDomain.get_current_subscription(member) is not None:
-        raise SubscriptionConflictError(
-            "No se puede recuperar: el socio ya tiene una suscripción vigente."
-        )
+    current_sub = SubscriptionDomain.get_current_subscription(member)
+
+    if current_sub is not None:
+        member.active = True
+        member.save(update_fields=["active"])
+        return current_sub
 
     if Subscription.objects.filter(member=member, start_date__gt=today).exists():
         raise SubscriptionConflictError(
@@ -334,6 +564,9 @@ def recover_member(member):
 
         if approved_pcr is not None:
             _finalize_plan_change(approved_pcr, new_sub)
+
+        member.active = True
+        member.save(update_fields=["active"])
 
     return new_sub
 

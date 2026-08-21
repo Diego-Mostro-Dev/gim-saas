@@ -13,7 +13,7 @@ import {
   enableAutoRenewal,
 } from "../../services/routines.service";
 
-function getNextTraining(schedules) {
+function getNextTraining(schedules, approvedSwaps) {
   if (!schedules?.length) return null;
 
   const dayIndex = {
@@ -30,30 +30,64 @@ function getNextTraining(schedules) {
   const today = now.getDay();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+  const swapsByDate = {};
+  for (const swap of (approvedSwaps || [])) {
+    if (swap.status !== "approved") continue;
+    if (!swapsByDate[swap.swap_date]) {
+      swapsByDate[swap.swap_date] = { out: new Set(), in: [] };
+    }
+    swapsByDate[swap.swap_date].out.add(swap.origin_schedule);
+    swapsByDate[swap.swap_date].in.push({
+      day: swap.destination_day,
+      hour: swap.destination_hour,
+    });
+  }
+
   let best = null;
   let bestDiff = Infinity;
 
-  for (const sched of schedules) {
-    const targetDay = dayIndex[sched.day];
-    if (targetDay === undefined) continue;
+  for (let d = 0; d < 14; d++) {
+    const candidateDate = new Date(now);
+    candidateDate.setDate(candidateDate.getDate() + d);
 
-    const [h, m] = sched.hour.split(":").map(Number);
-    const schedMinutes = h * 60 + m;
+    const year = candidateDate.getFullYear();
+    const month = String(candidateDate.getMonth() + 1).padStart(2, "0");
+    const day = String(candidateDate.getDate()).padStart(2, "0");
+    const dateStr = `${year}-${month}-${day}`;
 
-    let daysUntil = targetDay - today;
-    if (daysUntil < 0 || (daysUntil === 0 && schedMinutes <= currentMinutes)) {
-      daysUntil += 7;
+    const candidateDay = candidateDate.getDay();
+    const candidateDayKey = Object.keys(dayIndex).find(
+      (key) => dayIndex[key] === candidateDay,
+    );
+
+    let effectiveSlots = schedules.filter((s) => s.day === candidateDayKey);
+
+    const daySwaps = swapsByDate[dateStr];
+    if (daySwaps) {
+      effectiveSlots = effectiveSlots.filter(
+        (s) => !daySwaps.out.has(s.id),
+      );
+      for (const dest of daySwaps.in) {
+        effectiveSlots.push({ day: dest.day, hour: dest.hour });
+      }
     }
 
-    const totalMinutes = daysUntil * 24 * 60 + (schedMinutes - currentMinutes);
+    for (const slot of effectiveSlots) {
+      const [h, m] = slot.hour.split(":").map(Number);
+      const schedMinutes = h * 60 + m;
 
-    if (totalMinutes < bestDiff) {
-      bestDiff = totalMinutes;
-      best = {
-        dayLabel: dayNames[targetDay],
-        hour: sched.hour,
-        daysUntil,
-      };
+      const totalMinutes = d * 24 * 60 + (schedMinutes - currentMinutes);
+
+      if (totalMinutes <= 0) continue;
+
+      if (totalMinutes < bestDiff) {
+        bestDiff = totalMinutes;
+        best = {
+          dayLabel: dayNames[candidateDay],
+          hour: slot.hour,
+          daysUntil: d,
+        };
+      }
     }
   }
 
@@ -66,11 +100,11 @@ const dayNameMap = {
 };
 
 function GymDashboard() {
-  const { routine, token, slots, planChangeRequests, refreshRoutine } = useOutletContext();
+  const { routine, token, slots, planChangeRequests, swapRequests, refreshRoutine, isOperativeBlocked } = useOutletContext();
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
-  const nextTraining = getNextTraining(routine.schedules);
+  const nextTraining = getNextTraining(routine.schedules, swapRequests);
 
   const { gym, subscription, attendance_history, last_payment } =
     routine;
@@ -88,6 +122,7 @@ function GymDashboard() {
   const [togglingRenewal, setTogglingRenewal] = useState(false);
 
   async function handleCancelRenewal() {
+    if (isOperativeBlocked) return;
     setTogglingRenewal(true);
     try {
       await cancelAutoRenewal(token);
@@ -101,6 +136,7 @@ function GymDashboard() {
   }
 
   async function handleEnableRenewal() {
+    if (isOperativeBlocked) return;
     setTogglingRenewal(true);
     try {
       await enableAutoRenewal(token);
@@ -125,6 +161,7 @@ function GymDashboard() {
   }
 
   async function handleCancelRequest(id) {
+    if (isOperativeBlocked) return;
     setCancellingId(id);
     try {
       await cancelPublicPlanChangeRequest(token, id);
@@ -179,14 +216,6 @@ function GymDashboard() {
                 </span>
               )}
             </div>
-
-            {subscription.payment_status === "blocked" && (
-              <div className="mb-4 rounded-xl bg-danger-bg/20 dark:bg-danger/10 border border-danger/20 px-4 py-3 text-sm text-danger-text dark:text-danger">
-                <p className="font-medium">
-                  Tu acceso al gimnasio se encuentra suspendido por falta de pago.
-                </p>
-              </div>
-            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -282,8 +311,9 @@ function GymDashboard() {
                 {subscription.auto_renew ? (
                   <button
                     onClick={handleCancelRenewal}
-                    disabled={togglingRenewal}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:opacity-50"
+                    disabled={togglingRenewal || isOperativeBlocked}
+                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <X size={16} />
                     {togglingRenewal
@@ -293,8 +323,9 @@ function GymDashboard() {
                 ) : (
                   <button
                     onClick={handleEnableRenewal}
-                    disabled={togglingRenewal}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 px-4 py-2 text-sm text-primary transition hover:bg-primary/10 disabled:opacity-50"
+                    disabled={togglingRenewal || isOperativeBlocked}
+                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 px-4 py-2 text-sm text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw size={16} />
                     {togglingRenewal
@@ -344,8 +375,9 @@ function GymDashboard() {
             </div>
             <button
               onClick={() => handleCancelRequest(pendingRequest.id)}
-              disabled={cancellingId === pendingRequest.id}
-              className="mt-3 flex items-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:opacity-50"
+              disabled={cancellingId === pendingRequest.id || isOperativeBlocked}
+              title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+              className="mt-3 flex items-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X size={16} />
               {cancellingId === pendingRequest.id
@@ -417,8 +449,9 @@ function GymDashboard() {
             )}
             <button
               onClick={() => handleCancelRequest(approvedFutureRequest.id)}
-              disabled={cancellingId === approvedFutureRequest.id}
-              className="mt-3 flex items-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:opacity-50"
+              disabled={cancellingId === approvedFutureRequest.id || isOperativeBlocked}
+              title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+              className="mt-3 flex items-center gap-2 rounded-xl border border-danger/30 px-4 py-2 text-sm text-danger-text dark:text-danger transition hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X size={16} />
               {cancellingId === approvedFutureRequest.id

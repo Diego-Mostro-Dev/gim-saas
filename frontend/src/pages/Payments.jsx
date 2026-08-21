@@ -53,12 +53,14 @@ function Payments() {
   useEffect(() => {
     const state = location.state;
 
-    if (!loading && state?.prefillMemberId && state?.prefillSubscriptionId) {
+    if (!loading && state?.prefillMemberId) {
       openCreateForm();
 
       setFormData({
         member: String(state.prefillMemberId),
-        subscription: String(state.prefillSubscriptionId),
+        subscription: state.prefillSubscriptionId
+          ? String(state.prefillSubscriptionId)
+          : "",
         amount: "",
         payment_method: "cash",
         notes: "",
@@ -97,7 +99,7 @@ function Payments() {
     } catch (error) {
       console.error(error);
 
-      toast.error("Ocurrió un error");
+      toast.error(error.message || "Ocurrió un error");
     }
   }
 

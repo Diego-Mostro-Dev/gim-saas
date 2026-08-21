@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { apiFetch } from "../services/api";
 
 export default function Checkin() {
   const { gymCode } = useParams();
@@ -26,29 +26,47 @@ export default function Checkin() {
 
   async function registerAttendance(memberToken) {
     try {
-      const res = await fetch(
-        `${API_URL}/api/attendance/checkin/${memberToken}/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await apiFetch(`/api/attendance/checkin/${memberToken}/`, {
+        method: "POST",
+        skipAuth: true,
+      });
 
-      const data = await res.json();
-
-      setMessage(data.message);
+      setMessage(data?.message || "Asistencia registrada");
     } catch (error) {
       console.error(error);
 
-      setMessage("No pudimos registrar tu asistencia");
+      const blockedByDebt =
+        error?.status === 403 &&
+        error?.message === "Acceso suspendido por falta de pago.";
+
+      if (blockedByDebt) {
+        setMessage(
+          "Acceso operativo suspendido\n\n" +
+            "No podés registrar tu asistencia porque tenés un saldo pendiente.\n" +
+            "Regularizá el pago con el gimnasio para volver a utilizar esta función."
+        );
+      } else if (error?.status === 404) {
+        setMessage("Socio no encontrado.");
+      } else if (error?.status === 401) {
+        setMessage(
+          error?.message ||
+            "Tu sesión no es válida. Abrí nuevamente tu Portal del Socio."
+        );
+      } else if (error?.status === 400) {
+        setMessage(error?.message || "No se pudo registrar tu asistencia.");
+      } else if (error?.status === 403) {
+        setMessage(
+          error?.message || "No podés registrar tu asistencia en este momento."
+        );
+      } else {
+        setMessage(error?.message || "No pudimos registrar tu asistencia");
+      }
     }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-6 text-center text-text-primary">
-      <h1>{message}</h1>
+      <h1 className="whitespace-pre-line">{message}</h1>
     </div>
   );
 }

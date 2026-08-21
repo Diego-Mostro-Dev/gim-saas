@@ -14,6 +14,7 @@ class OnboardingValidateRateThrottle(AnonRateThrottle):
 
 
 class PublicAttendanceRateThrottle(AnonRateThrottle):
+    scope = "public_attendance"
     rate = "30/hour"
 
 

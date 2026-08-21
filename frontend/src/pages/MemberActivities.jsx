@@ -19,7 +19,7 @@ function formatTime(timeStr) {
 }
 
 function MemberActivities() {
-  const { token } = useOutletContext();
+  const { token, isOperativeBlocked } = useOutletContext();
   const navigate = useNavigate();
   const { enrollments, loading, error, handleUnenroll, unenrollingId, reload } =
     useMemberActivities(token);
@@ -42,6 +42,7 @@ function MemberActivities() {
   }
 
   async function handleConfirmCancel() {
+    if (isOperativeBlocked) return;
     try {
       const ok = await handleUnenroll(scheduleToCancel);
       if (ok) {
@@ -56,6 +57,7 @@ function MemberActivities() {
   }
 
   async function openSchedulePicker(enrollment) {
+    if (isOperativeBlocked) return;
     setPicker(enrollment);
     setPickerMode("schedule");
     setPickerLoading(true);
@@ -73,6 +75,7 @@ function MemberActivities() {
   }
 
   async function openActivityPicker(enrollment) {
+    if (isOperativeBlocked) return;
     setPicker(enrollment);
     setPickerMode("activity");
     setPickerLoading(true);
@@ -93,7 +96,7 @@ function MemberActivities() {
   }
 
   async function handleSelectSchedule(newScheduleId) {
-    if (!picker) return;
+    if (!picker || isOperativeBlocked) return;
     setSubmittingId(newScheduleId);
     try {
       await unenrollMemberFromActivity(token, picker.schedule);
@@ -208,8 +211,9 @@ function MemberActivities() {
 
             <button
               onClick={() => handleOpenCancelModal(enrollment.schedule)}
-              disabled={unenrollingId === enrollment.schedule}
-              className="shrink-0 rounded-lg bg-danger-bg px-3 py-2 text-xs font-medium text-danger-text transition hover:bg-danger/20 dark:bg-danger/15 dark:text-danger disabled:opacity-50"
+              disabled={unenrollingId === enrollment.schedule || isOperativeBlocked}
+              title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+              className="shrink-0 rounded-lg bg-danger-bg px-3 py-2 text-xs font-medium text-danger-text transition hover:bg-danger/20 dark:bg-danger/15 dark:text-danger disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Cancelar inscripción"
             >
               {unenrollingId === enrollment.schedule
@@ -267,13 +271,17 @@ function MemberActivities() {
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => openSchedulePicker(enrollment)}
-                    className="flex-1 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
+                    disabled={isOperativeBlocked}
+                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                    className="flex-1 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Elegir otro horario
                   </button>
                   <button
                     onClick={() => openActivityPicker(enrollment)}
-                    className="flex-1 rounded-xl border border-border bg-surface-input px-3 py-2.5 text-sm font-medium text-text-primary transition hover:bg-surface-hover"
+                    disabled={isOperativeBlocked}
+                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                    className="flex-1 rounded-xl border border-border bg-surface-input px-3 py-2.5 text-sm font-medium text-text-primary transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Elegir otra actividad
                   </button>

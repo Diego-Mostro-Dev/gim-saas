@@ -176,6 +176,10 @@ class MemberPortalSerializer(serializers.Serializer):
     active_plans = serializers.ListField(
         required=False,
     )
+    outstanding_debt = serializers.DictField(
+        required=False,
+        allow_null=True,
+    )
 
 
 class WorkoutSetSerializer(serializers.ModelSerializer):

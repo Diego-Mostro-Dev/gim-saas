@@ -3,6 +3,7 @@ import AppLayout from "./layouts/AppLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
+import RecoverMembers from "./pages/RecoverMembers";
 import Subscriptions from "./pages/Subscriptions";
 import Plans from "./pages/Plans";
 import Payments from "./pages/Payments";
@@ -60,6 +61,7 @@ function App() {
       >
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/members" element={<Members />} />
+        <Route path="/recover-members" element={<RecoverMembers />} />
         <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/plans" element={<Plans />} />
         <Route path="/payments" element={<Payments />} />

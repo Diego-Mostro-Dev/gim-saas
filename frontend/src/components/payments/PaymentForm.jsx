@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { formatHumanDate } from "../../utils/date.utils";
+import { formatCurrency } from "../../utils/currency.utils";
 
 function PaymentForm({
   formData,
@@ -10,13 +11,50 @@ function PaymentForm({
   members,
   subscriptions,
 }) {
-  const filteredSubscriptions = subscriptions.filter(
+  const today = new Date();
+
+  const isActiveNow = (subscription) =>
+    new Date(subscription.start_date) <= today &&
+    new Date(subscription.end_date) >= today;
+
+  const dateMillis = (value) => {
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  };
+
+  const filteredSubscriptions = subscriptions
+    .filter(
+      (subscription) =>
+        String(subscription.member) === String(formData.member) &&
+        Number(subscription.remaining) > 0,
+    )
+    .slice()
+    .sort((a, b) => {
+      const aActive = isActiveNow(a);
+      const bActive = isActiveNow(b);
+
+      if (aActive !== bActive) return bActive ? 1 : -1;
+
+      const endDiff = dateMillis(b.end_date) - dateMillis(a.end_date);
+
+      if (endDiff !== 0) return endDiff;
+
+      return String(b.id).localeCompare(String(a.id));
+    });
+
+  const selectedSubscription = filteredSubscriptions.find(
     (subscription) =>
-      String(subscription.member) === String(formData.member) &&
-      !subscription.paid,
+      String(subscription.id) === String(formData.subscription),
   );
 
-  const today = new Date();
+  const isSelectedCurrent =
+    selectedSubscription &&
+    filteredSubscriptions.length > 1 &&
+    isActiveNow(selectedSubscription);
+
+  const remaining = selectedSubscription
+    ? Number(selectedSubscription.remaining)
+    : null;
 
   useEffect(() => {
     if (editingPayment) return;
@@ -80,28 +118,62 @@ function PaymentForm({
             {!formData.member
               ? "Primero seleccioná un miembro"
               : filteredSubscriptions.length === 0
-                ? "Sin suscripciones pendientes"
+                ? "Sin suscripciones con saldo pendiente"
                 : "Seleccionar suscripción"}
           </option>
 
           {filteredSubscriptions.map((subscription) => {
             const expired = new Date(subscription.end_date) < today;
+            const isCurrent =
+              filteredSubscriptions.length > 1 && isActiveNow(subscription);
+            const label = [
+              subscription.plan_name,
+              `${formatHumanDate(subscription.start_date)} → ${formatHumanDate(subscription.end_date)}`,
+              subscription.total != null
+                ? `Total ${formatCurrency(subscription.total)}`
+                : null,
+              Number(subscription.paid_amount) > 0
+                ? `Pagado ${formatCurrency(subscription.paid_amount)}`
+                : null,
+              subscription.remaining != null
+                ? `Restan ${formatCurrency(subscription.remaining)}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
 
             return (
               <option key={subscription.id} value={subscription.id}>
+                {isCurrent ? "[ACTUAL] " : ""}
                 {expired ? "[VENCIDA] " : ""}
-                {subscription.plan_name} •{" "}
-                {formatHumanDate(subscription.start_date)} →{" "}
-                {formatHumanDate(subscription.end_date)}
+                {label}
               </option>
             );
           })}
         </select>
       )}
 
+      {filteredSubscriptions.length > 1 && (
+        <p className="text-xs text-text-secondary">
+          La suscripción actual aparece primero; las anteriores con saldo
+          pendiente también quedan seleccionables.
+        </p>
+      )}
+
+      {selectedSubscription && (
+        <p className="rounded-xl border border-warning/30 bg-warning-bg dark:bg-warning/15 px-4 py-2 text-sm text-warning-text dark:text-warning">
+          Saldo pendiente de{isSelectedCurrent ? " la suscripción actual" : ""}{" "}
+          {selectedSubscription.plan_name}:{" "}
+          {formatCurrency(selectedSubscription.remaining)}
+        </p>
+      )}
+
       <input
         type="number"
-        placeholder="Monto"
+        min="0.01"
+        max={remaining ?? undefined}
+        step="0.01"
+        placeholder={remaining != null ? `Monto (máx ${formatCurrency(remaining)})` : "Monto"}
         value={formData.amount}
         onChange={(e) =>
           setFormData({
@@ -112,7 +184,7 @@ function PaymentForm({
         className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       />
-    
+
       <select
         value={formData.payment_method}
         onChange={(e) =>

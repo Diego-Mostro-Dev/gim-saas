@@ -10,6 +10,7 @@ import {
   Repeat,
   BarChart3,
   Activity,
+  RotateCcw,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -198,6 +199,17 @@ function BottomNav() {
         <DollarSign size={20} />
 
         <span className="text-xs">Pagos</span>
+      </NavLink>
+
+      <NavLink
+        to="/recover-members"
+        className={({ isActive }) =>
+          `${baseClass} ${isActive ? activeClass : inactiveClass}`
+        }
+      >
+        <RotateCcw size={20} />
+
+        <span className="text-xs">Recuperar</span>
       </NavLink>
     </nav>
         <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface-elevated to-transparent" />

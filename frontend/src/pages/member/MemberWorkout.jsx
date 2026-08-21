@@ -67,7 +67,7 @@ function RestTimer({ seconds, onFinish, autoStart }) {
 }
 
 function MemberWorkout() {
-  const { routine, token } = useOutletContext();
+  const { routine, token, isOperativeBlocked } = useOutletContext();
 
   const [progress, setProgress] = useState({});
   const [loaded, setLoaded] = useState(false);
@@ -142,6 +142,7 @@ function MemberWorkout() {
   async function handleToggleSet(exerciseId, setNum) {
     const key = exerciseId + "-" + setNum;
     if (processing[key]) return;
+    if (isOperativeBlocked) return;
 
     setProcessing(function (prev) {
       return { ...prev, [key]: true };
@@ -251,7 +252,8 @@ function MemberWorkout() {
           {!complete && isCardio ? (
             <button
               onClick={function () { handleToggleSet(exercise.id, 1); }}
-              disabled={!!processing[exercise.id + "-1"]}
+              disabled={!!processing[exercise.id + "-1"] || isOperativeBlocked}
+              title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
               className={
                 "mt-0.5 shrink-0 rounded-md p-1 transition " + (
                   complete
@@ -314,7 +316,11 @@ function MemberWorkout() {
                     </p>
                   )}
                   <p className="text-xs text-text-secondary">
-                    {complete ? "Completado" : "Toca el checkbox al finalizar"}
+                    {isOperativeBlocked
+                      ? "No podés marcar series por falta de pago"
+                      : complete
+                        ? "Completado"
+                        : "Toca el checkbox al finalizar"}
                   </p>
                 </>
               ) : (
@@ -380,7 +386,7 @@ function MemberWorkout() {
                     )}
                   </div>
 
-                  {!complete && (
+                  {!complete && !isOperativeBlocked && (
                     <div className="mt-2 space-y-1.5">
                       {function () {
                         var rows = [];
@@ -426,6 +432,12 @@ function MemberWorkout() {
                         return rows;
                       }()}
                     </div>
+                  )}
+
+                  {!complete && isOperativeBlocked && (
+                    <p className="mt-2 rounded-lg bg-danger-bg/20 dark:bg-danger/10 px-3 py-2 text-xs text-danger-text dark:text-danger">
+                      No podés marcar series mientras tu acceso esté suspendido por falta de pago.
+                    </p>
                   )}
 
                   {restMode === "after_exercise" && complete && exercise.rest_seconds && (

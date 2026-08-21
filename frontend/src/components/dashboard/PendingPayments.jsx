@@ -52,7 +52,7 @@ function PendingPayments({ pendingPayments = [] }) {
                 </div>
 
                 <div className="rounded-md bg-warning-bg dark:bg-warning/15 px-3 py-1 text-xs font-medium text-warning-text dark:text-warning">
-                  ${Number(item.plan_price).toLocaleString()}
+                  ${Number(item.remaining).toLocaleString()}
                 </div>
               </button>
             );

@@ -14,7 +14,7 @@ import { DAY_NAMES, DAY_ORDER } from "../constants/days";
 import { formatHumanDate } from "../utils/date.utils";
 
 function PublicRoutine() {
-  const { routine, token, refreshRoutine, slots, changeRequests, swapRequests } =
+  const { routine, token, refreshRoutine, slots, changeRequests, swapRequests, isOperativeBlocked } =
     useOutletContext();
 
   const [showModal, setShowModal] = useState(false);
@@ -33,6 +33,7 @@ function PublicRoutine() {
   const [showSwapHistory, setShowSwapHistory] = useState(false);
 
   function openChangeModal(schedule) {
+    if (isOperativeBlocked) return;
     setSelectedSchedule(schedule);
     setSelectedSlotId("");
     setShowModal(true);
@@ -47,6 +48,7 @@ function PublicRoutine() {
   }, [swapDate, token]);
 
   function openSwapModal(schedule) {
+    if (isOperativeBlocked) return;
     setSwapTarget(schedule);
     setSwapDate("");
     setSwapSlotId("");
@@ -108,6 +110,7 @@ function PublicRoutine() {
   }
 
   async function handleCancelRequest(id) {
+    if (isOperativeBlocked) return;
     try {
       await cancelPublicScheduleChangeRequest(token, id);
       toast.success("Solicitud cancelada");
@@ -118,6 +121,7 @@ function PublicRoutine() {
   }
 
   async function handleCancelSwap(id) {
+    if (isOperativeBlocked) return;
     try {
       await cancelPublicScheduleSwapRequest(token, id);
       toast.success("Solicitud cancelada");
@@ -214,7 +218,7 @@ function PublicRoutine() {
                   key={schedule.id || idx}
                   className="rounded-xl bg-surface-input px-4 py-3"
                 >
-                  <div className={gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false ? "mb-2" : ""}>
+                  <div className={gym.allow_schedule_changes !== false ? "mb-2" : ""}>
                     <span className="text-base font-semibold text-text-primary">
                       {DAY_NAMES[schedule.day] || schedule.day}
                     </span>
@@ -222,12 +226,14 @@ function PublicRoutine() {
                       {schedule.hour}
                     </span>
                   </div>
-                  {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && (
+                  {gym.allow_schedule_changes !== false && (
                     <div className="flex flex-wrap gap-2">
                       {!hasPending && (
                         <button
                           onClick={() => openChangeModal(schedule)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+                          disabled={isOperativeBlocked}
+                          title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                          className="inline-flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <RefreshCw size={14} />
                           Cambio permanente
@@ -235,7 +241,9 @@ function PublicRoutine() {
                       )}
                       <button
                         onClick={() => openSwapModal(schedule)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+                        disabled={isOperativeBlocked}
+                        title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                        className="inline-flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <ArrowLeftRight size={14} />
                         Intercambio
@@ -257,7 +265,7 @@ function PublicRoutine() {
       </div>
 
       {/* SOLICITUDES DE CAMBIO */}
-      {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && changeRequests.length > 0 && (
+      {gym.allow_schedule_changes !== false && changeRequests.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
@@ -301,27 +309,35 @@ function PublicRoutine() {
                     className={`rounded-lg px-2 py-0.5 text-xs font-medium ${
                       req.status === "pending"
                         ? "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning"
-                        : req.status === "approved"
+                        : req.status === "executed"
                           ? "bg-success-bg dark:bg-success/15 text-success-text dark:text-success"
-                          : req.status === "rejected"
-                            ? "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger"
-                            : "bg-muted-bg text-muted-text"
+                          : req.status === "approved"
+                            ? "bg-success-bg dark:bg-success/15 text-success-text dark:text-success"
+                            : req.status === "rejected"
+                              ? "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger"
+                              : "bg-muted-bg text-muted-text"
                     }`}
                   >
                     {req.status === "pending"
                       ? "⏳ Pendiente"
-                      : req.status === "approved"
-                        ? "✓ Aprobado"
-                        : req.status === "rejected"
-                          ? "✕ Rechazado"
-                          : "Cancelado"}
+                      : req.status === "executed"
+                        ? "✓ Realizado"
+                        : req.status === "approved"
+                          ? "✓ Aprobado"
+                          : req.status === "rejected"
+                            ? "✕ Rechazado"
+                            : req.status === "cancelled_by_staff"
+                              ? "Cancelado por el gimnasio"
+                              : "Cancelado"}
                   </span>
                 </div>
 
                 {req.status === "pending" && (
                   <button
                     onClick={() => handleCancelRequest(req.id)}
-                    className="mt-2 text-xs text-danger-text dark:text-danger transition hover:text-danger-text dark:hover:text-danger"
+                    disabled={isOperativeBlocked}
+                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                    className="mt-2 text-xs text-danger-text dark:text-danger transition hover:text-danger-text dark:hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Cancelar solicitud
                   </button>
@@ -339,7 +355,7 @@ function PublicRoutine() {
       )}
 
       {/* PRÓXIMOS INTERCAMBIOS */}
-      {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && upcomingSwaps.length > 0 && (
+      {gym.allow_schedule_changes !== false && upcomingSwaps.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Próximos intercambios
@@ -371,7 +387,7 @@ function PublicRoutine() {
       )}
 
       {/* SOLICITUDES PENDIENTES */}
-      {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && pendingSwaps.length > 0 && (
+      {gym.allow_schedule_changes !== false && pendingSwaps.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Solicitudes pendientes
@@ -401,7 +417,9 @@ function PublicRoutine() {
 
                 <button
                   onClick={() => handleCancelSwap(req.id)}
-                  className="mt-2 text-xs text-danger-text dark:text-danger transition hover:text-danger-text dark:hover:text-danger"
+                  disabled={isOperativeBlocked}
+                  title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                  className="mt-2 text-xs text-danger-text dark:text-danger transition hover:text-danger-text dark:hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancelar solicitud
                 </button>
@@ -418,7 +436,7 @@ function PublicRoutine() {
       )}
 
       {/* HISTORIAL DE INTERCAMBIOS */}
-      {gym.allow_member_schedule_changes && gym.allow_schedule_changes !== false && swapHistory.length > 0 && (
+      {gym.allow_schedule_changes !== false && swapHistory.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">

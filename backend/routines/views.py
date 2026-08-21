@@ -17,6 +17,7 @@ from subscriptions.services import (
     calculate_subscription_total,
     get_first_day_of_next_month,
     get_subscription_payment_status,
+    member_total_outstanding_debt,
 )
 from members.eligibility import MemberEligibility
 from attendance.models import AttendanceSchedule
@@ -552,6 +553,8 @@ class PublicRoutineView(APIView):
             .order_by("price")
         )
 
+        outstanding_debt = member_total_outstanding_debt(member)
+
         data = {
             "active_plans": [
                 {
@@ -617,6 +620,9 @@ class PublicRoutineView(APIView):
                 else None
             ),
             "payments": payments_list,
+            "outstanding_debt": {
+                "total": str(outstanding_debt["total"]),
+            },
         }
 
         serializer = MemberPortalSerializer(

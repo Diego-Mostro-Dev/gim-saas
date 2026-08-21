@@ -133,6 +133,22 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["gym", "enrolled_at"]
 
+    def validate_schedule(self, schedule):
+        if self.instance is not None:
+            gym = self.instance.gym
+        else:
+            request = self.context.get("request")
+            profile = getattr(request.user, "profile", None) if request else None
+            gym = getattr(profile, "gym", None)
+            if gym is None:
+                return schedule
+
+        if schedule.activity.service.gym_id != gym.id:
+            raise serializers.ValidationError(
+                "El horario no pertenece al mismo gimnasio que la inscripción."
+            )
+        return schedule
+
 
 class PublicEnrollmentSerializer(serializers.ModelSerializer):
     activity_name = serializers.CharField(source="schedule.activity.name", read_only=True)

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from datetime import date
+from decimal import Decimal
 
 from attendance.models import AttendanceSchedule
 
@@ -13,7 +14,10 @@ from .services import (
     calculate_effective_date,
     compute_projected_occupancy,
     get_subscription_payment_status,
+    subscription_remaining_balance,
 )
+
+_PAID_ANNOTATION_MISSING = object()
 
 
 class SubscriptionItemSerializer(serializers.ModelSerializer):
@@ -59,6 +63,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
     items = SubscriptionItemSerializer(many=True, read_only=True)
     total = serializers.SerializerMethodField()
+    paid_amount = serializers.SerializerMethodField()
+    remaining = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
     has_pending_plan_change = serializers.SerializerMethodField()
     future_plan_name = serializers.SerializerMethodField()
@@ -101,8 +107,31 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     def get_total(self, obj):
         return str(calculate_subscription_total(obj))
 
+    def _balance(self, obj):
+        balance = getattr(obj, "_balance_cache", None)
+        if balance is None:
+            annotated = getattr(obj, "_paid_amount", _PAID_ANNOTATION_MISSING)
+            if annotated is _PAID_ANNOTATION_MISSING:
+                paid = None
+            elif annotated is None:
+                paid = Decimal("0")
+            else:
+                paid = annotated
+            balance = subscription_remaining_balance(obj, paid_amount=paid)
+            obj._balance_cache = balance
+        return balance
+
+    def get_paid_amount(self, obj):
+        return str(self._balance(obj)["paid_amount"])
+
+    def get_remaining(self, obj):
+        return str(self._balance(obj)["remaining"])
+
     def get_payment_status(self, obj):
-        return get_subscription_payment_status(obj)
+        return get_subscription_payment_status(
+            obj,
+            remaining=self._balance(obj)["remaining"],
+        )
 
     def _get_pending_plan_change(self, obj):
         if hasattr(obj, "_pending_plan_change"):
@@ -131,6 +160,57 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     def get_future_effective_date(self, obj):
         pcr = self._get_pending_plan_change(obj)
         return str(pcr.effective_date) if pcr else None
+
+
+class MemberOutstandingSubscriptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField(source="subscription.id")
+    start_date = serializers.DateField(source="subscription.start_date")
+    end_date = serializers.DateField(source="subscription.end_date")
+    plan_name = serializers.SerializerMethodField()
+    items = SubscriptionItemSerializer(many=True, read_only=True, source="subscription.items")
+    paid = serializers.BooleanField(source="subscription.paid")
+    total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    remaining = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    def get_plan_name(self, obj):
+        return public_plan_name(obj["subscription"].plan)
+
+
+class MemberOutstandingDebtSerializer(serializers.Serializer):
+    member_id = serializers.IntegerField()
+    subscriptions = MemberOutstandingSubscriptionSerializer(many=True)
+    total = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class OutstandingSubscriptionSerializer(serializers.Serializer):
+    subscription_id = serializers.IntegerField(source="subscription.id")
+    member_id = serializers.IntegerField(source="subscription.member.id")
+    member_name = serializers.SerializerMethodField()
+    plan_name = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+    items = SubscriptionItemSerializer(
+        many=True, read_only=True, source="subscription.items"
+    )
+    total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    remaining = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    def get_member_name(self, obj):
+        return (
+            f"{obj['subscription'].member.first_name} "
+            f"{obj['subscription'].member.last_name}"
+        )
+
+    def get_plan_name(self, obj):
+        return public_plan_name(obj["subscription"].plan)
+
+    def get_payment_status(self, obj):
+        return get_subscription_payment_status(
+            obj["subscription"],
+            remaining=obj["remaining"],
+            is_first=obj["is_first"],
+        )
 
 
 class PlanChangeRequestSerializer(serializers.ModelSerializer):

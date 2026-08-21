@@ -1,13 +1,14 @@
 from datetime import date
 
 from django.db import transaction
-from django.db.models import OuterRef, Prefetch, Subquery
+from django.db.models import OuterRef, Prefetch, Subquery, Sum
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from core.viewsets import GymModelViewSet
@@ -15,11 +16,15 @@ from core.viewsets import GymModelViewSet
 from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
 from members.models import Member
 
+from payments.models import Payment
+
 from .models import Subscription, SubscriptionItem, PlanChangeRequest, PlannedSchedule
 from .serializers import (
     SubscriptionSerializer,
     PlanChangeRequestSerializer,
     PlanChangeRequestActionSerializer,
+    MemberOutstandingDebtSerializer,
+    OutstandingSubscriptionSerializer,
 )
 from .domain import SubscriptionConflictError, SubscriptionDomain
 from .services import (
@@ -27,14 +32,29 @@ from .services import (
     calculate_effective_date,
     cancel_future_plan_change,
     get_last_day_of_month,
+    gym_outstanding_subscriptions,
+    member_total_outstanding_debt,
     recover_member,
 )
 
 
 class SubscriptionView(viewsets.ReadOnlyModelViewSet):
+    lookup_value_regex = r"[0-9]+"
+
+    _paid_amount_subquery = Subquery(
+        Payment.objects.filter(
+            subscription=OuterRef("pk"),
+        )
+        .order_by()
+        .values("subscription")
+        .annotate(paid=Sum("amount"))
+        .values("paid")
+    )
+
     queryset = (
         Subscription.objects.all()
         .select_related("member", "plan", "gym")
+        .annotate(_paid_amount=_paid_amount_subquery)
         .prefetch_related(
             Prefetch(
                 "items",
@@ -95,6 +115,31 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
             SubscriptionSerializer(sub).data,
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=False, methods=["get"], url_path="member/(?P<member_id>[0-9]+)/outstanding")
+    def member_outstanding(self, request, member_id):
+        gym = request.user.profile.gym
+        member = get_object_or_404(Member, id=member_id, gym=gym)
+
+        debt = member_total_outstanding_debt(member)
+        debt["member_id"] = member.id
+
+        return Response(MemberOutstandingDebtSerializer(debt).data)
+
+    @action(detail=False, methods=["get"], url_path="outstanding")
+    def outstanding(self, request):
+        gym = request.user.profile.gym
+
+        subscriptions = gym_outstanding_subscriptions(gym)
+
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(subscriptions, request, view=self)
+        if page is not None:
+            serializer = OutstandingSubscriptionSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = OutstandingSubscriptionSerializer(subscriptions, many=True)
+        return Response(serializer.data)
 
 
 class PlanChangeRequestViewSet(GymModelViewSet):

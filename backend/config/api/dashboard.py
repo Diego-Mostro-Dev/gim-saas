@@ -1,6 +1,7 @@
+from collections import Counter
 from datetime import timedelta
 
-from django.db.models import Count, Min, Q, Sum
+from django.db.models import Count, Q, Sum
 from django.utils.timezone import now
 
 from rest_framework.response import Response
@@ -10,7 +11,7 @@ from members.models import Member
 from payments.models import Payment
 from plans.services import public_plan_name
 from subscriptions.models import Subscription
-from subscriptions.services import calculate_subscription_total
+from subscriptions.services import gym_outstanding_subscriptions, get_subscription_payment_status
 from attendance.models import Attendance
 from routines.models import RoutineAssignment
 
@@ -151,26 +152,38 @@ class DashboardSummaryView(APIView):
         events.sort(key=lambda e: e[0], reverse=True)
         recent_activity_data = [item for _, item in events[:LIMIT]]
 
-        pending_subs = list(
-            Subscription.objects.filter(
-                gym=gym,
-                paid=False,
-                end_date__gte=today,
+        outstanding = gym_outstanding_subscriptions(gym)
+
+        def _payment_status(item):
+            sub = item["subscription"]
+            return get_subscription_payment_status(
+                sub,
+                remaining=item["remaining"],
+                is_first=item["is_first"],
             )
-            .select_related("member", "plan")
-            .order_by("end_date")[:10]
-        )
+
+        outstanding_status = {
+            item["subscription"].id: _payment_status(item)
+            for item in outstanding
+        }
+
+        pending_candidates = [
+            item
+            for item in outstanding
+            if item["subscription"].end_date >= today
+        ]
+        pending_candidates.sort(key=lambda item: item["subscription"].end_date)
 
         pending_payments_data = []
-        for sub in pending_subs:
-            total = float(calculate_subscription_total(sub))
+        for item in pending_candidates[:10]:
+            sub = item["subscription"]
             pending_payments_data.append({
                 "id": sub.id,
                 "member_id": sub.member.id,
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "member_photo": sub.member.photo.url if sub.member.photo else None,
                 "plan_name": public_plan_name(sub.plan),
-                "plan_price": total,
+                "remaining": float(item["remaining"]),
                 "end_date": sub.end_date.strftime("%d/%m/%Y"),
             })
 
@@ -200,42 +213,24 @@ class DashboardSummaryView(APIView):
             for i in range(7)
         ]
 
-        unpaid_active = Subscription.objects.filter(
-            gym=gym,
-            paid=False,
-            start_date__lte=today,
-            end_date__gte=today,
-        )
+        active_outstanding = [
+            item
+            for item in outstanding
+            if item["subscription"].start_date <= today
+            and item["subscription"].end_date >= today
+        ]
 
         payment_due_day = gym.payment_due_day
         access_block_day = gym.access_block_day
 
-        overdue_count = (
-            unpaid_active.count()
-            if payment_due_day < today.day < access_block_day
-            else 0
+        status_counts = Counter(
+            outstanding_status[item["subscription"].id]
+            for item in active_outstanding
         )
 
-        blocked_count = (
-            unpaid_active.count()
-            if today.day >= access_block_day
-            else 0
-        )
-
-        # initial_pending: active unpaid subscriptions that are the member's first
-        first_sub_ids = Subscription.objects.filter(
-            gym=gym,
-        ).values("member").annotate(
-            first_id=Min("id"),
-        ).values("first_id")
-
-        initial_pending_count = Subscription.objects.filter(
-            gym=gym,
-            id__in=first_sub_ids,
-            paid=False,
-            start_date__lte=today,
-            end_date__gte=today,
-        ).count()
+        overdue_count = status_counts["overdue"]
+        blocked_count = status_counts["blocked"]
+        initial_pending_count = status_counts["initial_pending"]
 
         return Response({
             "activeMembers": active_members,

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import MemberAvatar from "../common/MemberAvatar";
 import { formatHumanDate } from "../../utils/date.utils";
+import { formatCurrency } from "../../utils/currency.utils";
 import {
   calculateRemainingDays,
   isSubscriptionExpired,
@@ -14,6 +16,8 @@ const ORIGIN_LABELS = {
 };
 
 function MemberSubscriptionCard({ member, subscriptions }) {
+  const navigate = useNavigate();
+
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const currentSub = subscriptions[0];
@@ -26,6 +30,10 @@ function MemberSubscriptionCard({ member, subscriptions }) {
 
   const daysRemaining = currentSub
     ? calculateRemainingDays(currentSub.end_date)
+    : 0;
+
+  const currentRemaining = currentSub
+    ? Number(currentSub.remaining)
     : 0;
 
   const activeItems = currentSub?.items?.filter(
@@ -126,6 +134,22 @@ function MemberSubscriptionCard({ member, subscriptions }) {
                 ${Number(currentSub.total ?? currentSub.plan_price).toLocaleString("es-AR")}
               </p>
             </div>
+
+            {currentRemaining > 0 && (
+              <button
+                onClick={() =>
+                  navigate("/payments", {
+                    state: {
+                      prefillMemberId: member?.id ?? currentSub.member,
+                      prefillSubscriptionId: currentSub.id,
+                    },
+                  })
+                }
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                Registrar pago · Restan {formatCurrency(currentRemaining)}
+              </button>
+            )}
           </div>
 
           {history.length > 0 && (

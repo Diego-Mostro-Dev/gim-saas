@@ -13,7 +13,7 @@ import {
   enableAutoRenewal,
 } from "../../services/routines.service";
 
-function getNextTraining(schedules) {
+function getNextTraining(schedules, approvedSwaps) {
   if (!schedules?.length) return null;
 
   const dayIndex = {
@@ -30,30 +30,64 @@ function getNextTraining(schedules) {
   const today = now.getDay();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+  const swapsByDate = {};
+  for (const swap of (approvedSwaps || [])) {
+    if (swap.status !== "approved") continue;
+    if (!swapsByDate[swap.swap_date]) {
+      swapsByDate[swap.swap_date] = { out: new Set(), in: [] };
+    }
+    swapsByDate[swap.swap_date].out.add(swap.origin_schedule);
+    swapsByDate[swap.swap_date].in.push({
+      day: swap.destination_day,
+      hour: swap.destination_hour,
+    });
+  }
+
   let best = null;
   let bestDiff = Infinity;
 
-  for (const sched of schedules) {
-    const targetDay = dayIndex[sched.day];
-    if (targetDay === undefined) continue;
+  for (let d = 0; d < 14; d++) {
+    const candidateDate = new Date(now);
+    candidateDate.setDate(candidateDate.getDate() + d);
 
-    const [h, m] = sched.hour.split(":").map(Number);
-    const schedMinutes = h * 60 + m;
+    const year = candidateDate.getFullYear();
+    const month = String(candidateDate.getMonth() + 1).padStart(2, "0");
+    const day = String(candidateDate.getDate()).padStart(2, "0");
+    const dateStr = `${year}-${month}-${day}`;
 
-    let daysUntil = targetDay - today;
-    if (daysUntil < 0 || (daysUntil === 0 && schedMinutes <= currentMinutes)) {
-      daysUntil += 7;
+    const candidateDay = candidateDate.getDay();
+    const candidateDayKey = Object.keys(dayIndex).find(
+      (key) => dayIndex[key] === candidateDay,
+    );
+
+    let effectiveSlots = schedules.filter((s) => s.day === candidateDayKey);
+
+    const daySwaps = swapsByDate[dateStr];
+    if (daySwaps) {
+      effectiveSlots = effectiveSlots.filter(
+        (s) => !daySwaps.out.has(s.id),
+      );
+      for (const dest of daySwaps.in) {
+        effectiveSlots.push({ day: dest.day, hour: dest.hour });
+      }
     }
 
-    const totalMinutes = daysUntil * 24 * 60 + (schedMinutes - currentMinutes);
+    for (const slot of effectiveSlots) {
+      const [h, m] = slot.hour.split(":").map(Number);
+      const schedMinutes = h * 60 + m;
 
-    if (totalMinutes < bestDiff) {
-      bestDiff = totalMinutes;
-      best = {
-        dayLabel: dayNames[targetDay],
-        hour: sched.hour,
-        daysUntil,
-      };
+      const totalMinutes = d * 24 * 60 + (schedMinutes - currentMinutes);
+
+      if (totalMinutes <= 0) continue;
+
+      if (totalMinutes < bestDiff) {
+        bestDiff = totalMinutes;
+        best = {
+          dayLabel: dayNames[candidateDay],
+          hour: slot.hour,
+          daysUntil: d,
+        };
+      }
     }
   }
 
@@ -66,11 +100,11 @@ const dayNameMap = {
 };
 
 function MemberDashboard() {
-  const { routine, token, slots, planChangeRequests, refreshRoutine } = useOutletContext();
+  const { routine, token, slots, planChangeRequests, swapRequests, refreshRoutine } = useOutletContext();
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
-  const nextTraining = getNextTraining(routine.schedules);
+  const nextTraining = getNextTraining(routine.schedules, swapRequests);
 
   const { gym, subscription, attendance_history, last_payment } =
     routine;

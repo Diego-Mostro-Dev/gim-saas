@@ -64,7 +64,7 @@ function MemberPortalLayout() {
       lastRefreshAt.current = Date.now();
       setRoutine(data);
 
-      if (data.gym?.allow_member_schedule_changes && data.gym?.allow_schedule_changes !== false) {
+      if (data.gym?.allow_schedule_changes !== false) {
         const [slotsData, requestsData, swapData] = await Promise.all([
           getPublicSlots(token),
           getPublicScheduleChangeRequests(token),
@@ -97,7 +97,7 @@ function MemberPortalLayout() {
       setRoutine(data);
       lastRefreshAt.current = Date.now();
 
-      if (data.gym?.allow_member_schedule_changes && data.gym?.allow_schedule_changes !== false) {
+      if (data.gym?.allow_schedule_changes !== false) {
         const [slotsData, requestsData, swapData] = await Promise.all([
           getPublicSlots(token),
           getPublicScheduleChangeRequests(token),
@@ -116,6 +116,8 @@ function MemberPortalLayout() {
           // plan change requests are optional
         }
       }
+
+      return data;
     } catch (err) {
       console.error(err);
     }
@@ -123,6 +125,10 @@ function MemberPortalLayout() {
 
   async function handlePhotoUpload() {
     if (!photoFile) return;
+    const paymentStatus = routine?.subscription?.payment_status;
+    if (paymentStatus === "blocked" || paymentStatus === "initial_pending") {
+      return;
+    }
 
     try {
       setUploadingPhoto(true);
@@ -205,6 +211,11 @@ function MemberPortalLayoutContent({
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
   const activitiesEnabled = useFeature("activities");
   const { features } = useContext(FeatureContext);
+  const paymentStatus = routine?.subscription?.payment_status;
+  const isOperativeBlocked =
+    paymentStatus === "blocked" || paymentStatus === "initial_pending";
+  const isInitialPending = paymentStatus === "initial_pending";
+  const outstandingDebtTotal = routine?.outstanding_debt?.total;
 
   const routeFeatureMap = {
     [`/routine/${token}/activities`]: "activities",
@@ -292,12 +303,21 @@ function MemberPortalLayoutContent({
                 }}
                 className="hidden"
               />
-              <label
-                htmlFor="photo-upload"
-                className="inline-block cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
-              >
-                {member.photo ? "Cambiar foto" : "Subir foto"}
-              </label>
+              {isOperativeBlocked ? (
+                <span
+                  className="inline-block cursor-not-allowed rounded-xl bg-surface-input px-4 py-2 text-sm font-medium text-text-secondary opacity-60"
+                  title="No disponible por falta de pago"
+                >
+                  {member.photo ? "Cambiar foto" : "Subir foto"}
+                </span>
+              ) : (
+                <label
+                  htmlFor="photo-upload"
+                  className="inline-block cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
+                >
+                  {member.photo ? "Cambiar foto" : "Subir foto"}
+                </label>
+              )}
 
               {preview && (
                 <div className="mt-4">
@@ -321,6 +341,38 @@ function MemberPortalLayoutContent({
             </div>
           </div>
         </div>
+
+        {isOperativeBlocked && (
+          <div className="px-4 mb-4">
+            <div className="rounded-xl border border-danger/20 bg-danger-bg/20 dark:bg-danger/10 px-4 py-3 text-sm text-danger-text dark:text-danger">
+              <p className="font-semibold">
+                {isInitialPending
+                  ? "Pago inicial pendiente"
+                  : "Acceso operativo suspendido"}
+              </p>
+              {isInitialPending ? (
+                <p className="mt-1 text-xs leading-relaxed opacity-90">
+                  Todavía no podés usar las funciones del portal: tu alta está
+                  pendiente del pago inicial con el gimnasio.
+                </p>
+              ) : (
+                <>
+                  {outstandingDebtTotal !== undefined &&
+                    Number(outstandingDebtTotal) > 0 && (
+                      <p className="mt-1 font-medium">
+                        Tenés un saldo pendiente de $
+                        {Number(outstandingDebtTotal).toLocaleString("es-AR")}.
+                      </p>
+                    )}
+                  <p className="mt-1 text-xs leading-relaxed opacity-90">
+                    Para volver a utilizar las funciones del portal, regularizá
+                    tu pago con el gimnasio.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="px-4 mb-6">
           <div className="flex rounded-xl bg-surface-elevated border border-border p-1">
@@ -355,6 +407,7 @@ function MemberPortalLayoutContent({
               changeRequests,
               swapRequests,
               planChangeRequests,
+              isOperativeBlocked,
             }}
           />
         </div>

@@ -37,6 +37,9 @@ class GymSerializer(serializers.ModelSerializer):
             "register_url",
             "created_at",
         ]
+        read_only_fields = [
+            "features",
+        ]
 
     def get_onboarding_url(self, obj):
         return obj.get_onboarding_url()

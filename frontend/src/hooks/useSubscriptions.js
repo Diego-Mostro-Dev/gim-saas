@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getSubscriptions } from "../services/subscriptions.service";
+import { getMemberOutstanding } from "../services/subscriptions.service";
 
 import { getMembers } from "../services/members.service";
 
@@ -91,5 +92,6 @@ export function useSubscriptions() {
     plans,
     loading,
     error,
+    getMemberOutstanding,
   };
 }

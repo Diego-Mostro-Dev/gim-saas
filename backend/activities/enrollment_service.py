@@ -5,6 +5,7 @@ from django.db import transaction
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
+from subscriptions.services import sync_subscription_paid
 
 from .models import Enrollment
 from .overlap import validate_enrollment
@@ -55,7 +56,11 @@ class EnrollmentService:
         with transaction.atomic():
             activity_item = None
             if sub is not None:
-                activity_item = _ensure_activity_item(sub, schedule.activity)
+                locked_sub = Subscription.objects.select_for_update().get(
+                    pk=sub.pk
+                )
+                activity_item = _ensure_activity_item(locked_sub, schedule.activity)
+                sync_subscription_paid(locked_sub)
 
             enrollment = Enrollment.objects.create(
                 gym=gym,
@@ -90,7 +95,11 @@ class EnrollmentService:
             enrollment.save(update_fields=["active"])
 
             if sub is not None:
-                _cancel_activity_item(sub, schedule.activity)
+                locked_sub = Subscription.objects.select_for_update().get(
+                    pk=sub.pk
+                )
+                _cancel_activity_item(locked_sub, schedule.activity)
+                sync_subscription_paid(locked_sub)
 
         return enrollment
 

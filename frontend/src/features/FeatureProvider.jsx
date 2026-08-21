@@ -20,7 +20,13 @@ function FeatureProvider({ mode, initialFeatures, onRefreshFeatures, children })
           .then((gym) => setFeatures(gym.features || {}))
           .catch(() => setFeatures({}));
       } else if (mode === "public") {
-        onRefreshFeaturesRef.current?.();
+        Promise.resolve(onRefreshFeaturesRef.current?.())
+          .then((refreshed) => {
+            if (refreshed?.gym?.features) {
+              setFeatures(refreshed.gym.features);
+            }
+          })
+          .catch(() => {});
       }
     }
 
