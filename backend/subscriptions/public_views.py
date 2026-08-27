@@ -17,6 +17,7 @@ from members.eligibility import MemberEligibility
 
 class PublicPlanChangeRequestView(APIView):
     permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -57,6 +58,7 @@ class PublicPlanChangeRequestView(APIView):
 
 class PublicCancelPlanChangeRequestView(APIView):
     permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)

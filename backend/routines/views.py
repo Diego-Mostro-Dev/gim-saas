@@ -117,10 +117,15 @@ class MemberRoutineWhatsappView(APIView):
     def get(self, request, member_id):
         gym = request.user.profile.gym
 
+        member = get_object_or_404(
+            Member,
+            id=member_id,
+            gym=gym,
+        )
+
         assignment = (
             RoutineAssignment.objects
             .select_related(
-                "member",
                 "routine_template",
             )
             .prefetch_related(
@@ -128,102 +133,105 @@ class MemberRoutineWhatsappView(APIView):
             )
             .filter(
                 gym=gym,
-                member_id=member_id,
+                member=member,
                 active=True,
             )
             .first()
         )
 
-        if not assignment:
-            return Response(
-                {"detail": "No active routine assigned"},
-                status=404,
-            )
-
         routine_url = (
             f"{settings.FRONTEND_URL}/routine/"
-            f"{assignment.member.access_token}"
+            f"{member.access_token}"
         )
 
         lines = [
             f"🏋️‍♂️ *{gym.name}*",
             "",
-            f"Hola *{assignment.member.first_name}* 👋",
+            f"Hola *{member.first_name}* 👋",
             "",
             "Te damos la bienvenida a tu portal de socio.",
             "",
             "📲 *Accedé a tu información acá:*",
             routine_url,
-            "",
-            f"📋 *{assignment.routine_template.name}*",
-            "",
         ]
 
-        exercises = (
-            assignment
-            .routine_template
-            .routine_exercises
-            .all()
-            .order_by("order")
-        )
+        if assignment:
+            lines.extend([
+                "",
+                f"📋 *{assignment.routine_template.name}*",
+                "",
+            ])
 
-        for item in exercises:
-            lines.append(
-                f"🔹 *{item.exercise.name}*"
+            exercises = (
+                assignment
+                .routine_template
+                .routine_exercises
+                .all()
+                .order_by("order")
             )
 
-            if item.exercise_type == "cardio":
-                if item.reps:
-                    lines.append(f"   🏃 {item.reps} minutos")
-                lines.append("   Descanso libre")
-            else:
-                reps_str = f" × {item.reps}" if item.reps else ""
+            for item in exercises:
                 lines.append(
-                    f"   {item.sets} series{reps_str}"
+                    f"🔹 *{item.exercise.name}*"
                 )
 
-                if item.exercise_type == "bodyweight":
-                    lines.append("   🏋️ Peso corporal")
-                elif item.weight and item.weight != "0":
-                    lines.append(f"   🏋️ Peso: {item.weight} kg")
-
-                rest_min = item.rest_seconds // 60
-                rest_sec = item.rest_seconds % 60
-                if rest_min > 0:
-                    rest_str = f"{rest_min}min" + (f" {rest_sec}s" if rest_sec else "")
+                if item.exercise_type == "cardio":
+                    if item.reps:
+                        lines.append(f"   🏃 {item.reps} minutos")
+                    lines.append("   Descanso libre")
                 else:
-                    rest_str = f"{rest_sec}s"
+                    reps_str = f" × {item.reps}" if item.reps else ""
+                    lines.append(
+                        f"   {item.sets} series{reps_str}"
+                    )
 
-                rest_mode_str = {
-                    "between_sets": "entre series",
-                    "after_exercise": "al finalizar",
-                    "none": "sin descanso",
-                }.get(item.rest_mode, "entre series")
-                lines.append(f"   ⏱ {rest_str} descanso ({rest_mode_str})")
+                    if item.exercise_type == "bodyweight":
+                        lines.append("   🏋️ Peso corporal")
+                    elif item.weight and item.weight != "0":
+                        lines.append(f"   🏋️ Peso: {item.weight} kg")
 
-                if item.next_exercise_rest_seconds:
-                    next_min = item.next_exercise_rest_seconds // 60
-                    next_sec = item.next_exercise_rest_seconds % 60
-                    if next_min > 0:
-                        next_str = f"{next_min}min" + (f" {next_sec}s" if next_sec else "")
+                    rest_min = item.rest_seconds // 60
+                    rest_sec = item.rest_seconds % 60
+                    if rest_min > 0:
+                        rest_str = f"{rest_min}min" + (f" {rest_sec}s" if rest_sec else "")
                     else:
-                        next_str = f"{next_sec}s"
-                    lines.append(f"   🔄 {next_str} antes del próximo")
+                        rest_str = f"{rest_sec}s"
 
-            if item.notes:
-                lines.append(
-                    f"   📝 {item.notes}"
-                )
+                    rest_mode_str = {
+                        "between_sets": "entre series",
+                        "after_exercise": "al finalizar",
+                        "none": "sin descanso",
+                    }.get(item.rest_mode, "entre series")
+                    lines.append(f"   ⏱ {rest_str} descanso ({rest_mode_str})")
 
-            lines.append("")
+                    if item.next_exercise_rest_seconds:
+                        next_min = item.next_exercise_rest_seconds // 60
+                        next_sec = item.next_exercise_rest_seconds % 60
+                        if next_min > 0:
+                            next_str = f"{next_min}min" + (f" {next_sec}s" if next_sec else "")
+                        else:
+                            next_str = f"{next_sec}s"
+                        lines.append(f"   🔄 {next_str} antes del próximo")
 
-        lines.extend([
-            "🔥 ¡A entrenar fuerte!",
-            f"Nos vemos en *{gym.name}* 💪",
-        ])
+                if item.notes:
+                    lines.append(
+                        f"   📝 {item.notes}"
+                    )
+
+                lines.append("")
+
+            lines.extend([
+                "🔥 ¡A entrenar fuerte!",
+                f"Nos vemos en *{gym.name}* 💪",
+            ])
+        else:
+            lines.extend([
+                "",
+                "Nos vemos en *{}* 💪".format(gym.name),
+            ])
 
         return Response({
-            "phone": assignment.member.phone,
+            "phone": member.phone,
             "message": "\n".join(lines),
         })
 
@@ -427,6 +435,7 @@ class PublicRoutineView(APIView):
                 start_date__lte=today,
                 end_date__gte=today,
             )
+            .select_related("plan")
             .prefetch_related("items")
             .first()
         )
@@ -441,6 +450,7 @@ class PublicRoutineView(APIView):
                     member=member,
                     start_date__gt=today,
                 )
+                .select_related("plan")
                 .prefetch_related("items")
                 .order_by("start_date")
                 .first()
@@ -456,12 +466,10 @@ class PublicRoutineView(APIView):
                 sub.end_date - today
             ).days
 
-            activity_items = list(
-                sub.items.filter(
-                    status="active",
-                    item_type="activity",
-                )
-            )
+            activity_items = [
+                item for item in sub.items.all()
+                if item.status == "active" and item.item_type == "activity"
+            ]
             total = calculate_subscription_total(sub)
 
             return {

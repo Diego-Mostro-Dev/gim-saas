@@ -60,30 +60,36 @@ export function usePayments() {
     }
     try {
       setLoading(true);
-
       setError(null);
 
-      const [
-        paymentsData,
-        membersData,
-        subscriptionsData,
-      ] = await Promise.all([
-        getPayments(),
-        getMembers(),
-        getSubscriptions(),
-      ]);
+      const [paymentsResult, membersResult, subscriptionsResult] =
+        await Promise.allSettled([
+          getPayments(),
+          getMembers(),
+          getSubscriptions(),
+        ]);
 
-      setPayments(paymentsData);
+      if (paymentsResult.status === "fulfilled") {
+        setPayments(paymentsResult.value);
+      } else {
+        console.error(paymentsResult.reason);
+        setError("Error al cargar pagos");
+      }
 
-      setMembers(membersData);
+      if (membersResult.status === "fulfilled") {
+        setMembers(membersResult.value);
+      } else {
+        console.error(membersResult.reason);
+      }
 
-      setSubscriptions(
-        subscriptionsData,
-      );
+      if (subscriptionsResult.status === "fulfilled") {
+        setSubscriptions(subscriptionsResult.value);
+      } else {
+        console.error(subscriptionsResult.reason);
+      }
     } catch (err) {
       console.error(err);
-
-      setError("Error al cargar pagos");
+      setError("Error al cargar datos");
     } finally {
       setLoading(false);
     }

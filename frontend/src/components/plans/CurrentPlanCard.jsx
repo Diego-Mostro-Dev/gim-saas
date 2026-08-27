@@ -27,7 +27,7 @@ function CurrentPlanCard({ subscription }) {
       : "text-danger-text dark:text-danger";
 
   const activityItems = subscription.items?.filter(
-    (i) => i.item_type === "activity" && i.status === "active"
+    (i) => i.item_type === "activity"
   ) || [];
 
   return (

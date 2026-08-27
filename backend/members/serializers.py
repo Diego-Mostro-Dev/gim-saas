@@ -45,7 +45,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "member_created_at",
         ]
 
-        read_only_fields = ["gym", "access_token"]
+        read_only_fields = ["gym", "access_token", "active"]
 
     def _active_subscription(self, obj):
         return SubscriptionDomain.get_active_subscription(obj)

@@ -100,7 +100,7 @@ const dayNameMap = {
 };
 
 function MemberDashboard() {
-  const { routine, token, slots, planChangeRequests, swapRequests, refreshRoutine } = useOutletContext();
+  const { routine, token, slots, planChangeRequests, swapRequests, refreshRoutine, swapRequestsStatus, planChangeRequestsStatus } = useOutletContext();
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
@@ -424,6 +424,12 @@ function MemberDashboard() {
             </button>
           </div>
         )}
+
+        {planChangeRequestsStatus === "error" && (
+          <p className="mt-3 text-xs text-text-secondary">
+            No pudimos verificar tus solicitudes de cambio de plan; esta información podría estar desactualizada.
+          </p>
+        )}
       </div>
 
       {/* PRÓXIMO ENTRENAMIENTO */}
@@ -462,6 +468,12 @@ function MemberDashboard() {
           </div>
         ) : (
           <p className="text-sm text-text-secondary">Sin horarios asignados</p>
+        )}
+
+        {swapRequestsStatus === "error" && nextTraining && (
+          <p className="mt-3 text-xs text-warning-text dark:text-warning">
+            No pudimos sincronizar tus intercambios: esta información podría estar desactualizada.
+          </p>
         )}
       </div>
 

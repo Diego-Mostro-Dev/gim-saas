@@ -194,10 +194,10 @@ function PlanChangeModal({
                     {weeklyLabel(currentSubscription.plan_weekly_visits)}
                   </p>
 
-                  {currentSubscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+                  {currentSubscription.items?.filter((i) => i.item_type === "activity").length > 0 && (
                     <div className="mt-3 border-t border-border pt-3 space-y-1">
                       {currentSubscription.items
-                        .filter((i) => i.item_type === "activity" && i.status === "active")
+                        .filter((i) => i.item_type === "activity")
                         .map((item) => (
                           <div key={item.id} className="flex items-center justify-between">
                             <span className="flex items-center gap-1.5 text-sm text-text-primary">

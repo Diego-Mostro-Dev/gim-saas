@@ -54,6 +54,20 @@ export async function createMember(memberData) {
     JSON.stringify(memberData.schedules || []),
   );
 
+  if (memberData.services) {
+    formData.append(
+      "services",
+      JSON.stringify(memberData.services),
+    );
+  }
+
+  if (memberData.activity_schedules) {
+    formData.append(
+      "activity_schedules",
+      JSON.stringify(memberData.activity_schedules),
+    );
+  }
+
   return apiFetch("/api/members/", {
     method: "POST",
     body: formData,
@@ -111,4 +125,8 @@ export async function updateMember(
       body: formData,
     },
   );
+}
+
+export async function getMemberActivities() {
+  return apiFetch("/api/members/activities/");
 }

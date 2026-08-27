@@ -192,13 +192,13 @@ function ActivityDashboard() {
               </span>
             </div>
 
-            {routine.subscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+            {routine.subscription.items?.filter((i) => i.item_type === "activity").length > 0 && (
               <div className="mt-3 border-t border-border pt-3 space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
                   Actividades
                 </p>
                 {routine.subscription.items
-                  .filter((i) => i.item_type === "activity" && i.status === "active")
+                  .filter((i) => i.item_type === "activity")
                   .map((item) => (
                     <div key={item.id} className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-sm text-text-primary">

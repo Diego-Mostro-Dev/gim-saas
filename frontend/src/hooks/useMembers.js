@@ -6,7 +6,7 @@ import {
   deleteMember,
   updateMember,
 } from "../services/members.service";
-import { getCached, isCacheFresh } from "../utils/cache";
+import { getCached, isCacheFresh, clearCached } from "../utils/cache";
 
 const CACHE_KEY = "members";
 const TTL = 5 * 60 * 1000;
@@ -42,39 +42,27 @@ export function useMembers() {
   }, []);
 
   async function createNewMember(data) {
-    try {
-      const newMember = await createMember(data);
-      setMembers((prev) => [newMember, ...prev]);
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
+    const newMember = await createMember(data);
+    setMembers((prev) => [newMember, ...prev]);
+    clearCached(CACHE_KEY);
+    return newMember;
   }
 
   async function editMember(id, data) {
-    try {
-      const updated = await updateMember(id, data);
+    const updated = await updateMember(id, data);
 
-      setMembers((prev) =>
-        prev.map((m) => (m.id === updated.id ? updated : m))
-      );
+    setMembers((prev) =>
+      prev.map((m) => (m.id === updated.id ? updated : m))
+    );
 
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
+    clearCached(CACHE_KEY);
+    return updated;
   }
 
   async function removeMember(id) {
-    try {
-      await deleteMember(id);
-
-      setMembers((prev) => prev.filter((m) => m.id !== id));
-
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
+    await deleteMember(id);
+    setMembers((prev) => prev.filter((m) => m.id !== id));
+    clearCached(CACHE_KEY);
   }
 
   return {

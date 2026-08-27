@@ -100,7 +100,7 @@ const dayNameMap = {
 };
 
 function GymDashboard() {
-  const { routine, token, slots, planChangeRequests, swapRequests, refreshRoutine, isOperativeBlocked } = useOutletContext();
+  const { routine, token, slots, planChangeRequests, swapRequests, refreshRoutine, isOperativeBlocked, swapRequestsStatus, planChangeRequestsStatus } = useOutletContext();
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
@@ -230,13 +230,13 @@ function GymDashboard() {
                 </span>
               </div>
 
-              {subscription.items?.filter((i) => i.item_type === "activity" && i.status === "active").length > 0 && (
+              {subscription.items?.filter((i) => i.item_type === "activity").length > 0 && (
                 <div className="rounded-xl bg-surface-input px-3 py-2 space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
                     Actividades
                   </p>
                   {subscription.items
-                    .filter((i) => i.item_type === "activity" && i.status === "active")
+                    .filter((i) => i.item_type === "activity")
                     .map((item) => (
                       <div key={item.id} className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-sm text-text-primary">
@@ -460,6 +460,12 @@ function GymDashboard() {
             </button>
           </div>
         )}
+
+        {planChangeRequestsStatus === "error" && (
+          <p className="mt-3 text-xs text-text-secondary">
+            No pudimos verificar tus solicitudes de cambio de plan; esta información podría estar desactualizada.
+          </p>
+        )}
       </div>
 
       {/* PRÓXIMO ENTRENAMIENTO */}
@@ -498,6 +504,12 @@ function GymDashboard() {
           </div>
         ) : (
           <p className="text-sm text-text-secondary">Sin horarios asignados</p>
+        )}
+
+        {swapRequestsStatus === "error" && nextTraining && (
+          <p className="mt-3 text-xs text-warning-text dark:text-warning">
+            No pudimos sincronizar tus intercambios: esta información podría estar desactualizada.
+          </p>
         )}
       </div>
 

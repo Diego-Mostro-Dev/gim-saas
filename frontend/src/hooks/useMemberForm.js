@@ -6,6 +6,8 @@ const INITIAL_FORM = {
   phone: "",
   email: "",
   schedules: [],
+  services: ["gym"],
+  activity_schedules: [],
 };
 
 export function useMemberForm() {
@@ -37,6 +39,8 @@ export function useMemberForm() {
       phone: member.phone || "",
       email: member.email || "",
       schedules: member.schedules || [],
+      services: ["gym"],
+      activity_schedules: [],
     });
 
     setShowForm(true);

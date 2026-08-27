@@ -3,6 +3,8 @@ from datetime import date
 from django.db import transaction
 
 from activities.enrollment_service import EnrollmentError, EnrollmentService
+from activities.models import Activity, ActivitySchedule, Enrollment
+from activities.overlap import validate_schedule_batch
 from plans.models import MembershipPlan
 from plans.services import ensure_base_plan_for_gym
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
@@ -18,6 +20,76 @@ class RegistrationError(Exception):
         self.detail = detail
         self.status_code = status_code
         super().__init__(str(detail))
+
+
+def validate_activity_schedules(gym, raw_schedules):
+    """Validate and resolve activity schedule selections for registration.
+
+    Each item in raw_schedules must be a dict with activity_id and schedule_id.
+    Returns a list of {"activity_id": ..., "schedule": ActivitySchedule} dicts
+    ready for RegistrationService.register().
+
+    Raises ValueError on any validation failure.
+    """
+    seen = set()
+    result = []
+
+    for item in raw_schedules:
+        if not isinstance(item, dict):
+            raise ValueError(
+                "Cada elemento debe ser un objeto con "
+                "activity_id y schedule_id."
+            )
+
+        activity_id = item.get("activity_id")
+        schedule_id = item.get("schedule_id")
+
+        if not activity_id or not schedule_id:
+            raise ValueError(
+                "Cada selección debe incluir "
+                "activity_id y schedule_id."
+            )
+
+        if not Activity.objects.filter(
+            id=activity_id, service__gym=gym, active=True
+        ).exists():
+            raise ValueError(
+                f"La actividad {activity_id} no existe "
+                f"o no está activa."
+            )
+
+        schedule = ActivitySchedule.objects.filter(
+            id=schedule_id, activity__id=activity_id
+        ).first()
+
+        if not schedule:
+            raise ValueError(
+                f"El horario {schedule_id} no pertenece "
+                f"a la actividad {activity_id}."
+            )
+
+        if schedule_id in seen:
+            raise ValueError(
+                f"El horario {schedule_id} está duplicado."
+            )
+        seen.add(schedule_id)
+
+        enrolled_count = Enrollment.objects.filter(
+            schedule=schedule, active=True
+        ).count()
+        if enrolled_count >= schedule.capacity:
+            raise ValueError(
+                f"El horario {schedule_id} está completo."
+            )
+
+        result.append(
+            {"activity_id": activity_id, "schedule": schedule}
+        )
+
+    selected_schedules = [entry["schedule"] for entry in result]
+    validate_schedule_batch(selected_schedules)
+
+    return result
 
 
 class RegistrationService:

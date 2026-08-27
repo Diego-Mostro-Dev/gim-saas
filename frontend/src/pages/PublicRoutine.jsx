@@ -10,12 +10,26 @@ import {
   createPublicScheduleSwapRequest,
   cancelPublicScheduleSwapRequest,
 } from "../services/routines.service";
+import { StaleDataNotice, LoadErrorNotice, SectionSkeleton } from "../components/member/SectionFeedback";
 import { DAY_NAMES, DAY_ORDER } from "../constants/days";
 import { formatHumanDate } from "../utils/date.utils";
 
 function PublicRoutine() {
-  const { routine, token, refreshRoutine, slots, changeRequests, swapRequests, isOperativeBlocked } =
-    useOutletContext();
+  const {
+    routine,
+    token,
+    refreshRoutine,
+    slots,
+    changeRequests,
+    swapRequests,
+    isOperativeBlocked,
+    slotsStatus,
+    changeRequestsStatus,
+    swapRequestsStatus,
+    reloadSlots,
+    reloadChangeRequests,
+    reloadSwapRequests,
+  } = useOutletContext();
 
   const [showModal, setShowModal] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
@@ -265,6 +279,31 @@ function PublicRoutine() {
       </div>
 
       {/* SOLICITUDES DE CAMBIO */}
+      {gym.allow_schedule_changes !== false &&
+        changeRequestsStatus === "loading" &&
+        changeRequests.length === 0 && (
+          <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+              Cambios permanentes
+            </h2>
+            <SectionSkeleton />
+          </div>
+        )}
+      {gym.allow_schedule_changes !== false && changeRequestsStatus === "error" && (
+        changeRequests.length > 0 ? (
+          <StaleDataNotice
+            message="No pudimos actualizar tus solicitudes de cambio. Se muestran los últimos datos disponibles."
+            onRetry={reloadChangeRequests}
+            retrying={changeRequestsStatus === "loading"}
+          />
+        ) : (
+          <LoadErrorNotice
+            message="No pudimos cargar tus solicitudes de cambio."
+            onRetry={reloadChangeRequests}
+            retrying={changeRequestsStatus === "loading"}
+          />
+        )
+      )}
       {gym.allow_schedule_changes !== false && changeRequests.length > 0 && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <div className="flex items-center justify-between">
@@ -352,6 +391,35 @@ function PublicRoutine() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* INTERCAMBIOS: ESTADO DE CARGA */}
+      {gym.allow_schedule_changes !== false &&
+        swapRequestsStatus === "loading" &&
+        swapRequests.length === 0 && (
+          <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+              Intercambios
+            </h2>
+            <SectionSkeleton />
+          </div>
+        )}
+
+      {/* INTERCAMBIOS: ESTADO DEGRADADO */}
+      {gym.allow_schedule_changes !== false && swapRequestsStatus === "error" && (
+        swapRequests.length > 0 ? (
+          <StaleDataNotice
+            message="No pudimos actualizar tus intercambios. La lista puede estar desactualizada."
+            onRetry={reloadSwapRequests}
+            retrying={swapRequestsStatus === "loading"}
+          />
+        ) : (
+          <LoadErrorNotice
+            message="No pudimos cargar tus intercambios. No sabemos si tenés solicitudes activas."
+            onRetry={reloadSwapRequests}
+            retrying={swapRequestsStatus === "loading"}
+          />
+        )
       )}
 
       {/* PRÓXIMOS INTERCAMBIOS */}
@@ -545,21 +613,40 @@ function PublicRoutine() {
             {selectedDay && (
               <div className="mb-6">
                 <label className="mb-2 block text-sm text-text-secondary">Nuevo horario</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {slotsForDay.map((slot) => (
-                    <button
-                      key={slot.id}
-                      onClick={() => setSelectedSlotId(slot.id)}
-                      className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                        Number(selectedSlotId) === slot.id
-                          ? "bg-info text-white"
-                          : "bg-surface-input text-text-secondary hover:bg-surface-elevated"
-                      }`}
-                    >
-                      {slot.hour}
-                    </button>
-                  ))}
-                </div>
+                {slotsStatus === "error" && availableSlots.length === 0 ? (
+                  <LoadErrorNotice
+                    message="No pudimos cargar los horarios disponibles."
+                    onRetry={reloadSlots}
+                    retrying={slotsStatus === "loading"}
+                  />
+                ) : slotsStatus === "loading" && availableSlots.length === 0 ? (
+                  <SectionSkeleton rows={3} />
+                ) : (
+                  <>
+                    {slotsStatus === "error" && (
+                      <StaleDataNotice
+                        message="Los horarios podrían estar desactualizados."
+                        onRetry={reloadSlots}
+                        retrying={slotsStatus === "loading"}
+                      />
+                    )}
+                    <div className={`grid grid-cols-2 gap-2 ${slotsStatus === "error" ? "mt-3" : ""}`}>
+                      {slotsForDay.map((slot) => (
+                        <button
+                          key={slot.id}
+                          onClick={() => setSelectedSlotId(slot.id)}
+                          className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                            Number(selectedSlotId) === slot.id
+                              ? "bg-info text-white"
+                              : "bg-surface-input text-text-secondary hover:bg-surface-elevated"
+                          }`}
+                        >
+                          {slot.hour}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -629,35 +716,52 @@ function PublicRoutine() {
               <div className="mb-6">
                 <label className="mb-2 block text-sm text-text-secondary">Nuevo horario</label>
                 {slotsForSwapDate.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    {slotsForSwapDate.map((slot) => {
-                      const occ = slot.occupancy;
-                      const cap = slot.capacity;
-                      const full = occ !== undefined && cap !== null && occ >= cap;
+                  <>
+                    {slotsStatus === "error" && swapDateSlots.length === 0 && (
+                      <StaleDataNotice
+                        message="Los horarios podrían estar desactualizados."
+                        onRetry={reloadSlots}
+                        retrying={slotsStatus === "loading"}
+                      />
+                    )}
+                    <div className={`grid grid-cols-2 gap-2 ${slotsStatus === "error" && swapDateSlots.length === 0 ? "mt-3" : ""}`}>
+                      {slotsForSwapDate.map((slot) => {
+                        const occ = slot.occupancy;
+                        const cap = slot.capacity;
+                        const full = occ !== undefined && cap !== null && occ >= cap;
 
-                      return (
-                        <button
-                          key={slot.id}
-                          onClick={() => !full && setSwapSlotId(slot.id)}
-                          disabled={full}
-                          className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                            Number(swapSlotId) === slot.id
-                              ? "bg-info text-white"
-                              : full
-                                ? "bg-surface-input text-danger-text dark:text-danger cursor-not-allowed"
-                                : "bg-surface-input text-text-secondary hover:bg-surface-elevated"
-                          }`}
-                        >
-                          <div>{slot.hour}</div>
-                          {occ !== undefined && (
-                            <div className={`mt-0.5 text-[10px] ${full ? "text-danger-text dark:text-danger" : "text-text-secondary"}`}>
-                              {full ? "Completo" : `${occ}/${cap}`}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => !full && setSwapSlotId(slot.id)}
+                            disabled={full}
+                            className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                              Number(swapSlotId) === slot.id
+                                ? "bg-info text-white"
+                                : full
+                                  ? "bg-surface-input text-danger-text dark:text-danger cursor-not-allowed"
+                                  : "bg-surface-input text-text-secondary hover:bg-surface-elevated"
+                            }`}
+                          >
+                            <div>{slot.hour}</div>
+                            {occ !== undefined && (
+                              <div className={`mt-0.5 text-[10px] ${full ? "text-danger-text dark:text-danger" : "text-text-secondary"}`}>
+                                {full ? "Completo" : `${occ}/${cap}`}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : slotsStatus === "error" && swapAvailableSlots.length === 0 ? (
+                  <LoadErrorNotice
+                    message="No pudimos cargar la disponibilidad de horarios."
+                    onRetry={reloadSlots}
+                    retrying={slotsStatus === "loading"}
+                  />
+                ) : slotsStatus === "loading" && swapAvailableSlots.length === 0 ? (
+                  <SectionSkeleton rows={3} />
                 ) : (
                   <p className="text-sm text-text-secondary">No hay horarios disponibles para esta fecha.</p>
                 )}

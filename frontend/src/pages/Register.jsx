@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { ApiError } from "../services/api";
@@ -15,7 +15,6 @@ import ServiceStep from "../components/onboarding/ServiceStep";
 import GymStep from "../components/onboarding/GymStep";
 import ActivityStep from "../components/onboarding/ActivityStep";
 import ReviewStep from "../components/onboarding/ReviewStep";
-import ValidationBanner from "../components/ui/ValidationBanner";
 
 const INITIAL_FORM = {
   first_name: "",
@@ -44,7 +43,6 @@ const STEP_LABELS = {
 function Register() {
   const { gymCode } = useParams();
 
-  const [stepQueue, setStepQueue] = useState([]);
   const [stepIdx, setStepIdx] = useState(0);
 
   const [loadingData, setLoadingData] = useState(true);
@@ -62,6 +60,7 @@ function Register() {
   const [schedules, setSchedules] = useState([]);
   const [activitySelections, setActivitySelections] = useState([]);
   const [validationMessage, setValidationMessage] = useState(null);
+  const [portalToken, setPortalToken] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -90,21 +89,19 @@ function Register() {
   }, [gymCode]);
 
   useEffect(() => {
-    if (loadingData) return;
+    queueMicrotask(() => setValidationMessage(null));
+  }, [formData, services, selectedPlanId, schedules, activitySelections]);
 
+  const stepQueue = (() => {
+    if (loadingData) return [];
     const queue = [STEPS.PERSONAL, STEPS.SERVICES];
     if (services.gym) queue.push(STEPS.GYM);
     if (services.activities) queue.push(STEPS.ACTIVITIES);
     queue.push(STEPS.REVIEW);
+    return queue;
+  })();
 
-    const maxIdx = queue.length - 1;
-    setStepQueue(queue);
-    setStepIdx((prev) => Math.min(prev, maxIdx));
-  }, [loadingData, services.gym, services.activities]);
-
-  useEffect(() => {
-    setValidationMessage(null);
-  }, [formData, services, selectedPlanId, schedules, activitySelections]);
+  const clampedStepIdx = Math.min(stepIdx, Math.max(stepQueue.length - 1, 0));
 
   if (loadingData) {
     return (
@@ -115,27 +112,27 @@ function Register() {
   }
 
   function currentStep() {
-    return stepQueue[stepIdx] || STEPS.PERSONAL;
+    return stepQueue[clampedStepIdx] || STEPS.PERSONAL;
   }
 
   function isFirst() {
-    return stepIdx === 0;
+    return clampedStepIdx === 0;
   }
 
   function isLast() {
-    return stepIdx === stepQueue.length - 1;
+    return clampedStepIdx === stepQueue.length - 1;
   }
 
   function goNext() {
-    if (stepIdx < stepQueue.length - 1) {
-      setStepIdx(stepIdx + 1);
+    if (clampedStepIdx < stepQueue.length - 1) {
+      setStepIdx(clampedStepIdx + 1);
       setValidationMessage(null);
     }
   }
 
   function goBack() {
-    if (stepIdx > 0) {
-      setStepIdx(stepIdx - 1);
+    if (clampedStepIdx > 0) {
+      setStepIdx(clampedStepIdx - 1);
       setValidationMessage(null);
     }
   }
@@ -194,7 +191,8 @@ function Register() {
         form.append("schedules", JSON.stringify(schedules));
         if (selectedPlanId) form.append("plan_id", selectedPlanId);
 
-        await registerPublicMember(gymCode, form);
+        const result = await registerPublicMember(gymCode, form);
+        setPortalToken(result.access_token);
       } else {
         // ── Multi-service flow ──
         const form = new FormData();
@@ -214,7 +212,8 @@ function Register() {
           form.append("activity_schedules", JSON.stringify(activitySelections));
         }
 
-        await registerPublicMember(gymCode, form);
+        const result = await registerPublicMember(gymCode, form);
+        setPortalToken(result.access_token);
       }
 
       setSuccess(true);
@@ -232,6 +231,10 @@ function Register() {
 
   /* ── Success screen ── */
   if (success) {
+    const portalUrl = portalToken
+      ? `${window.location.origin}/routine/${portalToken}`
+      : null;
+
     return (
       <div className="min-h-screen bg-surface p-6 text-text-primary">
         <div className="mx-auto max-w-xl rounded-xl bg-surface-elevated p-8 text-center">
@@ -242,6 +245,33 @@ function Register() {
           <p className="mb-6 text-text-secondary">
             Tus datos fueron enviados correctamente.
           </p>
+
+          {portalUrl && (
+            <div className="mb-6 rounded-xl border border-border bg-surface-input p-4">
+              <p className="mb-2 text-sm font-medium text-text-primary">
+                Accedé a tu portal de socio:
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={portalUrl}
+                  className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(portalUrl);
+                    toast.success("Link copiado");
+                  }}
+                  className="rounded-lg bg-primary px-3 py-2 text-white transition hover:bg-primary/80"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={() => {
               setSuccess(false);
@@ -251,6 +281,7 @@ function Register() {
               setActivitySelections([]);
               setServices({ gym: true, activities: false });
               setStepIdx(0);
+              setPortalToken(null);
             }}
             className="rounded-xl bg-primary px-5 py-3 text-white"
           >
@@ -391,7 +422,7 @@ function Register() {
   }
 
   /* ── Progress bar ── */
-  const progressPct = ((stepIdx + 1) / stepQueue.length) * 100;
+  const progressPct = ((clampedStepIdx + 1) / stepQueue.length) * 100;
 
   return (
     <div className="min-h-screen bg-surface p-6">

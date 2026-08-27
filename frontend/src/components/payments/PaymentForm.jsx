@@ -47,11 +47,6 @@ function PaymentForm({
       String(subscription.id) === String(formData.subscription),
   );
 
-  const isSelectedCurrent =
-    selectedSubscription &&
-    filteredSubscriptions.length > 1 &&
-    isActiveNow(selectedSubscription);
-
   const remaining = selectedSubscription
     ? Number(selectedSubscription.remaining)
     : null;
@@ -160,12 +155,26 @@ function PaymentForm({
         </p>
       )}
 
-      {selectedSubscription && (
-        <p className="rounded-xl border border-warning/30 bg-warning-bg dark:bg-warning/15 px-4 py-2 text-sm text-warning-text dark:text-warning">
-          Saldo pendiente de{isSelectedCurrent ? " la suscripción actual" : ""}{" "}
-          {selectedSubscription.plan_name}:{" "}
-          {formatCurrency(selectedSubscription.remaining)}
-        </p>
+      {filteredSubscriptions.length > 0 && (
+        <div className="rounded-xl border border-warning/30 bg-warning-bg dark:bg-warning/15 px-4 py-3 text-sm text-warning-text dark:text-warning">
+          <p className="mb-2 font-medium">Saldo pendiente:</p>
+          <ul className="space-y-1">
+            {filteredSubscriptions.map((sub) => (
+              <li key={sub.id} className="flex items-center justify-between gap-2">
+                <span>
+                  {sub.plan_name}
+                  {isActiveNow(sub) && (
+                    <span className="ml-1 text-xs opacity-70">(actual)</span>
+                  )}
+                </span>
+                <span className="whitespace-nowrap text-xs text-text-secondary">
+                  vence {formatHumanDate(sub.end_date)} — restan{" "}
+                  {formatCurrency(sub.remaining)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <input

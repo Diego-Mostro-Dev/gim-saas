@@ -48,15 +48,17 @@ function FeatureProvider({ mode, initialFeatures, onRefreshFeatures, children })
       }
     }
 
-    window.addEventListener("features:updated", handleFeaturesRefresh);
-    window.addEventListener("focus", handleFeaturesRefresh);
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    if (mode === "admin") {
+      window.addEventListener("features:updated", handleFeaturesRefresh);
+      window.addEventListener("focus", handleFeaturesRefresh);
+      document.addEventListener("visibilitychange", onVisibilityChange);
 
-    return () => {
-      window.removeEventListener("features:updated", handleFeaturesRefresh);
-      window.removeEventListener("focus", handleFeaturesRefresh);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
+      return () => {
+        window.removeEventListener("features:updated", handleFeaturesRefresh);
+        window.removeEventListener("focus", handleFeaturesRefresh);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      };
+    }
   }, [mode, initialFeatures]);
 
   return (

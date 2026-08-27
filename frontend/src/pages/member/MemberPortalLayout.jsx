@@ -1,8 +1,9 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 
 import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
+import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import toast from "react-hot-toast";
 
 import {
@@ -32,59 +33,144 @@ function MemberPortalLayout() {
   const [swapRequests, setSwapRequests] = useState([]);
   const [planChangeRequests, setPlanChangeRequests] = useState([]);
 
-  const lastRefreshAt = useRef(0);
+  const [slotsStatus, setSlotsStatus] = useState("idle");
+  const [changeRequestsStatus, setChangeRequestsStatus] = useState("idle");
+  const [swapRequestsStatus, setSwapRequestsStatus] = useState("idle");
+  const [planChangeRequestsStatus, setPlanChangeRequestsStatus] = useState("idle");
 
-  useEffect(() => {
-    if (token) {
-      localStorage.setItem("member_token", token);
-    }
+  const currentTokenRef = useRef(token);
+  const sectionRequestSeqRef = useRef({});
 
-    loadRoutine();
-
-    function refreshIfVisible() {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastRefreshAt.current < 5 * 60 * 1000) return;
-      lastRefreshAt.current = Date.now();
-      refreshRoutine();
-    }
-
-    document.addEventListener("visibilitychange", refreshIfVisible);
-    const interval = setInterval(refreshIfVisible, 5 * 60 * 1000);
-
-    return () => {
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-      clearInterval(interval);
-    };
+  useLayoutEffect(() => {
+    currentTokenRef.current = token;
   }, [token]);
 
+  function beginSectionRequest(section) {
+    const seq = (sectionRequestSeqRef.current[section] ?? 0) + 1;
+    sectionRequestSeqRef.current[section] = seq;
+    return { section, token, seq };
+  }
+
+  function canApplySection(ctx) {
+    return (
+      ctx.token === currentTokenRef.current &&
+      sectionRequestSeqRef.current[ctx.section] === ctx.seq
+    );
+  }
+
+  async function loadSlots({ force = false } = {}) {
+    if (force) {
+      setSlotsStatus("loading");
+    } else {
+      setSlotsStatus((prev) => (prev === "idle" ? "loading" : prev));
+    }
+    const ctx = beginSectionRequest("slots");
+    try {
+      const slotsData = await getPublicSlots(token);
+      if (!canApplySection(ctx)) return;
+      setSlots(slotsData);
+      setSlotsStatus("success");
+    } catch (err) {
+      console.error(err);
+      if (!canApplySection(ctx)) return;
+      setSlotsStatus("error");
+    }
+  }
+
+  async function loadChangeRequests({ force = false } = {}) {
+    if (force) {
+      setChangeRequestsStatus("loading");
+    } else {
+      setChangeRequestsStatus((prev) => (prev === "idle" ? "loading" : prev));
+    }
+    const ctx = beginSectionRequest("changeRequests");
+    try {
+      const requestsData = await getPublicScheduleChangeRequests(token);
+      if (!canApplySection(ctx)) return;
+      setChangeRequests(requestsData);
+      setChangeRequestsStatus("success");
+    } catch (err) {
+      console.error(err);
+      if (!canApplySection(ctx)) return;
+      setChangeRequestsStatus("error");
+    }
+  }
+
+  async function loadSwapRequests({ force = false } = {}) {
+    if (force) {
+      setSwapRequestsStatus("loading");
+    } else {
+      setSwapRequestsStatus((prev) => (prev === "idle" ? "loading" : prev));
+    }
+    const ctx = beginSectionRequest("swapRequests");
+    try {
+      const swapData = await getPublicScheduleSwapRequests(token);
+      if (!canApplySection(ctx)) return;
+      setSwapRequests(swapData);
+      setSwapRequestsStatus("success");
+    } catch (err) {
+      console.error(err);
+      if (!canApplySection(ctx)) return;
+      setSwapRequestsStatus("error");
+    }
+  }
+
+  async function loadPlanChangeRequests({ force = false } = {}) {
+    if (force) {
+      setPlanChangeRequestsStatus("loading");
+    } else {
+      setPlanChangeRequestsStatus((prev) =>
+        prev === "idle" ? "loading" : prev,
+      );
+    }
+    const ctx = beginSectionRequest("planChangeRequests");
+    try {
+      const planRequestsData = await getPublicPlanChangeRequests(token);
+      if (!canApplySection(ctx)) return;
+      setPlanChangeRequests(planRequestsData);
+      setPlanChangeRequestsStatus("success");
+    } catch {
+      // plan change requests are optional
+      console.error("plan change requests failed");
+      if (!canApplySection(ctx)) return;
+      setPlanChangeRequestsStatus("error");
+    }
+  }
+
+  function reloadSlots() {
+    return loadSlots({ force: true });
+  }
+
+  function reloadChangeRequests() {
+    return loadChangeRequests({ force: true });
+  }
+
+  function reloadSwapRequests() {
+    return loadSwapRequests({ force: true });
+  }
+
+  async function loadSecondaryRequests(data) {
+    const secondaryLoads = [];
+    if (data.gym?.allow_schedule_changes !== false) {
+      secondaryLoads.push(loadSlots(), loadChangeRequests(), loadSwapRequests());
+    }
+    if (data.gym?.allow_plan_changes !== false) {
+      secondaryLoads.push(loadPlanChangeRequests());
+    }
+    await Promise.all(secondaryLoads);
+  }
+
   async function loadRoutine() {
+    const ctx = beginSectionRequest("routine");
     try {
       setLoading(true);
       const data = await getPublicRoutine(token);
-      lastRefreshAt.current = Date.now();
+      if (!canApplySection(ctx)) return;
       setRoutine(data);
-
-      if (data.gym?.allow_schedule_changes !== false) {
-        const [slotsData, requestsData, swapData] = await Promise.all([
-          getPublicSlots(token),
-          getPublicScheduleChangeRequests(token),
-          getPublicScheduleSwapRequests(token),
-        ]);
-        setSlots(slotsData);
-        setChangeRequests(requestsData);
-        setSwapRequests(swapData);
-      }
-
-      if (data.gym?.allow_plan_changes !== false) {
-        try {
-          const planRequestsData = await getPublicPlanChangeRequests(token);
-          setPlanChangeRequests(planRequestsData);
-        } catch {
-          // plan change requests are optional
-        }
-      }
+      await loadSecondaryRequests(data);
     } catch (err) {
       console.error(err);
+      if (!canApplySection(ctx)) return;
       setError("No se pudo cargar el portal.");
     } finally {
       setLoading(false);
@@ -92,36 +178,35 @@ function MemberPortalLayout() {
   }
 
   async function refreshRoutine() {
+    const ctx = beginSectionRequest("routine");
     try {
       const data = await getPublicRoutine(token);
+      if (!canApplySection(ctx)) return undefined;
       setRoutine(data);
-      lastRefreshAt.current = Date.now();
-
-      if (data.gym?.allow_schedule_changes !== false) {
-        const [slotsData, requestsData, swapData] = await Promise.all([
-          getPublicSlots(token),
-          getPublicScheduleChangeRequests(token),
-          getPublicScheduleSwapRequests(token),
-        ]);
-        setSlots(slotsData);
-        setChangeRequests(requestsData);
-        setSwapRequests(swapData);
-      }
-
-      if (data.gym?.allow_plan_changes !== false) {
-        try {
-          const planRequestsData = await getPublicPlanChangeRequests(token);
-          setPlanChangeRequests(planRequestsData);
-        } catch {
-          // plan change requests are optional
-        }
-      }
-
+      await loadSecondaryRequests(data);
       return data;
     } catch (err) {
       console.error(err);
+      return undefined;
     }
   }
+
+  const { request, runInitialLoad } = usePortalRefreshController({
+    refresh: refreshRoutine,
+    initialLoad: loadRoutine,
+  });
+
+  function refreshNow() {
+    return request({ cause: "manual", force: true });
+  }
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem("member_token", token);
+    }
+
+    runInitialLoad();
+  }, [token, runInitialLoad]);
 
   async function handlePhotoUpload() {
     if (!photoFile) return;
@@ -168,7 +253,7 @@ function MemberPortalLayout() {
   }
 
   return (
-    <FeatureProvider mode="public" initialFeatures={routine?.gym?.features} onRefreshFeatures={refreshRoutine}>
+    <FeatureProvider mode="public" initialFeatures={routine?.gym?.features} onRefreshFeatures={refreshNow}>
       <MemberPortalLayoutContent
         routine={routine}
         token={token}
@@ -184,7 +269,14 @@ function MemberPortalLayout() {
         changeRequests={changeRequests}
         swapRequests={swapRequests}
         planChangeRequests={planChangeRequests}
-        refreshRoutine={refreshRoutine}
+        slotsStatus={slotsStatus}
+        changeRequestsStatus={changeRequestsStatus}
+        swapRequestsStatus={swapRequestsStatus}
+        planChangeRequestsStatus={planChangeRequestsStatus}
+        reloadSlots={reloadSlots}
+        reloadChangeRequests={reloadChangeRequests}
+        reloadSwapRequests={reloadSwapRequests}
+        refreshRoutine={refreshNow}
       />
     </FeatureProvider>
   );
@@ -205,6 +297,13 @@ function MemberPortalLayoutContent({
   changeRequests,
   swapRequests,
   planChangeRequests,
+  slotsStatus,
+  changeRequestsStatus,
+  swapRequestsStatus,
+  planChangeRequestsStatus,
+  reloadSlots,
+  reloadChangeRequests,
+  reloadSwapRequests,
   refreshRoutine,
 }) {
   const { member, gym } = routine;
@@ -244,6 +343,7 @@ function MemberPortalLayoutContent({
 
   const allTabs = isActivityOnly
     ? [
+        { path: `/routine/${token}`, label: "Inicio", icon: Home },
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...activitiesTab,
       ]
@@ -407,6 +507,13 @@ function MemberPortalLayoutContent({
               changeRequests,
               swapRequests,
               planChangeRequests,
+              slotsStatus,
+              changeRequestsStatus,
+              swapRequestsStatus,
+              planChangeRequestsStatus,
+              reloadSlots,
+              reloadChangeRequests,
+              reloadSwapRequests,
               isOperativeBlocked,
             }}
           />

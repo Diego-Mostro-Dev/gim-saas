@@ -13,6 +13,7 @@ import ConfirmModal from "../components/ui/ConfirmModal";
 import { useMembers } from "../hooks/useMembers";
 import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
+import { useFeature } from "../features/FeatureProvider";
 import { getMemberWhatsapp } from "../services/routines.service";
 import { getSlots } from "../services/attendance.service";
 import { formatHumanDate } from "../utils/date.utils";
@@ -25,6 +26,7 @@ import {
   deleteMember,
   updateMember,
   getMemberPayments,
+  getMemberActivities,
 } from "../services/members.service";
 import { getCached, isCacheFresh } from "../utils/cache";
 
@@ -70,11 +72,16 @@ function Members() {
 
   const [paymentsMemberId, setPaymentsMemberId] = useState(null);
 
+  const activitiesEnabled = useFeature("activities");
+
   const [availablePlans, setAvailablePlans] = useState(() => getCached("plans") || []);
   const [loadingPlans, setLoadingPlans] = useState(() => !isCacheFresh("plans", 30 * 60 * 1000));
 
   const [availableSlots, setAvailableSlots] = useState(() => getCached("slots") || []);
   const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
+
+  const [availableActivities, setAvailableActivities] = useState([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -119,6 +126,23 @@ function Members() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (!activitiesEnabled || !showForm || editingMember) return;
+
+    async function load() {
+      try {
+        setLoadingActivities(true);
+        const data = await getMemberActivities();
+        setAvailableActivities(data);
+      } catch {
+        setAvailableActivities([]);
+      } finally {
+        setLoadingActivities(false);
+      }
+    }
+    load();
+  }, [activitiesEnabled, showForm, editingMember]);
 
   // Abrir form desde query param (?create=true)
   useEffect(() => {
@@ -168,7 +192,8 @@ function Members() {
     } catch (error) {
       console.error(error);
 
-      toast.error("Ocurrió un error");
+      const msg = error?.message || "Ocurrió un error al guardar el miembro";
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -301,7 +326,7 @@ function Members() {
       </div>
 
       {/* FORM */}
-      {showForm && !loadingSlots && availableSlots.length === 0 && !editingMember && (
+      {showForm && !loadingSlots && availableSlots.length === 0 && !editingMember && !activitiesEnabled && (
         <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center">
           <p className="text-sm text-text-primary">
             No hay horarios configurados.
@@ -312,7 +337,7 @@ function Members() {
         </div>
       )}
 
-      {showForm && (editingMember || availableSlots.length > 0) && (
+      {showForm && (editingMember || availableSlots.length > 0 || activitiesEnabled) && (
         <div ref={formRef}>
           <MemberForm
             formData={formData}
@@ -324,6 +349,9 @@ function Members() {
             loadingSlots={loadingSlots}
             availablePlans={availablePlans}
             loadingPlans={loadingPlans}
+            availableActivities={availableActivities}
+            loadingActivities={loadingActivities}
+            activitiesAvailable={activitiesEnabled}
           />
         </div>
       )}
