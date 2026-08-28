@@ -1,0 +1,26 @@
+{
+  "name": "Gimnasio - Portal del socio",
+  "short_name": "Portal",
+  "description": "Portal del socio para ver rutinas, pagos y actividades",
+  "id": "/routine/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "lang": "es-AR",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

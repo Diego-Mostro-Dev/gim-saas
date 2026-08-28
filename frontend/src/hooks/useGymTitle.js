@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useGym } from "./useGym";
+import { MEMBER_MANIFEST, STAFF_MANIFEST, setManifestHref } from "../utils/manifest";
 
 const FALLBACK_FAVICON = "/favicon.svg";
 
@@ -28,8 +29,13 @@ export function useGymTitle(gym) {
     resolved?.app_icon_url ||
     resolved?.logo_url ||
     null;
+  const isMemberPortal = Boolean(gym);
 
   useEffect(() => {
     applyTitleAndBranding(name, faviconIcon);
   }, [name, faviconIcon]);
+
+  useEffect(() => {
+    setManifestHref(isMemberPortal ? MEMBER_MANIFEST : STAFF_MANIFEST);
+  }, [isMemberPortal]);
 }
