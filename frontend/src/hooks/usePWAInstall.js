@@ -7,6 +7,11 @@ function isIOS() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) || iPadOS;
 }
 
+function isAndroid() {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
 function isStandalone() {
   if (typeof window === "undefined") return false;
   if (window.matchMedia("(display-mode: standalone)").matches) return true;
@@ -35,6 +40,7 @@ export function usePWAInstall() {
     canInstall,
     installed,
     isIOS: isIOS(),
+    isAndroid: isAndroid(),
     isStandalone: isStandalone(),
     promptInstall,
   };
