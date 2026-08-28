@@ -308,7 +308,7 @@ function MemberPortalLayoutContent({
   refreshRoutine,
 }) {
   const { member, gym } = routine;
-  useGymTitle(routine.gym);
+  useGymTitle(routine.gym, token);
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
   const activitiesEnabled = useFeature("activities");
   const { features } = useContext(FeatureContext);

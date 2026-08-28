@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/pwa/manifest/:path*",
+      "destination": "https://gim-saas.onrender.com/api/gyms/pwa/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

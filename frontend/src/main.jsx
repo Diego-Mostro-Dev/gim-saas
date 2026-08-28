@@ -12,7 +12,7 @@ import { FeatureProvider } from "./features/FeatureProvider";
 import UpdateBanner from "./components/UpdateBanner";
 import InstallBanner from "./components/InstallBanner";
 import { registerSW } from "virtual:pwa-register";
-import { MEMBER_MANIFEST, STAFF_MANIFEST, setManifestHref } from "./utils/manifest";
+import { STAFF_MANIFEST, memberManifestHref, setManifestHref } from "./utils/manifest";
 
 import "./index.css";
 
@@ -22,11 +22,11 @@ const queryClient = new QueryClient({
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
-setManifestHref(
-  window.location.pathname.startsWith("/routine/")
-    ? MEMBER_MANIFEST
-    : STAFF_MANIFEST,
-);
+const pathname = window.location.pathname;
+const memberToken = pathname.startsWith("/routine/")
+  ? pathname.split("/")[2]
+  : null;
+setManifestHref(memberToken ? memberManifestHref(memberToken) : STAFF_MANIFEST);
 
 useAuthStore.getState().hydrate().then(() => {
   const updateSW = registerSW({

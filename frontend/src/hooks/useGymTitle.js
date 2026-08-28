@@ -1,6 +1,12 @@
 import { useEffect } from "react";
 import { useGym } from "./useGym";
-import { MEMBER_MANIFEST, STAFF_MANIFEST, setManifestHref } from "../utils/manifest";
+import {
+  STAFF_MANIFEST,
+  MEMBER_MANIFEST,
+  memberManifestHref,
+  staffManifestHref,
+  setManifestHref,
+} from "../utils/manifest";
 
 const FALLBACK_FAVICON = "/favicon.svg";
 
@@ -20,7 +26,7 @@ function applyTitleAndBranding(name, faviconIcon) {
   favicon.href = faviconIcon || FALLBACK_FAVICON;
 }
 
-export function useGymTitle(gym) {
+export function useGymTitle(gym, memberToken) {
   const staffGym = useGym();
   const resolved = gym || staffGym.gym;
   const name = resolved?.name;
@@ -30,12 +36,17 @@ export function useGymTitle(gym) {
     resolved?.logo_url ||
     null;
   const isMemberPortal = Boolean(gym);
+  const staffSlug = staffGym.gym?.slug;
 
   useEffect(() => {
     applyTitleAndBranding(name, faviconIcon);
   }, [name, faviconIcon]);
 
   useEffect(() => {
-    setManifestHref(isMemberPortal ? MEMBER_MANIFEST : STAFF_MANIFEST);
-  }, [isMemberPortal]);
+    if (isMemberPortal) {
+      setManifestHref(memberToken ? memberManifestHref(memberToken) : MEMBER_MANIFEST);
+    } else {
+      setManifestHref(staffSlug ? staffManifestHref(staffSlug) : STAFF_MANIFEST);
+    }
+  }, [isMemberPortal, memberToken, staffSlug]);
 }
