@@ -10,6 +10,7 @@ import usePWAStore from "./store/pwa.store";
 import { ThemeProvider } from "./context/ThemeContext";
 import { FeatureProvider } from "./features/FeatureProvider";
 import UpdateBanner from "./components/UpdateBanner";
+import InstallBanner from "./components/InstallBanner";
 import { registerSW } from "virtual:pwa-register";
 
 import "./index.css";
@@ -52,6 +53,7 @@ useAuthStore.getState().hydrate().then(() => {
               <App />
             </FeatureProvider>
             <UpdateBanner />
+            <InstallBanner />
             <Toaster position="top-center" />
           </BrowserRouter>
         </ThemeProvider>

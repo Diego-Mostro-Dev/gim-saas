@@ -25,7 +25,15 @@ const usePWAStore = create((set, get) => ({
   appVersion: __APP_VERSION__,
   _updateSW: null,
 
+  canInstall: false,
+  installEvent: null,
+  installed: false,
+
   setUpdateSW: (fn) => set({ _updateSW: fn }),
+  setCanInstall: (can, event) =>
+    set({ canInstall: can, installEvent: event || null }),
+  setInstalled: () =>
+    set({ canInstall: false, installEvent: null, installed: true }),
   notifyUpdateAvailable: () => set({ updateAvailable: true }),
   notifyOfflineReady: () => set({ offlineReady: true }),
   dismissUpdate: () => set({ updateAvailable: false, offlineReady: false }),
@@ -63,6 +71,15 @@ function drainWorkboxCaches() {
 if (typeof window !== "undefined") {
   window.__APP_VERSION__ = __APP_VERSION__;
   window.__BUILD_ID__ = __BUILD_ID__;
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    usePWAStore.getState().setCanInstall(true, event);
+  });
+
+  window.addEventListener("appinstalled", () => {
+    usePWAStore.getState().setInstalled();
+  });
 }
 
 const prevBuildId = getStoredBuildId();
