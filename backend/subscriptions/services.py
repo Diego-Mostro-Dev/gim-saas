@@ -409,7 +409,23 @@ def calculate_effective_date(member=None):
 
 
 def compute_projected_occupancy(slot, target_date, exclude_member=None):
-    base = AttendanceSchedule.objects.filter(slot=slot, active=True)
+    future_changes_qs = PlanChangeRequest.objects.filter(
+        status="approved",
+        effective_date__lte=target_date,
+        planned_schedules__slot=slot,
+    )
+    if exclude_member:
+        future_changes_qs = future_changes_qs.exclude(member=exclude_member)
+    future_members = future_changes_qs.values("member").distinct()
+    future_change_count = future_members.count()
+
+    # Members that already have an approved future booking for this slot must
+    # not be counted again by their current active schedule: the future booking
+    # replaces the recurring schedule for that member on/after target_date.
+    # Skipping this would double-count them and over-report occupancy.
+    base = AttendanceSchedule.objects.filter(
+        slot=slot, active=True
+    ).exclude(member__in=future_members)
     if exclude_member:
         base = base.exclude(member=exclude_member)
     base_count = base.count()
@@ -428,15 +444,6 @@ def compute_projected_occupancy(slot, target_date, exclude_member=None):
     if exclude_member:
         swaps_out = swaps_out.exclude(member=exclude_member)
     swaps_out_count = swaps_out.count()
-
-    future_changes_qs = PlanChangeRequest.objects.filter(
-        status="approved",
-        effective_date__lte=target_date,
-        planned_schedules__slot=slot,
-    )
-    if exclude_member:
-        future_changes_qs = future_changes_qs.exclude(member=exclude_member)
-    future_change_count = future_changes_qs.values("member").distinct().count()
 
     return max(0, base_count + swaps_in - swaps_out_count + future_change_count)
 
