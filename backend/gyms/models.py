@@ -20,6 +20,20 @@ class Gym(models.Model):
         null=True,
     )
 
+    qr_attendance_message = models.CharField(
+        max_length=120,
+        blank=True,
+        default="Marcá tu asistencia escaneando este código",
+        verbose_name="Mensaje del QR de asistencia",
+    )
+
+    qr_registration_message = models.CharField(
+        max_length=120,
+        blank=True,
+        default="Registrate como socio escaneando este código",
+        verbose_name="Mensaje del QR de registro",
+    )
+
     onboarding_code = models.UUIDField(
         default=uuid.uuid4,
         unique=True,

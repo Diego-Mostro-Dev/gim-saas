@@ -1,9 +1,10 @@
-import { ArrowLeft, Copy, Check, Download } from "lucide-react";
+import { ArrowLeft, Copy, Check, Printer } from "lucide-react";
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import * as QRModule from "react-qr-code";
 
 import { useGym } from "../hooks/useGym";
+import { printQrA4 } from "../utils/qrPrint";
 
 const QRCode = QRModule.QRCode || QRModule.default?.QRCode;
 
@@ -27,45 +28,15 @@ function Registration() {
     }, 2000);
   }
 
-  function handleDownload() {
+  function handlePrint() {
     const svg = qrRef.current?.querySelector("svg");
-
     if (!svg) return;
 
-    const originalSvg = new XMLSerializer().serializeToString(svg);
-
-    const wrappedSvg = `
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="500"
-        height="500"
-        viewBox="-4 -4 41 41"
-      >
-        <rect
-          x="-4"
-          y="-4"
-          width="41"
-          height="41"
-          fill="white"
-        />
-        ${originalSvg.replace(/<svg[^>]*>/, "<g>").replace("</svg>", "</g>")}
-      </svg>
-    `;
-
-    const blob = new Blob([wrappedSvg], {
-      type: "image/svg+xml;charset=utf-8",
+    printQrA4({
+      gymName: gym?.name,
+      message: gym?.qr_registration_message,
+      qrSvg: new XMLSerializer().serializeToString(svg),
     });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `${gym.slug}-qr.svg`;
-
-    link.click();
-
-    URL.revokeObjectURL(url);
   }
 
   if (!gym) {
@@ -92,14 +63,22 @@ function Registration() {
       </p>
 
       {QRCode && (
-        <div ref={qrRef} className="max-w-full rounded-3xl bg-surface-elevated p-5 shadow-lg">
-          <QRCode
-            value={gym.register_url}
-            size={320}
-            bgColor="#FFFFFF"
-            fgColor="#000000"
-            style={{ maxWidth: "100%", height: "auto" }}
-          />
+        <div className="flex flex-col items-center gap-4">
+          <div ref={qrRef} className="max-w-full rounded-3xl bg-surface-elevated p-5 shadow-lg">
+            <QRCode
+              value={gym.register_url}
+              size={320}
+              bgColor="#FFFFFF"
+              fgColor="#000000"
+              style={{ maxWidth: "100%", height: "auto" }}
+            />
+          </div>
+
+          {gym.qr_registration_message && (
+            <p className="text-center text-lg font-semibold text-text-primary">
+              {gym.qr_registration_message}
+            </p>
+          )}
         </div>
       )}
 
@@ -128,11 +107,11 @@ function Registration() {
         </button>
 
         <button
-          onClick={handleDownload}
+          onClick={handlePrint}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border/10 px-4 py-3 text-text-primary transition active:scale-95"
         >
-          <Download size={18} />
-          Descargar QR
+          <Printer size={18} />
+          Imprimir QR en A4
         </button>
       </div>
     </div>

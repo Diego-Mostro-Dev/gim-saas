@@ -1,9 +1,10 @@
 import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import * as QRModule from "react-qr-code";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 
 import { useGym } from "../hooks/useGym";
+import { printQrA4 } from "../utils/qrPrint";
 
 const QRCode = QRModule.QRCode || QRModule.default?.QRCode;
 
@@ -13,45 +14,15 @@ function AttendanceQR() {
 
   const qrRef = useRef(null);
 
-  function handleDownload() {
+  function handlePrint() {
     const svg = qrRef.current?.querySelector("svg");
-
     if (!svg) return;
 
-    const originalSvg = new XMLSerializer().serializeToString(svg);
-
-    const wrappedSvg = `
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="500"
-        height="500"
-        viewBox="-4 -4 41 41"
-      >
-        <rect
-          x="-4"
-          y="-4"
-          width="41"
-          height="41"
-          fill="white"
-        />
-        ${originalSvg.replace(/<svg[^>]*>/, "<g>").replace("</svg>", "</g>")}
-      </svg>
-    `;
-
-    const blob = new Blob([wrappedSvg], {
-      type: "image/svg+xml;charset=utf-8",
+    printQrA4({
+      gymName: gym?.name,
+      message: gym?.qr_attendance_message,
+      qrSvg: new XMLSerializer().serializeToString(svg),
     });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `${gym.slug}-attendance-qr.svg`;
-
-    link.click();
-
-    URL.revokeObjectURL(url);
   }
 
   if (!gym) {
@@ -75,20 +46,28 @@ function AttendanceQR() {
       <h1 className="mb-2 text-2xl font-semibold">Check-In de Asistencia</h1>
 
       <p className="mb-6 max-w-md text-center text-sm text-text-secondary">
-        Mostrá este QR en una pantalla o imprimilo en recepción. Los socios
-        deberán abrir su Portal del Socio y escanear este código para registrar
-        automáticamente su asistencia.
+        Mostrá este QR en una pantalla o imprimilo en A4 para colocarlo en
+        recepción. Los socios deberán abrir su Portal del Socio y escanear
+        este código para registrar automáticamente su asistencia.
       </p>
 
       {QRCode && (
-        <div ref={qrRef} className="max-w-full rounded-3xl bg-surface-elevated p-5 shadow-lg">
-          <QRCode
-            value={checkinUrl}
-            size={320}
-            bgColor="#FFFFFF"
-            fgColor="#000000"
-            style={{ maxWidth: "100%", height: "auto" }}
-          />
+        <div className="flex flex-col items-center gap-4">
+          <div ref={qrRef} className="max-w-full rounded-3xl bg-surface-elevated p-5 shadow-lg">
+            <QRCode
+              value={checkinUrl}
+              size={320}
+              bgColor="#FFFFFF"
+              fgColor="#000000"
+              style={{ maxWidth: "100%", height: "auto" }}
+            />
+          </div>
+
+          {gym.qr_attendance_message && (
+            <p className="text-center text-lg font-semibold text-text-primary">
+              {gym.qr_attendance_message}
+            </p>
+          )}
         </div>
       )}
 
@@ -100,11 +79,11 @@ function AttendanceQR() {
         <p className="break-all text-sm text-text-primary">{checkinUrl}</p>
 
         <button
-          onClick={handleDownload}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border/10 px-4 py-3 text-text-primary transition active:scale-95"
+          onClick={handlePrint}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-medium text-white transition active:scale-95"
         >
-          <Download size={18} />
-          Descargar QR
+          <Printer size={18} />
+          Imprimir QR en A4
         </button>
       </div>
     </div>

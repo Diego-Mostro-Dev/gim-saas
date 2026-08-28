@@ -32,6 +32,8 @@ function Settings() {
     schedule_change_cooldown_days: "",
     max_schedule_changes_per_month: "",
     schedule_change_notice_days: "",
+    qr_attendance_message: "",
+    qr_registration_message: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -202,6 +204,8 @@ function Settings() {
         gym.schedule_change_notice_hours == null
           ? ""
           : Number(gym.schedule_change_notice_hours) / 24,
+      qr_attendance_message: gym.qr_attendance_message || "",
+      qr_registration_message: gym.qr_registration_message || "",
     });
   }, [gym]);
 
@@ -249,6 +253,12 @@ function Settings() {
         );
       }
       data.append("allow_schedule_changes", formData.allow_schedule_changes);
+
+      data.append("qr_attendance_message", formData.qr_attendance_message);
+      data.append(
+        "qr_registration_message",
+        formData.qr_registration_message,
+      );
 
       if (logoFile) {
         data.append("logo", logoFile);
@@ -580,6 +590,53 @@ function Settings() {
           {errors.schedule_change_notice_days && (
             <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_notice_days}</p>
           )}
+        </div>
+
+        <hr className="my-6 border-border" />
+
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Mensajes de los códigos QR
+        </h3>
+
+        <p className="mb-4 text-xs text-text-secondary">
+          Texto que se muestra en el cartel A4 junto a cada código QR cuando se
+          imprime para colocar en recepción.
+        </p>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Mensaje del QR de asistencia
+          </label>
+          <input
+            type="text"
+            value={formData.qr_attendance_message}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                qr_attendance_message: e.target.value,
+              })
+            }
+            placeholder="Ej: Marcá tu asistencia acá"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-text-primary">
+            Mensaje del QR de registro de socios
+          </label>
+          <input
+            type="text"
+            value={formData.qr_registration_message}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                qr_registration_message: e.target.value,
+              })
+            }
+            placeholder="Ej: Registrate como socio con el celu"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
         </div>
 
         <button

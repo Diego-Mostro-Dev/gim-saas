@@ -39,6 +39,8 @@ class GymSerializer(serializers.ModelSerializer):
             "onboarding_code",
             "onboarding_url",
             "register_url",
+            "qr_attendance_message",
+            "qr_registration_message",
             "created_at",
         ]
         read_only_fields = [
