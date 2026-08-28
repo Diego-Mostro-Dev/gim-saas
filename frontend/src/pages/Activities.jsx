@@ -29,6 +29,7 @@ function Activities() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    instructor_name: "",
     monthly_price: "",
     active: true,
   });
@@ -172,6 +173,7 @@ function Activities() {
     setFormData({
       name: activity.name,
       description: activity.description || "",
+      instructor_name: activity.instructor_name || "",
       monthly_price: activity.monthly_price ?? "",
       active: activity.active,
     });
@@ -186,6 +188,7 @@ function Activities() {
     setFormData({
       name: "",
       description: "",
+      instructor_name: "",
       monthly_price: "",
       active: true,
     });
@@ -215,6 +218,10 @@ function Activities() {
   }
 
   const visibleActivities = activities.filter((a) => a.active !== false);
+  const totalEnrolled = visibleActivities.reduce(
+    (sum, a) => sum + (a.enrolled_count ?? 0),
+    0,
+  );
 
   return (
     <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
@@ -225,6 +232,15 @@ function Activities() {
           <p className="mt-1 text-sm text-text-secondary">
             Gestión de actividades extra del gimnasio
           </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-elevated px-3 py-1 font-medium text-text-secondary">
+              {visibleActivities.length}{" "}
+              {visibleActivities.length === 1 ? "actividad activa" : "actividades activas"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-elevated px-3 py-1 font-medium text-text-secondary">
+              {totalEnrolled} socios inscriptos
+            </span>
+          </div>
         </div>
 
         <button

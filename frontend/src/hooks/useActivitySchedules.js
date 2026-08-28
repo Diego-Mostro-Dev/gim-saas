@@ -42,13 +42,6 @@ export function useActivitySchedules(activityId) {
   async function loadSchedules() {
     if (!activityId) return;
 
-    if (isCacheFresh(cacheKey, TTL)) {
-      setSchedules(getCached(cacheKey));
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);

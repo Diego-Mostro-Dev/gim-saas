@@ -24,13 +24,6 @@ export function useActivities() {
   const [error, setError] = useState(null);
 
   async function loadActivities() {
-    if (isCacheFresh(CACHE_KEY, TTL)) {
-      setActivities(getCached(CACHE_KEY));
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);

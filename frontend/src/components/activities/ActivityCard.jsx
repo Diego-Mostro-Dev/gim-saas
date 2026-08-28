@@ -1,5 +1,22 @@
-import { Pencil, Clock, Power, ToggleLeft } from "lucide-react";
+import { Pencil, Clock, Power, ToggleLeft, Users, CalendarDays, GraduationCap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+const AVATAR_COLORS = [
+  "bg-primary",
+  "bg-info",
+  "bg-success",
+  "bg-warning",
+  "bg-danger",
+  "bg-muted",
+];
+
+function getAvatarColor(name = "") {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
 
 function ActivityCard({
   activity,
@@ -7,23 +24,41 @@ function ActivityCard({
   onToggleActive,
 }) {
   const navigate = useNavigate();
+
+  const enrolledCount = activity.enrolled_count ?? 0;
+  const scheduleCount = activity.schedule_count ?? 0;
+  const hasPrice = Number(activity.monthly_price) > 0;
+  const priceLabel = hasPrice
+    ? `$${Number(activity.monthly_price).toLocaleString()}/mes`
+    : "Gratis";
+
   return (
     <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="truncate text-lg font-semibold text-text-primary">
-            {activity.name}
-          </h3>
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white ${getAvatarColor(activity.name)}`}
+            aria-hidden="true"
+          >
+            {activity.name?.charAt(0)?.toUpperCase() || "A"}
+          </div>
 
-          {activity.active ? (
-            <span className="shrink-0 rounded-md bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text dark:bg-success/15 dark:text-success">
-              Activo
-            </span>
-          ) : (
-            <span className="shrink-0 rounded-md bg-muted-bg px-2 py-0.5 text-xs font-medium text-muted-text">
-              Inactivo
-            </span>
-          )}
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-semibold text-text-primary">
+              {activity.name}
+            </h3>
+            <div className="mt-0.5">
+              {activity.active ? (
+                <span className="rounded-md bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text dark:bg-success/15 dark:text-success">
+                  Activo
+                </span>
+              ) : (
+                <span className="rounded-md bg-muted-bg px-2 py-0.5 text-xs font-medium text-muted-text">
+                  Inactivo
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -53,11 +88,34 @@ function ActivityCard({
         </p>
       )}
 
-      {Number(activity.monthly_price) > 0 && (
-        <p className="mt-2 text-sm font-medium text-primary">
-          ${Number(activity.monthly_price).toLocaleString()}/mes
+      {activity.instructor_name && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-text-secondary">
+          <GraduationCap size={15} className="text-primary" />
+          <span className="font-medium text-text-primary">{activity.instructor_name}</span>
         </p>
       )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className={`font-medium ${hasPrice ? "text-primary" : "text-success-text dark:text-success"}`}>
+          {priceLabel}
+        </span>
+
+        <span
+          className={`inline-flex items-center gap-1.5 ${
+            scheduleCount === 0 ? "text-warning-text dark:text-warning" : "text-text-secondary"
+          }`}
+        >
+          <CalendarDays size={15} />
+          {scheduleCount === 0
+            ? "Sin horarios"
+            : `${scheduleCount} ${scheduleCount === 1 ? "horario" : "horarios"}`}
+        </span>
+
+        <span className="inline-flex items-center gap-1.5 text-text-secondary">
+          <Users size={15} />
+          {enrolledCount} {enrolledCount === 1 ? "inscripto" : "inscriptos"}
+        </span>
+      </div>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button

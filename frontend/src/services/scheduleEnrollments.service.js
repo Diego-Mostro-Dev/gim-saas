@@ -8,7 +8,7 @@ export async function getScheduleEnrollmentCount(scheduleId) {
   const data = await apiFetch(
     `/api/activities/schedules/${scheduleId}/enrollments/?page=1&page_size=1`
   );
-  return data.count ?? 0;
+  return data.totalCount ?? 0;
 }
 
 export async function unenrollMember(scheduleId, memberId) {

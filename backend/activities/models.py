@@ -25,6 +25,12 @@ class Activity(models.Model):
     )
     name = models.CharField(max_length=100, verbose_name="Nombre")
     description = models.TextField(blank=True, verbose_name="Descripción")
+    instructor_name = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Profesor/a",
+        help_text="Nombre del profesor o profesora de la actividad.",
+    )
     monthly_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,

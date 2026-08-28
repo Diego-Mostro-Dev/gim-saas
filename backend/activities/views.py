@@ -1,4 +1,5 @@
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status, viewsets
@@ -32,6 +33,18 @@ class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):
 
     def get_queryset(self):
         qs = Activity.objects.filter(service__gym=self.get_gym())
+        qs = qs.annotate(
+            enrolled_count=Count(
+                "schedules__enrollments",
+                filter=Q(schedules__enrollments__active=True),
+                distinct=True,
+            ),
+            schedule_count=Count(
+                "schedules",
+                filter=Q(schedules__active=True),
+                distinct=True,
+            ),
+        )
         if self.action == "list":
             active = self.request.query_params.get("active")
             if active is not None:
@@ -131,6 +144,7 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
         return Enrollment.objects.filter(
             gym=gym,
             schedule=schedule,
+            active=True,
         ).select_related("member").order_by("-enrolled_at")
 
     def list(self, request, *args, **kwargs):

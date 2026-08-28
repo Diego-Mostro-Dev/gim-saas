@@ -19,6 +19,8 @@ class ActivitySerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    enrolled_count = serializers.SerializerMethodField()
+    schedule_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
@@ -27,13 +29,22 @@ class ActivitySerializer(serializers.ModelSerializer):
             "service",
             "name",
             "description",
+            "instructor_name",
             "monthly_price",
             "active",
+            "enrolled_count",
+            "schedule_count",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
         validators = []
+
+    def get_enrolled_count(self, obj):
+        return getattr(obj, "enrolled_count", 0)
+
+    def get_schedule_count(self, obj):
+        return getattr(obj, "schedule_count", 0)
 
     def create(self, validated_data):
         gym = validated_data.pop("gym")

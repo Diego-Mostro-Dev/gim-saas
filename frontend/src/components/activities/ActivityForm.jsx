@@ -55,6 +55,23 @@ function ActivityForm({
       </div>
 
       <div>
+        <label htmlFor="activity-instructor" className="mb-1 block text-sm font-medium text-text-primary">
+          Profesor/a
+        </label>
+
+        <input
+          id="activity-instructor"
+          type="text"
+          placeholder="Ej: Prof. Ana, Diego, Lic. María"
+          value={formData.instructor_name}
+          onChange={(e) =>
+            setFormData({ ...formData, instructor_name: e.target.value })
+          }
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring"
+        />
+      </div>
+
+      <div>
         <label htmlFor="activity-price" className="mb-1 block text-sm font-medium text-text-primary">
           Precio mensual
         </label>
