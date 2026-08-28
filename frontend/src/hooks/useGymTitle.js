@@ -3,7 +3,7 @@ import { useGym } from "./useGym";
 
 const FALLBACK_FAVICON = "/favicon.svg";
 
-function applyTitleAndBranding(name, icon) {
+function applyTitleAndBranding(name, faviconIcon, manifestIcon) {
 
   if (name) {
     document.title = name;
@@ -15,12 +15,14 @@ function applyTitleAndBranding(name, icon) {
     favicon.rel = "icon";
     document.head.appendChild(favicon);
   }
-  favicon.href = icon || FALLBACK_FAVICON;
+  favicon.type = "image/png";
+  favicon.sizes = "32x32";
+  favicon.href = faviconIcon || FALLBACK_FAVICON;
 
   const oldManifest = document.querySelector("link[rel='manifest']");
   if (!oldManifest) return;
 
-  if (icon) {
+  if (manifestIcon) {
     const manifest = {
       name: name || "Gimnasio",
       short_name: name || "Gimnasio",
@@ -32,8 +34,8 @@ function applyTitleAndBranding(name, icon) {
       orientation: "portrait-primary",
       lang: "es-AR",
       icons: [
-        { src: icon, sizes: "192x192", type: "image/png" },
-        { src: icon, sizes: "512x512", type: "image/png" },
+        { src: manifestIcon, sizes: "192x192", type: "image/png" },
+        { src: manifestIcon, sizes: "512x512", type: "image/png" },
       ],
     };
 
@@ -58,9 +60,14 @@ export function useGymTitle(gym) {
   const staffGym = useGym();
   const resolved = gym || staffGym.gym;
   const name = resolved?.name;
-  const icon = resolved?.app_icon_url || resolved?.logo_url || null;
+  const faviconIcon =
+    resolved?.app_icon_favicon_url ||
+    resolved?.app_icon_url ||
+    resolved?.logo_url ||
+    null;
+  const manifestIcon = resolved?.app_icon_url || resolved?.logo_url || null;
 
   useEffect(() => {
-    applyTitleAndBranding(name, icon);
-  }, [name, icon]);
+    applyTitleAndBranding(name, faviconIcon, manifestIcon);
+  }, [name, faviconIcon, manifestIcon]);
 }

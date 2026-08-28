@@ -31,6 +31,8 @@ function RoutineAssignment() {
 
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
+      if (member.entry_mode === "ACTIVITY_ONLY") return false;
+
       const nameMatch =
         !search ||
         `${member.first_name} ${member.last_name}`

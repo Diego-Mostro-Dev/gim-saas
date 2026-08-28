@@ -8,6 +8,7 @@ class GymSerializer(serializers.ModelSerializer):
     register_url = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
     app_icon_url = serializers.SerializerMethodField()
+    app_icon_favicon_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Gym
@@ -19,6 +20,7 @@ class GymSerializer(serializers.ModelSerializer):
             "logo_url",
             "app_icon",
             "app_icon_url",
+            "app_icon_favicon_url",
             "active",
             "whatsapp",
             "phone",
@@ -60,3 +62,9 @@ class GymSerializer(serializers.ModelSerializer):
             return None
 
         return obj.app_icon.url
+
+    def get_app_icon_favicon_url(self, obj):
+        if not obj.app_icon:
+            return None
+
+        return obj.app_icon.build_url(width=64, height=64, crop="fill", format="png")

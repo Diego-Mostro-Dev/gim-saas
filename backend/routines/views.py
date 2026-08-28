@@ -601,6 +601,13 @@ class PublicRoutineView(APIView):
                     if gym.app_icon
                     else None
                 ),
+                "app_icon_favicon_url": (
+                    gym.app_icon.build_url(
+                        width=64, height=64, crop="fill", format="png"
+                    )
+                    if gym.app_icon
+                    else None
+                ),
                 "whatsapp": gym.whatsapp,
                 "phone": gym.phone,
                 "email": gym.email,
