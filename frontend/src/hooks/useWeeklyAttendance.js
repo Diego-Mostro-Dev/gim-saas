@@ -5,8 +5,16 @@ import { getCached, isCacheFresh } from "../utils/cache";
 
 const TTL = 2 * 60 * 1000;
 
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function useWeeklyAttendance() {
-  const [date, setDate] = useState(() => sessionStorage.getItem("attendance_date") || "");
+  const [date, setDate] = useState(() => sessionStorage.getItem("attendance_date") || todayStr());
 
   function cacheKey(d) {
     return `weekly-attendance-${d || ""}`;
