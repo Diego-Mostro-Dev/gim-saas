@@ -342,6 +342,47 @@ def attendance_status(request):
             })
             existing_member_ids.add(swap.member_id)
 
+    # Include members who checked in today via the public QR but without a
+    # resolved recurring schedule (schedule=None). Show them under a synthetic
+    # "no schedule" row so their attendance is still visible. Only list them
+    # when viewing the current day's schedule, since these records carry no
+    # day/hour of their own.
+    DAY_BY_WEEKDAY = {
+        0: "monday",
+        1: "tuesday",
+        2: "wednesday",
+        3: "thursday",
+        4: "friday",
+        5: "saturday",
+        6: "sunday",
+    }
+    if day == DAY_BY_WEEKDAY.get(today.weekday()):
+        orphaned_attendances = Attendance.objects.filter(
+            gym=gym,
+            member__gym=gym,
+            date=today,
+            schedule__isnull=True,
+            swap_request__isnull=True,
+        ).select_related("member")
+
+        for att in orphaned_attendances:
+            if att.member_id in existing_member_ids:
+                continue
+            result.append({
+                "schedule_id": -att.id,
+                "member_id": att.member.id,
+                "member_name": (
+                    f"{att.member.first_name} "
+                    f"{att.member.last_name}"
+                ),
+                "attended": True,
+                "is_swap": False,
+                "origin_day": None,
+                "origin_hour": None,
+                "destination_day": None,
+                "destination_hour": None,
+            })
+
     return Response(result)
 
 

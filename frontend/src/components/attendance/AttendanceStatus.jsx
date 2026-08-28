@@ -154,6 +154,11 @@ function AttendanceStatus() {
                     {DAY_NAMES[member.origin_day]} {member.origin_hour} → {DAY_NAMES[member.destination_day]} {member.destination_hour}
                   </p>
                 )}
+                {!member.is_swap && member.schedule_id < 0 && (
+                  <p className="mt-0.5 truncate text-xs text-text-secondary">
+                    Asistió (sin horario asignado)
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-3">

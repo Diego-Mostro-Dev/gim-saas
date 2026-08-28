@@ -8,8 +8,22 @@ import { getCached, isCacheFresh } from "../utils/cache";
 
 const TTL = 60 * 1000;
 
+const DAY_KEY_BY_GETDAY = {
+  1: "monday",
+  2: "tuesday",
+  3: "wednesday",
+  4: "thursday",
+  5: "friday",
+  6: "saturday",
+  0: "monday",
+};
+
+function defaultDay() {
+  return DAY_KEY_BY_GETDAY[new Date().getDay()];
+}
+
 export function useAttendanceStatus() {
-  const [day, setDay] = useState(() => sessionStorage.getItem("attendance_day") || "tuesday");
+  const [day, setDay] = useState(() => sessionStorage.getItem("attendance_day") || defaultDay());
 
   const [hour, setHour] = useState(() => sessionStorage.getItem("attendance_hour") || "08:00");
 

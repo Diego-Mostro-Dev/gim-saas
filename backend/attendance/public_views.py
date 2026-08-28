@@ -8,7 +8,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from members.models import Member
-from .models import Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
+from .models import (
+    Attendance,
+    AttendanceSchedule,
+    ScheduleSlot,
+    ScheduleChangeRequest,
+    ScheduleSwapRequest,
+)
 from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from .serializers import (
     PublicScheduleChangeRequestSerializer,
@@ -116,10 +122,37 @@ class PublicCheckinView(APIView):
                 }
             )
 
+        # Resolve the member's active schedule for today so the attendance
+        # is linked to a recurring slot (otherwise it would be orphaned with
+        # schedule=None and never show up in the per-slot attendance views).
+        DAY_BY_WEEKDAY = {
+            0: "monday",
+            1: "tuesday",
+            2: "wednesday",
+            3: "thursday",
+            4: "friday",
+            5: "saturday",
+            6: "sunday",
+        }
+        today_day = DAY_BY_WEEKDAY[today.weekday()]
+        schedule = (
+            AttendanceSchedule.objects.filter(
+                gym=gym,
+                member=member,
+                active=True,
+                slot__day=today_day,
+            )
+            .select_related("slot")
+            .order_by("slot__hour")
+            .first()
+        )
+        slot = schedule.slot if schedule else None
+
         Attendance.objects.create(
             gym=gym,
             member=member,
-            schedule=None,
+            schedule=schedule,
+            slot=slot,
         )
 
         return Response(
