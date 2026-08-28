@@ -2,7 +2,9 @@ import { apiFetch } from "./api";
 import { setCached } from "../utils/cache";
 
 export async function getPlanChangeRequests() {
-  const data = await apiFetch("/api/plan-change-requests/");
+  const data = await apiFetch("/api/plan-change-requests/", {
+    suppressUnauthorized: true,
+  });
   setCached("plan-change-requests", data);
   return data;
 }

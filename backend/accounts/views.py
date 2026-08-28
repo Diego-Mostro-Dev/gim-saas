@@ -31,8 +31,11 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
-        Token.objects.filter(user=user).delete()
-        token = Token.objects.create(user=user)
+        # Keep each session's token independent so logging in on another
+        # tab/device does not revoke the tokens of existing sessions. The
+        # multi-tenant gym is resolved from request.user, not the token, so
+        # concurrent tokens for the same user stay scoped to their own gym.
+        token, _ = Token.objects.get_or_create(user=user)
 
         return Response(
             {

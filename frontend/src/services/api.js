@@ -40,7 +40,7 @@ function buildAuthHeaders(options = {}) {
   return headers;
 }
 
-async function throwIfNotOk(res) {
+async function throwIfNotOk(res, options = {}) {
   if (!res.ok) {
     let detail;
     let body;
@@ -50,7 +50,7 @@ async function throwIfNotOk(res) {
     } catch {
       // ignore parse errors
     }
-    if (res.status === 401) {
+    if (res.status === 401 && !options.suppressUnauthorized) {
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
     if (res.status === 403 && detail?.includes("Actividades no está habilitado")) {
@@ -68,7 +68,7 @@ async function throwIfNotOk(res) {
 }
 
 export async function apiFetch(endpoint, options = {}) {
-  const { skipAuth = false, ...fetchOptions } = options;
+  const { skipAuth = false, suppressUnauthorized = false, ...fetchOptions } = options;
   const headers = buildAuthHeaders({ ...fetchOptions, skipAuth });
 
   const res = await fetch(`${API_URL}${endpoint}`, {
@@ -76,7 +76,7 @@ export async function apiFetch(endpoint, options = {}) {
     headers,
   });
 
-  await throwIfNotOk(res);
+  await throwIfNotOk(res, { suppressUnauthorized });
 
   if (res.status === 204) {
     return null;

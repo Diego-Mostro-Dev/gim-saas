@@ -60,7 +60,9 @@ export async function deleteSlot(id) {
 }
 
 export async function getScheduleChangeRequests() {
-  return apiFetch("/api/attendance/schedule-change-requests/");
+  return apiFetch("/api/attendance/schedule-change-requests/", {
+    suppressUnauthorized: true,
+  });
 }
 
 export async function approveScheduleChangeRequest(id, data = {}) {
@@ -78,7 +80,9 @@ export async function rejectScheduleChangeRequest(id, data = {}) {
 }
 
 export async function getScheduleSwapRequests() {
-  return apiFetch("/api/attendance/schedule-swap-requests/");
+  return apiFetch("/api/attendance/schedule-swap-requests/", {
+    suppressUnauthorized: true,
+  });
 }
 
 export async function approveScheduleSwapRequest(id, data = {}) {
