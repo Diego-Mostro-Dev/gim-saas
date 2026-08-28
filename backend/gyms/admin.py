@@ -72,7 +72,6 @@ class GymAdmin(admin.ModelAdmin):
                     "allow_plan_changes", "allow_schedule_changes",
                     "schedule_change_cooldown_hours",
                     "max_schedule_changes_per_month",
-                    "schedule_change_notice_days",
                 )
             },
         ),

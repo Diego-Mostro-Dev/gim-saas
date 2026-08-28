@@ -48,6 +48,8 @@ class MemberViewSet(GymModelViewSet):
                 ).select_related("slot"),
             ),
             "subscription_set__plan",
+            "subscription_set__items",
+            "subscription_set__payments",
         )
 
     def create(self, request, *args, **kwargs):

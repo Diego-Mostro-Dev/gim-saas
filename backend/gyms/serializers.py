@@ -7,6 +7,7 @@ class GymSerializer(serializers.ModelSerializer):
     onboarding_url = serializers.SerializerMethodField()
     register_url = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
+    app_icon_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Gym
@@ -16,6 +17,8 @@ class GymSerializer(serializers.ModelSerializer):
             "slug",
             "logo",
             "logo_url",
+            "app_icon",
+            "app_icon_url",
             "active",
             "whatsapp",
             "phone",
@@ -30,7 +33,6 @@ class GymSerializer(serializers.ModelSerializer):
             "allow_schedule_changes",
             "schedule_change_cooldown_hours",
             "max_schedule_changes_per_month",
-            "schedule_change_notice_days",
             "features",
             "onboarding_code",
             "onboarding_url",
@@ -52,3 +54,9 @@ class GymSerializer(serializers.ModelSerializer):
             return None
 
         return obj.logo.url
+
+    def get_app_icon_url(self, obj):
+        if not obj.app_icon:
+            return None
+
+        return obj.app_icon.url

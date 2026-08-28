@@ -150,17 +150,16 @@ class RegistrationService:
                 )
 
             if has_activities and not has_gym:
-                if gym.allow_activity_without_membership:
-                    base_plan = ensure_base_plan_for_gym(gym)
-                    today = date.today()
-                    subscription = SubscriptionDomain.open_subscription(
-                        member=member,
-                        plan=base_plan,
-                        start_date=today,
-                        end_date=get_last_day_of_month(today),
-                        auto_renew=True,
-                        origin="onboarding",
-                    )
+                base_plan = ensure_base_plan_for_gym(gym)
+                today = date.today()
+                subscription = SubscriptionDomain.open_subscription(
+                    member=member,
+                    plan=base_plan,
+                    start_date=today,
+                    end_date=get_last_day_of_month(today),
+                    auto_renew=True,
+                    origin="onboarding",
+                )
 
             if activity_entries:
                 for entry in activity_entries:

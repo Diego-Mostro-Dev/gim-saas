@@ -596,6 +596,11 @@ class PublicRoutineView(APIView):
                     if gym.logo
                     else None
                 ),
+                "app_icon_url": (
+                    gym.app_icon.url
+                    if gym.app_icon
+                    else None
+                ),
                 "whatsapp": gym.whatsapp,
                 "phone": gym.phone,
                 "email": gym.email,

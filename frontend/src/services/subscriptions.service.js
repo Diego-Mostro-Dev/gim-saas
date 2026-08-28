@@ -7,6 +7,10 @@ export async function getSubscriptions() {
   return data;
 }
 
+export async function getOutstanding() {
+  return fetchAllPages("/api/subscriptions/outstanding/");
+}
+
 export async function getMemberOutstanding(memberId) {
   return apiFetch(`/api/subscriptions/member/${memberId}/outstanding/`);
 }

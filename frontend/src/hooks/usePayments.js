@@ -40,11 +40,8 @@ export function usePayments() {
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   async function loadData() {
+    await Promise.resolve();
     if (secondaryCacheFresh()) {
       setMembers(getCached("members") || []);
       setSubscriptions(getCached("subscriptions") || []);
@@ -94,6 +91,57 @@ export function usePayments() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    async function runLoader() {
+      await loadData();
+    }
+    runLoader();
+
+    async function check() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      try {
+        const [paymentsResult, membersResult, subscriptionsResult] =
+          await Promise.allSettled([
+            getPayments(),
+            getMembers(),
+            getSubscriptions(),
+          ]);
+
+        if (paymentsResult.status === "fulfilled") {
+          setPayments(paymentsResult.value);
+        }
+
+        if (membersResult.status === "fulfilled") {
+          setMembers(membersResult.value);
+        }
+
+        if (subscriptionsResult.status === "fulfilled") {
+          setSubscriptions(subscriptionsResult.value);
+        }
+      } catch {
+        // silencioso: el próximo ciclo reintentará
+      }
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        check();
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    const interval = setInterval(check, 1 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   async function refreshSubscriptions() {
     const subscriptionsData =

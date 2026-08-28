@@ -5,8 +5,10 @@ import BottomNav from "../components/dashboard/BottomNav";
 import { useScheduleChangeWatcher } from "../hooks/useScheduleChangeWatcher";
 import { useScheduleSwapWatcher } from "../hooks/useScheduleSwapWatcher";
 import { usePlanChangeWatcher } from "../hooks/usePlanChangeWatcher";
+import { useGymTitle } from "../hooks/useGymTitle";
 
 export default function AppLayout() {
+  useGymTitle();
   useScheduleChangeWatcher();
   useScheduleSwapWatcher();
   usePlanChangeWatcher();

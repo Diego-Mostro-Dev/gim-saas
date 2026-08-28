@@ -21,7 +21,6 @@ function Settings() {
 
   const [formData, setFormData] = useState({
     name: "",
-    slug: "",
     whatsapp: "",
     phone: "",
     email: "",
@@ -29,9 +28,8 @@ function Settings() {
     payment_due_day: "",
     access_block_day: "",
     allow_plan_changes: false,
-    allow_activity_without_membership: false,
     allow_schedule_changes: false,
-    schedule_change_cooldown_hours: "",
+    schedule_change_cooldown_days: "",
     max_schedule_changes_per_month: "",
     schedule_change_notice_days: "",
   });
@@ -42,7 +40,7 @@ function Settings() {
     const errs = {};
     const due = Number(formData.payment_due_day);
     const block = Number(formData.access_block_day);
-    const cooldown = Number(formData.schedule_change_cooldown_hours);
+    const cooldown = Number(formData.schedule_change_cooldown_days);
     const maxChanges = Number(formData.max_schedule_changes_per_month);
     const noticeDays = Number(formData.schedule_change_notice_days);
 
@@ -59,8 +57,8 @@ function Settings() {
     ) {
       errs.access_block_day = "Debe ser mayor al día de vencimiento";
     }
-    if (formData.schedule_change_cooldown_hours !== "" && (isNaN(cooldown) || cooldown < 0)) {
-      errs.schedule_change_cooldown_hours = "No puede ser negativo";
+    if (formData.schedule_change_cooldown_days !== "" && (isNaN(cooldown) || cooldown < 0)) {
+      errs.schedule_change_cooldown_days = "No puede ser negativo";
     }
     if (formData.max_schedule_changes_per_month !== "" && (isNaN(maxChanges) || maxChanges < 0)) {
       errs.max_schedule_changes_per_month = "No puede ser negativo";
@@ -73,6 +71,7 @@ function Settings() {
   }
 
   const [logoFile, setLogoFile] = useState(null);
+  const [iconFile, setIconFile] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -185,7 +184,6 @@ function Settings() {
 
     setFormData({
       name: gym.name || "",
-      slug: gym.slug || "",
       whatsapp: gym.whatsapp || "",
       phone: gym.phone || "",
       email: gym.email || "",
@@ -194,11 +192,16 @@ function Settings() {
       payment_due_day: gym.payment_due_day ?? "",
       access_block_day: gym.access_block_day ?? "",
       allow_plan_changes: gym.allow_plan_changes ?? false,
-      allow_activity_without_membership: gym.allow_activity_without_membership ?? false,
       allow_schedule_changes: gym.allow_schedule_changes ?? false,
-      schedule_change_cooldown_hours: gym.schedule_change_cooldown_hours ?? "",
+      schedule_change_cooldown_days:
+        gym.schedule_change_cooldown_hours == null
+          ? ""
+          : Number(gym.schedule_change_cooldown_hours) / 24,
       max_schedule_changes_per_month: gym.max_schedule_changes_per_month ?? "",
-      schedule_change_notice_days: gym.schedule_change_notice_days ?? "",
+      schedule_change_notice_days:
+        gym.schedule_change_notice_hours == null
+          ? ""
+          : Number(gym.schedule_change_notice_hours) / 24,
     });
   }, [gym]);
 
@@ -213,7 +216,6 @@ function Settings() {
       const data = new FormData();
 
       data.append("name", formData.name);
-      data.append("slug", formData.slug);
       data.append("whatsapp", formData.whatsapp);
       data.append("phone", formData.phone);
       data.append("email", formData.email);
@@ -231,21 +233,28 @@ function Settings() {
       if (formData.access_block_day !== "") {
         data.append("access_block_day", formData.access_block_day);
       }
-      data.append("allow_plan_changes", formData.allow_plan_changes);
-      data.append("allow_activity_without_membership", formData.allow_activity_without_membership);
-      data.append("allow_schedule_changes", formData.allow_schedule_changes);
-      if (formData.schedule_change_cooldown_hours !== "") {
-        data.append("schedule_change_cooldown_hours", formData.schedule_change_cooldown_hours);
+      if (formData.schedule_change_cooldown_days !== "") {
+        data.append(
+          "schedule_change_cooldown_hours",
+          Number(formData.schedule_change_cooldown_days) * 24,
+        );
       }
       if (formData.max_schedule_changes_per_month !== "") {
         data.append("max_schedule_changes_per_month", formData.max_schedule_changes_per_month);
       }
       if (formData.schedule_change_notice_days !== "") {
-        data.append("schedule_change_notice_days", formData.schedule_change_notice_days);
+        data.append(
+          "schedule_change_notice_hours",
+          Number(formData.schedule_change_notice_days) * 24,
+        );
       }
+      data.append("allow_schedule_changes", formData.allow_schedule_changes);
 
       if (logoFile) {
         data.append("logo", logoFile);
+      }
+      if (iconFile) {
+        data.append("app_icon", iconFile);
       }
 
       await updateGym(data);
@@ -314,6 +323,45 @@ function Settings() {
           </label>
         </div>
 
+        <div className="mb-8 flex flex-col items-center rounded-xl border border-border/10 p-4">
+          <p className="mb-3 text-sm font-medium text-text-primary">
+            Icono de la aplicación
+          </p>
+          <p className="mb-3 text-center text-xs text-text-secondary">
+            Aparece en la pestaña del navegador y como icono de instalación.
+            Se recomienda una imagen cuadrada.
+          </p>
+          <div className="mb-4">
+            {iconFile ? (
+              <img
+                src={URL.createObjectURL(iconFile)}
+                alt="Preview icono"
+                className="h-20 w-20 rounded-2xl border border-border/10 object-cover"
+              />
+            ) : gym.app_icon_url ? (
+              <img
+                src={gym.app_icon_url}
+                alt={gym.name}
+                className="h-20 w-20 rounded-2xl border border-border/10 object-cover"
+              />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-border/10 bg-primary text-2xl font-bold text-white">
+                {gym?.name?.charAt(0)?.toUpperCase() || "G"}
+              </div>
+            )}
+          </div>
+
+          <label className="cursor-pointer rounded-xl border border-border/10 px-4 py-2 text-sm text-text-primary transition hover:bg-surface-input">
+            Cambiar icono
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setIconFile(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+          </label>
+        </div>
+
         <div className="mb-4">
           <label className="mb-2 block text-sm text-text-primary">Nombre</label>
 
@@ -324,23 +372,6 @@ function Settings() {
               setFormData({
                 ...formData,
                 name: e.target.value,
-              })
-            }
-            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
-            required
-          />
-        </div>
-
-        <div className="mb-6">
-          <label className="mb-2 block text-sm text-text-primary">Slug</label>
-
-          <input
-            type="text"
-            value={formData.slug}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                slug: e.target.value,
               })
             }
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
@@ -487,23 +518,6 @@ function Settings() {
         </div>
 
         <div className="mb-4 flex items-center justify-between">
-          <label className="text-sm text-text-primary">Permitir actividades sin membresía</label>
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, allow_activity_without_membership: !formData.allow_activity_without_membership })}
-            className={`relative h-6 w-11 rounded-full transition ${
-              formData.allow_activity_without_membership ? "bg-primary" : "bg-border"
-            }`}
-          >
-            <span
-              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                formData.allow_activity_without_membership ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="mb-4 flex items-center justify-between">
           <label className="text-sm text-text-primary">Permitir cambios permanentes de horario</label>
           <button
             type="button"
@@ -522,17 +536,17 @@ function Settings() {
 
         <div className="mb-4">
           <label className="mb-2 block text-sm text-text-primary">
-            Cooldown entre cambios permanentes (horas)
+            Cooldown entre cambios de horario (días)
           </label>
           <input
             type="number"
             min="0"
-            value={formData.schedule_change_cooldown_hours}
-            onChange={(e) => setFormData({ ...formData, schedule_change_cooldown_hours: e.target.value })}
+            value={formData.schedule_change_cooldown_days}
+            onChange={(e) => setFormData({ ...formData, schedule_change_cooldown_days: e.target.value })}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
-          {errors.schedule_change_cooldown_hours && (
-            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_cooldown_hours}</p>
+          {errors.schedule_change_cooldown_days && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_cooldown_days}</p>
           )}
         </div>
 
@@ -554,7 +568,7 @@ function Settings() {
 
         <div className="mb-6">
           <label className="mb-2 block text-sm text-text-primary">
-            Anticipación requerida para cambios permanentes (días)
+            Anticipación requerida para cambios de horario (días)
           </label>
           <input
             type="number"

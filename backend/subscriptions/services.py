@@ -29,7 +29,18 @@ def ensure_subscription_item(subscription):
 
 
 def _copy_activity_items(from_subscription, to_subscription):
-    """Copy active activity items from one subscription to another."""
+    """Copy active activity items from one subscription to another.
+
+    When the gym's activities add-on is disabled, activity items are not
+    copied so the activity is not billed. The plan item (gym membership or
+    base plan) is unaffected. This freezes activity-only members without
+    cost; re-enabling the add-on restores the billing in later renewals.
+    """
+    from gyms.features import activities_enabled
+
+    if not activities_enabled(to_subscription.gym):
+        return
+
     previous_items = SubscriptionItem.objects.filter(
         subscription=from_subscription,
         item_type="activity",

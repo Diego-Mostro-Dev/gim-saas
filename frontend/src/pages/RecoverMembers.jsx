@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Search, User } from "lucide-react";
@@ -7,10 +7,13 @@ import { useMembers } from "../hooks/useMembers";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
 import {
   getMemberOutstanding,
+  getOutstanding,
   reopenSubscription,
 } from "../services/subscriptions.service";
-import { createPayment } from "../services/payments.service";
+import { createPayment, getPayments } from "../services/payments.service";
 import { formatCurrency } from "../utils/currency.utils";
+import { findRecentCashPayment } from "../utils/paymentAlerts";
+import ConfirmModal from "../components/ui/ConfirmModal";
 
 function formatPeriod(dateStr) {
   const date = new Date(dateStr);
@@ -25,6 +28,7 @@ function RecoverMembers() {
   const { members, loading, error } = useMembers();
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState("all"); // "all" | "debt" | "recoverable"
 
   const [selectedMember, setSelectedMember] = useState(null);
 
@@ -36,11 +40,60 @@ function RecoverMembers() {
   const [payingSubscriptionId, setPayingSubscriptionId] = useState(null);
   const [reopening, setReopening] = useState(false);
 
+  const [warningPayment, setWarningPayment] = useState(null);
+  const pendingPaymentRef = useRef(null);
+
+  const [debtorMemberIds, setDebtorMemberIds] = useState(new Set());
+
   const requestIdRef = useRef(0);
+
+  async function refreshDebtors() {
+    try {
+      const outstanding = await getOutstanding();
+      const ids = new Set(
+        outstanding.map((entry) => Number(entry.member_id)),
+      );
+      setDebtorMemberIds(ids);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const outstanding = await getOutstanding();
+        const ids = new Set(
+          outstanding.map((entry) => Number(entry.member_id)),
+        );
+        if (!cancelled) setDebtorMemberIds(ids);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { filteredMembers } = useFilteredMembers({
     members,
     searchTerm,
+  });
+
+  const debtCount = members.filter((m) =>
+    debtorMemberIds.has(Number(m.id)),
+  ).length;
+  const recoverableCount = members.filter(
+    (m) => Boolean(m.is_recoverable),
+  ).length;
+
+  const visibleMembers = filteredMembers.filter((member) => {
+    if (filter === "debt") return debtorMemberIds.has(Number(member.id));
+    if (filter === "recoverable") return Boolean(member.is_recoverable);
+    return true;
   });
 
   async function fetchDebt(memberId) {
@@ -78,23 +131,57 @@ function RecoverMembers() {
     setDebtError(null);
     setPayingSubscriptionId(subscription.id);
 
+    const doPay = async () => {
+      try {
+        await createPayment({
+          subscription: subscription.id,
+          amount: paymentAmounts[subscription.id],
+        });
+
+        setPaymentAmounts((prev) => ({
+          ...prev,
+          [subscription.id]: "",
+        }));
+
+        await fetchDebt(selectedMember.id);
+        await refreshDebtors();
+      } catch (err) {
+        setDebtError(err.message || "No se pudo registrar el pago");
+      } finally {
+        setPayingSubscriptionId(null);
+      }
+    };
+
     try {
-      await createPayment({
+      const payments = await getPayments();
+      const existing = findRecentCashPayment(payments, {
         subscription: subscription.id,
-        amount: paymentAmounts[subscription.id],
       });
 
-      setPaymentAmounts((prev) => ({
-        ...prev,
-        [subscription.id]: "",
-      }));
+      if (existing) {
+        setWarningPayment(existing);
+        pendingPaymentRef.current = doPay;
+        return;
+      }
 
-      await fetchDebt(selectedMember.id);
+      await doPay();
     } catch (err) {
       setDebtError(err.message || "No se pudo registrar el pago");
-    } finally {
       setPayingSubscriptionId(null);
     }
+  }
+
+  function confirmDuplicatePayment() {
+    const pay = pendingPaymentRef.current;
+    pendingPaymentRef.current = null;
+    setWarningPayment(null);
+    if (pay) pay();
+  }
+
+  function dismissDuplicatePayment() {
+    pendingPaymentRef.current = null;
+    setWarningPayment(null);
+    setPayingSubscriptionId(null);
   }
 
   async function handleRecoverMember() {
@@ -105,6 +192,7 @@ function RecoverMembers() {
       await reopenSubscription(selectedMember.id);
       toast.success("Socio recuperado correctamente");
       await fetchDebt(selectedMember.id);
+      await refreshDebtors();
     } catch (err) {
       setDebtError(err.message || "No se pudo recuperar el socio");
     } finally {
@@ -155,15 +243,42 @@ function RecoverMembers() {
             />
           </div>
 
+          {/* FILTER */}
+          <div className="mb-4 flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "Todos" },
+              { key: "debt", label: `Con deuda (${debtCount})` },
+              {
+                key: "recoverable",
+                label: `Recuperables (${recoverableCount})`,
+              },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  filter === key
+                    ? "border-blue-500 bg-blue-500/10 text-blue-600"
+                    : "border-border bg-surface-elevated text-text-secondary hover:bg-surface-input"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
       {/* MEMBER LIST */}
       <div className="mb-6 space-y-3">
-        {filteredMembers.length === 0 ? (
+        {visibleMembers.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
             No se encontraron socios
           </div>
         ) : (
-          filteredMembers.map((member) => {
+          visibleMembers.map((member) => {
             const isSelected = selectedMember?.id === member.id;
+            const hasDebt = debtorMemberIds.has(Number(member.id));
+            const isRecoverable = Boolean(member.is_recoverable);
 
             return (
               <button
@@ -180,7 +295,7 @@ function RecoverMembers() {
                   <User size={18} />
                 </div>
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-text-primary">
                     {member.first_name} {member.last_name}
                   </p>
@@ -188,6 +303,20 @@ function RecoverMembers() {
                   <p className="truncate text-xs text-text-secondary">
                     {member.phone}
                   </p>
+                </div>
+
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {hasDebt && (
+                    <span className="rounded-full bg-danger/15 px-2 py-0.5 text-xs font-semibold text-danger">
+                      Con deuda
+                    </span>
+                  )}
+
+                  {isRecoverable && (
+                    <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-semibold text-blue-600">
+                      Recuperable
+                    </span>
+                  )}
                 </div>
               </button>
             );
@@ -345,6 +474,22 @@ function RecoverMembers() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(warningPayment)}
+        title="Pago reciente detectado"
+        message={
+          warningPayment
+            ? `Ya se registró un pago en efectivo de ${formatCurrency(
+                warningPayment.amount,
+              )} para esta suscripción. ¿Confirmás que querés registrar otro pago en efectivo?`
+            : ""
+        }
+        confirmText="Sí, registrar igual"
+        cancelText="Revisar"
+        onClose={dismissDuplicatePayment}
+        onConfirm={confirmDuplicatePayment}
+      />
     </div>
   );
 }

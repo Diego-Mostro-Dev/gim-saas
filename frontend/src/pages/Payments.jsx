@@ -14,6 +14,8 @@ import ConfirmModal from "../components/ui/ConfirmModal";
 import { usePayments } from "../hooks/usePayments";
 import { usePaymentStats } from "../hooks/usePaymentStats";
 import { usePaymentForm } from "../hooks/usePaymentForm";
+import { usePaymentDuplicateWarning } from "../hooks/usePaymentDuplicateWarning";
+import { formatCurrency } from "../utils/currency.utils";
 
 function Payments() {
   const location = useLocation();
@@ -40,6 +42,13 @@ function Payments() {
     closeForm,
     resetForm,
   } = usePaymentForm();
+
+  const {
+    warningPayment,
+    checkBeforeSubmit,
+    confirm: confirmDuplicate,
+    dismiss: dismissDuplicate,
+  } = usePaymentDuplicateWarning(payments);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -82,25 +91,34 @@ function Payments() {
   async function handleSubmit(e) {
     e.preventDefault();
 
-    try {
-      if (editingPayment) {
-        await handleUpdatePayment(editingPayment.id, formData);
+    const doSubmit = async () => {
+      try {
+        if (editingPayment) {
+          await handleUpdatePayment(editingPayment.id, formData);
 
-        toast.success("Pago actualizado");
-      } else {
-        await handleCreatePayment(formData);
+          toast.success("Pago actualizado");
+        } else {
+          await handleCreatePayment(formData);
 
-        toast.success("Pago creado");
+          toast.success("Pago creado");
+        }
+
+        resetForm();
+
+        closeForm();
+      } catch (error) {
+        console.error(error);
+
+        toast.error(error.message || "Ocurrió un error");
       }
+    };
 
-      resetForm();
-
-      closeForm();
-    } catch (error) {
-      console.error(error);
-
-      toast.error(error.message || "Ocurrió un error");
-    }
+    checkBeforeSubmit({
+      paymentMethod: formData.payment_method,
+      subscription: formData.subscription,
+      excludeId: editingPayment ? editingPayment.id : null,
+      submitFn: doSubmit,
+    });
   }
 
   function handleOpenDeleteModal(id) {
@@ -222,6 +240,22 @@ function Payments() {
 
           setPaymentToDelete(null);
         }}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(warningPayment)}
+        title="Pago reciente detectado"
+        message={
+          warningPayment
+            ? `Ya se registró un pago en efectivo de ${formatCurrency(
+                warningPayment.amount,
+              )} para esta suscripción. ¿Confirmás que querés registrar otro pago en efectivo?`
+            : ""
+        }
+        confirmText="Sí, registrar igual"
+        cancelText="Revisar"
+        onClose={dismissDuplicate}
+        onConfirm={confirmDuplicate}
       />
     </div>
   );

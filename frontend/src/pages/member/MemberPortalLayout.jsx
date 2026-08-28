@@ -4,6 +4,7 @@ import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
+import { useGymTitle } from "../../hooks/useGymTitle";
 import toast from "react-hot-toast";
 
 import {
@@ -307,6 +308,7 @@ function MemberPortalLayoutContent({
   refreshRoutine,
 }) {
   const { member, gym } = routine;
+  useGymTitle(routine.gym);
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
   const activitiesEnabled = useFeature("activities");
   const { features } = useContext(FeatureContext);

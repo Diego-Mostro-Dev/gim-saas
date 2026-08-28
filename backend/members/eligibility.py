@@ -64,12 +64,10 @@ class MemberEligibility:
         """Return True if member has a currently-active subscription for *service*.
 
         Stricter than can_operate: the subscription's date range must
-        include today.  For Base Plan subscriptions, the gym must also
-        allow activity-only access.
+        include today.
 
         Currently used by EnrollmentService to gate activity enrollment.
         """
-        from plans.services import get_base_plan_for_gym
         from subscriptions.models import Subscription
 
         now = timezone.localdate()
@@ -81,10 +79,6 @@ class MemberEligibility:
 
         if sub is None:
             return False
-
-        base_plan = get_base_plan_for_gym(member.gym)
-        if base_plan and sub.plan_id == base_plan.pk:
-            return member.gym.allow_activity_without_membership
 
         return True
 

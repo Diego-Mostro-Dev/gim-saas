@@ -14,6 +14,12 @@ class Gym(models.Model):
         null=True,
     )
 
+    app_icon = CloudinaryField(
+        "app_icon",
+        blank=True,
+        null=True,
+    )
+
     onboarding_code = models.UUIDField(
         default=uuid.uuid4,
         unique=True,
@@ -58,16 +64,20 @@ class Gym(models.Model):
     payment_due_day = models.PositiveIntegerField(default=10, verbose_name="Día de vencimiento")
     access_block_day = models.PositiveIntegerField(default=16, verbose_name="Día de bloqueo")
     allow_activity_without_membership = models.BooleanField(
-        default=False,
-        verbose_name="Permitir actividades sin membresía",
-        help_text="Si está activo, los socios pueden inscribirse en actividades sin comprar una membresía de gimnasio.",
+        default=True,
+        verbose_name="Renovar socios solo-actividad",
+        help_text=(
+            "Control de plataforma: cuando está activo, los socios con plan base "
+            "(solo actividades, sin membresía de gimnasio) se renuevan "
+            "automáticamente en cada ciclo. Se oculta al staff del gimnasio y se "
+            "gestiona desde el admin central."
+        ),
     )
 
     allow_plan_changes = models.BooleanField(default=True, verbose_name="Permitir cambios de plan")
     allow_schedule_changes = models.BooleanField(default=True, verbose_name="Permitir cambios de horario")
     schedule_change_cooldown_hours = models.PositiveIntegerField(default=168, verbose_name="Horas de espera entre cambios")
     max_schedule_changes_per_month = models.PositiveIntegerField(default=4, verbose_name="Máximo de cambios por mes")
-    schedule_change_notice_days = models.PositiveIntegerField(default=0, verbose_name="Días de aviso para cambios")
 
     features = models.JSONField(default=dict, blank=True, verbose_name="Características")
 

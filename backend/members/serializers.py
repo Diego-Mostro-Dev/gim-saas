@@ -22,6 +22,7 @@ class MemberSerializer(serializers.ModelSerializer):
     plan_name = serializers.SerializerMethodField()
     subscription_days_remaining = serializers.SerializerMethodField()
     member_created_at = serializers.SerializerMethodField()
+    is_recoverable = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -43,6 +44,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "plan_name",
             "subscription_days_remaining",
             "member_created_at",
+            "is_recoverable",
         ]
 
         read_only_fields = ["gym", "access_token", "active"]
@@ -72,6 +74,76 @@ class MemberSerializer(serializers.ModelSerializer):
 
     def get_member_created_at(self, obj):
         return obj.created_at.isoformat() if obj.created_at else None
+
+    def get_is_recoverable(self, obj):
+        """Replicate recover_member's preconditions in read-only mode.
+
+        A member is recoverable only when recover_member() would actually
+        proceed today. This mirrors subscriptions.services.recover_member
+        WITHOUT mutating data (it never opens subscriptions nor sets
+        active=True) and WITHOUT additional queries: it relies on the
+        prefetched relations (subscription_set__plan/items/payments) so the
+        whole member list is serialized in constant queries, not N+1.
+
+        Rules (same as recover_member):
+        - Only an inactive member can be a candidate.
+        - Any subscription with a remaining balance means debt -> not recoverable.
+        - Must have at least one previous subscription.
+        - No future subscription.
+        - A base plan is only rejected when there is no current subscription.
+        """
+        if obj.active:
+            return False
+
+        today = date.today()
+
+        has_debt = False
+        has_current = False
+        has_future = False
+        latest_sub = None
+
+        for sub in obj.subscription_set.all():
+            if latest_sub is None or (
+                sub.start_date,
+                sub.created_at,
+            ) > (latest_sub.start_date, latest_sub.created_at):
+                latest_sub = sub
+
+            if sub.start_date > today:
+                has_future = True
+            elif sub.start_date <= today <= sub.end_date:
+                has_current = True
+
+            if has_debt:
+                continue
+
+            items = list(sub.items.all())
+            total = sum(
+                item.price_snapshot
+                for item in items
+                if item.status == "active"
+            )
+            has_plan_item = any(
+                item.item_type == "plan" for item in items
+            )
+            if not has_plan_item and sub.plan is not None:
+                total += sub.plan.price
+
+            paid = sum(p.amount for p in sub.payments.all())
+
+            if total - paid > 0:
+                has_debt = True
+
+        if has_debt:
+            return False
+        if latest_sub is None:
+            return False
+        if has_future:
+            return False
+        if not has_current and latest_sub.plan.is_base:
+            return False
+
+        return True
 
     def validate_plan_id(self, value):
         if value is None:
