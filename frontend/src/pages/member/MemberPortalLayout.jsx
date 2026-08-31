@@ -492,7 +492,7 @@ function MemberPortalLayoutContent({
                   }`}
                 >
                   <Icon size={18} />
-                  <span className="max-[420px]:hidden">{tab.label}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               );
             })}

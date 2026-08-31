@@ -114,17 +114,17 @@ function Staff() {
 
       {owner && (
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-surface-elevated p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
               <Shield size={20} />
             </div>
-            <div>
-              <p className="font-medium text-text-primary">{owner.username}</p>
+            <div className="min-w-0">
+              <p className="truncate font-medium text-text-primary">{owner.username}</p>
               <p className="text-xs text-info-text dark:text-info">Dueño</p>
             </div>
           </div>
           {owner.email && (
-            <span className="text-xs text-text-secondary">{owner.email}</span>
+            <span className="ml-2 shrink-0 truncate text-xs text-text-secondary">{owner.email}</span>
           )}
         </div>
       )}
@@ -221,18 +221,18 @@ function Staff() {
               key={user.id}
               className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3"
             >
-              <div>
-                <p className="text-sm font-medium text-text-primary">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-primary">
                   {user.username}
                 </p>
                 {user.email && (
-                  <p className="text-xs text-text-secondary">{user.email}</p>
+                  <p className="truncate text-xs text-text-secondary">{user.email}</p>
                 )}
               </div>
 
               <button
                 onClick={() => handleDelete(user)}
-                className="rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
+                className="ml-2 shrink-0 rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
               >
                 <Trash2 size={16} />
               </button>

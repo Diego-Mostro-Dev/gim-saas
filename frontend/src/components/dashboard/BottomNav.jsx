@@ -26,7 +26,7 @@ function BottomNav() {
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
   const { pendingCount: planPendingCount } = usePlanChangeData();
 
-  const baseClass = "flex flex-col items-center px-3 py-3 transition";
+  const baseClass = "flex shrink-0 snap-center flex-col items-center px-3 py-3 transition";
 
   const activeClass = "rounded-xl bg-info-bg text-info-text dark:bg-info/15 dark:text-info";
 
@@ -37,7 +37,7 @@ function BottomNav() {
   return (
     <div className="fixed bottom-0 z-50 w-full">
       <div className="relative">
-        <nav className="flex h-20 w-full items-center justify-around gap-1 overflow-x-auto border-t border-border/10 bg-surface-elevated px-2">
+        <nav className="flex h-20 w-full snap-x snap-mandatory items-center justify-start gap-1 overflow-x-auto overflow-y-hidden border-t border-border/10 bg-surface-elevated px-2 scroll-smooth sm:justify-around">
       <NavLink
         to="/dashboard"
         className={({ isActive }) =>
@@ -100,8 +100,7 @@ function BottomNav() {
           )}
         </span>
 
-        <span className={`text-xs max-[390px]:hidden ${cambiosBlueClass}`}>Cambios permanentes</span>
-          <span className={`hidden max-[390px]:inline text-[10px] ${cambiosBlueClass}`}>Cambios</span>
+        <span className={`text-xs ${cambiosBlueClass}`}>Cambios</span>
       </NavLink>
 
       <NavLink
@@ -153,7 +152,7 @@ function BottomNav() {
         </span>
 
         <span className={`text-xs ${planPendingCount > 0 ? "text-info-text dark:text-info" : ""}`}>
-          Cambios de plan
+          Plan
         </span>
       </NavLink>
 

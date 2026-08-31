@@ -16,7 +16,7 @@ function RecentActivity({ activity }) {
               <div className="mt-2 h-2 w-2 rounded-full bg-blue-400" />
 
               <div>
-                <p className="text-sm text-text-primary">{item.description}</p>
+                <p className="text-sm text-text-primary line-clamp-2">{item.description}</p>
 
                 <p className="mt-1 text-xs text-text-secondary">{formatHumanDate(item.created_at)}</p>
               </div>

@@ -43,7 +43,7 @@ function WeeklyChart({ data = [] }) {
         <p className="text-sm text-text-secondary">{weekLabel}</p>
       </div>
 
-      <div className="flex h-56 items-end gap-3">
+      <div className="flex h-56 items-end gap-1 sm:gap-3">
         {days.map((item) => {
           const height = item.count === 0 ? 10 : (item.count / maxValue) * 180;
 
@@ -52,7 +52,7 @@ function WeeklyChart({ data = [] }) {
               key={item.day}
               className="flex flex-1 flex-col items-center justify-end"
             >
-              <span className="mb-2 text-sm text-text-primary">{item.count}</span>
+              <span className="mb-2 text-xs text-text-primary sm:text-sm">{item.count}</span>
 
               <div
                 className="w-full rounded-t-lg bg-blue-500"

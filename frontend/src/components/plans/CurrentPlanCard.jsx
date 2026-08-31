@@ -62,12 +62,12 @@ function CurrentPlanCard({ subscription }) {
             Actividades
           </p>
           {activityItems.map((item) => (
-            <div key={item.id} className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-sm text-text-primary">
-                <span className="text-success-text dark:text-success">✓</span>
-                {item.name}
+            <div key={item.id} className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-primary">
+                <span className="shrink-0 text-success-text dark:text-success">✓</span>
+                <span className="truncate">{item.name}</span>
               </span>
-              <span className="text-sm text-text-secondary">
+              <span className="shrink-0 text-sm text-text-secondary">
                 ${Number(item.price).toLocaleString("es-AR")}
               </span>
             </div>

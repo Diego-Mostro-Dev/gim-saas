@@ -21,7 +21,7 @@ function MemberCard({
   return (
     <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-input font-bold text-info-text dark:text-info">
             {member.photo ? (
               <img
@@ -37,17 +37,17 @@ function MemberCard({
             )}
           </div>
 
-          <div>
-            <p className="font-medium text-text-primary">
+          <div className="min-w-0">
+            <p className="truncate font-medium text-text-primary">
               {member.first_name} {member.last_name}
             </p>
 
-            <p className="text-sm text-text-secondary">{member.phone}</p>
+            <p className="truncate text-sm text-text-secondary">{member.phone}</p>
 
-            <p className="text-xs text-text-secondary">{member.email}</p>
+            <p className="truncate text-xs text-text-secondary">{member.email}</p>
 
             {member.plan_name && (
-              <div className="mt-1 flex items-center gap-2">
+              <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
                   {member.plan_name}
                 </span>

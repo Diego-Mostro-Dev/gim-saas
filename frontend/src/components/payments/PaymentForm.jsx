@@ -160,14 +160,14 @@ function PaymentForm({
           <p className="mb-2 font-medium">Saldo pendiente:</p>
           <ul className="space-y-1">
             {filteredSubscriptions.map((sub) => (
-              <li key={sub.id} className="flex items-center justify-between gap-2">
-                <span>
+              <li key={sub.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0">
                   {sub.plan_name}
                   {isActiveNow(sub) && (
                     <span className="ml-1 text-xs opacity-70">(actual)</span>
                   )}
                 </span>
-                <span className="whitespace-nowrap text-xs text-text-secondary">
+                <span className="text-xs text-text-secondary">
                   vence {formatHumanDate(sub.end_date)} — restan{" "}
                   {formatCurrency(sub.remaining)}
                 </span>

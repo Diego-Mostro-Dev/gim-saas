@@ -1,6 +1,6 @@
 function SubscriptionStats({ stats }) {
   return (
-    <div className="mb-4 grid grid-cols-2 gap-3">
+    <div className="mb-4 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
       <div className="rounded-xl bg-surface-elevated p-4">
         <p className="text-sm text-text-secondary">Miembros</p>
         <p className="mt-1 text-2xl font-bold text-text-primary">{stats.total}</p>

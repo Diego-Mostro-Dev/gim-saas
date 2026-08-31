@@ -709,13 +709,13 @@ function Settings() {
             onSubmit={handleCreateSlot}
             className="mb-4 rounded-xl border border-border bg-surface-input p-3"
           >
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <select
                 value={newSlot.day}
                 onChange={(e) =>
                   setNewSlot({ ...newSlot, day: e.target.value })
                 }
-                className="flex-1 rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                className="flex-1 basis-28 rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
               >
                 {Object.entries(DAY_LABELS).map(([key, label]) => (
                   <option key={key} value={key}>
@@ -782,9 +782,9 @@ function Settings() {
             {slots.map((slot) => (
               <div
                 key={slot.id}
-                className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-input px-4 py-3"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                     <span className="text-sm font-medium text-text-primary">
                     {DAY_LABELS[slot.day]}
                   </span>
@@ -822,7 +822,7 @@ function Settings() {
                     <span className="text-xs text-text-secondary">
                       {slot.capacity !== null && slot.capacity !== undefined
                         ? `Cap: ${slot.capacity}`
-                        : "(usar capacidad por defecto)"}
+                        : "Cap. por defecto"}
                     </span>
                   )}
                 </div>

@@ -57,10 +57,10 @@ function MemberSubscriptionCard({ member, subscriptions }) {
           lastName={lastName}
           size="md"
         />
-        <div>
-          <p className="font-medium text-text-primary">{memberName}</p>
+        <div className="min-w-0">
+          <p className="truncate font-medium text-text-primary">{memberName}</p>
           {currentSub && (
-            <p className="text-sm text-text-secondary">{currentSub.plan_name}</p>
+            <p className="truncate text-sm text-text-secondary">{currentSub.plan_name}</p>
           )}
         </div>
       </div>

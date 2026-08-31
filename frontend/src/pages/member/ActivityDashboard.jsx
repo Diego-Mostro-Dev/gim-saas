@@ -287,16 +287,16 @@ function ActivityDashboard() {
             )}
 
             {gym.phone && (
-              <div className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3">
-                <span className="text-sm text-text-secondary">Teléfono</span>
-                <span className="text-sm text-text-primary">{gym.phone}</span>
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-surface-input px-4 py-3">
+                <span className="shrink-0 text-sm text-text-secondary">Teléfono</span>
+                <span className="min-w-0 text-right text-sm text-text-primary break-words">{gym.phone}</span>
               </div>
             )}
 
             {gym.email && (
-              <div className="flex items-center justify-between rounded-xl bg-surface-input px-4 py-3">
-                <span className="text-sm text-text-secondary">Email</span>
-                <span className="text-sm text-text-primary">{gym.email}</span>
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-surface-input px-4 py-3">
+                <span className="shrink-0 text-sm text-text-secondary">Email</span>
+                <span className="min-w-0 text-right text-sm text-text-primary break-words">{gym.email}</span>
               </div>
             )}
           </div>

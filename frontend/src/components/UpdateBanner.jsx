@@ -12,7 +12,7 @@ export default function UpdateBanner() {
 
   if (offlineReady && !updateAvailable) {
     return (
-      <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-2 rounded-xl border border-border/10 bg-surface-elevated px-4 py-3 shadow-lg backdrop-blur-xl">
+      <div className="fixed bottom-4 right-4 left-4 z-[100] flex max-w-sm flex-col items-start gap-2 rounded-xl border border-border/10 bg-surface-elevated px-4 py-3 shadow-lg backdrop-blur-xl sm:left-auto sm:flex-row sm:items-center sm:gap-3">
         <span className="text-xs text-success">
           App lista para uso offline
         </span>
@@ -23,7 +23,7 @@ export default function UpdateBanner() {
   if (!updateAvailable) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-3 rounded-xl border border-border/10 bg-surface-elevated px-4 py-3 shadow-lg backdrop-blur-xl">
+    <div className="fixed bottom-4 right-4 left-4 z-[100] flex max-w-sm flex-col items-start gap-3 rounded-xl border border-border/10 bg-surface-elevated px-4 py-3 shadow-lg backdrop-blur-xl sm:left-auto sm:flex-row sm:items-center">
       <div className="flex flex-col">
         <span className="text-sm text-text-primary">
           Nueva versión disponible

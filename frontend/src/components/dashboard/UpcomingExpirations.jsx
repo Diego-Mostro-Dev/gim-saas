@@ -36,7 +36,7 @@ function UpcomingExpirations({ expirations = [] }) {
                 key={item.id}
                 className="flex items-center justify-between rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <MemberAvatar
                     photo={item.member_photo}
                     firstName={item.member_name?.split(" ")[0]}
@@ -44,12 +44,12 @@ function UpcomingExpirations({ expirations = [] }) {
                     size="md"
                   />
 
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-text-primary">
                       {item.member_name}
                     </p>
 
-                    <p className="text-xs text-text-secondary">{item.plan_name}</p>
+                    <p className="truncate text-xs text-text-secondary">{item.plan_name}</p>
                   </div>
                 </div>
 
