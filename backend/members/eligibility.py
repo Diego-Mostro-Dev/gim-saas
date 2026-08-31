@@ -64,23 +64,34 @@ class MemberEligibility:
         """Return True if member has a currently-active subscription for *service*.
 
         Stricter than can_operate: the subscription's date range must
-        include today.
+        include today AND the subscription must actually cover the given
+        service.
+
+        Membership to a service is materialised through SubscriptionItems:
+        a plan item whose MembershipPlan.service matches the service, or an
+        activity item whose Activity.service matches. Activities are billed
+        as activity items that are created when the member registers or
+        enrolls, so a member who pays for activities already has an item
+        from registration. This closes the bug where any active
+        subscription — e.g. a bare gym or base plan — was enough to enroll
+        in unpaid activities.
 
         Currently used by EnrollmentService to gate activity enrollment.
         """
-        from subscriptions.models import Subscription
+        from django.db.models import Q
+        from subscriptions.models import SubscriptionItem
 
         now = timezone.localdate()
-        sub = Subscription.objects.filter(
-            member=member,
-            start_date__lte=now,
-            end_date__gte=now,
-        ).order_by("-created_at").first()
 
-        if sub is None:
-            return False
-
-        return True
+        return SubscriptionItem.objects.filter(
+            subscription__member=member,
+            subscription__start_date__lte=now,
+            subscription__end_date__gte=now,
+            status="active",
+        ).filter(
+            Q(item_type="plan", plan__service=service)
+            | Q(item_type="activity", activity__service=service)
+        ).exists()
 
     # -- subscription data access -------------------------------------------
 
