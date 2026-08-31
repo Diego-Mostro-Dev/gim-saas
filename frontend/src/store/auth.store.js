@@ -5,6 +5,7 @@ const useAuthStore = create((set, get) => ({
   token: localStorage.getItem("token") || null,
   user: null,
   gym: null,
+  role: null,
 
   must_change_password: false,
 
@@ -30,6 +31,7 @@ const useAuthStore = create((set, get) => ({
       set({
         user: { username: data.username },
         gym: data.gym ? { name: data.gym, id: data.gym_id } : null,
+        role: data.role || "staff",
         must_change_password: data.must_change_password || false,
         initialized: true,
       });
@@ -40,6 +42,7 @@ const useAuthStore = create((set, get) => ({
         token: null,
         user: null,
         gym: null,
+        role: null,
         must_change_password: false,
         initialized: true,
       });
@@ -91,6 +94,7 @@ const useAuthStore = create((set, get) => ({
       token: null,
       user: null,
       gym: null,
+      role: null,
       must_change_password: false,
       error: null,
     });

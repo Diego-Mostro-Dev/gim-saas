@@ -4,6 +4,20 @@ from gyms.models import Gym
 
 
 class UserProfile(models.Model):
+    ROLE_OWNER = "owner"
+    ROLE_STAFF = "staff"
+    ROLE_CHOICES = [
+        (ROLE_OWNER, "Dueño"),
+        (ROLE_STAFF, "Staff"),
+    ]
+
+    role = models.CharField(
+        max_length=10,
+        choices=ROLE_CHOICES,
+        default=ROLE_STAFF,
+        verbose_name="Rol",
+    )
+
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,

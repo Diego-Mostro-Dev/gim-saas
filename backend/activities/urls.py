@@ -5,7 +5,6 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivityViewSet,
     ActivityScheduleViewSet,
-    EnrollmentViewSet,
     ScheduleEnrollmentViewSet,
 )
 from .public_views import (
@@ -17,7 +16,6 @@ from .public_views import (
 
 router = DefaultRouter()
 router.register(r"activities", ActivityViewSet, basename="activities")
-router.register(r"enrollments", EnrollmentViewSet, basename="enrollments")
 
 urlpatterns = [
     path(

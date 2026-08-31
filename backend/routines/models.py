@@ -5,6 +5,26 @@ from gyms.models import Gym
 from members.models import Member
 
 
+class SoftDeleteQuerySet(models.QuerySet):
+    def delete(self):
+        for obj in self:
+            obj.delete()
+        return (0, {})
+
+    def hard_delete(self):
+        return super().delete()
+
+
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).filter(is_active=True)
+
+
+class AllObjectsManager(models.Manager):
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
+
 class Exercise(models.Model):
     CATEGORY_CHOICES = [
         ("pecho", "Pecho"),
@@ -41,12 +61,25 @@ class Exercise(models.Model):
         verbose_name="Categoría",
     )
 
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+    )
+
+    objects = SoftDeleteManager()
+    all_objects = AllObjectsManager()
+
     class Meta:
         verbose_name = "Ejercicio"
         verbose_name_plural = "Ejercicios"
 
     def __str__(self):
         return self.name
+
+    def delete(self, using=None, keep_parents=False):
+        self.is_active = False
+        self.save(update_fields=["is_active"])
+        self.routineexercise_set.all().update(is_active=False)
 
 
 class RoutineTemplate(models.Model):
@@ -59,12 +92,26 @@ class RoutineTemplate(models.Model):
 
     name = models.CharField(max_length=100, verbose_name="Nombre de la rutina")
 
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+    )
+
+    objects = SoftDeleteManager()
+    all_objects = AllObjectsManager()
+
     class Meta:
         verbose_name = "Plantilla de rutina"
         verbose_name_plural = "Plantillas de rutina"
 
     def __str__(self):
         return self.name
+
+    def delete(self, using=None, keep_parents=False):
+        self.is_active = False
+        self.save(update_fields=["is_active"])
+        self.routine_exercises.all().update(is_active=False)
+        self.routineassignment_set.all().update(active=False)
 
 
 class RoutineExercise(models.Model):
@@ -144,10 +191,22 @@ class RoutineExercise(models.Model):
         verbose_name="Descanso antes del próximo (segundos)",
     )
 
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+    )
+
+    objects = SoftDeleteManager()
+    all_objects = AllObjectsManager()
+
     class Meta:
         verbose_name = "Ejercicio de rutina"
         verbose_name_plural = "Ejercicios de rutina"
         ordering = ["order"]
+
+    def delete(self, using=None, keep_parents=False):
+        self.is_active = False
+        self.save(update_fields=["is_active"])
 
 
 class RoutineAssignment(models.Model):

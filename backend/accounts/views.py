@@ -94,6 +94,11 @@ class MeView(APIView):
                     if profile
                     else False
                 ),
+                "role": (
+                    profile.role
+                    if profile
+                    else UserProfile.ROLE_STAFF
+                ),
             },
             status=status.HTTP_200_OK,
         )
@@ -215,6 +220,7 @@ class CreateGymOwnerView(APIView):
         # 2. link con profile (creado por signal)
         profile = user.profile
         profile.gym = gym
+        profile.role = UserProfile.ROLE_OWNER
         profile.save()
 
         # 3. token automático

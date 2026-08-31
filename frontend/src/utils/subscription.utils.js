@@ -15,11 +15,3 @@ export function isSubscriptionExpired(endDate) {
 
   return end < today;
 }
-
-export function getMemberInitials(name = "") {
-  return name
-    .split(" ")
-    .map((word) => word[0])
-    .join("")
-    .slice(0, 2);
-}

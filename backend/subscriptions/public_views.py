@@ -9,9 +9,10 @@ from rest_framework.views import APIView
 from config.api.throttles import PublicMemberRateThrottle
 from members.models import Member
 
-from .models import PlanChangeRequest, Subscription
+from .models import PlanChangeRequest
 from .serializers import PublicPlanChangeRequestSerializer
 from .services import cancel_future_plan_change
+from .domain import SubscriptionDomain
 from members.eligibility import MemberEligibility
 
 
@@ -117,9 +118,7 @@ class PublicCancelRenewalView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        subscription = Subscription.objects.filter(
-            member=member,
-        ).order_by("-end_date").first()
+        subscription = SubscriptionDomain.get_current_subscription(member)
 
         if not subscription:
             return Response(
@@ -155,9 +154,7 @@ class PublicEnableRenewalView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        subscription = Subscription.objects.filter(
-            member=member,
-        ).order_by("-end_date").first()
+        subscription = SubscriptionDomain.get_current_subscription(member)
 
         if not subscription:
             return Response(

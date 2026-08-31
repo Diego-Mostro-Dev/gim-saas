@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { getGym } from "../services/gym.service";
+import { getCached } from "../utils/cache";
 
 export const FeatureContext = createContext({ features: {} });
 
@@ -14,6 +15,11 @@ function FeatureProvider({ mode, initialFeatures, onRefreshFeatures, children })
         const token = localStorage.getItem("token");
         if (!token) {
           setFeatures({});
+          return;
+        }
+        const cachedGym = getCached("gym");
+        if (cachedGym?.features) {
+          setFeatures(cachedGym.features);
           return;
         }
         getGym()

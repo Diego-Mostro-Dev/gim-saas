@@ -69,7 +69,13 @@ class MembershipPlan(models.Model):
     name = models.CharField(max_length=100, verbose_name="Nombre del plan")
     description = models.TextField(blank=True, verbose_name="Descripción")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Precio")
-    duration_days = models.IntegerField(verbose_name="Duración (días)")
+    duration_days = models.IntegerField(
+        verbose_name="Duración (días)",
+        help_text=(
+            "Valor informativo/display. La facturación es mensual por "
+            "período calendario e ignora este campo para calcular fechas."
+        ),
+    )
     weekly_visits = models.PositiveIntegerField(null=True, blank=True, verbose_name="Visitas semanales")
     active = models.BooleanField(default=True, verbose_name="Activo")
 

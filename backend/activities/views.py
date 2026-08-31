@@ -124,11 +124,6 @@ class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class EnrollmentViewSet(ActivitiesGuardMixin, GymModelViewSet):
-    queryset = Enrollment.objects.all()
-    serializer_class = EnrollmentSerializer
-
-
 class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.GenericViewSet):
     queryset = Enrollment.objects.all()
     serializer_class = EnrollmentSerializer

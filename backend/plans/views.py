@@ -9,10 +9,6 @@ class ServiceViewSet(GymModelViewSet):
     pagination_class = None
     http_method_names = ["get"]
 
-    def get_queryset(self):
-        Service.get_default_activities_service(self.get_gym())
-        return super().get_queryset()
-
 
 class MembershipPlanViewSet(GymModelViewSet):
     queryset = MembershipPlan.objects.filter(is_base=False)

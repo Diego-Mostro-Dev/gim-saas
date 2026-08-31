@@ -20,11 +20,6 @@ import { formatHumanDate } from "../utils/date.utils";
 import { getPlans } from "../services/plans.service";
 
 import {
-  getMember,
-  getMembers,
-  createMember,
-  deleteMember,
-  updateMember,
   getMemberPayments,
   getMemberActivities,
 } from "../services/members.service";

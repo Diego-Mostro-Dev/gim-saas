@@ -27,3 +27,30 @@ class MembershipPlanSerializer(serializers.ModelSerializer):
                 "No se puede crear un plan base desde la API."
             )
         return value
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+
+        if request is not None:
+            profile = getattr(request.user, "profile", None)
+            gym = getattr(profile, "gym", None)
+
+            service = attrs.get("service") or getattr(
+                self.instance, "service", None
+            )
+
+            if (
+                gym is not None
+                and service is not None
+                and service.gym_id != gym.id
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "service": (
+                            "El servicio debe pertenecer al mismo gimnasio "
+                            "que el plan."
+                        )
+                    }
+                )
+
+        return attrs

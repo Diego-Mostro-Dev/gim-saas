@@ -2,6 +2,8 @@ from rest_framework import serializers
 from datetime import date
 from decimal import Decimal
 
+from django.db import IntegrityError
+
 from attendance.models import AttendanceSchedule
 
 from plans.services import public_plan_name, public_plan_name_from_snapshot
@@ -18,6 +20,24 @@ from .services import (
 )
 
 _PAID_ANNOTATION_MISSING = object()
+
+
+def _create_plan_change_request(create_func, validated_data):
+    """
+    Create a PlanChangeRequest handling the TOCTOU race on the unique
+    pending-per-member DB constraint.
+
+    The pre-check in PlanChangeRequestValidator gives fast feedback, but a
+    concurrent request can slip a second pending row between that check and
+    this insert. That surfaces as an IntegrityError, which we translate into
+    a clean validation error instead of a 500.
+    """
+    try:
+        return create_func(validated_data)
+    except IntegrityError:
+        raise serializers.ValidationError(
+            "Ya tienes una solicitud de cambio de plan pendiente."
+        )
 
 
 class SubscriptionItemSerializer(serializers.ModelSerializer):
@@ -347,7 +367,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             validated_data["current_plan_name_snapshot"] = public_plan_name(subscription.plan)
 
         validated_data["gym"] = gym
-        return super().create(validated_data)
+        return _create_plan_change_request(super().create, validated_data)
 
 
 class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
@@ -522,4 +542,4 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
 
         validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member
-        return super().create(validated_data)
+        return _create_plan_change_request(super().create, validated_data)

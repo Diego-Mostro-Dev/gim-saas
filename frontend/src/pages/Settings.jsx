@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, QrCode, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { ArrowLeft, QrCode, Plus, Pencil, Trash2, X, Check, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useGym } from "../hooks/useGym";
+import useAuthStore from "../store/auth.store";
 import { updateGym } from "../services/gym.service";
 import {
   getSlots,
@@ -17,6 +18,7 @@ import { getCached, isCacheFresh } from "../utils/cache";
 function Settings() {
   const navigate = useNavigate();
   const { gym } = useGym();
+  const role = useAuthStore((state) => state.role);
   const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
@@ -277,6 +279,11 @@ function Settings() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (role && role !== "owner") {
+    navigate("/dashboard", { replace: true });
+    return null;
   }
 
   if (!gym) {
@@ -669,6 +676,15 @@ function Settings() {
           <QrCode size={18} className="text-success-text dark:text-success" />
 
           <span>Asistencia QR</span>
+        </button>
+
+        <button
+          onClick={() => navigate("/staff")}
+          className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
+        >
+          <Users size={18} className="text-primary" />
+
+          <span>Gestionar staff</span>
         </button>
       </div>
 

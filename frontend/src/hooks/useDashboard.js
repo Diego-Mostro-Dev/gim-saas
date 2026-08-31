@@ -13,8 +13,6 @@ export function useDashboard() {
   const [loading, setLoading] =
     useState(() => !isCacheFresh(CACHE_KEY, TTL));
 
-  const [refreshing, setRefreshing] = useState(false);
-
   const [error, setError] =
     useState(null);
 
@@ -59,8 +57,6 @@ export function useDashboard() {
   return {
     dashboardData,
     loading,
-    refreshing,
     error,
-    reloadDashboard: loadDashboard,
   };
 }

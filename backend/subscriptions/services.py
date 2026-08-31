@@ -173,13 +173,16 @@ def subscription_remaining_balance(subscription, paid_amount=None):
         )
 
     remaining = total - paid_amount
+    overpayment = Decimal("0")
     if remaining < 0:
+        overpayment = -remaining
         remaining = Decimal("0")
 
     return {
         "total": total,
         "paid_amount": paid_amount,
         "remaining": remaining,
+        "overpayment": overpayment,
     }
 
 
@@ -406,6 +409,8 @@ def suggest_alternative_slots(plan_change_request, failed_slot_key):
 
 def calculate_effective_date(member=None):
     today = timezone.localdate()
+    if member is not None and not SubscriptionDomain.get_current_subscription(member):
+        return today
     return get_first_day_of_next_month(today)
 
 

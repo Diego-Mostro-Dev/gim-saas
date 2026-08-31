@@ -1,10 +1,12 @@
 import { LogOut, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useGym } from "../../hooks/useGym";
+import useAuthStore from "../../store/auth.store";
 import ThemeToggle from "../ui/ThemeToggle";
 
 function TopBar() {
   const { gym } = useGym();
+  const role = useAuthStore((state) => state.role);
 
   function handleLogout() {
     localStorage.removeItem("token");
@@ -38,12 +40,14 @@ function TopBar() {
       <div className="flex items-center gap-2">
         <ThemeToggle />
 
-        <Link
-          to="/settings"
-          className="rounded-lg border border-border/10 p-2 text-text-secondary transition hover:bg-surface-input"
-        >
-          <Settings size={18} />
-        </Link>
+        {role === "owner" && (
+          <Link
+            to="/settings"
+            className="rounded-lg border border-border/10 p-2 text-text-secondary transition hover:bg-surface-input"
+          >
+            <Settings size={18} />
+          </Link>
+        )}
 
         <button
           onClick={handleLogout}

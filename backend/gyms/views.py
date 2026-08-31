@@ -7,8 +7,10 @@ from rest_framework.permissions import (
 from rest_framework.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.contrib.auth.models import User
 
 from members.models import Member
+from profiles.models import UserProfile
 from .models import Gym
 from .serializers import GymSerializer
 
@@ -136,12 +138,18 @@ class GymMeView(APIView):
 
         serializer = GymSerializer(gym)
 
-        return Response(
-            serializer.data
-        )
+        data = serializer.data
+        data["role"] = request.user.profile.role
+
+        return Response(data)
 
     def patch(self, request):
         gym = self.get_gym(request)
+
+        if request.user.profile.role != request.user.profile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede modificar la configuración"
+            )
 
         serializer = GymSerializer(
             gym,
@@ -158,3 +166,116 @@ class GymMeView(APIView):
         return Response(
             serializer.data
         )
+
+
+class GymStaffView(APIView):
+    """Gestión de usuarios del gimnasio. Solo el owner puede gestionar staff."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_gym(self, request):
+        profile = getattr(request.user, "profile", None)
+
+        if not profile or not profile.gym:
+            raise PermissionDenied("Usuario sin gimnasio asignado")
+
+        return profile.gym
+
+    def require_owner(self, request):
+        if request.user.profile.role != UserProfile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede gestionar el staff"
+            )
+
+    def get(self, request):
+        gym = self.get_gym(request)
+
+        users = UserProfile.objects.filter(gym=gym).select_related("user")
+
+        return Response(
+            [
+                {
+                    "id": p.user.id,
+                    "username": p.user.username,
+                    "email": p.user.email,
+                    "role": p.role,
+                    "must_change_password": p.must_change_password,
+                }
+                for p in users
+            ]
+        )
+
+    def post(self, request):
+        self.require_owner(request)
+        gym = self.get_gym(request)
+
+        username = (request.data.get("username") or "").strip()
+        email = (request.data.get("email") or "").strip()
+        password = request.data.get("password")
+
+        if not username or not password:
+            return Response(
+                {"error": "Faltan campos obligatorios"},
+                status=400,
+            )
+
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {"error": "El nombre de usuario ya existe"},
+                status=400,
+            )
+
+        user = User.objects.create_user(
+            username=username,
+            email=email or None,
+            password=password,
+        )
+
+        profile = user.profile
+        profile.gym = gym
+        profile.role = UserProfile.ROLE_STAFF
+        profile.save()
+
+        return Response(
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": profile.role,
+            },
+            status=201,
+        )
+
+
+class GymStaffRemoveView(APIView):
+    """Elimina un usuario staff del gimnasio. Solo el owner."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_gym(self, request):
+        profile = getattr(request.user, "profile", None)
+
+        if not profile or not profile.gym:
+            raise PermissionDenied("Usuario sin gimnasio asignado")
+
+        return profile.gym
+
+    def delete(self, request, user_id):
+        if request.user.profile.role != UserProfile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede gestionar el staff"
+            )
+
+        gym = self.get_gym(request)
+
+        if user_id == request.user.id:
+            raise PermissionDenied("No puedes eliminar tu propia cuenta")
+
+        profile = get_object_or_404(UserProfile, user_id=user_id, gym=gym)
+
+        if profile.role == UserProfile.ROLE_OWNER:
+            raise PermissionDenied("No se puede eliminar al dueño del gimnasio")
+
+        profile.user.delete()
+
+        return Response(status=204)

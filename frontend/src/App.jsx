@@ -30,6 +30,7 @@ import AttendanceAnalytics from "./pages/AttendanceAnalytics";
 import Activities from "./pages/Activities";
 import ActivitySchedules from "./pages/ActivitySchedules";
 import ScheduleEnrollments from "./pages/ScheduleEnrollments";
+import Staff from "./pages/Staff";
 import ProtectedFeature from "./features/ProtectedFeature";
 
 function App() {
@@ -69,6 +70,7 @@ function App() {
         <Route path="/registration" element={<Registration />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/staff" element={<Staff />} />
         <Route path="/routines" element={<Routines />} />
         <Route path="/attendance-qr" element={<AttendanceQR />} />
         <Route path="/schedule-change-requests" element={<ScheduleChangeRequests />} />
@@ -76,8 +78,8 @@ function App() {
         <Route path="/plan-change-requests" element={<PlanChangeRequests />} />
         <Route path="/attendance-analytics" element={<AttendanceAnalytics />} />
         <Route path="/activities" element={<ProtectedFeature feature="activities"><Activities /></ProtectedFeature>} />
-        <Route path="/activities/:activityId/schedules" element={<ActivitySchedules />} />
-        <Route path="/activities/schedules/:scheduleId/enrollments" element={<ScheduleEnrollments />} />
+        <Route path="/activities/:activityId/schedules" element={<ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature>} />
+        <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature>} />
       </Route>
     </Routes>
   );
