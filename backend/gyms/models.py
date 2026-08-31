@@ -104,6 +104,41 @@ class Gym(models.Model):
 
     features = models.JSONField(default=dict, blank=True, verbose_name="Características")
 
+    # --- SEO (opcional, configurable por el owner del gimnasio) ---
+    seo_title = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name="Título SEO",
+        help_text="Título que aparece en Google (ej: Gimnasio Atlas | Musculación y CrossFit en Rosario)",
+    )
+    seo_description = models.TextField(
+        blank=True,
+        verbose_name="Descripción SEO",
+        help_text="Descripción breve (150-160 caracteres) que aparece en Google.",
+    )
+    seo_keywords = models.CharField(
+        max_length=250,
+        blank=True,
+        verbose_name="Palabras clave",
+        help_text="Separadas por coma (ej: gimnasio, musculación, crossfit, rosario)",
+    )
+    seo_city = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Ciudad",
+        help_text="Ciudad del gimnasio para aparecer en búsquedas locales.",
+    )
+    seo_address = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Dirección",
+    )
+    seo_hours = models.TextField(
+        blank=True,
+        verbose_name="Horarios",
+        help_text="Horarios de atención (ej: Lun a Vie 8-22, Sáb 9-14)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
 
     class Meta:

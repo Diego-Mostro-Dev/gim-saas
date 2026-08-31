@@ -81,6 +81,20 @@ class GymAdmin(admin.ModelAdmin):
                 "fields": ("activities",),
             },
         ),
+        (
+            "SEO (posicionamiento web)",
+            {
+                "classes": ("collapse",),
+                "fields": (
+                    "seo_title",
+                    "seo_description",
+                    "seo_keywords",
+                    "seo_city",
+                    "seo_address",
+                    "seo_hours",
+                ),
+            },
+        ),
     ]
 
     search_fields = (

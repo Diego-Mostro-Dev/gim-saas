@@ -4,6 +4,7 @@ from .views import (
     GymMeView,
     GymStaffView,
     GymStaffRemoveView,
+    GymSeoView,
     PwaMemberManifestView,
     PwaStaffManifestView,
 )
@@ -20,6 +21,11 @@ urlpatterns = [
     path(
         "staff/<int:user_id>/",
         GymStaffRemoveView.as_view(),
+    ),
+    path(
+        "public/seo/<str:gym_code>/",
+        GymSeoView.as_view(),
+        name="gym-seo",
     ),
     path(
         "pwa/member/<str:token>/",

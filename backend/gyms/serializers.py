@@ -41,6 +41,12 @@ class GymSerializer(serializers.ModelSerializer):
             "register_url",
             "qr_attendance_message",
             "qr_registration_message",
+            "seo_title",
+            "seo_description",
+            "seo_keywords",
+            "seo_city",
+            "seo_address",
+            "seo_hours",
             "created_at",
         ]
         read_only_fields = [

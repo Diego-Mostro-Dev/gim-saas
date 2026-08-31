@@ -36,6 +36,12 @@ function Settings() {
     schedule_change_notice_days: "",
     qr_attendance_message: "",
     qr_registration_message: "",
+    seo_title: "",
+    seo_description: "",
+    seo_keywords: "",
+    seo_city: "",
+    seo_address: "",
+    seo_hours: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -208,6 +214,12 @@ function Settings() {
           : Number(gym.schedule_change_notice_hours) / 24,
       qr_attendance_message: gym.qr_attendance_message || "",
       qr_registration_message: gym.qr_registration_message || "",
+      seo_title: gym.seo_title || "",
+      seo_description: gym.seo_description || "",
+      seo_keywords: gym.seo_keywords || "",
+      seo_city: gym.seo_city || "",
+      seo_address: gym.seo_address || "",
+      seo_hours: gym.seo_hours || "",
     });
   }, [gym]);
 
@@ -261,6 +273,13 @@ function Settings() {
         "qr_registration_message",
         formData.qr_registration_message,
       );
+
+      data.append("seo_title", formData.seo_title);
+      data.append("seo_description", formData.seo_description);
+      data.append("seo_keywords", formData.seo_keywords);
+      data.append("seo_city", formData.seo_city);
+      data.append("seo_address", formData.seo_address);
+      data.append("seo_hours", formData.seo_hours);
 
       if (logoFile) {
         data.append("logo", logoFile);
@@ -642,6 +661,113 @@ function Settings() {
               })
             }
             placeholder="Ej: Registrate como socio con el celu"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+        </div>
+
+        <hr className="my-6 border-border" />
+
+        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Posicionamiento Web (SEO)
+        </h3>
+
+        <p className="mb-4 text-xs text-text-secondary">
+          Estos datos se usan para que tu gimnasio aparezca en Google al
+          compartir tu link de registro. Completalos para mejorar tu
+          posicionamiento local.
+        </p>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Título para Google
+          </label>
+          <input
+            type="text"
+            maxLength="120"
+            value={formData.seo_title}
+            onChange={(e) =>
+              setFormData({ ...formData, seo_title: e.target.value })
+            }
+            placeholder="Ej: Gimnasio Atlas | Musculación y CrossFit en Rosario"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Descripción para Google
+          </label>
+          <textarea
+            rows="3"
+            maxLength="160"
+            value={formData.seo_description}
+            onChange={(e) =>
+              setFormData({ ...formData, seo_description: e.target.value })
+            }
+            placeholder="Ej: Sumate al mejor gimnasio de Rosario. Musculación, crossfit y clases guiadas con profesores certificados."
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+          <p className="mt-1 text-xs text-text-secondary">
+            {formData.seo_description.length}/160 caracteres
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Palabras clave
+          </label>
+          <input
+            type="text"
+            value={formData.seo_keywords}
+            onChange={(e) =>
+              setFormData({ ...formData, seo_keywords: e.target.value })
+            }
+            placeholder="Ej: gimnasio, musculación, crossfit, rosario"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Ciudad
+          </label>
+          <input
+            type="text"
+            value={formData.seo_city}
+            onChange={(e) =>
+              setFormData({ ...formData, seo_city: e.target.value })
+            }
+            placeholder="Ej: Rosario"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm text-text-primary">
+            Dirección
+          </label>
+          <input
+            type="text"
+            value={formData.seo_address}
+            onChange={(e) =>
+              setFormData({ ...formData, seo_address: e.target.value })
+            }
+            placeholder="Ej: Av. Pellegrini 1234"
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="mb-2 block text-sm text-text-primary">
+            Horarios de atención
+          </label>
+          <textarea
+            rows="2"
+            value={formData.seo_hours}
+            onChange={(e) =>
+              setFormData({ ...formData, seo_hours: e.target.value })
+            }
+            placeholder="Ej: Lun a Vie 8 a 22, Sáb 9 a 14, Dom cerrado"
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>

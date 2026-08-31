@@ -8,6 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
+from django.conf import settings
 
 from members.models import Member
 from profiles.models import UserProfile
@@ -279,3 +280,62 @@ class GymStaffRemoveView(APIView):
         profile.user.delete()
 
         return Response(status=204)
+
+
+class GymSeoView(APIView):
+    """Devolver los datos SEO públicos de un gimnasio para prerender serverless.
+
+    Es la fuente de verdad que consume la serverless function de Vercel
+    (frontend/api/seo/register/<gym_code>.js) para servir HTML indexable por Google.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, gym_code):
+        gym = get_object_or_404(Gym, onboarding_code=gym_code)
+
+        register_url = (
+            settings.FRONTEND_URL + f"/register/{gym.onboarding_code}"
+        )
+
+        title = (
+            gym.seo_title.strip()
+            or f"{gym.name} | Registrate como socio"
+        ).strip()
+
+        description = (
+            gym.seo_description.strip()
+            or f"Registrate como socio en {gym.name}."
+        ).strip()
+
+        logo_url = None
+        og_image_url = None
+        if gym.logo:
+            logo_url = gym.logo.url
+            og_image_url = gym.logo.build_url(
+                width=1200, height=630, crop="fill"
+            )
+        elif gym.app_icon:
+            og_image_url = gym.app_icon.build_url(
+                width=1200, height=630, crop="fill"
+            )
+
+        payload = {
+            "name": gym.name,
+            "logo_url": logo_url,
+            "og_image_url": og_image_url,
+            "title": title,
+            "description": description,
+            "keywords": gym.seo_keywords.strip(),
+            "city": gym.seo_city.strip(),
+            "address": gym.seo_address.strip(),
+            "hours": gym.seo_hours.strip(),
+            "phone": gym.phone.strip(),
+            "whatsapp": gym.whatsapp.strip(),
+            "email": gym.email.strip(),
+            "register_url": register_url,
+            "canonical_url": register_url,
+            "active": gym.active,
+        }
+
+        return JsonResponse(payload)

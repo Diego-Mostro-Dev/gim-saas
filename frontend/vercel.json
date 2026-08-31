@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/register/:gymCode",
+      "destination": "/api/seo/register/:gymCode"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
