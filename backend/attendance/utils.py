@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 
 from .models import Attendance, AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
@@ -16,32 +18,86 @@ SCHEDULE_SLOT_WEEKDAY_ORDER = Case(
 )
 
 
-def compute_effective_occupancy(slot, target_date):
+def compute_effective_occupancy(slot, target_date, exclude_member=None):
     """
     Compute the effective number of members attending a slot on a specific date.
 
     effective = active_recurring + approved_swaps_in - approved_swaps_out
+                + plan_changes_in - plan_changes_out
+
+    Approved plan changes whose effective_date has arrived are honoured:
+      - members moved INTO this slot are counted (and excluded from the
+        recurring base to avoid double counting);
+      - members moved OUT of this slot (recurring schedule present but plan
+        change targets another slot) are no longer counted.
 
     Returns max(0, effective) to prevent negative occupancy.
     """
-    base = AttendanceSchedule.objects.filter(
+    from subscriptions.models import PlanChangeRequest
+
+    # Members whose approved plan change (effective on/before target_date)
+    # scheduled them INTO this slot. They are represented via future_count.
+    future_qs = PlanChangeRequest.objects.filter(
+        status="approved",
+        effective_date__lte=target_date,
+        planned_schedules__slot=slot,
+    ).values("member").distinct()
+    if exclude_member:
+        future_qs = future_qs.exclude(member=exclude_member)
+    future_count = future_qs.count()
+
+    # Members whose approved plan change (effective on/before target_date)
+    # moved them OUT of this slot: they have an active recurring schedule
+    # here but their plan change does not keep this slot.
+    leavers_qs = PlanChangeRequest.objects.filter(
+        status="approved",
+        effective_date__lte=target_date,
+        member__schedules__slot=slot,
+        member__schedules__active=True,
+    ).exclude(planned_schedules__slot=slot).values("member").distinct()
+    if exclude_member:
+        leavers_qs = leavers_qs.exclude(member=exclude_member)
+
+    # Recurring schedules in this slot, minus members already represented by
+    # a plan change (leavers are excluded; entrants are re-added via
+    # future_count to avoid double counting).
+    base_qs = AttendanceSchedule.objects.filter(
         slot=slot,
         active=True,
-    ).count()
+    ).exclude(member__in=future_qs).exclude(member__in=leavers_qs)
+    if exclude_member:
+        base_qs = base_qs.exclude(member=exclude_member)
+    base_count = base_qs.count()
 
-    swaps_in = ScheduleSwapRequest.objects.filter(
+    swaps_in_qs = ScheduleSwapRequest.objects.filter(
         destination_slot=slot,
         swap_date=target_date,
         status="approved",
-    ).count()
+    )
+    if exclude_member:
+        swaps_in_qs = swaps_in_qs.exclude(member=exclude_member)
+    swaps_in = swaps_in_qs.count()
 
-    swaps_out = ScheduleSwapRequest.objects.filter(
+    swaps_out_qs = ScheduleSwapRequest.objects.filter(
         origin_schedule__slot=slot,
         swap_date=target_date,
         status="approved",
-    ).count()
+    )
+    if exclude_member:
+        swaps_out_qs = swaps_out_qs.exclude(member=exclude_member)
+    swaps_out = swaps_out_qs.count()
 
-    return max(0, base + swaps_in - swaps_out)
+    return max(0, base_count + swaps_in - swaps_out + future_count)
+
+
+def compute_projected_occupancy(slot, target_date, exclude_member=None):
+    """Project occupancy honouring approved plan changes.
+
+    Delegates to the single source of truth compute_effective_occupancy,
+    so every occupancy check (capacity, availability, projections) uses the
+    exact same computation.
+    """
+    return compute_effective_occupancy(slot, target_date, exclude_member=exclude_member)
 
 
 def count_regular_attendances(gym, target_date):
@@ -78,6 +134,38 @@ def count_attendances_by_slot(gym, slot, target_date):
         gym=gym,
         slot=slot,
         date=target_date,
+    ).count()
+
+
+def count_member_week_attendances(gym, member, target_date):
+    """Count a member's attendances in the calendar week (Mon-Sun) of target_date.
+
+    Only days on which the gym actually operates (has at least one
+    ScheduleSlot) count toward the weekly quota, so closed days (e.g. a gym
+    that does not open on Sundays) do not consume visit slots.
+    """
+    monday = target_date - timedelta(days=target_date.weekday())
+    sunday = monday + timedelta(days=6)
+    open_days = set(
+        ScheduleSlot.objects.filter(gym=gym).values_list("day", flat=True)
+    )
+    day_by_weekday = {
+        0: "monday",
+        1: "tuesday",
+        2: "wednesday",
+        3: "thursday",
+        4: "friday",
+        5: "saturday",
+        6: "sunday",
+    }
+    counted_dates = [
+        monday + timedelta(days=i)
+        for i in range(7)
+        if day_by_weekday[(monday + timedelta(days=i)).weekday()] in open_days
+    ]
+    return Attendance.objects.filter(
+        member=member,
+        date__in=counted_dates,
     ).count()
 
 

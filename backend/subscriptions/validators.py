@@ -117,7 +117,7 @@ class PlanChangeRequestValidator:
         if self.requested_plan.weekly_visits is not None:
             count = len(self.target_schedules)
 
-            if count != self.requested_plan.weekly_visits:
+            if count > self.requested_plan.weekly_visits:
                 raise serializers.ValidationError(
                     f"El plan permite un máximo de "
                     f"{self.requested_plan.weekly_visits} "

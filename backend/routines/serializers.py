@@ -29,6 +29,28 @@ class RoutineAssignmentSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ["gym"]
 
+    def validate(self, attrs):
+        gym = self.context["request"].user.profile.gym
+
+        member = attrs.get("member") or getattr(
+            self.instance, "member", None
+        )
+        routine_template = attrs.get("routine_template") or getattr(
+            self.instance, "routine_template", None
+        )
+
+        if member is not None and member.gym != gym:
+            raise serializers.ValidationError({
+                "member": "El socio no pertenece a este gimnasio."
+            })
+
+        if routine_template is not None and routine_template.gym != gym:
+            raise serializers.ValidationError({
+                "routine_template": "La plantilla no pertenece a este gimnasio."
+            })
+
+        return attrs
+
 
 class RoutineExerciseSerializer(serializers.ModelSerializer):
     exercise_name = serializers.CharField(
@@ -45,6 +67,28 @@ class RoutineExerciseSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoutineExercise
         fields = "__all__"
+
+    def validate(self, attrs):
+        gym = self.context["request"].user.profile.gym
+
+        routine_template = attrs.get("routine_template") or getattr(
+            self.instance, "routine_template", None
+        )
+        exercise = attrs.get("exercise") or getattr(
+            self.instance, "exercise", None
+        )
+
+        if routine_template is not None and routine_template.gym != gym:
+            raise serializers.ValidationError({
+                "routine_template": "La plantilla no pertenece a este gimnasio."
+            })
+
+        if exercise is not None and exercise.gym != gym:
+            raise serializers.ValidationError({
+                "exercise": "El ejercicio no pertenece a este gimnasio."
+            })
+
+        return attrs
 
 
 class MemberRoutineSerializer(serializers.ModelSerializer):

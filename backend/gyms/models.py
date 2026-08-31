@@ -2,6 +2,7 @@ import uuid
 
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from cloudinary.models import CloudinaryField
 
 class Gym(models.Model):
@@ -75,8 +76,16 @@ class Gym(models.Model):
     )
 
     # --- Phase 8A Gym Configuration ---
-    payment_due_day = models.PositiveIntegerField(default=10, verbose_name="Día de vencimiento")
-    access_block_day = models.PositiveIntegerField(default=16, verbose_name="Día de bloqueo")
+    payment_due_day = models.PositiveIntegerField(
+        default=10,
+        verbose_name="Día de vencimiento",
+        validators=[MinValueValidator(1), MaxValueValidator(31)],
+    )
+    access_block_day = models.PositiveIntegerField(
+        default=16,
+        verbose_name="Día de bloqueo",
+        validators=[MinValueValidator(1), MaxValueValidator(31)],
+    )
     allow_activity_without_membership = models.BooleanField(
         default=True,
         verbose_name="Renovar socios solo-actividad",
@@ -121,3 +130,16 @@ class Gym(models.Model):
         if not isinstance(self.features, dict):
             from django.core.exceptions import ValidationError
             raise ValidationError("features debe ser un diccionario.")
+
+        if self.access_block_day <= self.payment_due_day:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                {
+                    "access_block_day": (
+                        "El día de bloqueo debe ser posterior al día de vencimiento "
+                        "(payment_due_day={}, access_block_day={}).".format(
+                            self.payment_due_day, self.access_block_day
+                        )
+                    )
+                }
+            )

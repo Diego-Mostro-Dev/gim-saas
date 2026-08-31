@@ -15,12 +15,11 @@ from .models import (
     ScheduleChangeRequest,
     ScheduleSwapRequest,
 )
-from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER
+from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER, compute_effective_occupancy, count_member_week_attendances
 from .serializers import (
     PublicScheduleChangeRequestSerializer,
     PublicScheduleSwapRequestSerializer,
 )
-from .utils import compute_effective_occupancy
 from config.api.throttles import PublicAttendanceRateThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
@@ -56,6 +55,19 @@ class PublicCheckinView(APIView):
 
         gym = SubscriptionDomain.resolve_gym(member)
         today = timezone.localdate()
+
+        weekly_limit = MemberEligibility.get_schedule_limit(member)
+        if (
+            weekly_limit is not None
+            and count_member_week_attendances(gym, member, today) >= weekly_limit
+        ):
+            return Response(
+                {
+                    "success": False,
+                    "message": f"Alcanzaste el límite de {weekly_limit} visitas semanales de tu plan.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         approved_swap = ScheduleSwapRequest.objects.filter(
             member=member,
@@ -147,6 +159,15 @@ class PublicCheckinView(APIView):
             .first()
         )
         slot = schedule.slot if schedule else None
+
+        if schedule is None:
+            return Response(
+                {
+                    "success": False,
+                    "message": "No tienes un horario reservado para hoy.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         Attendance.objects.create(
             gym=gym,

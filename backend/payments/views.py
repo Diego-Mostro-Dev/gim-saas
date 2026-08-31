@@ -16,12 +16,12 @@ class PaymentViewSet(GymModelViewSet):
     def perform_destroy(self, instance):
         subscription = instance.subscription
 
-        instance.delete()
-
-        if not subscription:
-            return
-
         with transaction.atomic():
+            instance.delete()
+
+            if not subscription:
+                return
+
             sub = (
                 Subscription.objects
                 .select_for_update()

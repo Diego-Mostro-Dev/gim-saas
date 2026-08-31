@@ -278,7 +278,7 @@ def attendance_status(request):
     attended_schedule_ids = set(
         Attendance.objects.filter(
             gym=gym,
-            date=today,
+            date=target_date,
             schedule_id__in=schedule_ids,
             swap_request__isnull=True,
         ).values_list("schedule_id", flat=True)
@@ -319,7 +319,7 @@ def attendance_status(request):
     if swap_ids:
         used_swap_ids = set(
             Attendance.objects.filter(
-                date=today,
+                date=target_date,
                 swap_request_id__in=swap_ids,
             ).values_list("swap_request_id", flat=True)
         )

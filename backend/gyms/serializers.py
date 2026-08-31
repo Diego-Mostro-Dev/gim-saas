@@ -47,6 +47,24 @@ class GymSerializer(serializers.ModelSerializer):
             "features",
         ]
 
+    def validate(self, attrs):
+        payment_due_day = attrs.get(
+            "payment_due_day", getattr(self.instance, "payment_due_day", None)
+        )
+        access_block_day = attrs.get(
+            "access_block_day", getattr(self.instance, "access_block_day", None)
+        )
+
+        if payment_due_day is not None and access_block_day is not None:
+            if access_block_day <= payment_due_day:
+                raise serializers.ValidationError({
+                    "access_block_day": (
+                        "El día de bloqueo debe ser posterior al día de vencimiento."
+                    )
+                })
+
+        return attrs
+
     def get_onboarding_url(self, obj):
         return obj.get_onboarding_url()
 

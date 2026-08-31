@@ -2,11 +2,11 @@ export const STAFF_MANIFEST = "/manifest.json";
 export const MEMBER_MANIFEST = "/member-manifest.json";
 
 export function memberManifestHref(token) {
-  return `/api/pwa/manifest/member/${token}`;
+  return `/api/gyms/pwa/member/${token}`;
 }
 
 export function staffManifestHref(slug) {
-  return `/api/pwa/manifest/staff/${slug}`;
+  return `/api/gyms/pwa/staff/${slug}`;
 }
 
 export function setManifestHref(href) {

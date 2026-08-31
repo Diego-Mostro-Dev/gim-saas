@@ -377,6 +377,21 @@ class PublicWorkoutProgressView(APIView):
         set_number = request.data.get("set_number")
         completed = request.data.get("completed", True)
 
+        if routine_exercise_id is None or set_number is None:
+            return Response(
+                {"detail": "rutina_ejercicio y serie son obligatorios."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        exercise_in_routine = assignment.routine_template.routine_exercises.filter(
+            pk=routine_exercise_id
+        ).exists()
+        if not exercise_in_routine:
+            return Response(
+                {"detail": "El ejercicio no pertenece a la rutina asignada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         ws, created = WorkoutSet.objects.update_or_create(
             routine_assignment=assignment,
             routine_exercise_id=routine_exercise_id,
