@@ -63,18 +63,32 @@ const useAuthStore = create((set, get) => ({
 
       localStorage.setItem("token", data.token);
 
-      set({
-        token: data.token,
-        user: data.user || {
-          username: data.username,
-        },
-        gym: data.gym || null,
+      try {
+        const me = await apiFetch("/api/auth/me/");
 
-        must_change_password:
-          data.must_change_password || false,
+        set({
+          token: data.token,
+          user: { username: me.username },
+          gym: me.gym ? { name: me.gym, id: me.gym_id } : null,
+          role: me.role || "staff",
+          must_change_password:
+            me.must_change_password || false,
+          loading: false,
+        });
+      } catch {
+        localStorage.removeItem("token");
 
-        loading: false,
-      });
+        set({
+          token: null,
+          user: null,
+          gym: null,
+          role: null,
+          must_change_password: false,
+          loading: false,
+        });
+
+        return false;
+      }
 
       return true;
     } catch (err) {
