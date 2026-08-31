@@ -1,5 +1,6 @@
 import StatsCards from "../components/dashboard/StatsCards";
 import QuickActions from "../components/dashboard/QuickActions";
+import QRCards from "../components/dashboard/QRCards";
 import WeeklyChart from "../components/dashboard/WeeklyChart";
 import UpcomingExpirations from "../components/dashboard/UpcomingExpirations";
 import PendingPayments from "../components/dashboard/PendingPayments";
@@ -20,6 +21,7 @@ function Dashboard() {
       )}
       <StatsCards data={dashboardData} />
       <QuickActions />
+      <QRCards />
       <WeeklyChart data={dashboardData?.weeklyAttendance || []} />
       <UpcomingExpirations
         expirations={dashboardData?.upcomingExpirations || []}
