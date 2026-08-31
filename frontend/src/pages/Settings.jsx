@@ -85,6 +85,8 @@ function Settings() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [activeTab, setActiveTab] = useState("info");
+
   const [slots, setSlots] = useState(() => getCached("slots") || []);
   const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -109,6 +111,14 @@ function Settings() {
     "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
     "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
     "19:00", "20:00", "21:00",
+  ];
+
+  const TABS = [
+    { id: "info", label: "Información" },
+    { id: "pagos", label: "Pagos" },
+    { id: "planes", label: "Planes & Horarios" },
+    { id: "qr", label: "QR" },
+    { id: "seo", label: "SEO" },
   ];
 
   useEffect(() => {
@@ -321,12 +331,31 @@ function Settings() {
 
       <h1 className="mb-2 text-3xl font-bold text-text-primary">Configuración</h1>
 
-      <p className="mb-6 text-text-secondary">Información básica del gimnasio.</p>
+      <p className="mb-4 text-text-secondary">Información básica del gimnasio.</p>
+
+      <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+              activeTab === tab.id
+                ? "bg-primary text-white"
+                : "bg-surface-input text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <form
         onSubmit={handleSubmit}
         className="rounded-xl border border-border bg-surface-elevated p-6"
       >
+        {activeTab === "info" && (
+        <>
         <div className="mb-8 flex flex-col items-center">
           <div className="mb-4">
             {logoFile ? (
@@ -492,8 +521,10 @@ function Settings() {
           />
         </div>
 
-        <hr className="my-6 border-border" />
-
+        </>
+        )}
+        {activeTab === "pagos" && (
+        <>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Configuración de Pagos
         </h3>
@@ -530,8 +561,10 @@ function Settings() {
           )}
         </div>
 
-        <hr className="my-6 border-border" />
-
+        </>
+        )}
+        {activeTab === "planes" && (
+        <>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Configuración de Planes y Horarios
         </h3>
@@ -618,8 +651,10 @@ function Settings() {
           )}
         </div>
 
-        <hr className="my-6 border-border" />
-
+        </>
+        )}
+        {activeTab === "qr" && (
+        <>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Mensajes de los códigos QR
         </h3>
@@ -665,8 +700,10 @@ function Settings() {
           />
         </div>
 
-        <hr className="my-6 border-border" />
-
+        </>
+        )}
+        {activeTab === "seo" && (
+        <>
         <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
           Posicionamiento Web (SEO)
         </h3>
@@ -676,6 +713,45 @@ function Settings() {
           compartir tu link de registro. Completalos para mejorar tu
           posicionamiento local.
         </p>
+
+        <div className="mb-6 rounded-xl border border-border bg-white px-4 py-3">
+          <div className="mb-1 flex items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200">
+              {gym?.logo_url ? (
+                <img
+                  src={gym.logo_url}
+                  alt={gym.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-xs font-bold text-gray-500">
+                  {gym?.name?.charAt(0)?.toUpperCase() || "G"}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-black">
+                {gym.name}
+              </p>
+              <p className="text-[10px] text-black/60">
+                {gym.seo_city ? `${gym.seo_city} · ` : ""}
+                {gym.seo_address ? `${gym.seo_address} · ` : ""}
+                Sitio web
+              </p>
+            </div>
+          </div>
+          <p className="truncate text-[11px] text-green-700">
+            {window.location.origin}/register/{gym.onboarding_code}
+          </p>
+          <p className="mt-1 line-clamp-2 cursor-pointer text-lg text-[#1a0dab] hover:underline">
+            {formData.seo_title.trim() ||
+              `${gym.name} | Registrate como socio`}
+          </p>
+          <p className="text-[11px] leading-snug text-gray-600">
+            {formData.seo_description.trim() ||
+              `Registrate como socio en ${gym.name}.`}
+          </p>
+        </div>
 
         <div className="mb-4">
           <label className="mb-2 block text-sm text-text-primary">
@@ -771,6 +847,8 @@ function Settings() {
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
+        </>
+        )}
 
         <button
           type="submit"
