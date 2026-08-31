@@ -9,6 +9,7 @@ export default function GymSetup() {
 
   const [validating, setValidating] = useState(true);
   const [gymName, setGymName] = useState("");
+  const [alreadyConfigured, setAlreadyConfigured] = useState(false);
   const [error, setError] = useState("");
 
   const [username, setUsername] = useState("");
@@ -30,6 +31,7 @@ export default function GymSetup() {
         }
 
         setGymName(data.gym_name);
+        setAlreadyConfigured(!!data.already_configured);
       } catch {
         setError("El enlace de registro no es válido o ha expirado.");
       } finally {
@@ -91,6 +93,23 @@ export default function GymSetup() {
         <div className="w-full max-w-sm rounded-xl bg-surface-elevated p-6 text-center">
           <h1 className="mb-4 text-xl text-danger">Enlace inválido</h1>
           <p className="text-text-secondary">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (alreadyConfigured) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface p-6">
+        <div className="w-full max-w-sm rounded-xl bg-surface-elevated p-6 text-center">
+          <h1 className="mb-4 text-xl text-text-primary">
+            {gymName} ya fue configurado
+          </h1>
+          <p className="text-text-secondary">
+            El enlace de configuración ya fue utilizado. {gymName} ya tiene una
+            cuenta de administrador creada. Si olvidaste tus datos, contactá al
+            administrador del gimnasio.
+          </p>
         </div>
       </div>
     );

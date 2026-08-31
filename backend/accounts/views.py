@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 
 from gyms.models import Gym
+from profiles.models import UserProfile
 from .serializers import (
     LoginSerializer,
     ChangePasswordSerializer,
@@ -144,9 +145,14 @@ class GymOnboardingView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        already_configured = UserProfile.objects.filter(
+            gym=gym
+        ).exists()
+
         return Response(
             {
                 "valid": True,
+                "already_configured": already_configured,
                 "gym_name": gym.name,
                 "gym_id": gym.id,
             },
@@ -179,6 +185,24 @@ class CreateGymOwnerView(APIView):
             return Response(
                 {"error": "Invalid gym code"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # A gym can only have one owner created through public onboarding.
+        # Rejecting repeats here prevents anyone who gets hold of the
+        # onboarding_code (it circulates in QR/URLs) from creating an
+        # additional owner and taking over an already-configured gym. The code
+        # itself stays valid forever because it is also used for public member
+        # registration. Additional staff/owners are created from inside the
+        # app, never through this public endpoint.
+        if UserProfile.objects.filter(gym=gym).exists():
+            return Response(
+                {
+                    "error": (
+                        "Este gimnasio ya fue configurado. "
+                        "El enlace solo sirve para la primera cuenta."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
             )
 
         # 1. crear user
