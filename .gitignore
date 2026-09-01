@@ -1,10 +1,12 @@
 # Python
 venv/
+.venv/
+venv_backup/
 __pycache__/
 *.pyc
+.env
 .env.development
 .env.production
-.env
 
 # Node
 node_modules/

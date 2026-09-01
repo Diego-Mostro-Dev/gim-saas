@@ -3,6 +3,7 @@ from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Min, Q, Sum
 from django.utils import timezone
@@ -856,6 +857,132 @@ def auto_renew_subscriptions(gym=None):
         "failed": failed,
         "plan_changes_applied": plan_changes_applied,
         "plan_changes_failed": plan_changes_failed,
+    }
+
+
+# =========================
+# Scheduled task runner
+# =========================
+
+import time as _time
+
+from django.db import connection
+
+from .models import TaskRun
+
+# Clave de advisory lock de Postgres (única dentro de la base de datos).
+# Garantiza que solo un worker/request ejecute la tarea a la vez.
+SCHEDULED_TASKS_LOCK_KEY = 738_410_159
+
+TASK_NAME = "subscription_maintenance"
+
+
+def _acquire_task_lock():
+    """Lock transaccional no bloqueante: solo un run gana a la vez.
+
+    En PostgreSQL (producción) usa pg_try_advisory_xact_lock, la opción
+    correcta para exclusión entre workers. En otros backends (SQLite en
+    tests) cede el paso: ahí la exclusión real la aporta el guard de
+    not_due + get_or_create, y los tests corren single-thread.
+    """
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_try_advisory_xact_lock(%s)",
+                [SCHEDULED_TASKS_LOCK_KEY],
+            )
+            row = cursor.fetchone()
+            return bool(row and row[0])
+    return True
+
+
+def _task_interval_seconds():
+    return getattr(settings, "SCHEDULED_TASKS_INTERVAL_SECONDS", 6 * 60 * 60)
+
+
+def maybe_run_scheduled_tasks(force=False):
+    """Disparador perezoso: camino barato sin lock si no corresponde.
+
+    Chequea la última ejecución con una sola consulta. Solo cuando la tarea
+    está vencida (o se fuerza) entra al camino con advisory lock, que hace
+    doble-chequeo para que dos requests concurrentes no la corran dos veces.
+    """
+    from .models import TaskRun as _TaskRun
+
+    now = timezone.now()
+
+    last_run = _TaskRun.objects.filter(name=TASK_NAME).values_list(
+        "last_run", flat=True
+    ).first()
+
+    if (
+        not force
+        and last_run is not None
+        and (now - last_run).total_seconds() < _task_interval_seconds()
+    ):
+        return {"ran": False, "reason": "not_due"}
+
+    return run_scheduled_tasks(force=force)
+
+
+def run_scheduled_tasks(force=False):
+    """Ejecuta el mantenimiento de suscripciones exactamente una vez.
+
+    Incluye renovaciones automáticas y cambios de plan vencidos
+    (auto_renew_subscriptions ya aplica ambos). El advisory lock dentro del
+    transaction.atomic hace que, aunque corran 2 workers, solo uno ejecute.
+    """
+    from .models import TaskRun as _TaskRun
+
+    started = _time.time()
+
+    with transaction.atomic():
+        if not _acquire_task_lock():
+            return {"ran": False, "reason": "locked"}
+
+        run, _ = _TaskRun.objects.get_or_create(
+            name=TASK_NAME,
+            defaults={
+                "last_run": timezone.now() - timezone.timedelta(days=1),
+                "last_status": "ok",
+            },
+        )
+
+        if (
+            not force
+            and (timezone.now() - run.last_run).total_seconds()
+            < _task_interval_seconds()
+        ):
+            return {"ran": False, "reason": "not_due"}
+
+        status = "ok"
+        error = ""
+        result = None
+        try:
+            result = auto_renew_subscriptions()
+        except Exception as exc:  # pragma: no cover - defensivo
+            status = "error"
+            error = f"{type(exc).__name__}: {exc}"
+            logger.exception("Scheduled task %s failed", TASK_NAME)
+
+        run.last_run = timezone.now()
+        run.last_status = status
+        run.last_duration_seconds = _time.time() - started
+        run.last_result = result
+        run.last_error = error[:5000] if error else ""
+        run.save(update_fields=[
+            "last_run",
+            "last_status",
+            "last_duration_seconds",
+            "last_result",
+            "last_error",
+        ])
+
+    return {
+        "ran": True,
+        "status": status,
+        "result": result,
+        "error": error or None,
     }
 
 

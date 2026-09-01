@@ -23,6 +23,17 @@ ALLOWED_HOSTS = [
     ".onrender.com",
 ]
 
+# API key compartida para disparar tareas del sistema desde un cron externo
+SCHEDULED_TASKS_KEY = os.getenv("SCHEDULED_TASKS_KEY", "")
+
+# Intervalo mínimo entre ejecuciones del mantenimiento (segundos).
+SCHEDULED_TASKS_INTERVAL_SECONDS = int(
+    os.getenv("SCHEDULED_TASKS_INTERVAL_SECONDS", "21600")
+)
+
+# Habilita el disparador perezoso desde requests (middleware).
+SCHEDULED_TASKS_ENABLED = os.getenv("SCHEDULED_TASKS_ENABLED", "true").lower() == "true"
+
 
 # =========================
 # APPLICATIONS
@@ -72,6 +83,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "config.api.middleware.ScheduledTaskTriggerMiddleware",
 ]
 
 

@@ -268,6 +268,56 @@ class SubscriptionItem(models.Model):
         return f"{self.subscription.member} — {label} ({self.status})"
 
 
+class TaskRun(models.Model):
+    """Registro de una tarea programada del sistema.
+
+    Guarda la última ejecución de cada tarea para que el disparador
+    perezoso (middleware) y el endpoint del cron externo no se pisen
+    entre sí, y para auditar qué corrió y cuándo.
+    """
+
+    name = models.CharField(
+        max_length=64,
+        unique=True,
+        verbose_name="Nombre de la tarea",
+    )
+
+    last_run = models.DateTimeField(verbose_name="Última ejecución")
+
+    last_status = models.CharField(
+        max_length=20,
+        default="ok",
+        verbose_name="Último estado",
+        help_text="ok / error / locked / not_due",
+    )
+
+    last_duration_seconds = models.FloatField(
+        default=0,
+        verbose_name="Duración de la última ejecución",
+    )
+
+    last_result = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name="Resultado de la última ejecución",
+    )
+
+    last_error = models.TextField(
+        blank=True,
+        verbose_name="Último error",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Fecha de actualización")
+
+    class Meta:
+        verbose_name = "Ejecución de tarea programada"
+        verbose_name_plural = "Ejecuciones de tareas programadas"
+
+    def __str__(self):
+        return f"{self.name} — {self.last_run:%Y-%m-%d %H:%M} ({self.last_status})"
+
+
 class PlannedSchedule(models.Model):
     gym = models.ForeignKey(
         Gym,

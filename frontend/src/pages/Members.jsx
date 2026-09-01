@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 
-import { Search, Plus, DollarSign } from "lucide-react";
+import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
@@ -50,7 +50,64 @@ function Members() {
 
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [viewMode, setViewMode] = useState("cards");
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const dayLabels = {
+    monday: "Lun",
+    tuesday: "Mar",
+    wednesday: "Mié",
+    thursday: "Jue",
+    friday: "Vie",
+    saturday: "Sáb",
+  };
+
+  function handleExportCsv() {
+    const header = ["Nombre", "Teléfono", "Email", "Plan", "Horarios"];
+
+    const rows = filteredMembers.map((member) => {
+      const schedules = (member.schedules || [])
+        .map((s) => `${dayLabels[s.day]} ${s.hour}`)
+        .join(", ");
+
+      return [
+        `${member.first_name} ${member.last_name}`,
+        member.phone || "",
+        member.email || "",
+        member.plan_name || "",
+        schedules,
+      ];
+    });
+
+    const escape = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(escape).join(","))
+      .join("\n");
+
+    const blob = new Blob([`\uFEFF${csv}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = "miembros.csv";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+    toast.success("Listado exportado a CSV");
+  }
 
   const [memberToDelete, setMemberToDelete] = useState(null);
 
@@ -285,19 +342,55 @@ function Members() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (showForm) {
-              closeForm();
-            } else {
-              openCreateForm();
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-        >
-          <Plus size={18} />
-          {showForm ? "Cerrar" : "Nuevo"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-1.5 rounded-xl bg-surface-elevated px-3 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+          >
+            <Download size={16} />
+            Exportar CSV
+          </button>
+
+          <div className="flex items-center rounded-xl border border-border bg-surface-elevated p-1">
+            <button
+              onClick={() => setViewMode("cards")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                viewMode === "cards"
+                  ? "bg-blue-500 text-white"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <LayoutGrid size={15} />
+              Tarjetas
+            </button>
+
+            <button
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                viewMode === "table"
+                  ? "bg-blue-500 text-white"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <Table size={15} />
+              Directorio
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              if (showForm) {
+                closeForm();
+              } else {
+                openCreateForm();
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            <Plus size={18} />
+            {showForm ? "Cerrar" : "Nuevo"}
+          </button>
+        </div>
       </div>
 
       {/* ERROR */}
@@ -352,13 +445,13 @@ function Members() {
       )}
 
       {/* LIST */}
-      <div className="space-y-3">
-        {filteredMembers.length === 0 ? (
-          <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
-            No se encontraron miembros
-          </div>
-        ) : (
-          filteredMembers.map((member) => (
+      {filteredMembers.length === 0 ? (
+        <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
+          No se encontraron miembros
+        </div>
+      ) : viewMode === "cards" ? (
+        <div className="space-y-3">
+          {filteredMembers.map((member) => (
             <MemberCard
               key={member.id}
               member={member}
@@ -368,9 +461,87 @@ function Members() {
               onCopyPortalLink={handleCopyPortalLink}
               onViewPayments={handleViewPayments}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border bg-surface-elevated shadow-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase text-text-secondary">
+                <th className="px-4 py-3 font-medium">Miembro</th>
+                <th className="px-4 py-3 font-medium">Teléfono</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Plan</th>
+                <th className="px-4 py-3 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredMembers.map((member) => (
+                <tr
+                  key={member.id}
+                  className="border-b border-border last:border-0 hover:bg-surface-input/40"
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-input font-bold text-info-text dark:text-info">
+                        {member.photo ? (
+                          <img
+                            src={member.photo}
+                            alt={`${member.first_name} ${member.last_name}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <>
+                            {member.first_name[0]}
+                            {member.last_name[0]}
+                          </>
+                        )}
+                      </div>
+                      <span className="font-medium text-text-primary">
+                        {member.first_name} {member.last_name}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-3 text-text-secondary">{member.phone || "—"}</td>
+
+                  <td className="px-4 py-3 text-text-secondary">{member.email || "—"}</td>
+
+                  <td className="px-4 py-3">
+                    {member.plan_name ? (
+                      <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
+                        {member.plan_name}
+                      </span>
+                    ) : (
+                      <span className="text-text-secondary">—</span>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onViewPayments(member)}
+                        className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
+                        title="Historial de pagos"
+                      >
+                        Historial
+                      </button>
+
+                      <button
+                        onClick={() => openEditForm(member)}
+                        className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
+                        title="Editar"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={showDeleteModal}

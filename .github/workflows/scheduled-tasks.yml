@@ -1,0 +1,29 @@
+name: Scheduled backend tasks
+
+on:
+  schedule:
+    # Cada 6 horas. El disparador perezoso del middleware cubre los gaps.
+    - cron: "17 */6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  run_scheduled_tasks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backend scheduled tasks
+        env:
+          TASK_KEY: ${{ secrets.SCHEDULED_TASKS_KEY }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          if [ -z "$TASK_KEY" ]; then
+            echo "::error::Secret SCHEDULED_TASKS_KEY is not set"
+            exit 1
+          fi
+          URL="${BACKEND_URL:-https://gim-saas.onrender.com}"
+          curl --fail --silent --show-error \
+            --max-time 300 \
+            -X POST "$URL/api/system/tasks/?force=true" \
+            -H "X-Task-Key: $TASK_KEY"
