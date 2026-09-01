@@ -38,7 +38,6 @@ class MemberSerializer(serializers.ModelSerializer):
             "schedules",
             "gym",
             "photo",
-            "access_token",
             "plan_id",
             "subscription_active",
             "plan_name",
@@ -47,7 +46,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "is_recoverable",
         ]
 
-        read_only_fields = ["gym", "access_token", "active"]
+        read_only_fields = ["gym", "active"]
 
     def _active_subscription(self, obj):
         return SubscriptionDomain.get_active_subscription(obj)
@@ -291,6 +290,13 @@ class MemberSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
 
         return instance
+
+
+class PublicMemberSerializer(MemberSerializer):
+
+    class Meta(MemberSerializer.Meta):
+        fields = MemberSerializer.Meta.fields + ["access_token"]
+        read_only_fields = ["gym", "access_token", "active"]
 
 
 class MemberPhotoSerializer(serializers.ModelSerializer):

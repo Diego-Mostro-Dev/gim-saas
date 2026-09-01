@@ -17,7 +17,7 @@ from gyms.models import Gym
 from plans.models import MembershipPlan
 from subscriptions.services import get_last_day_of_month
 
-from .serializers import MemberSerializer
+from .serializers import MemberSerializer, PublicMemberSerializer
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
 from config.api.throttles import PublicMemberRateThrottle
 
@@ -83,14 +83,14 @@ class PublicRegisterView(APIView):
                 Decimal(str(remaining_days)) / Decimal(str(total_days))
             ) * plan.price
 
-            data = MemberSerializer(member).data
+            data = PublicMemberSerializer(member).data
             data["prorated_amount"] = str(prorated_amount.quantize(Decimal("0.01")))
             data["plan_price"] = str(plan.price)
 
             return Response(data, status=status.HTTP_201_CREATED)
 
         return Response(
-            MemberSerializer(member).data,
+            PublicMemberSerializer(member).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -243,7 +243,7 @@ class PublicRegisterView(APIView):
             return Response(e.detail, status=e.status_code)
 
         return Response(
-            MemberSerializer(member).data,
+            PublicMemberSerializer(member).data,
             status=status.HTTP_201_CREATED,
         )
 
