@@ -47,3 +47,24 @@ class BackupEndpointTests(APITestCase):
         resp = self.post(key="test-task-key")
         self.assertEqual(resp.status_code, 500)
         self.assertIn("error", resp.data)
+
+
+@override_settings(SCHEDULED_TASKS_KEY="test-task-key")
+class SentryTestEndpointTests(APITestCase):
+    def post(self, key=None):
+        # Unhandled exceptions are re-raised by default in tests; we want the
+        # real 500 Response the endpoint produces.
+        self.client.raise_request_exception = False
+        headers = {"HTTP_X_TASK_KEY": key} if key is not None else {}
+        return self.client.post("/api/system/sentry-test/", **headers)
+
+    def test_requires_task_key(self):
+        resp = self.post()
+        self.assertEqual(resp.status_code, 403)
+
+        resp = self.post(key="wrong-key")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_valid_key_raises(self):
+        resp = self.post(key="test-task-key")
+        self.assertEqual(resp.status_code, 500)
