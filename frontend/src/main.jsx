@@ -5,6 +5,7 @@ import { Toaster } from "react-hot-toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./App";
+import ErrorBoundary from "./components/ErrorBoundary";
 import useAuthStore from "./store/auth.store";
 import usePWAStore from "./store/pwa.store";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -57,7 +58,9 @@ useAuthStore.getState().hydrate().then(() => {
         <ThemeProvider>
           <BrowserRouter>
             <FeatureProvider mode="admin">
-              <App />
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
             </FeatureProvider>
             <UpdateBanner />
             <InstallBanner />

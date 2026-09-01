@@ -1,5 +1,10 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+const DEFAULT_TIMEOUT_MS = 15000;
+
+export const NETWORK_ERROR_MESSAGE =
+  "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";
+
 export class ApiError extends Error {
   constructor(message, status, code, feature, data) {
     super(message);
@@ -9,6 +14,53 @@ export class ApiError extends Error {
     this.feature = feature;
     this.data = data;
   }
+}
+
+export function isNetworkError(err) {
+  return err instanceof ApiError && err.code === "NETWORK_ERROR";
+}
+
+function asApiError(err) {
+  if (err instanceof ApiError) return err;
+
+  if (err?.name === "AbortError") {
+    return new ApiError(
+      "La petición tardó demasiado. Intentá de nuevo.",
+      0,
+      "NETWORK_TIMEOUT",
+      null,
+      null,
+    );
+  }
+
+  return new ApiError(NETWORK_ERROR_MESSAGE, 0, "NETWORK_ERROR", null, null);
+}
+
+// Combines an optional external AbortSignal with an internal timeout so a
+// stalled request never hangs a screen (PWA tabs can stay open for days).
+function buildTimeoutController(fetchOptions) {
+  const timeoutMs = Number(fetchOptions.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  if (!timeoutMs || timeoutMs <= 0) {
+    return { signal: fetchOptions.signal, cleanup() {} };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const external = fetchOptions.signal;
+
+  const abortExternal = () => controller.abort();
+  if (external) {
+    if (external.aborted) controller.abort();
+    else external.addEventListener("abort", abortExternal);
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup() {
+      clearTimeout(timer);
+      if (external) external.removeEventListener("abort", abortExternal);
+    },
+  };
 }
 
 export function extractApiErrorMessage(body) {
@@ -67,28 +119,43 @@ async function throwIfNotOk(res, options = {}) {
   }
 }
 
-export async function apiFetch(endpoint, options = {}) {
-  const { skipAuth = false, suppressUnauthorized = false, ...fetchOptions } = options;
+async function request(
+  url,
+  fetchOptions,
+  { suppressUnauthorized = false, skipAuth = false } = {},
+) {
   const headers = buildAuthHeaders({ ...fetchOptions, skipAuth });
+  const { signal, cleanup } = buildTimeoutController(fetchOptions);
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    ...fetchOptions,
-    headers,
-  });
-
-  await throwIfNotOk(res, { suppressUnauthorized });
+  let res;
+  try {
+    res = await fetch(url, { ...fetchOptions, headers, signal });
+    await throwIfNotOk(res, { suppressUnauthorized });
+  } catch (err) {
+    throw asApiError(err);
+  } finally {
+    cleanup();
+  }
 
   if (res.status === 204) {
     return null;
   }
 
   const contentType = res.headers.get("content-type");
-
   if (!contentType?.includes("application/json")) {
     return null;
   }
 
-  const data = await res.json();
+  return res.json();
+}
+
+export async function apiFetch(endpoint, options = {}) {
+  const { skipAuth = false, suppressUnauthorized = false, ...fetchOptions } = options;
+
+  const data = await request(`${API_URL}${endpoint}`, fetchOptions, {
+    skipAuth,
+    suppressUnauthorized,
+  });
 
   // Unwrap DRF paginated responses: { results: [...], count: N } → [...]
   if (data && Array.isArray(data.results) && typeof data.count === "number") {
@@ -101,21 +168,13 @@ export async function apiFetch(endpoint, options = {}) {
 
 export async function fetchAllPages(endpoint, options = {}) {
   const { skipAuth = false, ...fetchOptions } = options;
-  const headers = buildAuthHeaders({ ...fetchOptions, skipAuth });
 
   const allResults = [];
   let url = `${API_URL}${endpoint}`;
   let totalCount = 0;
 
   while (url) {
-    const res = await fetch(url, {
-      headers,
-      signal: fetchOptions.signal,
-    });
-
-    await throwIfNotOk(res);
-
-    const data = await res.json();
+    const data = await request(url, fetchOptions, { skipAuth });
 
     if (Array.isArray(data?.results)) {
       allResults.push(...data.results);
