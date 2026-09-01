@@ -33,3 +33,21 @@ jobs:
             --retry-all-errors \
             -X POST "$URL/api/system/tasks/?force=true" \
             -H "X-Task-Key: $TASK_KEY"
+
+      - name: Backup database to Cloudinary
+        env:
+          TASK_KEY: ${{ secrets.SCHEDULED_TASKS_KEY }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          if [ -z "$TASK_KEY" ]; then
+            echo "::error::Secret SCHEDULED_TASKS_KEY is not set"
+            exit 1
+          fi
+          URL="${BACKEND_URL:-https://gim-saas.onrender.com}"
+          curl --fail --silent --show-error \
+            --max-time 600 \
+            --retry 6 \
+            --retry-delay 20 \
+            --retry-all-errors \
+            -X POST "$URL/api/system/backup/" \
+            -H "X-Task-Key: $TASK_KEY"

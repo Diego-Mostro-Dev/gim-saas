@@ -7,6 +7,7 @@ from django.conf.urls.static import static
 from config.api.health import health_check
 from config.api.dashboard import DashboardSummaryView
 from config.api.tasks import scheduled_tasks_endpoint
+from config.api.backup import backup_endpoint
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -14,6 +15,7 @@ urlpatterns = [
     path("api/health/", health_check),
 
     path("api/system/tasks/", scheduled_tasks_endpoint),
+    path("api/system/backup/", backup_endpoint),
 
     path("api/", include("members.urls")),
     path("api/", include("plans.urls")),

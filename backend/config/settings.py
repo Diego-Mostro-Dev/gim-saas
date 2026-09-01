@@ -3,9 +3,29 @@ import os
 from dotenv import load_dotenv
 import dj_database_url
 import cloudinary
+import sentry_sdk
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# =========================
+# SENTRY (monitoreo)
+# =========================
+
+# Inicializar lo antes posible para capturar errores de arranque y runtime.
+# Se activa solo si SENTRY_DSN está definido (ej: producción); en local nada.
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=os.getenv("ENVIRONMENT", "production"),
+        traces_sample_rate=float(
+            os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.25")
+        ),
+        send_default_pii=False,
+        max_breadcrumbs=50,
+    )
 
 
 # =========================
