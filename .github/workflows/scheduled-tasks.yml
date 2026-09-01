@@ -23,7 +23,13 @@ jobs:
             exit 1
           fi
           URL="${BACKEND_URL:-https://gim-saas.onrender.com}"
+          # El free tier de Render se duerme sin tráfico; primer request
+          # despierta el servicio (cold start ~30-60s) y el proxy reactivo
+          # puede devolver 502 mientras arranca. Reintentar lo absorbe.
           curl --fail --silent --show-error \
             --max-time 300 \
+            --retry 6 \
+            --retry-delay 20 \
+            --retry-all-errors \
             -X POST "$URL/api/system/tasks/?force=true" \
             -H "X-Task-Key: $TASK_KEY"
