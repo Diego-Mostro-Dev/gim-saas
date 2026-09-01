@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 
 from gyms.models import Gym
 from profiles.models import UserProfile
@@ -186,7 +187,7 @@ class CreateGymOwnerView(APIView):
 
         try:
             gym = Gym.objects.get(onboarding_code=code)
-        except Gym.DoesNotExist:
+        except (Gym.DoesNotExist, ValidationError):
             return Response(
                 {"error": "Invalid gym code"},
                 status=status.HTTP_400_BAD_REQUEST,

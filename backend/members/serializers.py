@@ -85,15 +85,12 @@ class MemberSerializer(serializers.ModelSerializer):
         whole member list is serialized in constant queries, not N+1.
 
         Rules (same as recover_member):
-        - Only an inactive member can be a candidate.
+        - Only a member without a live subscription can be a candidate.
         - Any subscription with a remaining balance means debt -> not recoverable.
         - Must have at least one previous subscription.
         - No future subscription.
         - A base plan is only rejected when there is no current subscription.
         """
-        if obj.active:
-            return False
-
         today = date.today()
 
         has_debt = False
@@ -138,6 +135,13 @@ class MemberSerializer(serializers.ModelSerializer):
         if latest_sub is None:
             return False
         if has_future:
+            return False
+        # A healthy member (active + live subscription) has nothing to recover.
+        # The key case is the "limbo" member: active=True because nothing ever
+        # flips the flag, but with an expired subscription and no current one.
+        # recover_member() DOES handle them (Case B creates the new
+        # subscription), so the UI badge/filter must agree and not hide them.
+        if obj.active and has_current:
             return False
         if not has_current and latest_sub.plan.is_base:
             return False
