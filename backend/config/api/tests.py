@@ -4,6 +4,14 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 
 
+class HealthCheckTests(APITestCase):
+    def test_health_is_public_and_reports_db(self):
+        resp = self.client.get("/api/health/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "ok")
+        self.assertEqual(resp.data["database"], "connected")
+
+
 @override_settings(SCHEDULED_TASKS_KEY="test-task-key")
 class BackupEndpointTests(APITestCase):
     def post(self, key=None):
