@@ -260,6 +260,14 @@ function MemberPortalLayout() {
     );
   }
 
+  if (!routine) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
+        Cargando portal...
+      </div>
+    );
+  }
+
   return (
     <FeatureProvider mode="public" initialFeatures={routine?.gym?.features} onRefreshFeatures={refreshNow}>
       <MemberPortalLayoutContent
