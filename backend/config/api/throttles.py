@@ -20,3 +20,8 @@ class PublicAttendanceRateThrottle(AnonRateThrottle):
 
 class PublicMemberRateThrottle(AnonRateThrottle):
     rate = "300/hour"
+
+
+class PublicRegisterRateThrottle(AnonRateThrottle):
+    scope = "public_register"
+    rate = "20/hour"

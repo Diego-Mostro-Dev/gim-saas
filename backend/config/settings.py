@@ -43,6 +43,20 @@ ALLOWED_HOSTS = [
 if DEBUG:
     ALLOWED_HOSTS += ["127.0.0.1", "localhost", "192.168.100.89"]
 
+# Seguridad de transporte y headers. Solo se fuerzan en producción;
+# en DEBUG local no redirigir a HTTPS (el dev server usa HTTP).
+if not DEBUG:
+    SECURE_SSL_REDIRECT = bool(os.getenv("SECURE_SSL_REDIRECT", "True").lower() in ("1", "true", "yes"))
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+
+    # Cookies solo por HTTPS
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 # API key compartida para disparar tareas del sistema desde un cron externo
 SCHEDULED_TASKS_KEY = os.getenv("SCHEDULED_TASKS_KEY", "")
 
@@ -121,7 +135,11 @@ if CORS_ALLOWED_ORIGINS_ENV:
 elif FRONTEND_URL:
     CORS_ALLOWED_ORIGINS = [FRONTEND_URL]
 else:
-    CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
+    # En producción no debería haber fallback a localhost: que falle-closed
+    # (bloquear orígenes reales) en vez de abrir CORS por error de config.
+    CORS_ALLOWED_ORIGINS = (
+        ["http://localhost:5173"] if DEBUG else []
+    )
 
 
 # =========================

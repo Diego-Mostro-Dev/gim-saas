@@ -19,7 +19,7 @@ from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer, PublicMemberSerializer
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import PublicMemberRateThrottle, PublicRegisterRateThrottle
 
 
 VALID_SERVICES = frozenset({"gym", "activities"})
@@ -29,7 +29,7 @@ class PublicRegisterView(APIView):
 
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicRegisterRateThrottle]
 
     def post(self, request, gym_code):
 
