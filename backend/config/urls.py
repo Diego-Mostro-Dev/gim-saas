@@ -1,8 +1,11 @@
 from django.contrib import admin
 from django.urls import path, include
-
 from django.conf import settings
 from django.conf.urls.static import static
+
+from config.api.notfound import handler404
+
+handler404 = handler404
 
 from config.api.health import health_check
 from config.api.dashboard import DashboardSummaryView

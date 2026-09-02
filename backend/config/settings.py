@@ -37,11 +37,11 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "192.168.100.89",
     ".onrender.com",
 ]
+
+if DEBUG:
+    ALLOWED_HOSTS += ["127.0.0.1", "localhost", "192.168.100.89"]
 
 # API key compartida para disparar tareas del sistema desde un cron externo
 SCHEDULED_TASKS_KEY = os.getenv("SCHEDULED_TASKS_KEY", "")
@@ -161,6 +161,44 @@ REST_FRAMEWORK = {
 
 
 # =========================
+# LOGGING
+# =========================
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
+
+# =========================
 # DATABASE
 # =========================
 
@@ -171,6 +209,7 @@ DATABASES = {
     "default": dj_database_url.parse(
         os.getenv("DATABASE_URL"),
         conn_max_age=0,
+        conn_health_checks=True,
     )
 }
 
@@ -245,7 +284,7 @@ USE_TZ = True
 # STATIC FILES (PRODUCCIÓN)
 # =========================
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 MEDIA_URL = "/media/"
