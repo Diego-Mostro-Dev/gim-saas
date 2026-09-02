@@ -162,14 +162,17 @@ export async function getMemberWhatsapp(memberId) {
 export async function getPublicRoutine(token, { force = false } = {}) {
   const cacheKey = `public-routine-${token}`;
   if (!force && isCacheFresh(cacheKey, PUBLIC_ROUTINE_TTL_MS)) {
-    return getCached(cacheKey);
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
   }
 
   const data = await apiFetch(
     `/api/routines/public/${token}/`,
     { skipAuth: true },
   );
-  setCached(cacheKey, data);
+  if (data) {
+    setCached(cacheKey, data);
+  }
   return data;
 }
 

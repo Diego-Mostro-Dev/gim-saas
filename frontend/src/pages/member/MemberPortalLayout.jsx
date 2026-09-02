@@ -154,10 +154,11 @@ function MemberPortalLayout() {
 
   async function loadSecondaryRequests(data) {
     const secondaryLoads = [];
-    if (data.gym?.allow_schedule_changes !== false) {
+    const gym = data?.gym;
+    if (gym && gym.allow_schedule_changes !== false) {
       secondaryLoads.push(loadSlots(), loadChangeRequests(), loadSwapRequests());
     }
-    if (data.gym?.allow_plan_changes !== false) {
+    if (gym && gym.allow_plan_changes !== false) {
       secondaryLoads.push(loadPlanChangeRequests());
     }
     await Promise.all(secondaryLoads);
