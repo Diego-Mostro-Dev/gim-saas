@@ -1,4 +1,5 @@
-const BACKEND_BASE = "https://gim-saas.onrender.com";
+const BACKEND_BASE =
+  process.env.BACKEND_URL || "https://gim-saas.onrender.com";
 
 function escapeHtml(value = "") {
   return String(value)

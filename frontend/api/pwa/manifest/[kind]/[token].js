@@ -1,5 +1,5 @@
 const BACKEND_BASE =
-  "https://gim-saas.onrender.com/api/gyms/pwa";
+  (process.env.BACKEND_URL || "https://gim-saas.onrender.com") + "/api/gyms/pwa";
 
 export default async function handler(req, res) {
   const { kind, token } = req.query;
