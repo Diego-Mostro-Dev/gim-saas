@@ -7,7 +7,7 @@ from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
 from subscriptions.services import sync_subscription_paid
 
-from .models import Enrollment
+from .models import ActivitySchedule, Enrollment
 from .overlap import validate_enrollment
 
 
@@ -32,28 +32,34 @@ class EnrollmentService:
 
         gym = SubscriptionDomain.resolve_gym(member)
 
-        active_count = Enrollment.objects.filter(
-            gym=gym, schedule=schedule, active=True
-        ).count()
-        if active_count >= schedule.capacity:
-            raise EnrollmentError("El horario alcanzó su capacidad máxima.")
-
-        if Enrollment.objects.filter(
-            gym=gym, member=member, schedule=schedule, active=True
-        ).exists():
-            raise EnrollmentError(
-                "El miembro ya está inscripto en este horario.",
-                status_code=409,
-            )
-
         try:
             validate_enrollment(member, schedule)
         except ValueError as e:
             raise EnrollmentError(str(e))
 
-        sub = SubscriptionDomain.get_current_subscription(member)
-
         with transaction.atomic():
+            # Lock the schedule row so concurrent enrollments are serialized
+            # and cannot overshoot capacity or create duplicates.
+            locked_schedule = ActivitySchedule.objects.select_for_update().get(
+                pk=schedule.pk
+            )
+
+            active_count = Enrollment.objects.filter(
+                gym=gym, schedule=locked_schedule, active=True
+            ).count()
+            if active_count >= locked_schedule.capacity:
+                raise EnrollmentError("El horario alcanzó su capacidad máxima.")
+
+            if Enrollment.objects.filter(
+                gym=gym, member=member, schedule=locked_schedule, active=True
+            ).exists():
+                raise EnrollmentError(
+                    "El miembro ya está inscripto en este horario.",
+                    status_code=409,
+                )
+
+            sub = SubscriptionDomain.get_current_subscription(member)
+
             activity_item = None
             if sub is not None:
                 locked_sub = Subscription.objects.select_for_update().get(
@@ -65,7 +71,7 @@ class EnrollmentService:
             enrollment = Enrollment.objects.create(
                 gym=gym,
                 member=member,
-                schedule=schedule,
+                schedule=locked_schedule,
                 subscription_item=activity_item,
                 active=True,
             )

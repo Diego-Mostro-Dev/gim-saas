@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.db import transaction
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
@@ -30,10 +31,14 @@ class PublicCheckinView(APIView):
     throttle_classes = [PublicAttendanceRateThrottle]
 
     def post(self, request, token):
+        with transaction.atomic():
+            return self._handle_checkin(token)
+
+    def _handle_checkin(self, token):
         member = Member.objects.filter(
             access_token=token,
             active=True,
-        ).first()
+        ).select_for_update().first()
 
         if not member:
             return Response(
