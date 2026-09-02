@@ -19,4 +19,4 @@ class PublicAttendanceRateThrottle(AnonRateThrottle):
 
 
 class PublicMemberRateThrottle(AnonRateThrottle):
-    rate = "60/hour"
+    rate = "300/hour"

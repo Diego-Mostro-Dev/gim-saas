@@ -1,4 +1,7 @@
 import { apiFetch } from "./api";
+import { getCached, setCached, isCacheFresh } from "../utils/cache";
+
+const PUBLIC_ROUTINE_TTL_MS = 60 * 1000;
 
 /*
 |--------------------------------------------------------------------------
@@ -156,11 +159,18 @@ export async function getMemberWhatsapp(memberId) {
   );
 }
 
-export async function getPublicRoutine(token) {
-  return apiFetch(
+export async function getPublicRoutine(token, { force = false } = {}) {
+  const cacheKey = `public-routine-${token}`;
+  if (!force && isCacheFresh(cacheKey, PUBLIC_ROUTINE_TTL_MS)) {
+    return getCached(cacheKey);
+  }
+
+  const data = await apiFetch(
     `/api/routines/public/${token}/`,
     { skipAuth: true },
   );
+  setCached(cacheKey, data);
+  return data;
 }
 
 /*

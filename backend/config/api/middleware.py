@@ -25,6 +25,8 @@ class ScheduledTaskTriggerMiddleware:
         if getattr(settings, "SCHEDULED_TASKS_ENABLED", True):
             if request.path.startswith("/api/system/"):
                 return response
+            if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+                return response
             try:
                 maybe_run_scheduled_tasks()
             except Exception:

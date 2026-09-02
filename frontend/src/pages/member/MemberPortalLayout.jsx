@@ -5,6 +5,7 @@ import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import { useGymTitle } from "../../hooks/useGymTitle";
+import { clearCached } from "../../utils/cache";
 import toast from "react-hot-toast";
 
 import {
@@ -41,6 +42,7 @@ function MemberPortalLayout() {
 
   const currentTokenRef = useRef(token);
   const sectionRequestSeqRef = useRef({});
+  const hasInitializedRef = useRef(false);
 
   useLayoutEffect(() => {
     currentTokenRef.current = token;
@@ -198,6 +200,7 @@ function MemberPortalLayout() {
   });
 
   function refreshNow() {
+    clearCached(`public-routine-${token}`);
     return request({ cause: "manual", force: true });
   }
 
@@ -206,7 +209,10 @@ function MemberPortalLayout() {
       localStorage.setItem("member_token", token);
     }
 
-    runInitialLoad();
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      runInitialLoad();
+    }
   }, [token, runInitialLoad]);
 
   async function handlePhotoUpload() {

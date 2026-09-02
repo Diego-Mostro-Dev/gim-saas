@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppLayout from "./layouts/AppLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
@@ -32,13 +32,12 @@ import Activities from "./pages/Activities";
 import ActivitySchedules from "./pages/ActivitySchedules";
 import ScheduleEnrollments from "./pages/ScheduleEnrollments";
 import Staff from "./pages/Staff";
+import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
 
 function App() {
-  const location = useLocation();
-
   return (
-    <ErrorBoundary key={location.pathname}>
+    <ErrorBoundary>
       <Routes>
       {/* redirect */}
       <Route path="/" element={<Navigate to="/dashboard" />} />
@@ -85,6 +84,9 @@ function App() {
         <Route path="/activities/:activityId/schedules" element={<ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature>} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature>} />
       </Route>
+
+      {/* catch-all */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
     </ErrorBoundary>
   );

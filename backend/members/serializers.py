@@ -21,6 +21,7 @@ class MemberSerializer(serializers.ModelSerializer):
     subscription_active = serializers.SerializerMethodField()
     plan_name = serializers.SerializerMethodField()
     subscription_days_remaining = serializers.SerializerMethodField()
+    subscription_end_date = serializers.SerializerMethodField()
     member_created_at = serializers.SerializerMethodField()
     is_recoverable = serializers.SerializerMethodField()
 
@@ -42,6 +43,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "subscription_active",
             "plan_name",
             "subscription_days_remaining",
+            "subscription_end_date",
             "member_created_at",
             "is_recoverable",
         ]
@@ -49,14 +51,37 @@ class MemberSerializer(serializers.ModelSerializer):
         read_only_fields = ["gym", "active"]
 
     def _active_subscription(self, obj):
-        return SubscriptionDomain.get_active_subscription(obj)
+        """Most recent subscription whose start_date is in the past (or today).
+
+        Uses the prefetched subscription_set — zero extra DB queries.
+        Mirrors SubscriptionDomain.get_active_subscription logic.
+        """
+        today = date.today()
+        candidates = [
+            sub for sub in obj.subscription_set.all()
+            if sub.start_date <= today
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda s: (s.start_date, s.created_at))
+
+    def _current_subscription(self, obj):
+        """Subscription that covers today (start <= today <= end).
+
+        Uses the prefetched subscription_set — zero extra DB queries.
+        Mirrors SubscriptionDomain.get_current_subscription logic.
+        """
+        today = date.today()
+        candidates = [
+            sub for sub in obj.subscription_set.all()
+            if sub.start_date <= today <= sub.end_date
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda s: (s.start_date, s.created_at))
 
     def get_subscription_active(self, obj):
-        sub = self._active_subscription(obj)
-        if sub is None:
-            return False
-        today = date.today()
-        return sub.start_date <= today <= sub.end_date
+        return self._current_subscription(obj) is not None
 
     def get_plan_name(self, obj):
         sub = self._active_subscription(obj)
@@ -65,11 +90,17 @@ class MemberSerializer(serializers.ModelSerializer):
         return public_plan_name(sub.plan)
 
     def get_subscription_days_remaining(self, obj):
-        sub = SubscriptionDomain.get_current_subscription(obj)
+        sub = self._current_subscription(obj)
         if sub is None:
             return None
         today = date.today()
         return (sub.end_date - today).days
+
+    def get_subscription_end_date(self, obj):
+        sub = self._current_subscription(obj)
+        if sub is None:
+            return None
+        return sub.end_date.isoformat()
 
     def get_member_created_at(self, obj):
         return obj.created_at.isoformat() if obj.created_at else None

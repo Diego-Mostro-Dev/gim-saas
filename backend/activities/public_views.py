@@ -60,7 +60,7 @@ class PublicMemberEnrollmentsView(APIView):
         )
 
         try:
-            enrollment = EnrollmentService.unenroll_member(member, schedule)
+            enrollment = EnrollmentService.enroll_member(member, schedule)
         except EnrollmentError as e:
             return Response(
                 {"detail": str(e)},
@@ -68,7 +68,7 @@ class PublicMemberEnrollmentsView(APIView):
             )
 
         serializer = PublicEnrollmentSerializer(enrollment)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class PublicGymActivitiesView(APIView):

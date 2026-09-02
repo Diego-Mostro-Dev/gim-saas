@@ -6,7 +6,7 @@ const CACHE_KEY = "gym";
 const TTL = 10 * 60 * 1000;
 
 export function useGym() {
-  const [gym, setGym] = useState(() => getCached(CACHE_KEY) || {});
+  const [gym, setGym] = useState(() => getCached(CACHE_KEY) || null);
 
   useEffect(() => {
     loadGym();
