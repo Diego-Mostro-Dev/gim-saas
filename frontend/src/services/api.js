@@ -86,6 +86,9 @@ function buildAuthHeaders(options = {}) {
   if (!isFormData) {
     headers["Content-Type"] = "application/json";
   }
+  // Fuerza JSON siempre (evita que DRF devuelva la BrowsableAPI en HTML en
+  // DEBUG, que apiFetch no puede parsear y convierte en null).
+  headers["Accept"] = "application/json";
   if (token && !options.skipAuth) {
     headers.Authorization = `Token ${token}`;
   }
