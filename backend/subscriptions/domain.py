@@ -308,7 +308,9 @@ class ScheduleDomain:
 
         target_schedules: list of dicts with 'day' and 'hour' keys.
         Deactivates schedules not in target, activates or creates missing ones.
-        Silently skips slots that no longer exist.
+        Silently skips slots that no longer exist. Validates capacity before
+        adding a member to a slot, excluding the member being edited so an
+        existing/re-added slot does not count them twice.
         """
         from attendance.models import AttendanceSchedule, ScheduleSlot
 
@@ -328,6 +330,25 @@ class ScheduleDomain:
 
         for day, hour in target_keys:
             key = (day, hour)
+            try:
+                slot = ScheduleSlot.objects.get(gym=gym, day=day, hour=hour)
+            except ScheduleSlot.DoesNotExist:
+                continue
+
+            cap = slot.capacity or gym.default_schedule_capacity
+            if cap is not None:
+                current_count = AttendanceSchedule.objects.filter(
+                    gym=gym, slot=slot, active=True,
+                ).exclude(member=member).count()
+                already_has = (
+                    key in current
+                    and current[key].active
+                )
+                if not already_has and current_count >= cap:
+                    raise ScheduleError(
+                        f"El horario {DAY_LABELS.get(day, day)} {hour} está completo."
+                    )
+
             if key in current:
                 schedule = current[key]
                 if not schedule.active:
@@ -338,10 +359,6 @@ class ScheduleDomain:
                         update_fields.append("subscription")
                     schedule.save(update_fields=update_fields)
             else:
-                try:
-                    slot = ScheduleSlot.objects.get(gym=gym, day=day, hour=hour)
-                except ScheduleSlot.DoesNotExist:
-                    continue
                 AttendanceSchedule.objects.create(
                     member=member, gym=gym, slot=slot, active=True,
                     subscription=subscription,
