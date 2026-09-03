@@ -97,7 +97,13 @@ class PublicCheckinView(APIView):
             slot = approved_swap.destination_slot
             cap = slot.capacity or gym.default_schedule_capacity
             if cap is not None:
-                effective = compute_effective_occupancy(slot, today)
+                # The approved swap already counts this member into the slot,
+                # so exclude them: the member is taking the place the staff
+                # granted via the approved swap, not exceeding capacity on
+                # top of it.
+                effective = compute_effective_occupancy(
+                    slot, today, exclude_member=member
+                )
                 if effective >= cap:
                     return Response(
                         {
