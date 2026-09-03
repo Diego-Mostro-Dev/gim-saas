@@ -54,11 +54,13 @@ class Command(BaseCommand):
             self.stdout.write(f"Cleaning existing data for {gym.name}...")
             seeder.cleanup_phase5()
             seeder.cleanup_phase4()
+            seeder.cleanup_phase2()
             seeder.cleanup_phase1()
             seeder.cleanup_phase3()
 
         self.stdout.write(f"Seeding {gym.name}...")
         seeder.seed_phase1()
+        seeder.seed_phase2()
         seeder.seed_phase3()
         seeder.seed_phase4()
         seeder.seed_phase5()
