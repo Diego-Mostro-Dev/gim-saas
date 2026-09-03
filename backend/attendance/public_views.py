@@ -180,6 +180,18 @@ class PublicCheckinView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        cap = slot.capacity or gym.default_schedule_capacity
+        if cap is not None:
+            effective = compute_effective_occupancy(slot, today)
+            if effective >= cap:
+                return Response(
+                    {
+                        "success": False,
+                        "message": "El horario está completo.",
+                    },
+                    status=400,
+                )
+
         Attendance.objects.create(
             gym=gym,
             member=member,
