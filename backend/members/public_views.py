@@ -1,7 +1,5 @@
 import json
-from calendar import monthrange
-from datetime import date, time
-from decimal import Decimal
+from datetime import time
 
 from django.shortcuts import get_object_or_404
 
@@ -15,7 +13,6 @@ from attendance.utils import SCHEDULE_SLOT_WEEKDAY_ORDER
 from gyms.features import require_activities
 from gyms.models import Gym
 from plans.models import MembershipPlan
-from subscriptions.services import get_last_day_of_month
 
 from .serializers import MemberSerializer, PublicMemberSerializer
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
@@ -43,56 +40,10 @@ class PublicRegisterView(APIView):
         if services is not None:
             return self._onboarding_register(request, gym, services)
 
-        # ── Legacy flow (100% unchanged) ──────────────────────────────────
-
-        serializer = MemberSerializer(
-            data=request.data,
-            context={
-                "gym": gym,
-            },
-        )
-
-        serializer.is_valid(
-            raise_exception=True
-        )
-
-        member = serializer.save(
-            gym=gym
-        )
-
-        plan_id = request.data.get("plan_id")
-        if plan_id:
-            try:
-                plan = MembershipPlan.objects.get(
-                    id=plan_id,
-                    gym=gym,
-                    is_base=False,
-                )
-            except (MembershipPlan.DoesNotExist, ValueError):
-                return Response(
-                    {"plan_id": "El plan seleccionado no es válido."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            today = date.today()
-            end_date = get_last_day_of_month(today)
-
-            total_days = monthrange(today.year, today.month)[1]
-            remaining_days = (end_date - today).days + 1
-            prorated_amount = (
-                Decimal(str(remaining_days)) / Decimal(str(total_days))
-            ) * plan.price
-
-            data = PublicMemberSerializer(member).data
-            data["prorated_amount"] = str(prorated_amount.quantize(Decimal("0.01")))
-            data["plan_price"] = str(plan.price)
-
-            return Response(data, status=status.HTTP_201_CREATED)
-
-        return Response(
-            PublicMemberSerializer(member).data,
-            status=status.HTTP_201_CREATED,
-        )
+        # Legacy payload (no "services" field) is treated as gym-only:
+        # route it through the same RegistrationService flow so every entry
+        # path shares the exact same rules (capacity, required plan, overlap).
+        return self._onboarding_register(request, gym, ["gym"])
 
     # ── New onboarding flow ───────────────────────────────────────────────
 
