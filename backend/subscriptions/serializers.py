@@ -364,7 +364,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
         subscription = SubscriptionDomain.get_active_subscription(validated_data["member"])
         validated_data["subscription"] = subscription
         if subscription:
-            validated_data["current_plan_name_snapshot"] = public_plan_name(subscription.plan)
+            validated_data["current_plan_name_snapshot"] = subscription.plan.name
 
         validated_data["gym"] = gym
         return _create_plan_change_request(super().create, validated_data)
@@ -538,7 +538,7 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         subscription = SubscriptionDomain.get_active_subscription(member)
         validated_data["subscription"] = subscription
         if subscription:
-            validated_data["current_plan_name_snapshot"] = public_plan_name(subscription.plan)
+            validated_data["current_plan_name_snapshot"] = subscription.plan.name
 
         validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member

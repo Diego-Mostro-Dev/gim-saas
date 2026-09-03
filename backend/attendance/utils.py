@@ -100,6 +100,33 @@ def compute_projected_occupancy(slot, target_date, exclude_member=None):
     return compute_effective_occupancy(slot, target_date, exclude_member=exclude_member)
 
 
+def has_effective_capacity(slot, gym, target_date, exclude_member=None):
+    """Return True when a slot can take at least one more member on target_date.
+
+    Centralises the capacity re-validation used when approving schedule-
+    related requests, so every approval path shares the exact same
+    occupancy semantics.
+
+    Args:
+        slot: The ScheduleSlot to check.
+        gym: The gym (used for the default schedule capacity).
+        target_date: The date whose effective occupancy matters.
+        exclude_member: Member to count as already-in (e.g. the subject of
+            an approval request that is not yet materialised).
+
+    Returns:
+        True when effective occupancy is below capacity (or capacity is
+        unlimited), False when the slot is full.
+    """
+    cap = slot.capacity or gym.default_schedule_capacity
+    if cap is None:
+        return True
+    effective = compute_effective_occupancy(
+        slot, target_date, exclude_member=exclude_member
+    )
+    return effective < cap
+
+
 def count_regular_attendances(gym, target_date):
     """Count attendances from recurring schedules (non-swap, non-walk-in)."""
     return Attendance.objects.filter(
