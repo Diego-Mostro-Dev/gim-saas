@@ -133,6 +133,12 @@ class RegistrationService:
                 enrollment or schedule creation. The whole registration is
                 atomic: any failure rolls back all created records.
         """
+        if has_gym and not plan_id:
+            raise RegistrationError(
+                {"plan_id": "Debes seleccionar un plan de membresía para los horarios de gym."},
+                status_code=400,
+            )
+
         with transaction.atomic():
             member = Member.objects.create(gym=gym, **validated_member_data)
 
