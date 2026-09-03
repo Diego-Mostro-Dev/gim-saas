@@ -10,7 +10,12 @@ from .models import (
     ScheduleChangeRequest,
     ScheduleSwapRequest,
 )
-from .utils import compute_effective_occupancy, count_member_week_attendances
+from .utils import (
+    compute_effective_occupancy,
+    count_member_week_attendances,
+    has_effective_capacity,
+)
+
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 
@@ -401,18 +406,15 @@ class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
             gym = instance.gym
             requested_slot = instance.requested_slot
 
-            cap = requested_slot.capacity or gym.default_schedule_capacity
-            if cap is not None:
-                target_date = compute_next_occurrence(
-                    requested_slot.day, requested_slot.hour
-                ).date()
-                effective = compute_effective_occupancy(
-                    requested_slot, target_date, exclude_member=instance.member
+            target_date = compute_next_occurrence(
+                requested_slot.day, requested_slot.hour
+            ).date()
+            if not has_effective_capacity(
+                requested_slot, gym, target_date, exclude_member=instance.member
+            ):
+                raise serializers.ValidationError(
+                    "El horario solicitado ya está completo."
                 )
-                if effective >= cap:
-                    raise serializers.ValidationError(
-                        "El horario solicitado ya está completo."
-                    )
 
         return attrs
 
@@ -790,14 +792,9 @@ class ScheduleSwapRequestActionSerializer(serializers.ModelSerializer):
         destination_slot = instance.destination_slot
         swap_date = instance.swap_date
 
-        cap = destination_slot.capacity or gym.default_schedule_capacity
-        if cap is None:
-            return
-
-        effective = compute_effective_occupancy(
-            destination_slot, swap_date, exclude_member=instance.member
-        )
-        if effective >= cap:
+        if not has_effective_capacity(
+            destination_slot, gym, swap_date, exclude_member=instance.member
+        ):
             raise serializers.ValidationError(
                 "El horario seleccionado ya está completo."
             )
