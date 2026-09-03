@@ -2,7 +2,7 @@ from datetime import date
 
 from rest_framework import serializers
 
-from attendance.models import ScheduleSlot, AttendanceSchedule
+from attendance.models import ScheduleSlot
 
 from .domain import SubscriptionDomain
 
@@ -88,6 +88,9 @@ class PlanChangeRequestValidator:
             )
 
     def _validate_schedule_capacity(self):
+        from attendance.serializers import compute_next_occurrence
+        from attendance.utils import compute_effective_occupancy
+
         for s in self.target_schedules:
             try:
                 slot = ScheduleSlot.objects.get(
@@ -102,13 +105,14 @@ class PlanChangeRequestValidator:
 
             cap = slot.capacity or self.gym.default_schedule_capacity
             if cap is not None:
-                current_count = AttendanceSchedule.objects.filter(
-                    gym=self.gym,
-                    slot=slot,
-                    active=True,
-                ).exclude(member=self.member).count()
+                target_date = compute_next_occurrence(
+                    slot.day, slot.hour
+                ).date()
+                effective = compute_effective_occupancy(
+                    slot, target_date, exclude_member=self.member
+                )
 
-                if current_count >= cap:
+                if effective >= cap:
                     raise serializers.ValidationError(
                         f"El horario {s['day']} {s['hour']} está completo."
                     )
