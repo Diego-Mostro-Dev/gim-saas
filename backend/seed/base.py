@@ -17,6 +17,7 @@ from attendance.models import Attendance, AttendanceSchedule, ScheduleSlot
 
 from .data.member_names import FIRST_NAMES, LAST_NAMES
 from .data.plans import DEMO_PLANS
+from .data.activities import DEMO_ACTIVITIES
 from .data.exercises import EXERCISES
 from .data.routines import ROUTINES
 
@@ -50,6 +51,13 @@ class BaseSeeder:
         if not self.preserve_plans:
             MembershipPlan.objects.filter(gym=self.gym).delete()
 
+    def cleanup_phase2(self):
+        from activities.models import Activity, ActivitySchedule, Enrollment
+
+        Enrollment.objects.filter(gym=self.gym).delete()
+        ActivitySchedule.objects.filter(activity__service__gym=self.gym).delete()
+        Activity.objects.filter(service__gym=self.gym).delete()
+
     def _get_previous_month_range(self, ref_date=None):
         d = ref_date or self.ref_date
         first = date(d.year, d.month, 1) - timedelta(days=1)
@@ -82,6 +90,93 @@ class BaseSeeder:
             self._seed_members()
             self._seed_subscriptions()
             self._seed_payments()
+
+    def seed_phase2(self):
+        """Seed activities, their schedules and enrollments (only when the
+        activities add-on is enabled for the gym)."""
+        from activities.models import Activity, ActivitySchedule, Enrollment
+        from gyms.features import activities_enabled
+
+        if not activities_enabled(self.gym):
+            self.stats["activities"] = 0
+            self.stats["activity_schedules"] = 0
+            self.stats["activity_enrollments"] = 0
+            return
+
+        service = Service.get_default_activities_service(self.gym)
+        activities = [
+            Activity(
+                service=service,
+                name=adef["name"],
+                description=adef["description"],
+                instructor_name=adef["instructor_name"],
+                monthly_price=adef["monthly_price"],
+                active=True,
+            )
+            for adef in DEMO_ACTIVITIES
+        ]
+        created_acts = Activity.objects.bulk_create(activities)
+        self.stats["activities"] = len(created_acts)
+
+        schedules = []
+        for activity, adef in zip(created_acts, DEMO_ACTIVITIES):
+            for sdef in adef["schedules"]:
+                schedules.append(ActivitySchedule(
+                    activity=activity,
+                    day=sdef["day"],
+                    start_time=sdef["start_time"],
+                    end_time=sdef["end_time"],
+                    capacity=sdef["capacity"],
+                    active=True,
+                ))
+        created_scheds = ActivitySchedule.objects.bulk_create(schedules)
+        self.stats["activity_schedules"] = len(created_scheds)
+
+        enrollments = self._seed_activity_enrollments(created_scheds)
+        self.stats["activity_enrollments"] = enrollments
+
+    def _seed_activity_enrollments(self, schedules):
+        from activities.models import Enrollment
+        from subscriptions.domain import SubscriptionDomain
+        from subscriptions.models import SubscriptionItem
+
+        active_members = list(
+            Member.objects.filter(gym=self.gym, active=True).order_by("id")
+        )
+        random.seed(f"gym-demo-activities-{self.gym.id}")
+
+        enrollments = []
+        for idx, member in enumerate(active_members[:25]):
+            schedule = schedules[idx % len(schedules)]
+
+            sub = SubscriptionDomain.get_current_subscription(member)
+            if sub is None:
+                continue
+
+            activity_item = SubscriptionItem.objects.create(
+                subscription=sub,
+                item_type="activity",
+                plan=None,
+                activity=schedule.activity,
+                name_snapshot=schedule.activity.name,
+                price_snapshot=schedule.activity.monthly_price,
+                status="active",
+                start_date=sub.start_date,
+                end_date=sub.end_date,
+            )
+
+            enrollments.append(Enrollment(
+                gym=self.gym,
+                member=member,
+                schedule=schedule,
+                subscription_item=activity_item,
+                active=True,
+            ))
+
+        if enrollments:
+            Enrollment.objects.bulk_create(enrollments)
+
+        return len(enrollments)
 
     def _seed_plans(self):
         if self.preserve_plans:
@@ -528,6 +623,10 @@ class BaseSeeder:
             stream.write(f"  Subscriptions:      {self.stats['subscriptions']} ✓\n")
         if "payments" in self.stats:
             stream.write(f"  Payments:           {self.stats['payments']} ✓\n")
+        if "activities" in self.stats and self.stats["activities"]:
+            stream.write(f"  Activities:         {self.stats['activities']} ✓\n")
+            stream.write(f"  Activity schedules: {self.stats['activity_schedules']} ✓\n")
+            stream.write(f"  Activity enrollments:{self.stats['activity_enrollments']} ✓\n")
         if "exercises" in self.stats:
             stream.write(f"  Exercises:          {self.stats['exercises']} ✓\n")
             stream.write(f"  Templates:          {self.stats['templates']} ✓\n")
