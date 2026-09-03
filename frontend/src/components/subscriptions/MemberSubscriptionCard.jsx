@@ -13,6 +13,7 @@ const ORIGIN_LABELS = {
   onboarding: "Alta",
   auto_renewal: "Renovación automática",
   plan_change: "Cambio de plan",
+  recovery: "Recuperación",
 };
 
 function MemberSubscriptionCard({ member, subscriptions }) {
