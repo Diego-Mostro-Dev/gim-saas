@@ -15,7 +15,7 @@ class MemberBasicSerializer(serializers.ModelSerializer):
 
 class ActivitySerializer(serializers.ModelSerializer):
     service = serializers.PrimaryKeyRelatedField(
-        queryset=PlanService.objects.all(),
+        queryset=PlanService.objects.none(),
         required=False,
         allow_null=True,
     )
@@ -42,6 +42,15 @@ class ActivitySerializer(serializers.ModelSerializer):
 
     def get_enrolled_count(self, obj):
         return getattr(obj, "enrolled_count", 0)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        if request and hasattr(request.user, "profile"):
+            fields["service"].queryset = PlanService.objects.filter(
+                gym=request.user.profile.gym
+            )
+        return fields
 
     def get_schedule_count(self, obj):
         return getattr(obj, "schedule_count", 0)

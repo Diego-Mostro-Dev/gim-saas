@@ -10,7 +10,8 @@ from .models import (
     ScheduleChangeRequest,
     ScheduleSwapRequest,
 )
-from .utils import compute_effective_occupancy
+from .utils import compute_effective_occupancy, count_member_week_attendances
+from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 
 
@@ -162,6 +163,24 @@ class AttendanceSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         "El horario está completo."
                     )
+
+        # El miembro se resuelve desde el schedule (no-swap) o el swap aprobado.
+        member = swap_request.member if swap_request else schedule.member
+
+        if not MemberEligibility.can_operate(member):
+            raise serializers.ValidationError(
+                "Acceso suspendido por falta de pago."
+            )
+
+        weekly_limit = MemberEligibility.get_schedule_limit(member)
+        if (
+            weekly_limit is not None
+            and count_member_week_attendances(gym, member, timezone.localdate())
+            >= weekly_limit
+        ):
+            raise serializers.ValidationError(
+                f"Alcanzaste el límite de {weekly_limit} visitas semanales de tu plan."
+            )
 
         attrs["_slot"] = slot
         return attrs
@@ -384,12 +403,13 @@ class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
 
             cap = requested_slot.capacity or gym.default_schedule_capacity
             if cap is not None:
-                current_count = AttendanceSchedule.objects.filter(
-                    gym=gym,
-                    slot=requested_slot,
-                    active=True,
-                ).count()
-                if current_count >= cap:
+                target_date = compute_next_occurrence(
+                    requested_slot.day, requested_slot.hour
+                ).date()
+                effective = compute_effective_occupancy(
+                    requested_slot, target_date, exclude_member=instance.member
+                )
+                if effective >= cap:
                     raise serializers.ValidationError(
                         "El horario solicitado ya está completo."
                     )
@@ -760,7 +780,27 @@ class ScheduleSwapRequestActionSerializer(serializers.ModelSerializer):
                 f"No se puede modificar una solicitud con estado '{instance.status}'."
             )
 
+        if attrs.get("status") == "approved":
+            self._validate_capacity_on_approve(instance)
+
         return attrs
+
+    def _validate_capacity_on_approve(self, instance):
+        gym = instance.gym
+        destination_slot = instance.destination_slot
+        swap_date = instance.swap_date
+
+        cap = destination_slot.capacity or gym.default_schedule_capacity
+        if cap is None:
+            return
+
+        effective = compute_effective_occupancy(
+            destination_slot, swap_date, exclude_member=instance.member
+        )
+        if effective >= cap:
+            raise serializers.ValidationError(
+                "El horario seleccionado ya está completo."
+            )
 
 
 class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):

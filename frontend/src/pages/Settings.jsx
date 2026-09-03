@@ -277,6 +277,7 @@ function Settings() {
         );
       }
       data.append("allow_schedule_changes", formData.allow_schedule_changes);
+      data.append("allow_plan_changes", formData.allow_plan_changes);
 
       data.append("qr_attendance_message", formData.qr_attendance_message);
       data.append(
