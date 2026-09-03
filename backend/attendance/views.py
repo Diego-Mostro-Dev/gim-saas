@@ -131,49 +131,17 @@ class WeeklyScheduleView(APIView):
 
         slots = {s.id: s for s in ScheduleSlot.objects.filter(id__in=slot_ids)}
 
-        base_counts = dict(
-            AttendanceSchedule.objects.filter(slot_id__in=slot_ids, active=True)
-            .values("slot_id")
-            .annotate(count=Count("id"))
-            .values_list("slot_id", "count")
-        )
-
-        swaps_in = dict(
-            ScheduleSwapRequest.objects.filter(
-                destination_slot_id__in=slot_ids,
-                swap_date=target_date,
-                status="approved",
-            )
-            .values("destination_slot_id")
-            .annotate(count=Count("id"))
-            .values_list("destination_slot_id", "count")
-        )
-
-        swaps_out = dict(
-            ScheduleSwapRequest.objects.filter(
-                origin_schedule__slot_id__in=slot_ids,
-                swap_date=target_date,
-                status="approved",
-            )
-            .values("origin_schedule__slot_id")
-            .annotate(count=Count("id"))
-            .values_list("origin_schedule__slot_id", "count")
-        )
-
         occ_cache = {}
         for sid in slot_ids:
             if sid not in slots:
                 continue
             slot = slots[sid]
-            base = base_counts.get(sid, 0)
-            s_in = swaps_in.get(sid, 0)
-            s_out = swaps_out.get(sid, 0)
-            occ = max(0, base + s_in - s_out)
+            eff = compute_effective_occupancy(slot, target_date)
             cap = slot.capacity or gym.default_schedule_capacity
             occ_cache[sid] = {
-                "occupancy": occ,
+                "occupancy": eff,
                 "capacity": cap,
-                "available": max(0, cap - occ),
+                "available": max(0, cap - eff),
             }
         return occ_cache
 
