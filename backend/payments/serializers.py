@@ -79,6 +79,25 @@ class PaymentSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
 
+        # The payment's member must match the subscription's member so the
+        # snapshot and the member FK are always consistent.
+        member = attrs.get("member", getattr(self.instance, "member", None))
+        subscription = attrs.get(
+            "subscription",
+            getattr(self.instance, "subscription", None),
+        )
+
+        if (
+            member is not None
+            and subscription is not None
+            and member.pk != subscription.member.pk
+        ):
+            raise serializers.ValidationError(
+                {
+                    "member": "El miembro no coincide con el socio de la suscripción."
+                }
+            )
+
         # Only validate the amount when this request actually sets it
         # (always on create and on the form's full PUT updates).
         if "amount" not in attrs:
