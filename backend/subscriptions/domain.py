@@ -17,7 +17,7 @@ is not yet known). This is the opposite of the old pattern where
 Subscription was always looked up FROM Member.
 """
 
-from datetime import date
+from django.utils import timezone
 
 from attendance.models import DAY_CHOICES
 
@@ -125,7 +125,7 @@ class SubscriptionDomain:
         """
         from .models import Subscription
 
-        today = date.today()
+        today = timezone.localdate()
 
         active = Subscription.objects.filter(
             member=member,
@@ -151,7 +151,7 @@ class SubscriptionDomain:
         """
         from .models import Subscription
 
-        today = date.today()
+        today = timezone.localdate()
 
         return Subscription.objects.filter(
             member=member,

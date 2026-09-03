@@ -20,8 +20,6 @@ public API for eligibility checks so that call-sites don't need to
 know about the subscription domain directly.
 """
 
-from datetime import date
-
 from django.utils import timezone
 
 

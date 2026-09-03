@@ -1,4 +1,4 @@
-from datetime import date
+from django.utils import timezone
 
 from rest_framework import serializers
 
@@ -80,7 +80,7 @@ class PlanChangeRequestValidator:
         if PlanChangeRequest.objects.filter(
             member=self.member,
             status="approved",
-            effective_date__gt=date.today(),
+            effective_date__gt=timezone.localdate(),
         ).exists():
             raise serializers.ValidationError(
                 "Ya tienes un cambio de plan aprobado programado "

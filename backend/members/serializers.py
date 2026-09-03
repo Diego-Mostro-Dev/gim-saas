@@ -1,4 +1,4 @@
-from datetime import date
+from django.utils import timezone
 
 from rest_framework import serializers
 
@@ -53,7 +53,7 @@ class MemberSerializer(serializers.ModelSerializer):
         Uses the prefetched subscription_set — zero extra DB queries.
         Mirrors SubscriptionDomain.get_active_subscription logic.
         """
-        today = date.today()
+        today = timezone.localdate()
         candidates = [
             sub for sub in obj.subscription_set.all()
             if sub.start_date <= today
@@ -68,7 +68,7 @@ class MemberSerializer(serializers.ModelSerializer):
         Uses the prefetched subscription_set — zero extra DB queries.
         Mirrors SubscriptionDomain.get_current_subscription logic.
         """
-        today = date.today()
+        today = timezone.localdate()
         candidates = [
             sub for sub in obj.subscription_set.all()
             if sub.start_date <= today <= sub.end_date
@@ -90,7 +90,7 @@ class MemberSerializer(serializers.ModelSerializer):
         sub = self._current_subscription(obj)
         if sub is None:
             return None
-        today = date.today()
+        today = timezone.localdate()
         return (sub.end_date - today).days
 
     def get_subscription_end_date(self, obj):
@@ -119,7 +119,7 @@ class MemberSerializer(serializers.ModelSerializer):
         - No future subscription.
         - A base plan is only rejected when there is no current subscription.
         """
-        today = date.today()
+        today = timezone.localdate()
 
         has_debt = False
         has_current = False

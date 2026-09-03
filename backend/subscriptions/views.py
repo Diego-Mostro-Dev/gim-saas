@@ -1,8 +1,7 @@
-from datetime import date
-
 from django.db import transaction
 from django.db.models import OuterRef, Prefetch, Subquery, Sum
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.timezone import now
 
 from rest_framework import status
@@ -64,7 +63,7 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
                 "member__plan_change_requests",
                 queryset=PlanChangeRequest.objects.filter(
                     status="approved",
-                    effective_date__gt=date.today(),
+                    effective_date__gt=timezone.localdate(),
                 ).select_related("requested_plan"),
                 to_attr="_pending_plan_change_requests",
             ),
