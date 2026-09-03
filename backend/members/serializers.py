@@ -1,12 +1,9 @@
 from datetime import date
 
-from django.db import transaction
-
 from rest_framework import serializers
 
 from subscriptions.models import MembershipPlan
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
-from subscriptions.services import get_last_day_of_month
 from plans.services import public_plan_name
 from members.eligibility import MemberEligibility
 
@@ -279,34 +276,6 @@ class MemberSerializer(serializers.ModelSerializer):
                 schedules = []
 
         return schedules
-
-    def create(self, validated_data):
-        plan_id = validated_data.pop("plan_id", None)
-        schedules = self._parse_schedules()
-
-        with transaction.atomic():
-            member = Member.objects.create(
-                **validated_data
-            )
-
-            subscription = None
-            if plan_id:
-                plan = MembershipPlan.objects.get(id=plan_id, gym=member.gym)
-                today = date.today()
-                subscription = SubscriptionDomain.open_subscription(
-                    member=member,
-                    plan=plan,
-                    start_date=today,
-                    end_date=get_last_day_of_month(today),
-                    origin="onboarding",
-                )
-
-            try:
-                ScheduleDomain.create_bulk(member, member.gym, schedules, subscription=subscription)
-            except ScheduleError as e:
-                raise serializers.ValidationError(str(e))
-
-        return member
 
     def update(self, instance, validated_data):
         validated_data.pop("plan_id", None)
