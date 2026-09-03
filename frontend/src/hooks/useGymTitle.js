@@ -5,6 +5,7 @@ import {
   MEMBER_MANIFEST,
   memberManifestHref,
   staffManifestHref,
+  resolveManifestHref,
   setManifestHref,
 } from "../utils/manifest";
 
@@ -44,9 +45,11 @@ export function useGymTitle(gym, memberToken) {
 
   useEffect(() => {
     if (isMemberPortal) {
-      setManifestHref(memberToken ? memberManifestHref(memberToken) : MEMBER_MANIFEST);
+      const dynamic = memberToken ? memberManifestHref(memberToken) : null;
+      resolveManifestHref(dynamic, MEMBER_MANIFEST).then(setManifestHref);
     } else {
-      setManifestHref(staffSlug ? staffManifestHref(staffSlug) : STAFF_MANIFEST);
+      const dynamic = staffSlug ? staffManifestHref(staffSlug) : null;
+      resolveManifestHref(dynamic, STAFF_MANIFEST).then(setManifestHref);
     }
   }, [isMemberPortal, memberToken, staffSlug]);
 }
