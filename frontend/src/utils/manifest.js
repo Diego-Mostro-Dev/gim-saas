@@ -12,7 +12,16 @@ export function staffManifestHref(slug) {
 export function resolveManifestHref(dynamicHref, fallbackHref) {
   if (!dynamicHref) return Promise.resolve(fallbackHref);
   return fetch(dynamicHref, { method: "GET" })
-    .then((res) => (res.ok ? dynamicHref : fallbackHref))
+    .then(async (res) => {
+      if (!res.ok) return fallbackHref;
+      const text = await res.text();
+      try {
+        JSON.parse(text);
+      } catch {
+        return fallbackHref;
+      }
+      return dynamicHref;
+    })
     .catch(() => fallbackHref);
 }
 
