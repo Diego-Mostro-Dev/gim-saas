@@ -100,11 +100,12 @@ class EnrollmentService:
             enrollment.active = False
             enrollment.save(update_fields=["active"])
 
+            _cancel_activity_items(member, schedule.activity)
+
             if sub is not None:
                 locked_sub = Subscription.objects.select_for_update().get(
                     pk=sub.pk
                 )
-                _cancel_activity_item(locked_sub, schedule.activity)
                 sync_subscription_paid(locked_sub)
 
         return enrollment
@@ -137,20 +138,22 @@ def _ensure_activity_item(subscription, activity):
     )
 
 
-def _cancel_activity_item(subscription, activity):
-    """Cancel the SubscriptionItem for an activity when unenrolling.
+def _cancel_activity_items(member, activity):
+    """Cancel active activity items for a given activity across the member's
+    non-expired subscriptions.
 
-    Only operates on subscriptions that are currently active
-    (start_date <= today <= end_date) to preserve historical immutability.
+    Unenrolling today should stop the activity from being billed for the
+    current period and every already-created future period (e.g. an
+    auto-renewed subscription for next month). Historical (expired)
+    subscriptions are left untouched to preserve immutability.
     """
     from django.utils import timezone
 
     today = timezone.localdate()
-    if not (subscription.start_date <= today <= subscription.end_date):
-        return
 
     SubscriptionItem.objects.filter(
-        subscription=subscription,
+        subscription__member=member,
         activity=activity,
         status="active",
+        subscription__end_date__gte=today,
     ).update(status="cancelled")
