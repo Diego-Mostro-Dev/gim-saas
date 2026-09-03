@@ -57,6 +57,8 @@ class PublicMemberEnrollmentsView(APIView):
             ActivitySchedule,
             id=schedule_id,
             activity__service__gym=gym,
+            active=True,
+            activity__active=True,
         )
 
         try:
