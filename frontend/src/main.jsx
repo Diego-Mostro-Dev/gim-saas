@@ -13,7 +13,7 @@ import { FeatureProvider } from "./features/FeatureProvider";
 import UpdateBanner from "./components/UpdateBanner";
 import InstallBanner from "./components/InstallBanner";
 import { registerSW } from "virtual:pwa-register";
-import { STAFF_MANIFEST, memberManifestHref, setManifestHref } from "./utils/manifest";
+import { STAFF_MANIFEST, MEMBER_MANIFEST, memberManifestHref, resolveManifestHref, setManifestHref } from "./utils/manifest";
 
 import "./index.css";
 
@@ -27,7 +27,10 @@ const pathname = window.location.pathname;
 const memberToken = pathname.startsWith("/routine/")
   ? pathname.split("/")[2]
   : null;
-setManifestHref(memberToken ? memberManifestHref(memberToken) : STAFF_MANIFEST);
+resolveManifestHref(
+  memberToken ? memberManifestHref(memberToken) : null,
+  memberToken ? MEMBER_MANIFEST : STAFF_MANIFEST,
+).then(setManifestHref);
 
 useAuthStore.getState().hydrate().then(() => {
   const updateSW = registerSW({
