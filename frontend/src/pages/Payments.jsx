@@ -77,7 +77,7 @@ function Payments() {
 
       window.history.replaceState({}, "");
     }
-  }, [loading, location.state]);
+  }, [loading, location.state, openCreateForm, setFormData]);
 
   useEffect(() => {
     if (showForm && editingPayment && formRef.current) {

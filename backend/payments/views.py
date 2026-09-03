@@ -12,6 +12,7 @@ from .serializers import PaymentSerializer
 class PaymentViewSet(GymModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
+    ordering = ['-created_at']
 
     def perform_destroy(self, instance):
         subscription = instance.subscription
