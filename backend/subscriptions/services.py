@@ -351,7 +351,7 @@ def cancel_future_plan_change(plan_change_request, cancel_status="cancelled_by_s
     """
     if plan_change_request.status != "approved":
         return False
-    if plan_change_request.effective_date and plan_change_request.effective_date <= date.today():
+    if plan_change_request.effective_date and plan_change_request.effective_date <= timezone.localdate():
         return False
 
     with transaction.atomic():

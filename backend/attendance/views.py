@@ -236,7 +236,7 @@ def attendance_status(request):
         active=True,
     ).select_related("member", "slot"))
 
-    today = date.today()
+    today = timezone.localdate()
 
     target_date_str = request.GET.get("date")
     target_date = date.fromisoformat(target_date_str) if target_date_str else today

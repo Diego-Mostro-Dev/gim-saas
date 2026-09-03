@@ -1,6 +1,5 @@
-from datetime import date
-
 from django.db import transaction
+from django.utils import timezone
 
 from activities.enrollment_service import EnrollmentError, EnrollmentService
 from activities.models import Activity, ActivitySchedule, Enrollment
@@ -146,7 +145,7 @@ class RegistrationService:
 
             if plan_id:
                 plan = MembershipPlan.objects.get(id=plan_id, gym=gym)
-                today = date.today()
+                today = timezone.localdate()
                 subscription = SubscriptionDomain.open_subscription(
                     member=member,
                     plan=plan,
@@ -157,7 +156,7 @@ class RegistrationService:
 
             if has_activities and not has_gym:
                 base_plan = ensure_base_plan_for_gym(gym)
-                today = date.today()
+                today = timezone.localdate()
                 subscription = SubscriptionDomain.open_subscription(
                     member=member,
                     plan=base_plan,

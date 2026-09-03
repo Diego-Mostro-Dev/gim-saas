@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from django.utils import timezone
 from rest_framework import serializers
@@ -119,14 +119,14 @@ class AttendanceSerializer(serializers.ModelSerializer):
                     "swap_request": "El intercambio no está aprobado."
                 })
 
-            if swap_request.swap_date != date.today():
+            if swap_request.swap_date != timezone.localdate():
                 raise serializers.ValidationError({
                     "swap_request": "El intercambio no corresponde a hoy."
                 })
 
             if Attendance.objects.filter(
                 swap_request=swap_request,
-                date=date.today(),
+                date=timezone.localdate(),
             ).exists():
                 raise serializers.ValidationError({
                     "swap_request": "La asistencia para este intercambio ya fue registrada."
@@ -149,7 +149,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
             already_registered = Attendance.objects.filter(
                 gym=gym,
                 schedule=schedule,
-                date=date.today(),
+                date=timezone.localdate(),
                 swap_request__isnull=True,
             ).exists()
 
@@ -512,7 +512,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
                     f"Debes esperar {remaining_hours} hora(s) antes de solicitar otro cambio."
                 )
 
-        month_start = date.today().replace(day=1)
+        month_start = timezone.localdate().replace(day=1)
         monthly_count = ScheduleChangeRequest.objects.filter(
             member=member,
             status__in=["pending", "approved", "executed"],

@@ -1,8 +1,8 @@
 from rest_framework import serializers
-from datetime import date
 from decimal import Decimal
 
 from django.db import IntegrityError
+from django.utils import timezone
 
 from attendance.models import AttendanceSchedule
 
@@ -162,7 +162,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             changes = PlanChangeRequest.objects.filter(
                 member=obj.member,
                 status="approved",
-                effective_date__gt=date.today(),
+                effective_date__gt=timezone.localdate(),
             ).select_related("requested_plan")
 
         ordered = sorted(changes, key=lambda r: r.effective_date, reverse=True)
@@ -388,7 +388,7 @@ class PlanChangeRequestActionSerializer(serializers.ModelSerializer):
 
         if new_status in ("cancelled_by_staff", "cancelled_by_member"):
             if instance.status == "approved" and (
-                instance.effective_date and instance.effective_date > date.today()
+                instance.effective_date and instance.effective_date > timezone.localdate()
             ):
                 return attrs
 

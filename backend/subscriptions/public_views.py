@@ -1,6 +1,5 @@
-from datetime import date
-
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -78,7 +77,7 @@ class PublicCancelPlanChangeRequestView(APIView):
 
         allowed = change_request.status == "pending"
         if change_request.status == "approved" and (
-            change_request.effective_date and change_request.effective_date > date.today()
+            change_request.effective_date and change_request.effective_date > timezone.localdate()
         ):
             allowed = True
 
