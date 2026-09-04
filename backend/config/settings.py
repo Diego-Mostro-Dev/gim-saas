@@ -224,13 +224,28 @@ LOGGING = {
 # DATABASE_URL uses Neon PgBouncer pooler (transaction mode).
 # Persistent Django connections become stale when PgBouncer closes
 # idle backend mappings; conn_max_age=0 avoids stale connection errors.
-DATABASES = {
-    "default": dj_database_url.parse(
-        os.getenv("DATABASE_URL"),
-        conn_max_age=0,
-        conn_health_checks=True,
-    )
-}
+_db_config = dj_database_url.parse(
+    os.getenv("DATABASE_URL"),
+    conn_max_age=0,
+    conn_health_checks=True,
+)
+
+# Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
+# Resolve the hostname once at startup and inject hostaddr so libpq skips
+# its own (broken) DNS.
+import socket as _socket
+_pg_host = _db_config["HOST"]
+if _pg_host and not _pg_host.startswith(("{", "/")):
+    try:
+        _ipv4 = next(
+            addr[4][0]
+            for addr in _socket.getaddrinfo(_pg_host, None, _socket.AF_INET)
+        )
+        _db_config.setdefault("OPTIONS", {})["hostaddr"] = _ipv4
+    except (StopIteration, _socket.gaierror):
+        pass  # fall back to default resolution
+
+DATABASES = {"default": _db_config}
 
 
 # =========================
