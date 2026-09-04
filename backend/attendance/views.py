@@ -10,7 +10,12 @@ from rest_framework.decorators import action, api_view
 from rest_framework import status
 
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
-from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER
+from .utils import (
+    SCHEDULE_SLOT_WEEKDAY_ORDER,
+    compute_effective_occupancy,
+    compute_effective_occupancies,
+    get_swap_usage_metrics,
+)
 from members.models import Member
 from subscriptions.domain import ScheduleDomain, SubscriptionDomain
 from .serializers import (
@@ -23,7 +28,6 @@ from .serializers import (
     ScheduleSwapRequestActionSerializer,
 )
 from django.db.models import Count, Q
-from .utils import compute_effective_occupancy, get_swap_usage_metrics
 
 
 class WeeklyScheduleView(APIView):
@@ -129,16 +133,14 @@ class WeeklyScheduleView(APIView):
         if not slot_ids:
             return {}
 
-        slots = {s.id: s for s in ScheduleSlot.objects.filter(id__in=slot_ids)}
+        slots = list(ScheduleSlot.objects.filter(id__in=slot_ids))
+        eff_map = compute_effective_occupancies(slots, target_date)
 
         occ_cache = {}
-        for sid in slot_ids:
-            if sid not in slots:
-                continue
-            slot = slots[sid]
-            eff = compute_effective_occupancy(slot, target_date)
+        for slot in slots:
+            eff = eff_map.get(slot.id, 0)
             cap = slot.capacity or gym.default_schedule_capacity
-            occ_cache[sid] = {
+            occ_cache[slot.id] = {
                 "occupancy": eff,
                 "capacity": cap,
                 "available": max(0, cap - eff),

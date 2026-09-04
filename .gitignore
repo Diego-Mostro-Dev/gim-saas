@@ -8,6 +8,7 @@ __pycache__/
 .env.development
 .env.production
 *.sqlite3
+staticfiles/
 
 # Node
 node_modules/

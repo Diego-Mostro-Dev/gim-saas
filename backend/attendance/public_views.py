@@ -16,7 +16,12 @@ from .models import (
     ScheduleChangeRequest,
     ScheduleSwapRequest,
 )
-from .utils import SCHEDULE_SLOT_WEEKDAY_ORDER, compute_effective_occupancy, count_member_week_attendances
+from .utils import (
+    SCHEDULE_SLOT_WEEKDAY_ORDER,
+    compute_effective_occupancy,
+    compute_effective_occupancies,
+    count_member_week_attendances,
+)
 from .serializers import (
     PublicScheduleChangeRequestSerializer,
     PublicScheduleSwapRequestSerializer,
@@ -217,9 +222,11 @@ class PublicMemberSlotsView(APIView):
         target_date_str = request.GET.get("date")
         target_date = date.fromisoformat(target_date_str) if target_date_str else None
 
-        slots = ScheduleSlot.objects.filter(
+        slots = list(ScheduleSlot.objects.filter(
             gym=gym,
-        ).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour")
+        ).order_by(SCHEDULE_SLOT_WEEKDAY_ORDER, "hour"))
+
+        eff_map = compute_effective_occupancies(slots, target_date) if target_date else {}
 
         result = []
         for s in slots:
@@ -230,7 +237,7 @@ class PublicMemberSlotsView(APIView):
                 "capacity": s.capacity,
             }
             if target_date:
-                occ = compute_effective_occupancy(s, target_date)
+                occ = eff_map.get(s.id, 0)
                 cap = s.capacity or gym.default_schedule_capacity
                 entry["occupancy"] = occ
                 entry["available"] = max(0, cap - occ)

@@ -90,6 +90,127 @@ def compute_effective_occupancy(slot, target_date, exclude_member=None):
     return max(0, base_count + swaps_in - swaps_out + future_count)
 
 
+def compute_effective_occupancies(slots, target_date, exclude_member=None):
+    """Compute effective occupancy for many slots at once.
+
+    Equivalent to calling ``compute_effective_occupancy`` for each slot, but
+    reduces the per-slot N+1 queries (4~5 round-trips per slot) to a handful
+    of aggregate queries. Returns ``{slot_id: effective}``.
+
+    Semantics mirror ``compute_effective_occupancy`` exactly; only the shape
+    of the queries changes, never the result.
+    """
+    from subscriptions.models import PlanChangeRequest, PlannedSchedule
+
+    slot_ids = [s.id for s in slots]
+    if not slot_ids:
+        return {}
+
+    # Members with an active recurring schedule, grouped by slot.
+    recurring = list(
+        AttendanceSchedule.objects.filter(
+            slot_id__in=slot_ids,
+            active=True,
+        ).values_list("slot_id", "member_id")
+    )
+    if exclude_member is not None:
+        recurring = [r for r in recurring if r[1] != exclude_member]
+
+    active_by_slot = {}
+    for slot_id, member_id in recurring:
+        active_by_slot.setdefault(slot_id, set()).add(member_id)
+
+    # Members with an approved plan change effective on/before target_date,
+    # and which slots that plan change schedules them into (only the slots we
+    # care about are fetched, but every effective change is considered so a
+    # change targeting a slot outside this set still counts as a "leaver").
+    changes = list(
+        PlanChangeRequest.objects.filter(
+            status="approved",
+            effective_date__lte=target_date,
+        ).values_list("id", "member_id")
+    )
+    member_changes = {}
+    for change_id, member_id in changes:
+        member_changes.setdefault(member_id, set()).add(change_id)
+
+    # change_id -> set of planned slot ids (restricted to `slot_ids`, which is
+    # all that matters for these slots' occupancy).
+    planned = list(
+        PlannedSchedule.objects.filter(
+            plan_change_id__in=[c[0] for c in changes],
+            slot_id__in=slot_ids,
+        ).values_list("plan_change_id", "slot_id")
+    )
+    change_slots = {}
+    for change_id, slot_id in planned:
+        change_slots.setdefault(change_id, set()).add(slot_id)
+
+    # future_by_slot: members whose approved, effective plan change schedules
+    # them into this slot. Mirrors future_qs (planned_schedules__slot=slot).
+    future_by_slot = {}
+    for change_id, member_id in changes:
+        for planned_slot_id in change_slots.get(change_id, set()):
+            if exclude_member is not None and member_id == exclude_member:
+                continue
+            future_by_slot.setdefault(planned_slot_id, set()).add(member_id)
+
+    # leavers_by_slot: members with an active recurring schedule here whose
+    # approved, effective plan change does NOT keep them in this slot.
+    # Mirrors leavers_qs (member__schedules__slot + NOT planned_schedules__slot).
+    leavers_by_slot = {}
+    for slot_id, active_members in active_by_slot.items():
+        leavers = set()
+        for member_id in active_members:
+            if exclude_member is not None and member_id == exclude_member:
+                continue
+            for change_id in member_changes.get(member_id, set()):
+                if slot_id not in change_slots.get(change_id, set()):
+                    leavers.add(member_id)
+                    break
+        if leavers:
+            leavers_by_slot[slot_id] = leavers
+
+    swaps_in_count = {}
+    swaps_in = ScheduleSwapRequest.objects.filter(
+        destination_slot_id__in=slot_ids,
+        swap_date=target_date,
+        status="approved",
+    ).values_list("destination_slot_id", "member_id")
+    for slot_id, member_id in swaps_in:
+        if exclude_member is not None and member_id == exclude_member:
+            continue
+        swaps_in_count[slot_id] = swaps_in_count.get(slot_id, 0) + 1
+
+    swaps_out_count = {}
+    swaps_out = ScheduleSwapRequest.objects.filter(
+        origin_schedule__slot_id__in=slot_ids,
+        swap_date=target_date,
+        status="approved",
+    ).values_list("origin_schedule__slot_id", "member_id")
+    for slot_id, member_id in swaps_out:
+        if exclude_member is not None and member_id == exclude_member:
+            continue
+        swaps_out_count[slot_id] = swaps_out_count.get(slot_id, 0) + 1
+
+    result = {}
+    for slot_id in slot_ids:
+        base_count = len(
+            active_by_slot.get(slot_id, set())
+            - future_by_slot.get(slot_id, set())
+            - leavers_by_slot.get(slot_id, set())
+        )
+        effective = (
+            base_count
+            + swaps_in_count.get(slot_id, 0)
+            - swaps_out_count.get(slot_id, 0)
+            + len(future_by_slot.get(slot_id, set()))
+        )
+        result[slot_id] = max(0, effective)
+
+    return result
+
+
 def compute_projected_occupancy(slot, target_date, exclude_member=None):
     """Project occupancy honouring approved plan changes.
 
