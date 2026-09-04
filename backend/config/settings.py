@@ -256,6 +256,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+LOGOUT_REDIRECT_URL = "/admin/"
+
 
 
 CLOUDINARY_STORAGE = {
