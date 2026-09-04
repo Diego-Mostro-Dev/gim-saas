@@ -3,11 +3,23 @@ import { ApiError, extractApiErrorMessage } from "./api";
 const API_PUBLIC =
   `${import.meta.env.VITE_API_URL}/api/public`;
 
+const TIMEOUT_MS = 30000;
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export async function registerPublicMember(
   gymCode,
   formData
 ) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_PUBLIC}/register/${gymCode}/`,
     {
       method: "POST",
@@ -28,7 +40,7 @@ export async function registerPublicMember(
 }
 
 export async function getPublicSlots(gymCode) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_PUBLIC}/slots/${gymCode}/`,
   );
 
@@ -40,7 +52,7 @@ export async function getPublicSlots(gymCode) {
 }
 
 export async function getPublicPlans(gymCode) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_PUBLIC}/plans/${gymCode}/`,
   );
 
@@ -52,7 +64,7 @@ export async function getPublicPlans(gymCode) {
 }
 
 export async function getPublicActivities(gymCode) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_PUBLIC}/activities/${gymCode}/`,
   );
 

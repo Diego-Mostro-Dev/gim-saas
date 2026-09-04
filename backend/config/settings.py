@@ -46,6 +46,7 @@ if DEBUG:
 # Seguridad de transporte y headers. Solo se fuerzan en producción;
 # en DEBUG local no redirigir a HTTPS (el dev server usa HTTP).
 if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = bool(os.getenv("SECURE_SSL_REDIRECT", "True").lower() in ("1", "true", "yes"))
     SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

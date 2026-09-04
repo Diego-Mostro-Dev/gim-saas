@@ -616,13 +616,21 @@ def _find_already_renewed_members(candidates):
 
     Builds a single OR query across all candidates to find existing successors
     in one round-trip, then returns a set of member_ids to skip.
+
+    Uses an overlap check (start <= target_end AND end >= target_start)
+    instead of an exact start_date match, because manually created or
+    shifted subscriptions may start on a different day of the month.
     """
     if not candidates:
         return set()
 
     query = Q()
-    for _sub, target_start, _end in candidates:
-        query |= Q(member_id=_sub.member_id, start_date=target_start)
+    for _sub, target_start, target_end in candidates:
+        query |= Q(
+            member_id=_sub.member_id,
+            start_date__lte=target_end,
+            end_date__gte=target_start,
+        )
     return set(
         Subscription.objects.filter(query).values_list("member_id", flat=True)
     )

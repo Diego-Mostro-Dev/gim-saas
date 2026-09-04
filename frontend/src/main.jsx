@@ -18,7 +18,7 @@ import { STAFF_MANIFEST, MEMBER_MANIFEST, memberManifestHref, resolveManifestHre
 import "./index.css";
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false } },
+  defaultOptions: { queries: { retry: 3, retryDelay: 1000 } },
 });
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
