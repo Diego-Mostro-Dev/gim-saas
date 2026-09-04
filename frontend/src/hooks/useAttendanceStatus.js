@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 import {
   getAttendanceStatus,
@@ -104,8 +105,8 @@ export function useAttendanceStatus() {
     } catch (err) {
       console.error(err);
 
-      setError(
-        "Error registrando asistencia",
+      toast.error(
+        err.message || "Error registrando asistencia",
       );
     }
   }
