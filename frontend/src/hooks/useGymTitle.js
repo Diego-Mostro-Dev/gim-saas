@@ -28,7 +28,11 @@ function applyTitleAndBranding(name, faviconIcon) {
 }
 
 export function useGymTitle(gym, memberToken) {
-  const staffGym = useGym();
+  // En el portal de socio el gym viene resuelto del routine público, así que no
+  // hace falta (ni se puede) llamar a /api/gyms/me/ que requiere staff token.
+  // Evitamos un 401 que dispara logout y cascada de 401 en el resto.
+  const isMemberPortal = Boolean(gym);
+  const staffGym = useGym({ skip: isMemberPortal });
   const resolved = gym || staffGym.gym;
   const name = resolved?.name;
   const faviconIcon =
@@ -36,7 +40,6 @@ export function useGymTitle(gym, memberToken) {
     resolved?.app_icon_url ||
     resolved?.logo_url ||
     null;
-  const isMemberPortal = Boolean(gym);
   const staffSlug = staffGym.gym?.slug;
 
   useEffect(() => {

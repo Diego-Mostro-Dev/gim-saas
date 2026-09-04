@@ -5,12 +5,13 @@ import { getCached, isCacheFresh } from "../utils/cache";
 const CACHE_KEY = "gym";
 const TTL = 10 * 60 * 1000;
 
-export function useGym() {
+export function useGym({ skip = false } = {}) {
   const [gym, setGym] = useState(() => getCached(CACHE_KEY) || null);
 
   useEffect(() => {
+    if (skip) return;
     loadGym();
-  }, []);
+  }, [skip]);
 
   async function loadGym() {
     if (isCacheFresh(CACHE_KEY, TTL)) {
