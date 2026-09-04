@@ -10,6 +10,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import cloudinary
+import cloudinary.api
+import cloudinary.uploader
+import cloudinary.utils
 from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import (
