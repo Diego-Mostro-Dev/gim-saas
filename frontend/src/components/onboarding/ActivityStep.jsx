@@ -2,15 +2,16 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { DAY_NAMES } from "../../constants/days";
 import { formatCurrency } from "../../utils/currency.utils";
+import { txt } from "../../utils/labels";
 
-function ActivityStep({ activities, selections, onChange }) {
+function ActivityStep({ activities, selections, onChange, gym }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!activities || activities.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center">
         <p className="text-sm text-text-secondary">
-          No hay actividades disponibles para este gimnasio.
+          {txt(gym, "onboarding.activities_empty")}
         </p>
       </div>
     );

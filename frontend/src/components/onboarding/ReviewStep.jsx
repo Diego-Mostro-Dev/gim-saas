@@ -1,5 +1,6 @@
 import { DAY_NAMES } from "../../constants/days";
 import { formatCurrency } from "../../utils/currency.utils";
+import { txt } from "../../utils/labels";
 import ValidationBanner from "../ui/ValidationBanner";
 
 function ReviewStep({
@@ -15,6 +16,7 @@ function ReviewStep({
   onEditServices,
   onEditGym,
   onEditActivities,
+  gym,
 }) {
   const plan = plans.find((p) => p.id === selectedPlanId);
 
@@ -81,7 +83,15 @@ function ReviewStep({
       <Section title="Información personal" onEdit={onEditPersonal}>
         <Row label="Nombre" value={`${formData.first_name} ${formData.last_name}`} />
         <Row label="Teléfono" value={formData.phone} />
+        <Row label="Nº de Documento" value={formData.document_number} />
+        <Row label="Fecha de nacimiento" value={formData.date_of_birth} />
         {formData.email && <Row label="Email" value={formData.email} />}
+        {formData.health_insurance && (
+          <Row label="Obra social" value={formData.health_insurance} />
+        )}
+        {formData.affiliate_number && (
+          <Row label="Nº de Afiliado" value={formData.affiliate_number} />
+        )}
       </Section>
 
       {/* Services */}
@@ -89,7 +99,7 @@ function ReviewStep({
         <div className="flex gap-2">
           {services.gym && (
             <span className="rounded-full bg-info/15 px-3 py-1 text-xs font-medium text-info">
-              Gimnasio
+              {txt(gym, "onboarding.service_label")}
             </span>
           )}
           {services.activities && (
@@ -102,7 +112,7 @@ function ReviewStep({
 
       {/* Gym section */}
       {services.gym && (
-        <Section title="Plan de gimnasio" onEdit={onEditGym}>
+        <Section title={txt(gym, "onboarding.plan_label")} onEdit={onEditGym}>
           {plan ? (
             <>
               <Row label="Plan" value={plan.name} />
@@ -185,7 +195,7 @@ function ReviewStep({
 
         {services.gym && plan && (
           <div className="flex items-center justify-between">
-            <span className="text-sm text-text-secondary">Plan de gimnasio</span>
+            <span className="text-sm text-text-secondary">{txt(gym, "onboarding.plan_label")}</span>
             <span className="text-sm font-medium text-text-primary">
               {formatCurrency(plan.price)}
             </span>

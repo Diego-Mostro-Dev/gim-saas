@@ -1,6 +1,11 @@
+from datetime import date
+from decimal import Decimal, InvalidOperation
+
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, Q
+from django.db import transaction
+from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -10,6 +15,7 @@ from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
 from gyms.features import require_activities
 from members.models import Member
+from payments.models import Payment
 
 from .enrollment_service import EnrollmentError, EnrollmentService
 from .models import Activity, ActivitySchedule, Enrollment
@@ -18,6 +24,7 @@ from .serializers import (
     ActivityScheduleSerializer,
     EnrollmentSerializer,
 )
+from .session_service import SessionError, SessionService
 
 
 class ActivitiesGuardMixin:
@@ -140,7 +147,10 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
             gym=gym,
             schedule=schedule,
             active=True,
-        ).select_related("member").order_by("-enrolled_at")
+        ).select_related("member").annotate(
+            used_sessions_count=Count("session_records"),
+            last_session_date=Max("session_records__date"),
+        ).order_by("-enrolled_at")
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -170,8 +180,42 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
 
         member = get_object_or_404(Member, id=member_id, gym=gym)
 
+        modality = request.data.get("modality", "monthly")
+        package_total_sessions = request.data.get("package_total_sessions")
+
+        session_price = request.data.get("session_price")
+        if session_price not in (None, ""):
+            try:
+                session_price = Decimal(str(session_price))
+            except (InvalidOperation, ValueError):
+                return Response(
+                    {"detail": "El precio por sesión debe ser un monto válido."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            session_price = None
+
+        sellado_amount = request.data.get("sellado_amount")
+        if sellado_amount not in (None, ""):
+            try:
+                sellado_amount = Decimal(str(sellado_amount))
+            except (InvalidOperation, ValueError):
+                return Response(
+                    {"detail": "El sellado/coseguro debe ser un monto válido."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            sellado_amount = None
+
         try:
-            enrollment = EnrollmentService.enroll_member(member, schedule)
+            enrollment = EnrollmentService.enroll_member(
+                member,
+                schedule,
+                modality=modality,
+                package_total_sessions=package_total_sessions,
+                session_price=session_price,
+                sellado_amount=sellado_amount,
+            )
         except EnrollmentError as e:
             return Response(
                 {"detail": str(e)},
@@ -208,3 +252,176 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
 
         serializer = self.get_serializer(enrollment)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.GenericViewSet):
+    queryset = Enrollment.objects.all()
+    serializer_class = EnrollmentSerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        gym = self.get_gym()
+        return Enrollment.objects.filter(
+            gym=gym,
+            active=True,
+        ).select_related("member", "schedule__activity").annotate(
+            used_sessions_count=Count("session_records"),
+            last_session_date=Max("session_records__date"),
+        )
+
+    @action(detail=True, methods=["post"])
+    def record_session(self, request, pk=None):
+        enrollment = self.get_object()
+        session_date = request.data.get("date")
+        if session_date:
+            try:
+                session_date = date.fromisoformat(session_date)
+            except ValueError:
+                return Response(
+                    {"detail": "Fecha inválida."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            session_date = timezone.localdate()
+
+        try:
+            record = SessionService.record_session(enrollment, session_date)
+        except SessionError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+
+        return Response(
+            {"detail": "Sesión registrada.", "date": record.date.isoformat()},
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def remove_session(self, request, pk=None):
+        enrollment = self.get_object()
+        session_date = request.data.get("date")
+        if not session_date:
+            return Response(
+                {"detail": "El campo date es requerido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            session_date = date.fromisoformat(session_date)
+        except ValueError:
+            return Response(
+                {"detail": "Fecha inválida."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            SessionService.remove_session(enrollment, session_date)
+        except SessionError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+
+        return Response({"detail": "Sesión eliminada."})
+
+    @action(detail=True, methods=["post"])
+    def renew(self, request, pk=None):
+        enrollment = self.get_object()
+        additional_sessions = request.data.get("additional_sessions")
+
+        try:
+            enrollment = SessionService.renew_package(
+                enrollment, additional_sessions
+            )
+        except SessionError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+
+        return Response(self.get_serializer(enrollment).data)
+
+    @action(detail=True, methods=["post"])
+    def toggle_sellado(self, request, pk=None):
+        enrollment = self.get_object()
+        enrollment.sellado_paid = not enrollment.sellado_paid
+        enrollment.save(update_fields=["sellado_paid"])
+        return Response(self.get_serializer(enrollment).data)
+
+    @action(detail=True, methods=["post"])
+    def record_payment(self, request, pk=None):
+        enrollment = self.get_object()
+        amount = request.data.get("amount")
+        payment_method = request.data.get("payment_method", "cash")
+        notes = request.data.get("notes", "")
+        try:
+            enrollment = EnrollmentService.record_package_payment(
+                enrollment,
+                amount,
+                payment_method=payment_method,
+                notes=notes,
+            )
+        except EnrollmentError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+        return Response(self.get_serializer(enrollment).data)
+
+    @action(detail=True, methods=["post"])
+    def pay_sellado(self, request, pk=None):
+        enrollment = self.get_object()
+
+        if enrollment.sellado_amount is None:
+            return Response(
+                {"detail": "Este paquete no tiene sellado configurado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if enrollment.sellado_paid:
+            return Response(
+                {"detail": "El sellado ya fue cobrado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw_amount = request.data.get("amount")
+        if raw_amount in (None, ""):
+            raw_amount = enrollment.sellado_amount
+
+        try:
+            amount = Decimal(str(raw_amount))
+        except (InvalidOperation, ValueError):
+            return Response(
+                {"detail": "El monto del sellado debe ser un valor válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if amount <= 0:
+            return Response(
+                {"detail": "El monto del sellado debe ser mayor a cero."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payment_method = request.data.get("payment_method", "cash")
+        notes = request.data.get("notes", "")
+
+        with transaction.atomic():
+            locked = Enrollment.objects.select_for_update().get(pk=enrollment.pk)
+            locked.sellado_paid = True
+            locked.save(update_fields=["sellado_paid"])
+
+            Payment.objects.create(
+                gym=locked.gym,
+                member=locked.member,
+                enrollment=locked,
+                concept="sellado",
+                amount=amount,
+                payment_method=payment_method,
+                notes=notes,
+                member_name=(
+                    f"{locked.member.first_name} {locked.member.last_name}"
+                ),
+                plan_name=f"{locked.schedule.activity.name} · Sellado",
+            )
+
+        return Response(self.get_serializer(locked).data)

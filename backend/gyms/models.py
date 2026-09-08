@@ -178,3 +178,32 @@ class Gym(models.Model):
                     )
                 }
             )
+
+
+class GymClosedDate(models.Model):
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="closed_dates",
+        verbose_name="Gimnasio",
+    )
+    date = models.DateField(verbose_name="Fecha")
+    reason = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Motivo",
+    )
+
+    class Meta:
+        ordering = ["date"]
+        verbose_name = "Fecha cerrada"
+        verbose_name_plural = "Fechas cerradas"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["gym", "date"],
+                name="unique_gym_closed_date",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.gym.name} - {self.date}"

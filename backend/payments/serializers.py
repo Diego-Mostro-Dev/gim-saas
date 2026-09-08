@@ -45,6 +45,19 @@ class PaymentSerializer(serializers.ModelSerializer):
 
         return subscription
 
+    def validate_enrollment(self, enrollment):
+        if enrollment is None:
+            return enrollment
+
+        gym = self.context["request"].user.profile.gym
+
+        if enrollment.gym_id != gym.id:
+            raise serializers.ValidationError(
+                "La inscripción no pertenece a este gimnasio."
+            )
+
+        return enrollment
+
     def _paid_total_excluding(self, subscription, exclude_pk=None):
         return (
             Payment.objects.filter(subscription=subscription)
@@ -86,6 +99,10 @@ class PaymentSerializer(serializers.ModelSerializer):
             "subscription",
             getattr(self.instance, "subscription", None),
         )
+        enrollment = attrs.get(
+            "enrollment",
+            getattr(self.instance, "enrollment", None),
+        )
 
         if (
             member is not None
@@ -95,6 +112,13 @@ class PaymentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {
                     "member": "El miembro no coincide con el socio de la suscripción."
+                }
+            )
+
+        if member is not None and enrollment is not None and member.pk != enrollment.member.pk:
+            raise serializers.ValidationError(
+                {
+                    "member": "El miembro no coincide con la inscripción."
                 }
             )
 
@@ -130,6 +154,14 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         subscription = validated_data.get("subscription")
+        enrollment = validated_data.get("enrollment")
+
+        if enrollment is not None and validated_data.get("member") is None:
+            validated_data["member"] = enrollment.member
+            validated_data["member_name"] = (
+                f"{enrollment.member.first_name} "
+                f"{enrollment.member.last_name}"
+            )
 
         if subscription is not None:
             validated_data = self._apply_subscription_snapshot(

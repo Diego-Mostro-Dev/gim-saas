@@ -12,6 +12,7 @@ export function useScheduleEnrollments(scheduleId, activityId) {
   const [error, setError] = useState(null);
 
   const [activityName, setActivityName] = useState("");
+  const [activity, setActivity] = useState(null);
 
   async function load() {
     if (!scheduleId) return;
@@ -28,6 +29,7 @@ export function useScheduleEnrollments(scheduleId, activityId) {
       setEnrollments(enrollData);
       if (activityData) {
         setActivityName(activityData.name);
+        setActivity(activityData);
       }
     } catch (err) {
       console.error(err);
@@ -57,6 +59,7 @@ export function useScheduleEnrollments(scheduleId, activityId) {
     enrollments,
     loading,
     error,
+    activity,
     activityName,
     handleUnenroll,
     reload: load,

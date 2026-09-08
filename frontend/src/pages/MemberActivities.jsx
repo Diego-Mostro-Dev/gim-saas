@@ -184,6 +184,8 @@ function MemberActivities() {
       {activeEnrollments.map((enrollment) => {
         const initial = enrollment.activity_name?.charAt(0).toUpperCase() || "?";
         const dayLabel = DAY_NAMES[enrollment.day] || enrollment.day;
+        const billingMode = enrollment.activity_billing_mode || "monthly";
+        const isPackage = billingMode === "sessions" && enrollment.modality === "package";
 
         return (
           <div
@@ -202,24 +204,37 @@ function MemberActivities() {
                 {dayLabel} · {formatTime(enrollment.start_time)} -{" "}
                 {formatTime(enrollment.end_time)}
               </p>
-              {enrollment.monthly_price && Number(enrollment.monthly_price) > 0 && (
+              {isPackage && (
+                <p className={`mt-0.5 text-xs font-medium ${
+                  enrollment.exhausted
+                    ? "text-danger-text dark:text-danger"
+                    : "text-success-text dark:text-success"
+                }`}>
+                  {enrollment.exhausted
+                    ? "Sesiones agotadas"
+                    : `Te quedan ${enrollment.sessions_total - enrollment.sessions_used} de ${enrollment.sessions_total} sesiones`}
+                </p>
+              )}
+              {!isPackage && enrollment.monthly_price && Number(enrollment.monthly_price) > 0 && (
                 <p className="mt-0.5 text-xs font-medium text-info-text dark:text-info">
                   ${Number(enrollment.monthly_price).toLocaleString("es-AR")}/mes
                 </p>
               )}
             </div>
 
-            <button
-              onClick={() => handleOpenCancelModal(enrollment.schedule)}
-              disabled={unenrollingId === enrollment.schedule || isOperativeBlocked}
-              title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
-              className="shrink-0 rounded-lg bg-danger-bg px-3 py-2 text-xs font-medium text-danger-text transition hover:bg-danger/20 dark:bg-danger/15 dark:text-danger disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Cancelar inscripción"
-            >
-              {unenrollingId === enrollment.schedule
-                ? "Cancelando..."
-                : "Cancelar"}
-            </button>
+            {billingMode !== "sessions" && (
+              <button
+                onClick={() => handleOpenCancelModal(enrollment.schedule)}
+                disabled={unenrollingId === enrollment.schedule || isOperativeBlocked}
+                title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                className="shrink-0 rounded-lg bg-danger-bg px-3 py-2 text-xs font-medium text-danger-text transition hover:bg-danger/20 dark:bg-danger/15 dark:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Cancelar inscripción"
+              >
+                {unenrollingId === enrollment.schedule
+                  ? "Cancelando..."
+                  : "Cancelar"}
+              </button>
+            )}
           </div>
         );
       })}
@@ -233,6 +248,7 @@ function MemberActivities() {
           {orphanedEnrollments.map((enrollment) => {
             const initial = enrollment.activity_name?.charAt(0).toUpperCase() || "?";
             const dayLabel = DAY_NAMES[enrollment.day] || enrollment.day;
+            const billingMode = enrollment.activity_billing_mode || "monthly";
 
             return (
               <div
@@ -252,7 +268,7 @@ function MemberActivities() {
                       {dayLabel} · {formatTime(enrollment.start_time)} -{" "}
                       {formatTime(enrollment.end_time)}
                     </p>
-                    {enrollment.monthly_price && Number(enrollment.monthly_price) > 0 && (
+                    {billingMode !== "sessions" && enrollment.monthly_price && Number(enrollment.monthly_price) > 0 && (
                       <p className="mt-0.5 text-xs font-medium text-info-text dark:text-info">
                         ${Number(enrollment.monthly_price).toLocaleString("es-AR")}/mes
                       </p>
@@ -261,31 +277,34 @@ function MemberActivities() {
                     <div className="mt-3 flex items-start gap-2 rounded-lg bg-warning-bg/50 dark:bg-warning/5 p-3">
                       <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning-text dark:text-warning" />
                       <p className="text-xs text-warning-text dark:text-warning leading-relaxed">
-                        Tu horario asignado ya no está disponible. Podés elegir otro horario en la misma
-                        actividad u optar por una actividad diferente.
+                        {billingMode === "sessions"
+                          ? "Tu horario ya no está disponible. Consultá en recepción para que te reasignen a un nuevo horario."
+                          : "Tu horario asignado ya no está disponible. Podés elegir otro horario en la misma actividad u optar por una actividad diferente."}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => openSchedulePicker(enrollment)}
-                    disabled={isOperativeBlocked}
-                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
-                    className="flex-1 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Elegir otro horario
-                  </button>
-                  <button
-                    onClick={() => openActivityPicker(enrollment)}
-                    disabled={isOperativeBlocked}
-                    title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
-                    className="flex-1 rounded-xl border border-border bg-surface-input px-3 py-2.5 text-sm font-medium text-text-primary transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Elegir otra actividad
-                  </button>
-                </div>
+                {billingMode !== "sessions" && (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => openSchedulePicker(enrollment)}
+                      disabled={isOperativeBlocked}
+                      title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                      className="flex-1 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Elegir otro horario
+                    </button>
+                    <button
+                      onClick={() => openActivityPicker(enrollment)}
+                      disabled={isOperativeBlocked}
+                      title={isOperativeBlocked ? "No disponible por falta de pago" : undefined}
+                      className="flex-1 rounded-xl border border-border bg-surface-input px-3 py-2.5 text-sm font-medium text-text-primary transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Elegir otra actividad
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -316,9 +335,7 @@ function MemberActivities() {
                     No disponible actualmente
                   </span>
                   <p className="mt-2 text-xs text-text-secondary leading-relaxed">
-                    Esta actividad ha sido suspendida temporalmente por el gimnasio.
-                    Podés elegir otra actividad disponible o contactar al gimnasio
-                    para más información.
+                    {txt(gym, "portal.suspended_activity")} {txt(gym, "portal.suspended_activity_hint")}
                   </p>
                 </div>
               </div>

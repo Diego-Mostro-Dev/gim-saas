@@ -10,6 +10,8 @@ import {
   getPublicPlans,
   getPublicActivities,
 } from "../services/publicRegister.service";
+import { getPublicGym } from "../services/gym.service";
+import { txt } from "../utils/labels";
 
 import ServiceStep from "../components/onboarding/ServiceStep";
 import GymStep from "../components/onboarding/GymStep";
@@ -21,6 +23,10 @@ const INITIAL_FORM = {
   last_name: "",
   phone: "",
   email: "",
+  document_number: "",
+  date_of_birth: "",
+  health_insurance: "",
+  affiliate_number: "",
   photo: null,
 };
 
@@ -35,13 +41,15 @@ const STEPS = {
 const STEP_LABELS = {
   [STEPS.PERSONAL]: "Datos personales",
   [STEPS.SERVICES]: "Servicios",
-  [STEPS.GYM]: "Gimnasio",
+  [STEPS.GYM]: null,
   [STEPS.ACTIVITIES]: "Actividades",
   [STEPS.REVIEW]: "Confirmar",
 };
 
 function Register() {
   const { gymCode } = useParams();
+
+  const [gym, setGym] = useState(null);
 
   const [stepIdx, setStepIdx] = useState(0);
 
@@ -65,12 +73,14 @@ function Register() {
   useEffect(() => {
     async function load() {
       try {
-        const [slots, plans] = await Promise.all([
+        const [slots, plans, gymData] = await Promise.all([
           getPublicSlots(gymCode),
           getPublicPlans(gymCode),
+          getPublicGym(gymCode),
         ]);
         setAvailableSlots(slots);
         setAvailablePlans(plans);
+        setGym(gymData);
 
         try {
           const activities = await getPublicActivities(gymCode);
@@ -150,7 +160,7 @@ function Register() {
 
     switch (step) {
       case STEPS.PERSONAL:
-        return formData.first_name.trim() && formData.last_name.trim() && formData.phone.trim();
+        return formData.first_name.trim() && formData.last_name.trim() && formData.phone.trim() && formData.document_number.trim() && formData.date_of_birth;
 
       case STEPS.SERVICES:
         return services.gym || services.activities;
@@ -187,6 +197,10 @@ function Register() {
         form.append("last_name", formData.last_name);
         form.append("phone", formData.phone);
         form.append("email", formData.email || "");
+        form.append("document_number", formData.document_number);
+        form.append("date_of_birth", formData.date_of_birth);
+        if (formData.health_insurance) form.append("health_insurance", formData.health_insurance);
+        if (formData.affiliate_number) form.append("affiliate_number", formData.affiliate_number);
         if (formData.photo) form.append("photo", formData.photo);
         form.append("schedules", JSON.stringify(schedules));
         if (selectedPlanId) form.append("plan_id", selectedPlanId);
@@ -200,6 +214,10 @@ function Register() {
         form.append("last_name", formData.last_name);
         form.append("phone", formData.phone);
         form.append("email", formData.email || "");
+        form.append("document_number", formData.document_number);
+        form.append("date_of_birth", formData.date_of_birth);
+        if (formData.health_insurance) form.append("health_insurance", formData.health_insurance);
+        if (formData.affiliate_number) form.append("affiliate_number", formData.affiliate_number);
         if (formData.photo) form.append("photo", formData.photo);
         form.append("services", JSON.stringify(servicesList));
 
@@ -335,6 +353,42 @@ function Register() {
           className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         />
 
+        <input
+          type="text"
+          placeholder="Nº de Documento"
+          value={formData.document_number}
+          onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          required
+        />
+
+        <div>
+          <label className="mb-1 block text-sm text-text-secondary">Fecha de nacimiento</label>
+          <input
+            type="date"
+            value={formData.date_of_birth}
+            onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+            required
+          />
+        </div>
+
+        <input
+          type="text"
+          placeholder="Obra social / Seguro médico (opcional)"
+          value={formData.health_insurance}
+          onChange={(e) => setFormData({ ...formData, health_insurance: e.target.value })}
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+        />
+
+        <input
+          type="text"
+          placeholder="Nº de Afiliado (opcional)"
+          value={formData.affiliate_number}
+          onChange={(e) => setFormData({ ...formData, affiliate_number: e.target.value })}
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+        />
+
         <div>
           <label className="mb-1 block text-sm text-text-secondary">Foto (opcional)</label>
           <input
@@ -356,6 +410,7 @@ function Register() {
         services={services}
         onChange={setServices}
         activitiesAvailable={activitiesAvailable && availableActivities.length > 0}
+        gym={gym}
       />
     );
   }
@@ -370,6 +425,7 @@ function Register() {
         schedules={schedules}
         onToggleDay={setSchedules}
         onHourChange={setSchedules}
+        gym={gym}
       />
     );
   }
@@ -380,6 +436,7 @@ function Register() {
         activities={availableActivities}
         selections={activitySelections}
         onChange={setActivitySelections}
+        gym={gym}
       />
     );
   }
@@ -400,6 +457,7 @@ function Register() {
         onEditServices={() => goToStep(STEPS.SERVICES)}
         onEditGym={() => goToStep(STEPS.GYM)}
         onEditActivities={() => goToStep(STEPS.ACTIVITIES)}
+        gym={gym}
       />
     );
   }
@@ -443,10 +501,11 @@ function Register() {
           )}
 
           <h1 className="text-2xl font-bold text-text-primary">
-            Registro al gimnasio
+            {txt(gym, "register.title")}
           </h1>
           <p className="mt-1 text-sm text-text-secondary">
-            {STEP_LABELS[currentStep()]}
+            {STEP_LABELS[currentStep()] ??
+              txt(gym, "onboarding.step_label")}
           </p>
 
           {/* Progress bar */}

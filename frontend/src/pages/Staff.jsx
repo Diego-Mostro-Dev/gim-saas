@@ -5,10 +5,13 @@ import toast from "react-hot-toast";
 
 import useAuthStore from "../store/auth.store";
 import { getStaff, createStaff, deleteStaff } from "../services/staff.service";
+import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
 
 function Staff() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.role);
+  const { gym } = useGym();
 
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +112,7 @@ function Staff() {
       </h1>
 
       <p className="mb-6 text-text-secondary">
-        Usuarios que pueden acceder al panel del gimnasio.
+        {txt(gym, "staff.staff.title")}
       </p>
 
       {owner && (

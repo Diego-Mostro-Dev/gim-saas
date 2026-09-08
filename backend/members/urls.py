@@ -3,6 +3,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    HealthInsuranceViewSet,
     MemberViewSet,
     PublicMemberPhotoView,
 )
@@ -15,6 +16,12 @@ router.register(
     r"members",
     MemberViewSet,
     basename="members",
+)
+
+router.register(
+    r"health-insurances",
+    HealthInsuranceViewSet,
+    basename="health-insurances",
 )
 
 urlpatterns = router.urls + [

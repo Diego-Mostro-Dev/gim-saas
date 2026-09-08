@@ -16,6 +16,7 @@ function MemberCard({
     thursday: "Jue",
     friday: "Vie",
     saturday: "Sáb",
+    sunday: "Dom",
   };
 
   return (
@@ -45,6 +46,13 @@ function MemberCard({
             <p className="truncate text-sm text-text-secondary">{member.phone}</p>
 
             <p className="truncate text-xs text-text-secondary">{member.email}</p>
+
+            {member.document_number && (
+              <p className="mt-0.5 truncate text-xs text-text-secondary">
+                Nº doc: {member.document_number}
+                {member.date_of_birth ? ` · Nac: ${member.date_of_birth}` : ""}
+              </p>
+            )}
 
             {member.plan_name && (
               <div className="mt-1 flex flex-wrap items-center gap-2">

@@ -50,6 +50,30 @@ export async function createMember(memberData) {
   }
 
   formData.append(
+    "document_number",
+    memberData.document_number || "",
+  );
+
+  formData.append(
+    "date_of_birth",
+    memberData.date_of_birth || "",
+  );
+
+  formData.append(
+    "health_insurance",
+    memberData.health_insurance || "",
+  );
+
+  formData.append(
+    "affiliate_number",
+    memberData.affiliate_number || "",
+  );
+
+  if (memberData.insurance) {
+    formData.append("insurance", memberData.insurance);
+  }
+
+  formData.append(
     "schedules",
     JSON.stringify(memberData.schedules || []),
   );
@@ -111,6 +135,30 @@ export async function updateMember(
       "photo",
       memberData.photo,
     );
+  }
+
+  formData.append(
+    "document_number",
+    memberData.document_number || "",
+  );
+
+  formData.append(
+    "date_of_birth",
+    memberData.date_of_birth || "",
+  );
+
+  formData.append(
+    "health_insurance",
+    memberData.health_insurance || "",
+  );
+
+  formData.append(
+    "affiliate_number",
+    memberData.affiliate_number || "",
+  );
+
+  if (memberData.insurance !== undefined && memberData.insurance) {
+    formData.append("insurance", memberData.insurance);
   }
 
   formData.append(

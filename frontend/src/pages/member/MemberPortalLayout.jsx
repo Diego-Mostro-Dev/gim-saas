@@ -1,5 +1,6 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
+import { txt } from "../../utils/labels";
 
 import { Home, Dumbbell, CreditCard, Calendar, Sparkles } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
@@ -469,8 +470,7 @@ function MemberPortalLayoutContent({
               </p>
               {isInitialPending ? (
                 <p className="mt-1 text-xs leading-relaxed opacity-90">
-                  Todavía no podés usar las funciones del portal: tu alta está
-                  pendiente del pago inicial con el gimnasio.
+                  {txt(gym, "portal.initial_payment_pending")}
                 </p>
               ) : (
                 <>
@@ -482,8 +482,7 @@ function MemberPortalLayoutContent({
                       </p>
                     )}
                   <p className="mt-1 text-xs leading-relaxed opacity-90">
-                    Para volver a utilizar las funciones del portal, regularizá
-                    tu pago con el gimnasio.
+                    {txt(gym, "portal.pay_with_gym")}
                   </p>
                 </>
               )}
@@ -518,6 +517,7 @@ function MemberPortalLayoutContent({
           <Outlet
             context={{
               routine,
+              gym,
               token,
               refreshRoutine,
               slots,

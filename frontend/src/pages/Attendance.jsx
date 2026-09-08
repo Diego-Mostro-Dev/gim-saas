@@ -3,9 +3,15 @@ import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
 import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
+import { useClosedDates } from "../hooks/useClosedDates";
+import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
+import ClosedDatesNotice from "../components/members/ClosedDatesNotice";
 
 function Attendance() {
-  const { weeklyAttendance, loading, error, reload, date, setDate } = useWeeklyAttendance();
+  const { gym } = useGym();
+  const { weeklyAttendance, openDays, closedDates, loading, error, reload, date, setDate } = useWeeklyAttendance();
+  const { closedDates: allClosedDates } = useClosedDates();
   const lastLoadedAt = useRef(0);
 
   useEffect(() => {
@@ -42,7 +48,7 @@ function Attendance() {
         <h1 className="text-3xl font-bold">Asistencia</h1>
 
         <p className="mt-1 text-sm text-text-secondary">
-          Organización semanal del gimnasio
+          {txt(gym, "staff.attendance.title")}
         </p>
       </div>
 
@@ -52,9 +58,11 @@ function Attendance() {
         </div>
       )}
 
+      <ClosedDatesNotice closedDates={allClosedDates} excludeToday />
+
       {/* Registro de asistencia */}
       <div className="mb-6">
-        <AttendanceStatus />
+        <AttendanceStatus openDays={openDays} closedDates={closedDates} />
       </div>
 
       {/* Vista semanal */}

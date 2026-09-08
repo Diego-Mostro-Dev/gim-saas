@@ -26,8 +26,9 @@ from members.eligibility import MemberEligibility
 from plans.models import MembershipPlan
 from plans.services import public_plan_name_from_snapshot
 
-from .models import Member
+from .models import HealthInsurance, Member
 from .serializers import (
+    HealthInsuranceSerializer,
     MemberSerializer,
     MemberPhotoSerializer,
 )
@@ -40,12 +41,19 @@ class MemberViewSet(GymModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        return super().get_queryset().prefetch_related(
+        return super().get_queryset().select_related("insurance").prefetch_related(
             Prefetch(
                 "schedules",
                 queryset=AttendanceSchedule.objects.filter(
                     active=True
                 ).select_related("slot"),
+            ),
+            Prefetch(
+                "activity_enrollments",
+                queryset=Enrollment.objects.filter(
+                    active=True,
+                    modality="package",
+                ).select_related("schedule__activity"),
             ),
             "subscription_set__plan",
             "subscription_set__items",
@@ -300,3 +308,12 @@ class PublicMemberPhotoView(APIView):
         serializer.save()
 
         return Response(serializer.data)
+
+
+class HealthInsuranceViewSet(GymModelViewSet):
+    queryset = HealthInsurance.objects.all()
+    serializer_class = HealthInsuranceSerializer
+    pagination_class = None
+
+    def perform_destroy(self, instance):
+        instance.delete()

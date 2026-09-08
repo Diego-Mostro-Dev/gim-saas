@@ -1,4 +1,5 @@
 import { formatHumanDate } from "../../utils/date.utils";
+import { DAY_NAMES, DAY_ORDER } from "../../constants/days";
 
 function getWeekRange(dateStr) {
   if (!dateStr) return "";
@@ -14,15 +15,44 @@ function getWeekRange(dateStr) {
   return `${monday.toLocaleDateString("es-AR", opts)} – ${sunday.toLocaleDateString("es-AR", yearOpts)}`;
 }
 
-function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
-  const days = [
-    { key: "monday", label: "Lunes" },
-    { key: "tuesday", label: "Martes" },
-    { key: "wednesday", label: "Miércoles" },
-    { key: "thursday", label: "Jueves" },
-    { key: "friday", label: "Viernes" },
-    { key: "saturday", label: "Sábado" },
+function weekdayKeyOf(dateStr) {
+  if (!dateStr) return null;
+  const map = {
+    0: "sunday",
+    1: "monday",
+    2: "tuesday",
+    3: "wednesday",
+    4: "thursday",
+    5: "friday",
+    6: "saturday",
+  };
+  return map[new Date(dateStr + "T12:00:00").getDay()] || null;
+}
+
+function weekDatesByKey(dateStr) {
+  if (!dateStr) return {};
+  const d = new Date(dateStr + "T12:00:00");
+  const diff = d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  const keys = [
+    "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday",
   ];
+  const map = {};
+  keys.forEach((key, i) => {
+    const dd = new Date(monday);
+    dd.setDate(monday.getDate() + i);
+    const y = dd.getFullYear();
+    const m = String(dd.getMonth() + 1).padStart(2, "0");
+    const day = String(dd.getDate()).padStart(2, "0");
+    map[key] = `${y}-${m}-${day}`;
+  });
+  return map;
+}
+
+function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
+  const days = DAY_ORDER.map((key) => ({ key, label: DAY_NAMES[key] }));
 
   function groupByHour(schedules) {
     return schedules.reduce((acc, schedule) => {
@@ -61,6 +91,9 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   })();
+
+  const todayKey = weekdayKeyOf(todayStr);
+  const selectedDayKey = weekdayKeyOf(date);
 
   return (
     <div className="space-y-4">
@@ -102,14 +135,42 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
       {days.map((day) => {
         const schedules = weeklyAttendance[day.key] || [];
         const groupedSchedules = groupByHour(schedules);
+        const isToday = date === todayStr && day.key === todayKey;
+        const isSelectedDay = date != null && day.key === selectedDayKey;
+        const closedSet = new Set(weeklyAttendance.closed_dates || []);
+        const isClosed = closedSet.has(weekDatesByKey(date)[day.key]) || false;
 
         return (
           <div
             key={day.key}
-            className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
+            className={`rounded-xl border bg-surface-elevated p-4 shadow-sm ${
+              isClosed
+                ? "border-danger/40 dark:bg-danger/5"
+                : isToday
+                  ? "border-success/60 ring-2 ring-success/30"
+                  : isSelectedDay
+                    ? "border-info/60"
+                    : "border-border"
+            }`}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-text-primary">{day.label}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-text-primary">{day.label}</h2>
+                {isToday ? (
+                  <span className="rounded-md bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text dark:bg-success/15 dark:text-success">
+                    Hoy
+                  </span>
+                ) : isSelectedDay ? (
+                  <span className="rounded-md bg-info-bg px-2 py-0.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info">
+                    Seleccionado
+                  </span>
+                ) : null}
+                {isClosed && (
+                  <span className="rounded-md bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger-text dark:bg-danger/15 dark:text-danger">
+                    Cerrado
+                  </span>
+                )}
+              </div>
               {schedules.length > 0 && (
                 <span className="rounded-md bg-info-bg px-2 py-1 text-xs text-info-text dark:bg-info/15 dark:text-info">
                   {schedules.length} socio{schedules.length > 1 ? "s" : ""}
@@ -117,7 +178,11 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
               )}
             </div>
 
-            {schedules.length === 0 ? (
+            {isClosed ? (
+              <div className="rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger-text dark:bg-danger/10 dark:text-danger">
+                Gimnasio cerrado este día
+              </div>
+            ) : schedules.length === 0 ? (
               <div className="rounded-xl bg-surface-input px-4 py-3 text-sm text-text-secondary">
                 Sin socios programados
               </div>

@@ -1,6 +1,7 @@
 import { Dumbbell, Sparkles } from "lucide-react";
+import { txt } from "../../utils/labels";
 
-function ServiceStep({ services, onChange, activitiesAvailable }) {
+function ServiceStep({ services, onChange, activitiesAvailable, gym }) {
   function handleToggle(key) {
     if (key === "activities" && !activitiesAvailable) return;
     onChange({ ...services, [key]: !services[key] });
@@ -9,8 +10,8 @@ function ServiceStep({ services, onChange, activitiesAvailable }) {
   const options = [
     {
       key: "gym",
-      label: "Gimnasio",
-      description: "Acceso al gimnasio con plan y horarios propios",
+      label: txt(gym, "onboarding.service_label"),
+      description: txt(gym, "onboarding.service_desc"),
       icon: Dumbbell,
     },
     {
@@ -18,7 +19,7 @@ function ServiceStep({ services, onChange, activitiesAvailable }) {
       label: "Actividades",
       description: activitiesAvailable
         ? "Clases dirigidas con horarios fijos"
-        : "No disponible para este gimnasio",
+        : txt(gym, "onboarding.service_unavailable"),
       icon: Sparkles,
     },
   ];

@@ -13,6 +13,12 @@ class Payment(models.Model):
         ("card", "Tarjeta"),
     ]
 
+    CONCEPT_CHOICES = [
+        ("subscription", "Suscripción"),
+        ("sellado", "Sellado"),
+        ("coseguro", "Coseguro por sesiones"),
+    ]
+
     gym = models.ForeignKey(
         Gym,
         on_delete=models.CASCADE,
@@ -27,6 +33,22 @@ class Payment(models.Model):
     blank=True,
     related_name="payments",
     verbose_name="Suscripción",
+    )
+
+    enrollment = models.ForeignKey(
+        "activities.Enrollment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payments",
+        verbose_name="Inscripción",
+    )
+
+    concept = models.CharField(
+        max_length=20,
+        choices=CONCEPT_CHOICES,
+        default="subscription",
+        verbose_name="Concepto",
     )
 
     member = models.ForeignKey(

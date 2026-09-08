@@ -15,10 +15,13 @@ import { usePayments } from "../hooks/usePayments";
 import { usePaymentStats } from "../hooks/usePaymentStats";
 import { usePaymentForm } from "../hooks/usePaymentForm";
 import { usePaymentDuplicateWarning } from "../hooks/usePaymentDuplicateWarning";
+import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
 import { formatCurrency } from "../utils/currency.utils";
 
 function Payments() {
   const location = useLocation();
+  const { gym } = useGym();
 
   const {
     payments,
@@ -155,7 +158,7 @@ function Payments() {
           <h1 className="text-3xl font-bold">Pagos</h1>
 
           <p className="mt-1 text-sm text-text-secondary">
-            Gestión de pagos del gimnasio
+            {txt(gym, "staff.payments.title")}
           </p>
         </div>
 

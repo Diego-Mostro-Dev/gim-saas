@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { TrendingUp, Users, CalendarDays, Repeat } from "lucide-react";
 import { getAttendanceAnalytics } from "../services/attendance.service";
 import { getCached, isCacheFresh } from "../utils/cache";
+import { DAY_NAMES } from "../constants/days";
 
 const TTL = 5 * 60 * 1000;
 
@@ -173,13 +174,7 @@ function AttendanceAnalytics() {
                   <p className="text-xs text-text-secondary">Horario más concurrido</p>
                   {data.occupancy.highest_occupancy_slot ? (
                     <p className="text-lg font-semibold text-text-primary">
-                      {data.occupancy.highest_occupancy_slot.day === "monday" ? "Lunes" :
-                       data.occupancy.highest_occupancy_slot.day === "tuesday" ? "Martes" :
-                       data.occupancy.highest_occupancy_slot.day === "wednesday" ? "Miércoles" :
-                       data.occupancy.highest_occupancy_slot.day === "thursday" ? "Jueves" :
-                       data.occupancy.highest_occupancy_slot.day === "friday" ? "Viernes" :
-                       data.occupancy.highest_occupancy_slot.day === "saturday" ? "Sábado" :
-                       data.occupancy.highest_occupancy_slot.day}{" "}
+                      {DAY_NAMES[data.occupancy.highest_occupancy_slot.day] || data.occupancy.highest_occupancy_slot.day}{" "}
                       {data.occupancy.highest_occupancy_slot.hour}
                     </p>
                   ) : (
@@ -222,13 +217,7 @@ function AttendanceAnalytics() {
                       className="flex items-center justify-between rounded-xl bg-surface-input px-3 py-2"
                     >
                       <span className="text-sm text-text-primary">
-                        {slot.day === "monday" ? "Lunes" :
-                         slot.day === "tuesday" ? "Martes" :
-                         slot.day === "wednesday" ? "Miércoles" :
-                         slot.day === "thursday" ? "Jueves" :
-                         slot.day === "friday" ? "Viernes" :
-                         slot.day === "saturday" ? "Sábado" :
-                         slot.day}{" "}
+                        {DAY_NAMES[slot.day] || slot.day}{" "}
                         {slot.hour}
                       </span>
                       <span className="rounded-md bg-info-bg px-2 py-0.5 text-xs text-info-text dark:bg-info/15 dark:text-info">

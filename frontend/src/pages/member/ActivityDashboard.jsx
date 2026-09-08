@@ -3,6 +3,8 @@ import { CalendarClock, Sparkles, CreditCard } from "lucide-react";
 import { formatHumanDate } from "../../utils/date.utils";
 import { useMemberActivities } from "../../hooks/useMemberActivities";
 import { DAY_NAMES } from "../../constants/days";
+import { txt } from "../../utils/labels";
+import ClosedDatesNotice from "../../components/members/ClosedDatesNotice";
 
 function formatTime(timeStr) {
   if (!timeStr) return "";
@@ -31,6 +33,15 @@ function ActivityDashboard() {
     const today = now.getDay();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+    const closedSet = new Set(gym?.closed_dates || []);
+
+    function toIsoDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
     const sorted = activeEnrollments
       .map((e) => {
         const targetDay = dayIndex[e.day];
@@ -42,6 +53,13 @@ function ActivityDashboard() {
         let daysUntil = targetDay - today;
         if (daysUntil < 0 || (daysUntil === 0 && schedMinutes <= currentMinutes)) {
           daysUntil += 7;
+        }
+
+        const candidate = new Date(now);
+        candidate.setDate(candidate.getDate() + daysUntil);
+        while (closedSet.has(toIsoDate(candidate))) {
+          daysUntil += 7;
+          candidate.setDate(candidate.getDate() + 7);
         }
 
         return { ...e, daysUntil, totalMinutes: daysUntil * 24 * 60 + (schedMinutes - currentMinutes) };
@@ -62,6 +80,8 @@ function ActivityDashboard() {
         </h1>
         <p className="mt-1 text-sm text-text-secondary">{gym.name}</p>
       </div>
+
+      <ClosedDatesNotice closedDates={gym?.closed_dates} />
 
       {/* ACTIVIDADES ACTIVAS */}
       <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
@@ -264,7 +284,7 @@ function ActivityDashboard() {
       {(gym.whatsapp || gym.phone || gym.email) && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
-            Contacto del gimnasio
+            {txt(gym, "portal.contact", { gym: gym.name })}
           </h2>
 
           <div className="space-y-3">

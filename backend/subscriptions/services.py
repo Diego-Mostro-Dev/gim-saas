@@ -187,23 +187,77 @@ def subscription_remaining_balance(subscription, paid_amount=None):
     }
 
 
-def member_total_outstanding_debt(member):
-    """Return the member's total outstanding debt.
+def member_activity_package_debt(member):
+    """Return unpaid per-session activity packages for a single member.
 
-    The debt is composed of every subscription of the member with a positive
-    remaining balance, computed through subscription_remaining_balance, which
-    stays the single source of truth for subscription balances. It does not
-    rely on the paid=False denormalized flag: a subscription flagged as paid
-    but with an unpaid balance still counts as outstanding.
+    Session packages (modality="package") are charged independently of the
+    subscription/payment system, accumulating in Enrollment.amount_paid.
+    A package counts as debt when its total (session_price × sessions) exceeds
+    the amount paid.
 
     Returns:
-        A dict with:
-        - subscriptions: list of {"subscription": Subscription, "total": Decimal,
-          "paid": Decimal, "remaining": Decimal} for every unpaid
-          subscription with a positive remaining balance, ordered by period
-          ascending.
-        - total: the sum of all remaining balances as a Decimal.
+        A list of dicts with the "enrollment" (prefetched with
+        schedule__activity) plus name/sessions_total/session_price/total/
+        paid_amount/remaining.
     """
+    from activities.models import Enrollment
+
+    pending_enrollments = (
+        Enrollment.objects.filter(
+            member=member,
+            active=True,
+            modality="package",
+            session_price__isnull=False,
+        )
+        .select_related("schedule__activity")
+    )
+    return _package_debt_entries(pending_enrollments)
+
+
+def gym_activity_package_debt(gym):
+    """Gym-wide version of member_activity_package_debt.
+
+    Returns entries that also include "member" (used by admin screens to
+    surface session debt across the whole gym).
+    """
+    from activities.models import Enrollment
+
+    pending_enrollments = (
+        Enrollment.objects.filter(
+            gym=gym,
+            active=True,
+            modality="package",
+            session_price__isnull=False,
+        )
+        .select_related("member", "schedule__activity")
+    )
+    return _package_debt_entries(pending_enrollments, include_member=True)
+
+
+def _package_debt_entries(queryset, include_member=False):
+    """Map pending package enrollments into debt entry dicts."""
+    entries = []
+    for e in queryset:
+        remaining = e.remaining_amount
+        if remaining is None or remaining <= 0:
+            continue
+        entry = {
+            "type": "activity_package",
+            "enrollment": e,
+            "name": e.schedule.activity.name,
+            "sessions_total": e.package_total_sessions,
+            "session_price": e.session_price,
+            "total": e.total_amount or Decimal("0"),
+            "paid_amount": e.amount_paid or Decimal("0"),
+            "remaining": remaining,
+        }
+        if include_member:
+            entry["member"] = e.member
+        entries.append(entry)
+    return entries
+
+
+def member_total_outstanding_debt(member):
     from payments.models import Payment
 
     outstanding_subs = (
@@ -244,9 +298,20 @@ def member_total_outstanding_debt(member):
         Decimal("0"),
     )
 
+    # Package (activity) debt: unpaid per-session packages with a defined
+    # session price. Independent of the subscription payment system but must
+    # count as outstanding debt so the member is flagged as a debtor.
+    packages = member_activity_package_debt(member)
+
+    package_total = sum(
+        (pkg["remaining"] for pkg in packages),
+        Decimal("0"),
+    )
+
     return {
         "subscriptions": subscriptions,
-        "total": total,
+        "packages": packages,
+        "total": total + package_total,
     }
 
 

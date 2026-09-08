@@ -93,6 +93,57 @@ function ActivityForm({
         </p>
       </div>
 
+      <div>
+        <span className="mb-1 block text-sm font-medium text-text-primary">
+          Modalidad de cobro
+        </span>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface-input px-4 py-3">
+            <input
+              type="radio"
+              name="billing_mode"
+              value="monthly"
+              checked={formData.billing_mode === "monthly"}
+              onChange={(e) =>
+                setFormData({ ...formData, billing_mode: e.target.value })
+              }
+              className="mt-0.5 h-4 w-4 rounded-full border border-border bg-surface-input text-blue-500 transition focus:ring-2 focus:ring-focus-ring"
+            />
+            <span>
+              <span className="block text-sm font-medium text-text-primary">
+                Mensual
+              </span>
+              <span className="block text-xs text-text-secondary">
+                Cuota fija por mes (ej: Yoga, CrossFit)
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface-input px-4 py-3">
+            <input
+              type="radio"
+              name="billing_mode"
+              value="sessions"
+              checked={formData.billing_mode === "sessions"}
+              onChange={(e) =>
+                setFormData({ ...formData, billing_mode: e.target.value })
+              }
+              className="mt-0.5 h-4 w-4 rounded-full border border-border bg-surface-input text-blue-500 transition focus:ring-2 focus:ring-focus-ring"
+            />
+            <span>
+              <span className="block text-sm font-medium text-text-primary">
+                Por sesiones
+              </span>
+              <span className="block text-xs text-text-secondary">
+                Kinesiología, terapia manual... El staff inscribe a cada socio
+                en mensual o en un paquete de N sesiones.
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
+
       <label className="flex cursor-pointer items-center gap-3">
         <input
           type="checkbox"

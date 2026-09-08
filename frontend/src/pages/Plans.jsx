@@ -6,8 +6,11 @@ import PlanCard from "../components/plans/PlanCard";
 import PlanForm from "../components/plans/PlanForm";
 
 import { usePlans } from "../hooks/usePlans";
+import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
 
 function Plans() {
+  const { gym } = useGym();
   const {
     plans,
     loading,
@@ -127,7 +130,7 @@ function Plans() {
           <h1 className="text-3xl font-bold">Planes</h1>
 
           <p className="mt-1 text-sm text-text-secondary">
-            Gestión de planes del gimnasio
+            {txt(gym, "staff.plans.title")}
           </p>
         </div>
 

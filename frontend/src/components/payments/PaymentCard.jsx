@@ -17,6 +17,12 @@ function PaymentCard({ payment, onEdit, onDelete }) {
             payment.payment_method}
         </p>
 
+        {payment.plan_name && (
+          <p className="text-xs font-medium text-text-secondary">
+            {payment.plan_name}
+          </p>
+        )}
+
         <p className="text-xs text-text-secondary">{payment.notes || "Sin notas"}</p>
       </div>
 

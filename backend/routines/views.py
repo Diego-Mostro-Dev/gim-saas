@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import RoutineAssignment, WorkoutSet
+from gyms.labels import get_gym_labels
 from members.models import Member
 from django.shortcuts import get_object_or_404
 from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
@@ -578,6 +579,35 @@ class PublicRoutineView(APIView):
 
         outstanding_debt = member_total_outstanding_debt(member)
 
+        outstanding_subscriptions = [
+            {
+                "subscription_id": entry["subscription"].id,
+                "plan": public_plan_name(entry["subscription"].plan),
+                "start_date": entry["subscription"].start_date,
+                "end_date": entry["subscription"].end_date,
+                "total": str(entry["total"]),
+                "paid_amount": str(entry["paid_amount"]),
+                "remaining": str(entry["remaining"]),
+            }
+            for entry in outstanding_debt["subscriptions"]
+        ]
+
+        combined_pending = outstanding_subscriptions + [
+            {
+                "type": "activity_package",
+                "enrollment_id": pkg["enrollment"].id,
+                "name": pkg["name"],
+                "sessions_total": pkg["sessions_total"],
+                "session_price": str(pkg["session_price"]),
+                "total": str(pkg["total"]),
+                "paid_amount": str(pkg["paid_amount"]),
+                "remaining": str(pkg["remaining"]),
+            }
+            for pkg in outstanding_debt["packages"]
+        ]
+
+        combined_total = outstanding_debt["total"]
+
         data = {
             "active_plans": [
                 {
@@ -631,6 +661,11 @@ class PublicRoutineView(APIView):
                 "allow_plan_changes": gym.allow_plan_changes,
                 "allow_schedule_changes": gym.allow_schedule_changes,
                 "features": gym.features,
+                "labels": get_gym_labels(gym),
+                "closed_dates": [
+                    closed_date.date.isoformat()
+                    for closed_date in gym.closed_dates.all()
+                ],
             },
             "subscription": subscription_data,
             "upcoming_subscription": upcoming_subscription_data,
@@ -656,7 +691,8 @@ class PublicRoutineView(APIView):
             ),
             "payments": payments_list,
             "outstanding_debt": {
-                "total": str(outstanding_debt["total"]),
+                "total": str(combined_total),
+                "subscriptions": combined_pending,
             },
         }
 

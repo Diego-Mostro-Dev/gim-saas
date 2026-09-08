@@ -3,7 +3,7 @@ import { Search } from "lucide-react";
 import { useAttendanceStatus } from "../../hooks/useAttendanceStatus";
 import { DAY_NAMES } from "../../constants/days";
 
-function AttendanceStatus() {
+function AttendanceStatus({ openDays = [], closedDates = [] }) {
   const {
     day,
     setDay,
@@ -13,7 +13,9 @@ function AttendanceStatus() {
     loading,
     error,
     markAttendance,
-  } = useAttendanceStatus();
+    canRegister,
+    isTodayClosed,
+  } = useAttendanceStatus(openDays, closedDates);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [registeringId, setRegisteringId] = useState(null);
@@ -44,12 +46,11 @@ function AttendanceStatus() {
           onChange={(e) => setDay(e.target.value)}
           className="w-full rounded-lg border border-border bg-surface-input p-2 text-text-primary"
         >
-          <option value="monday">Lunes</option>
-          <option value="tuesday">Martes</option>
-          <option value="wednesday">Miércoles</option>
-          <option value="thursday">Jueves</option>
-          <option value="friday">Viernes</option>
-          <option value="saturday">Sábado</option>
+          {(openDays.length > 0 ? openDays : [
+            "monday","tuesday","wednesday","thursday","friday","saturday"
+          ]).map((d) => (
+            <option key={d} value={d}>{DAY_NAMES[d]}</option>
+          ))}
         </select>
 
         <input
@@ -59,6 +60,18 @@ function AttendanceStatus() {
           className="w-full rounded-lg border border-border bg-surface-input p-2 text-text-primary"
         />
       </div>
+
+      {isTodayClosed && (
+        <div className="rounded-lg border border-danger/30 bg-danger-bg dark:bg-danger/15 p-3 text-xs text-danger-text dark:text-danger">
+          El gimnasio está cerrado hoy. Hoy no se puede registrar asistencia.
+        </div>
+      )}
+
+      {!canRegister && !isTodayClosed && (
+        <div className="rounded-lg border border-border bg-surface-input p-3 text-xs text-text-secondary">
+          Solo podés registrar asistencia para el día de hoy. La planilla de {DAY_NAMES[day]} está en modo lectura.
+        </div>
+      )}
 
       {loading && (
         <div className="text-sm text-text-secondary">Cargando asistencia...</div>
@@ -179,7 +192,8 @@ function AttendanceStatus() {
                         setRegisteringId(null);
                       }
                     }}
-                    disabled={registeringId === member.schedule_id}
+                    disabled={registeringId === member.schedule_id || !canRegister}
+                    title={!canRegister ? "Solo podés registrar asistencia para el día de hoy" : undefined}
                     className="rounded-lg bg-success px-3 py-1 text-xs font-medium text-white hover:bg-success disabled:opacity-50"
                   >
                     Registrar asistencia

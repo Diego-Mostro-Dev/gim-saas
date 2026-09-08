@@ -6,7 +6,12 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useGym } from "../hooks/useGym";
 import useAuthStore from "../store/auth.store";
-import { updateGym } from "../services/gym.service";
+import {
+  updateGym,
+  getClosedDates,
+  createClosedDate,
+  deleteClosedDate,
+} from "../services/gym.service";
 import {
   getSlots,
   createSlot,
@@ -14,6 +19,13 @@ import {
   deleteSlot,
 } from "../services/attendance.service";
 import { getCached, isCacheFresh } from "../utils/cache";
+import { formatHumanDate } from "../utils/date.utils";
+import {
+  getHealthInsurances,
+  createHealthInsurance,
+  updateHealthInsurance,
+  deleteHealthInsurance,
+} from "../services/healthInsurance.service";
 
 function Settings() {
   const navigate = useNavigate();
@@ -98,6 +110,20 @@ function Settings() {
   const [editingSlotId, setEditingSlotId] = useState(null);
   const [editCapacity, setEditCapacity] = useState("");
 
+  const [closedDates, setClosedDates] = useState([]);
+  const [loadingClosedDates, setLoadingClosedDates] = useState(false);
+  const [newClosedDate, setNewClosedDate] = useState({ date: "", reason: "" });
+
+  const [insurances, setInsurances] = useState([]);
+  const [loadingInsurances, setLoadingInsurances] = useState(false);
+  const [insuranceForm, setInsuranceForm] = useState({
+    id: null,
+    name: "",
+    session_price: "",
+    sellado_amount: "",
+    active: true,
+  });
+
   const DAY_LABELS = {
     monday: "Lunes",
     tuesday: "Martes",
@@ -105,6 +131,7 @@ function Settings() {
     thursday: "Jueves",
     friday: "Viernes",
     saturday: "Sábado",
+    sunday: "Domingo",
   };
 
   const AVAILABLE_HOURS = [
@@ -117,13 +144,148 @@ function Settings() {
     { id: "info", label: "Información" },
     { id: "pagos", label: "Pagos" },
     { id: "planes", label: "Planes & Horarios" },
+    { id: "obras-sociales", label: "Obras sociales" },
+    { id: "cierres", label: "Fechas cerradas" },
     { id: "qr", label: "QR" },
     { id: "seo", label: "SEO" },
   ];
 
   useEffect(() => {
     loadSlots();
+    loadClosedDates();
+    loadInsurances();
   }, []);
+
+  async function loadClosedDates() {
+    try {
+      setLoadingClosedDates(true);
+      const data = await getClosedDates();
+      setClosedDates(data);
+    } catch {
+      toast.error("Error al cargar fechas cerradas");
+    } finally {
+      setLoadingClosedDates(false);
+    }
+  }
+
+  async function handleAddClosedDate() {
+    if (!newClosedDate.date) {
+      toast.error("Elegí una fecha");
+      return;
+    }
+    try {
+      const created = await createClosedDate({
+        date: newClosedDate.date,
+        reason: newClosedDate.reason.trim(),
+      });
+      toast.success("Fecha cerrada agregada");
+      setClosedDates((prev) =>
+        [...prev, created].sort((a, b) => (a.date < b.date ? -1 : 1)),
+      );
+      setNewClosedDate({ date: "", reason: "" });
+    } catch (error) {
+      toast.error(
+        error.message || "Error al agregar la fecha cerrada",
+      );
+    }
+  }
+
+  async function handleDeleteClosedDate(id) {
+    if (!window.confirm("¿Quitar esta fecha cerrada?")) return;
+    try {
+      await deleteClosedDate(id);
+      toast.success("Fecha cerrada eliminada");
+      setClosedDates((prev) => prev.filter((cd) => cd.id !== id));
+    } catch (error) {
+      toast.error(
+        error.message || "Error al eliminar la fecha cerrada",
+      );
+    }
+  }
+
+  async function loadInsurances() {
+    try {
+      setLoadingInsurances(true);
+      const data = await getHealthInsurances();
+      setInsurances(data);
+    } catch (error) {
+      toast.error(error.message || "Error al cargar obras sociales");
+    } finally {
+      setLoadingInsurances(false);
+    }
+  }
+
+  function resetInsuranceForm() {
+    setInsuranceForm({
+      id: null,
+      name: "",
+      session_price: "",
+      sellado_amount: "",
+      active: true,
+    });
+  }
+
+  function startEditInsurance(ins) {
+    setInsuranceForm({
+      id: ins.id,
+      name: ins.name,
+      session_price: ins.session_price ?? "",
+      sellado_amount: ins.sellado_amount ?? "",
+      active: ins.active,
+    });
+  }
+
+  async function handleSaveInsurance() {
+    const name = insuranceForm.name.trim();
+    if (!name) {
+      toast.error("El nombre es obligatorio");
+      return;
+    }
+    const session_price = insuranceForm.session_price;
+    if (session_price === "" || Number.isNaN(Number(session_price))) {
+      toast.error("Ingresá un coseguro por sesión válido");
+      return;
+    }
+    const sellado_amount = insuranceForm.sellado_amount;
+    if (
+      sellado_amount !== "" &&
+      Number.isNaN(Number(sellado_amount))
+    ) {
+      toast.error("Ingresá un sellado válido o dejalo vacío");
+      return;
+    }
+    const payload = {
+      name,
+      session_price: session_price,
+      sellado_amount:
+        sellado_amount === "" ? null : Number(sellado_amount),
+      active: insuranceForm.active,
+    };
+    try {
+      if (insuranceForm.id) {
+        await updateHealthInsurance(insuranceForm.id, payload);
+        toast.success("Obra social actualizada");
+      } else {
+        await createHealthInsurance(payload);
+        toast.success("Obra social creada");
+      }
+      resetInsuranceForm();
+      loadInsurances();
+    } catch (error) {
+      toast.error(error.message || "Error al guardar la obra social");
+    }
+  }
+
+  async function handleDeleteInsurance(id) {
+    if (!window.confirm("¿Eliminar esta obra social?")) return;
+    try {
+      await deleteHealthInsurance(id);
+      toast.success("Obra social eliminada");
+      loadInsurances();
+    } catch (error) {
+      toast.error(error.message || "Error al eliminar la obra social");
+    }
+  }
 
   async function loadSlots() {
     if (isCacheFresh("slots", 10 * 60 * 1000)) {
@@ -564,6 +726,142 @@ function Settings() {
 
         </>
         )}
+        {activeTab === "obras-sociales" && (
+        <>
+        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Obras sociales / seguros médicos
+        </h3>
+
+        <p className="mb-4 text-xs text-text-secondary">
+          Cada obra social define el <strong>coseguro</strong> que el socio
+          paga por cada sesión en actividades por sesiones (ej. paquete de
+          10 sesiones) y el <strong>sellado</strong> (monto único al
+          inscribirse). Al inscribir a un socio por sesiones, ambos se
+          autocompletan con los de su obra social y el staff puede editarlos.
+        </p>
+
+        <div className="mb-4 space-y-2 rounded-xl border border-border bg-surface-input p-3">
+          <input
+            type="text"
+            value={insuranceForm.name}
+            onChange={(e) =>
+              setInsuranceForm({ ...insuranceForm, name: e.target.value })
+            }
+            placeholder="Nombre (ej: IAPOS)"
+            className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+          />
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={insuranceForm.session_price}
+                onChange={(e) =>
+                  setInsuranceForm({ ...insuranceForm, session_price: e.target.value })
+                }
+                placeholder="Coseguro por sesión $"
+                className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+              />
+              <p className="mt-1 text-[11px] leading-snug text-text-secondary">
+                Lo que el socio paga por cada sesión. 0 si la obra social
+                cubre las sesiones.
+              </p>
+            </div>
+
+            <div>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={insuranceForm.sellado_amount}
+                onChange={(e) =>
+                  setInsuranceForm({ ...insuranceForm, sellado_amount: e.target.value })
+                }
+                placeholder="Sellado $ (único, opcional)"
+                className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+              />
+              <p className="mt-1 text-[11px] leading-snug text-text-secondary">
+                Monto único al inscribirse en un paquete (ej. 6.000). Dejalo
+                vacío si no cobra sellado.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleSaveInsurance}
+              className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white transition active:scale-95"
+            >
+              {insuranceForm.id ? "Guardar" : "Agregar"}
+            </button>
+            {insuranceForm.id && (
+              <button
+                type="button"
+                onClick={resetInsuranceForm}
+                className="rounded-lg border border-border px-3 py-2 text-xs text-text-primary transition hover:bg-surface-input"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </div>
+
+        {loadingInsurances ? (
+          <p className="text-sm text-text-secondary">Cargando...</p>
+        ) : insurances.length === 0 ? (
+          <div className="rounded-xl border border-border bg-surface-input px-4 py-3 text-sm text-text-secondary">
+            No hay obras sociales configuradas.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {insurances.map((ins) => (
+              <li
+                key={ins.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-input px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">
+                    {ins.name}
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    Coseguro $
+                    {Number(ins.session_price ?? 0).toLocaleString("es-AR")}
+                    /sesión
+                    {ins.sellado_amount != null && (
+                      <>
+                        {" · "}Sellado $
+                        {Number(ins.sellado_amount).toLocaleString("es-AR")}
+                      </>
+                    )}
+                    {!ins.active && " · Inactiva"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startEditInsurance(ins)}
+                    className="rounded-lg bg-info-bg p-1.5 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteInsurance(ins.id)}
+                    className="rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mb-6" />
+        </>
+        )}
         {activeTab === "planes" && (
         <>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
@@ -848,6 +1146,91 @@ function Settings() {
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
+        </>
+        )}
+
+        {activeTab === "cierres" && (
+        <>
+        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Fechas cerradas
+        </h3>
+
+        <p className="mb-4 text-xs text-text-secondary">
+          Feriados o días puntuales en los que el gimnasio no abre. En esas fechas
+          los socios no podrán registrar asistencia ni pedir intercambios, y el
+          panel no mostrará actividad.
+        </p>
+
+        <div className="mb-4 flex flex-wrap items-start gap-2 rounded-xl border border-border bg-surface-input p-3">
+          <input
+            type="date"
+            min={(() => {
+              const d = new Date();
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              return `${y}-${m}-${day}`;
+            })()}
+            value={newClosedDate.date}
+            onChange={(e) =>
+              setNewClosedDate({ ...newClosedDate, date: e.target.value })
+            }
+            className="w-full flex-1 basis-40 rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none [color-scheme:dark]"
+          />
+          <input
+            type="text"
+            value={newClosedDate.reason}
+            onChange={(e) =>
+              setNewClosedDate({ ...newClosedDate, reason: e.target.value })
+            }
+            placeholder="Motivo (ej: Feriado 12/10)"
+            className="flex-1 basis-48 rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleAddClosedDate}
+            className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white transition active:scale-95"
+          >
+            <Plus size={14} />
+            Agregar
+          </button>
+        </div>
+
+        {loadingClosedDates ? (
+          <p className="text-sm text-text-secondary">Cargando...</p>
+        ) : closedDates.length === 0 ? (
+          <div className="rounded-xl border border-border bg-surface-input px-4 py-3 text-sm text-text-secondary">
+            No hay fechas cerradas. Cuando las agregues, los socios verán el
+            gimnasio cerrado ese día.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {closedDates.map((cd) => (
+              <li
+                key={cd.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-input px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">
+                    {formatHumanDate(cd.date)}
+                  </p>
+                  {cd.reason && (
+                    <p className="truncate text-xs text-text-secondary">
+                      {cd.reason}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteClosedDate(cd.id)}
+                  className="rounded-lg p-2 text-text-secondary transition hover:bg-danger/10 hover:text-danger-text dark:hover:text-danger"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         </>
         )}
 

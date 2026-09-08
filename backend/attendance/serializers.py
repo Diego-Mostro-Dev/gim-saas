@@ -17,6 +17,7 @@ from .utils import (
 )
 
 from members.eligibility import MemberEligibility
+from gyms.models import GymClosedDate
 from subscriptions.domain import SubscriptionDomain
 
 
@@ -218,7 +219,13 @@ DAY_INDEX = {
 }
 
 
-def compute_next_occurrence(slot_day, slot_time):
+def gym_closed_dates_set(gym):
+    return set(
+        GymClosedDate.objects.filter(gym=gym).values_list("date", flat=True)
+    )
+
+
+def compute_next_occurrence(slot_day, slot_time, closed_dates=None):
     now = timezone.localtime(timezone.now())
     days_ahead = (DAY_INDEX[slot_day] - now.weekday()) % 7
     slot_dt = now.replace(
@@ -229,6 +236,9 @@ def compute_next_occurrence(slot_day, slot_time):
     ) + timedelta(days=days_ahead)
     if days_ahead == 0 and slot_dt <= now:
         slot_dt += timedelta(days=7)
+    if closed_dates:
+        while slot_dt.date() in closed_dates:
+            slot_dt += timedelta(days=7)
     return slot_dt
 
 
@@ -359,7 +369,11 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
                         "El horario solicitado está completo."
                     )
 
-            slot_dt = compute_next_occurrence(requested_slot.day, requested_slot.hour)
+            slot_dt = compute_next_occurrence(
+                requested_slot.day,
+                requested_slot.hour,
+                closed_dates=gym_closed_dates_set(gym),
+            )
             notice_hours = gym.schedule_change_notice_hours
             if (slot_dt - timezone.now()).total_seconds() < notice_hours * 3600:
                 raise serializers.ValidationError(
@@ -371,7 +385,9 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
     def get_effective_date(self, obj):
         if obj.requested_slot_id:
             return compute_next_occurrence(
-                obj.requested_slot.day, obj.requested_slot.hour
+                obj.requested_slot.day,
+                obj.requested_slot.hour,
+                closed_dates=gym_closed_dates_set(obj.gym),
             )
         return None
 
@@ -407,7 +423,9 @@ class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
             requested_slot = instance.requested_slot
 
             target_date = compute_next_occurrence(
-                requested_slot.day, requested_slot.hour
+                requested_slot.day,
+                requested_slot.hour,
+                closed_dates=gym_closed_dates_set(gym),
             ).date()
             if not has_effective_capacity(
                 requested_slot, gym, target_date, exclude_member=instance.member
@@ -561,7 +579,11 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
                         "El horario solicitado está completo."
                     )
 
-            slot_dt = compute_next_occurrence(requested_slot.day, requested_slot.hour)
+            slot_dt = compute_next_occurrence(
+                requested_slot.day,
+                requested_slot.hour,
+                closed_dates=gym_closed_dates_set(gym),
+            )
             notice_hours = gym.schedule_change_notice_hours
             if (slot_dt - timezone.now()).total_seconds() < notice_hours * 3600:
                 raise serializers.ValidationError(
@@ -573,7 +595,9 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
     def get_effective_date(self, obj):
         if obj.requested_slot_id:
             return compute_next_occurrence(
-                obj.requested_slot.day, obj.requested_slot.hour
+                obj.requested_slot.day,
+                obj.requested_slot.hour,
+                closed_dates=gym_closed_dates_set(obj.gym),
             )
         return None
 
@@ -707,6 +731,11 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
             if DAY_INDEX_MAP.get(destination_slot.day) != swap_date.weekday():
                 raise serializers.ValidationError(
                     "La fecha seleccionada no corresponde al día del horario de destino."
+                )
+
+            if GymClosedDate.objects.filter(gym=gym, date=swap_date).exists():
+                raise serializers.ValidationError(
+                    "El gimnasio está cerrado esa fecha. Elegí otro día de intercambio."
                 )
 
             if swap_date <= timezone.localdate():
@@ -916,6 +945,11 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
             if DAY_INDEX_MAP.get(destination_slot.day) != swap_date.weekday():
                 raise serializers.ValidationError(
                     "La fecha seleccionada no corresponde al día del horario de destino."
+                )
+
+            if GymClosedDate.objects.filter(gym=gym, date=swap_date).exists():
+                raise serializers.ValidationError(
+                    "El gimnasio está cerrado esa fecha. Elegí otro día de intercambio."
                 )
 
             if swap_date <= timezone.localdate():

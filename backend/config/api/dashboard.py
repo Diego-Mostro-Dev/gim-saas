@@ -12,6 +12,7 @@ from payments.models import Payment
 from plans.services import public_plan_name
 from subscriptions.models import Subscription
 from subscriptions.services import gym_outstanding_subscriptions, get_subscription_payment_status
+from activities.models import Enrollment
 from attendance.models import Attendance
 from routines.models import RoutineAssignment
 
@@ -179,6 +180,7 @@ class DashboardSummaryView(APIView):
             sub = item["subscription"]
             pending_payments_data.append({
                 "id": sub.id,
+                "type": "subscription",
                 "member_id": sub.member.id,
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "member_photo": sub.member.photo.url if sub.member.photo else None,
@@ -186,6 +188,47 @@ class DashboardSummaryView(APIView):
                 "remaining": float(item["remaining"]),
                 "end_date": sub.end_date.strftime("%d/%m/%Y"),
             })
+
+        # -----------------------------------------------------
+        # Package (per-session) debt
+        # -----------------------------------------------------
+        pending_enrollments = (
+            Enrollment.objects
+            .filter(
+                gym=gym,
+                active=True,
+                modality="package",
+                session_price__isnull=False,
+            )
+            .select_related("member", "schedule__activity")
+            .order_by("member__first_name")
+        )
+        package_rows = []
+        for enrollment in pending_enrollments:
+            remaining = enrollment.remaining_amount
+            if not remaining or remaining <= 0:
+                continue
+            package_rows.append({
+                "id": enrollment.id,
+                "type": "activity_package",
+                "member_id": enrollment.member.id,
+                "member_name": (
+                    f"{enrollment.member.first_name} "
+                    f"{enrollment.member.last_name}"
+                ),
+                "member_photo": (
+                    enrollment.member.photo.url
+                    if enrollment.member.photo else None
+                ),
+                "plan_name": (
+                    f"{enrollment.schedule.activity.name} · "
+                    f"paquete de sesiones"
+                ),
+                "remaining": float(remaining),
+                "end_date": None,
+            })
+
+        pending_payments_data = (pending_payments_data + package_rows)[:10]
 
         # -------------------------
         # Attendance

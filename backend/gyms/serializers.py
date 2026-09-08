@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from .models import Gym
+from .labels import get_gym_labels
+from .models import Gym, GymClosedDate
+
+
+class GymClosedDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GymClosedDate
+        fields = ["id", "date", "reason"]
 
 
 class GymSerializer(serializers.ModelSerializer):
@@ -9,6 +16,7 @@ class GymSerializer(serializers.ModelSerializer):
     logo_url = serializers.SerializerMethodField()
     app_icon_url = serializers.SerializerMethodField()
     app_icon_favicon_url = serializers.SerializerMethodField()
+    labels = serializers.SerializerMethodField()
 
     class Meta:
         model = Gym
@@ -47,6 +55,7 @@ class GymSerializer(serializers.ModelSerializer):
             "seo_city",
             "seo_address",
             "seo_hours",
+            "labels",
             "created_at",
         ]
         read_only_fields = [
@@ -94,3 +103,6 @@ class GymSerializer(serializers.ModelSerializer):
             return None
 
         return obj.app_icon.build_url(width=64, height=64, crop="fill", format="png")
+
+    def get_labels(self, obj):
+        return get_gym_labels(obj)

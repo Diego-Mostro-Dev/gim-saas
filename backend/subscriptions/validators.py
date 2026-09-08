@@ -88,7 +88,10 @@ class PlanChangeRequestValidator:
             )
 
     def _validate_schedule_capacity(self):
-        from attendance.serializers import compute_next_occurrence
+        from attendance.serializers import (
+            compute_next_occurrence,
+            gym_closed_dates_set,
+        )
         from attendance.utils import compute_effective_occupancy
 
         for s in self.target_schedules:
@@ -106,7 +109,9 @@ class PlanChangeRequestValidator:
             cap = slot.capacity or self.gym.default_schedule_capacity
             if cap is not None:
                 target_date = compute_next_occurrence(
-                    slot.day, slot.hour
+                    slot.day,
+                    slot.hour,
+                    closed_dates=gym_closed_dates_set(self.gym),
                 ).date()
                 effective = compute_effective_occupancy(
                     slot, target_date, exclude_member=self.member

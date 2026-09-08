@@ -7,6 +7,10 @@ export async function getGym() {
   return data;
 }
 
+export async function getPublicGym(gymCode) {
+  return apiFetch(`/api/gyms/public/${gymCode}/`);
+}
+
 export async function updateGym(data) {
   const isFormData = data instanceof FormData;
 
@@ -20,5 +24,27 @@ export async function updateGym(data) {
         },
   });
   window.dispatchEvent(new Event("features:updated"));
+  return result;
+}
+
+export async function getClosedDates() {
+  return apiFetch("/api/gyms/me/closed-dates/");
+}
+
+export async function createClosedDate(data) {
+  const result = await apiFetch("/api/gyms/me/closed-dates/", {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json" },
+  });
+  window.dispatchEvent(new Event("closed-dates:updated"));
+  return result;
+}
+
+export async function deleteClosedDate(id) {
+  const result = await apiFetch(`/api/gyms/me/closed-dates/${id}/`, {
+    method: "DELETE",
+  });
+  window.dispatchEvent(new Event("closed-dates:updated"));
   return result;
 }

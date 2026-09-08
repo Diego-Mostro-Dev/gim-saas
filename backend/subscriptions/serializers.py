@@ -182,6 +182,17 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         return str(pcr.effective_date) if pcr else None
 
 
+class PackageDebtSerializer(serializers.Serializer):
+    type = serializers.CharField()
+    enrollment_id = serializers.IntegerField(source="enrollment.id")
+    name = serializers.CharField()
+    sessions_total = serializers.IntegerField()
+    session_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    remaining = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class MemberOutstandingSubscriptionSerializer(serializers.Serializer):
     id = serializers.IntegerField(source="subscription.id")
     start_date = serializers.DateField(source="subscription.start_date")
@@ -200,6 +211,7 @@ class MemberOutstandingSubscriptionSerializer(serializers.Serializer):
 class MemberOutstandingDebtSerializer(serializers.Serializer):
     member_id = serializers.IntegerField()
     subscriptions = MemberOutstandingSubscriptionSerializer(many=True)
+    packages = PackageDebtSerializer(many=True)
     total = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 

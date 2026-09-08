@@ -7,10 +7,13 @@ import ActivityCard from "../components/activities/ActivityCard";
 import ActivityForm from "../components/activities/ActivityForm";
 
 import { useActivities } from "../hooks/useActivities";
+import { useGym } from "../hooks/useGym";
 import { getInactiveActivities, reactivateActivity } from "../services/activities.service";
+import { txt } from "../utils/labels";
 
 function Activities() {
   const navigate = useNavigate();
+  const { gym } = useGym();
   const {
     activities,
     loading,
@@ -31,6 +34,7 @@ function Activities() {
     description: "",
     instructor_name: "",
     monthly_price: "",
+    billing_mode: "monthly",
     active: true,
   });
   const [fieldErrors, setFieldErrors] = useState({});
@@ -77,10 +81,10 @@ function Activities() {
       } catch {
         // silently fail
       } finally {
-        if (!cancelledRef.current) setInactiveLoading(false);
+        setInactiveLoading(false);
       }
     }
-    if (inactiveExpanded && !hasLoadedInactive && !inactiveLoading) {
+    if (inactiveExpanded && !inactiveLoading) {
       load();
     }
     return () => { cancelledRef.current = true; };
@@ -175,6 +179,7 @@ function Activities() {
       description: activity.description || "",
       instructor_name: activity.instructor_name || "",
       monthly_price: activity.monthly_price ?? "",
+      billing_mode: activity.billing_mode || "monthly",
       active: activity.active,
     });
     setFieldErrors({});
@@ -190,6 +195,7 @@ function Activities() {
       description: "",
       instructor_name: "",
       monthly_price: "",
+      billing_mode: "monthly",
       active: true,
     });
   }
@@ -210,7 +216,7 @@ function Activities() {
             Módulo desactivado
           </h1>
           <p className="text-text-secondary">
-            El módulo de actividades extra no está habilitado para este gimnasio.
+            {txt(gym, "staff.activities.disabled")}
           </p>
         </div>
       </div>
@@ -230,7 +236,7 @@ function Activities() {
         <div>
           <h1 className="text-3xl font-bold">Actividades</h1>
           <p className="mt-1 text-sm text-text-secondary">
-            Gestión de actividades extra del gimnasio
+            {txt(gym, "staff.activities.title")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-elevated px-3 py-1 font-medium text-text-secondary">
@@ -325,17 +331,17 @@ function Activities() {
       </div>
 
       {/* INACTIVE ACTIVITIES */}
-      {(inactiveActivities.length > 0 || inactiveLoading || hasLoadedInactive) && (
-        <div className="mt-8">
-          <button
-            onClick={() => setInactiveExpanded((v) => !v)}
-            className="flex w-full items-center justify-between rounded-xl border border-border bg-surface-elevated px-4 py-3 text-left shadow-sm transition hover:bg-surface-hover"
-          >
-            <span className="text-sm font-semibold text-text-secondary">
-              Actividades inactivas ({inactiveActivities.length})
-            </span>
-            {inactiveExpanded ? <ChevronUp size={18} className="text-text-secondary" /> : <ChevronDown size={18} className="text-text-secondary" />}
-          </button>
+      <div className="mt-8">
+        <button
+          onClick={() => setInactiveExpanded((v) => !v)}
+          className="flex w-full items-center justify-between rounded-xl border border-border bg-surface-elevated px-4 py-3 text-left shadow-sm transition hover:bg-surface-hover"
+        >
+          <span className="text-sm font-semibold text-text-secondary">
+            Actividades inactivas
+            {hasLoadedInactive && ` (${inactiveActivities.length})`}
+          </span>
+          {inactiveExpanded ? <ChevronUp size={18} className="text-text-secondary" /> : <ChevronDown size={18} className="text-text-secondary" />}
+        </button>
 
           {inactiveExpanded && (
             <div className="mt-3 space-y-3">
@@ -381,7 +387,6 @@ function Activities() {
             </div>
           )}
         </div>
-      )}
 
       {/* REACTIVATE MODAL */}
       {reactivateModal && (

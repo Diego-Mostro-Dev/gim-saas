@@ -11,6 +11,7 @@ import {
   reopenSubscription,
 } from "../services/subscriptions.service";
 import { createPayment, getPayments } from "../services/payments.service";
+import { recordEnrollmentPayment } from "../services/scheduleEnrollments.service";
 import { formatCurrency } from "../utils/currency.utils";
 import { findRecentCashPayment } from "../utils/paymentAlerts";
 import ConfirmModal from "../components/ui/ConfirmModal";
@@ -38,6 +39,7 @@ function RecoverMembers() {
 
   const [paymentAmounts, setPaymentAmounts] = useState({});
   const [payingSubscriptionId, setPayingSubscriptionId] = useState(null);
+  const [payingPackageId, setPayingPackageId] = useState(null);
   const [reopening, setReopening] = useState(false);
 
   const [warningPayment, setWarningPayment] = useState(null);
@@ -182,6 +184,31 @@ function RecoverMembers() {
     pendingPaymentRef.current = null;
     setWarningPayment(null);
     setPayingSubscriptionId(null);
+    setPayingPackageId(null);
+  }
+
+  async function handleRegisterPackagePayment(pkg) {
+    setDebtError(null);
+    setPayingPackageId(pkg.enrollment_id);
+
+    try {
+      await recordEnrollmentPayment(
+        pkg.enrollment_id,
+        paymentAmounts[`pkg-${pkg.enrollment_id}`],
+      );
+
+      setPaymentAmounts((prev) => ({
+        ...prev,
+        [`pkg-${pkg.enrollment_id}`]: "",
+      }));
+
+      await fetchDebt(selectedMember.id);
+      await refreshDebtors();
+    } catch (err) {
+      setDebtError(err.message || "No se pudo registrar el pago del paquete");
+    } finally {
+      setPayingPackageId(null);
+    }
   }
 
   async function handleRecoverMember() {
@@ -347,7 +374,7 @@ function RecoverMembers() {
             <div className="space-y-6">
               {debt.total > 0 ? (
                 <>
-              {debt.subscriptions.length === 0 ? (
+              {debt.subscriptions.length === 0 && !debt.packages?.length ? (
                 <p className="text-sm text-text-secondary">
                   El socio no posee deuda pendiente
                 </p>
@@ -434,7 +461,85 @@ function RecoverMembers() {
                 ))
               )}
 
-              {debt.subscriptions.length > 0 && (
+              {debt.packages?.length > 0 && (
+                <div className="space-y-3">
+                  <p className="border-t border-border pt-3 text-sm font-semibold text-text-primary">
+                    Paquetes de sesiones
+                  </p>
+
+                  {debt.packages.map((pkg) => (
+                    <div
+                      key={pkg.enrollment_id}
+                      className="rounded-xl border border-border bg-surface-input p-3"
+                    >
+                      <p className="text-sm font-semibold text-text-primary">
+                        {pkg.name}
+                        {pkg.sessions_total && (
+                          <span className="ml-2 text-xs font-normal text-text-secondary">
+                            {pkg.sessions_total} sesiones · $
+                            {pkg.session_price != null
+                              ? Number(pkg.session_price).toLocaleString("es-AR")
+                              : "0"}{" "}
+                            /sesión
+                          </span>
+                        )}
+                      </p>
+
+                      <div className="mt-1 space-y-1 text-sm text-text-secondary">
+                        <p>
+                          <span className="inline-block w-20">Total:</span>
+                          <span className="text-text-primary">
+                            {formatCurrency(pkg.total)}
+                          </span>
+                        </p>
+                        <p>
+                          <span className="inline-block w-20">Pagado:</span>
+                          <span className="text-text-primary">
+                            {formatCurrency(pkg.paid_amount)}
+                          </span>
+                        </p>
+                        <p>
+                          <span className="inline-block w-20">Restan:</span>
+                          <span className="text-text-primary">
+                            {formatCurrency(pkg.remaining)}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          max={Number(pkg.remaining)}
+                          placeholder={`Monto (máx ${formatCurrency(pkg.remaining)})`}
+                          value={paymentAmounts[`pkg-${pkg.enrollment_id}`] || ""}
+                          onChange={(e) =>
+                            setPaymentAmounts((prev) => ({
+                              ...prev,
+                              [`pkg-${pkg.enrollment_id}`]: e.target.value,
+                            }))
+                          }
+                          className="min-w-0 flex-1 basis-40 rounded-xl border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleRegisterPackagePayment(pkg)}
+                          disabled={payingPackageId !== null}
+                          className="shrink-0 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+                        >
+                          {payingPackageId === pkg.enrollment_id
+                            ? "Registrando..."
+                            : "Registrar pago"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {debt.subscriptions.length > 0 || debt.packages?.length > 0 ? (
                 <div className="border-t border-border pt-4">
                   <p className="text-sm font-semibold text-text-primary">
                     Total adeudado:
@@ -444,7 +549,7 @@ function RecoverMembers() {
                     {formatCurrency(debt.total)}
                   </p>
                 </div>
-              )}
+              ) : null}
                 </>
               ) : (
                 <div className="space-y-4">

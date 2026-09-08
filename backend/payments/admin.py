@@ -7,14 +7,17 @@ from .models import Payment
 class PaymentAdmin(admin.ModelAdmin):
     list_display = (
         "member_name",
+        "plan_name",
         "gym",
         "amount",
         "payment_method",
+        "concept",
         "paid_at",
     )
 
     list_filter = (
         "payment_method",
+        "concept",
         "gym",
     )
 

@@ -61,6 +61,12 @@ class PublicMemberEnrollmentsView(APIView):
             activity__active=True,
         )
 
+        if schedule.activity.billing_mode == "sessions":
+            return Response(
+                {"detail": "Esta actividad requiere inscripción por el staff."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         try:
             enrollment = EnrollmentService.enroll_member(member, schedule)
         except EnrollmentError as e:
@@ -87,6 +93,8 @@ class PublicGymActivitiesView(APIView):
         activities = Activity.objects.filter(
             service__gym=gym,
             active=True,
+        ).exclude(
+            billing_mode="sessions",
         ).prefetch_related("schedules")
 
         result = []
@@ -136,6 +144,8 @@ class PublicAvailableActivitiesView(APIView):
         activities = Activity.objects.filter(
             service__gym=gym,
             active=True,
+        ).exclude(
+            billing_mode="sessions",
         ).prefetch_related("schedules")
 
         if activity_id:
@@ -205,6 +215,12 @@ class PublicMemberEnrollView(APIView):
             active=True,
             activity__active=True,
         )
+
+        if schedule.activity.billing_mode == "sessions":
+            return Response(
+                {"detail": "Esta actividad requiere inscripción por el staff."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         try:
             enrollment = EnrollmentService.enroll_member(member, schedule)

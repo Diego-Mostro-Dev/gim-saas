@@ -47,7 +47,12 @@ function ActivityCard({
             <h3 className="truncate text-lg font-semibold text-text-primary">
               {activity.name}
             </h3>
-            <div className="mt-0.5">
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              {activity.billing_mode === "sessions" && (
+                <span className="rounded-md bg-info-bg px-2 py-0.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info">
+                  Por sesiones
+                </span>
+              )}
               {activity.active ? (
                 <span className="rounded-md bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text dark:bg-success/15 dark:text-success">
                   Activo

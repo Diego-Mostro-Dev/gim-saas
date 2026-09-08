@@ -1,5 +1,5 @@
-import { Dumbbell, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { Dumbbell, Sparkles, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { DAY_NAMES } from "../../constants/days";
 import { formatCurrency } from "../../utils/currency.utils";
@@ -12,6 +12,7 @@ const DAYS_LIST = [
   { value: "thursday", label: "Jueves" },
   { value: "friday", label: "Viernes" },
   { value: "saturday", label: "Sábado" },
+  { value: "sunday", label: "Domingo" },
 ];
 
 const EMPTY_HOURS = [];
@@ -34,7 +35,63 @@ function MemberForm({
   availableActivities,
   loadingActivities,
   activitiesAvailable,
+  availableInsurances,
 }) {
+  const [expandedActivity, setExpandedActivity] = useState(null);
+
+  const insurances = availableInsurances || [];
+
+  // Combobox de obra social
+  const [insuranceQuery, setInsuranceQuery] = useState(() => {
+    if (!formData) return "";
+    const sel = insurances.find((i) => i.id === Number(formData.insurance));
+    return sel ? sel.name : formData.health_insurance || "";
+  });
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
+  const insuranceBoxRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (insuranceBoxRef.current && !insuranceBoxRef.current.contains(e.target)) {
+        setInsuranceOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const insuranceMatches = insurances.filter((ins) => {
+    const q = insuranceQuery.trim().toLowerCase();
+    if (!q) return true;
+    return ins.name.toLowerCase().includes(q);
+  });
+
+  function handleInsurancePick(ins, clear = false) {
+    setInsuranceOpen(false);
+    if (clear) {
+      setInsuranceQuery("");
+      setFormData({ ...formData, insurance: "", health_insurance: "" });
+      return;
+    }
+    setInsuranceQuery(ins.name);
+    setFormData({
+      ...formData,
+      insurance: ins.id,
+      health_insurance: ins.name,
+    });
+  }
+
+  function handleInsuranceInput(value) {
+    setInsuranceQuery(value);
+    setInsuranceOpen(true);
+    const ins = insurances.find((i) => i.name.toLowerCase() === value.toLowerCase());
+    if (ins) {
+      setFormData({ ...formData, insurance: ins.id, health_insurance: ins.name });
+    } else {
+      setFormData({ ...formData, insurance: "", health_insurance: value });
+    }
+  }
+
   if (!formData) return null;
 
   const schedules = formData.schedules || [];
@@ -51,8 +108,6 @@ function MemberForm({
   const atLimit = limit !== null && scheduleCount >= limit;
 
   const activities = availableActivities || [];
-
-  const [expandedActivity, setExpandedActivity] = useState(null);
 
   function handleServiceToggle(key) {
     if (key === "activities" && !activitiesAvailable) return;
@@ -189,6 +244,132 @@ function MemberForm({
           setFormData({ ...formData, email: e.target.value })
         }
         className="w-full rounded-xl bg-surface-input px-4 py-3 text-text-primary outline-none"
+      />
+
+      <input
+        type="text"
+        placeholder="Nº de Documento"
+        value={formData.document_number}
+        onChange={(e) =>
+          setFormData({ ...formData, document_number: e.target.value })
+        }
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+        required
+      />
+
+      <div>
+        <label className="mb-1 block text-sm text-text-secondary">
+          Fecha de nacimiento
+        </label>
+        <input
+          type="date"
+          value={formData.date_of_birth}
+          onChange={(e) =>
+            setFormData({ ...formData, date_of_birth: e.target.value })
+          }
+          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm text-text-secondary">
+          Obra social / Seguro médico
+        </label>
+        <div ref={insuranceBoxRef} className="relative">
+          <input
+            type="text"
+            placeholder={
+              insurances.length > 0
+                ? "Buscá o escribí la obra social (ej: IAPOS)"
+                : "Obra social / Seguro médico (opcional)"
+            }
+            value={insuranceQuery}
+            onChange={(e) => handleInsuranceInput(e.target.value)}
+            onFocus={() => {
+              setInsuranceOpen(true);
+            }}
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          />
+
+          {insuranceOpen && insurances.length > 0 && (
+            <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-border bg-surface-elevated p-1 shadow-xl">
+              <button
+                type="button"
+                onClick={() => handleInsurancePick(null, true)}
+                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-text-primary transition hover:bg-surface-input"
+              >
+                <span>Sin obra social</span>
+                {(formData.insurance === "" || formData.insurance == null) &&
+                  !insuranceQuery.trim() && (
+                    <Check size={15} className="text-primary" />
+                  )}
+              </button>
+
+              {insuranceMatches.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-text-secondary">
+                  No se encontró. Se guardará como texto libre.
+                </div>
+              ) : (
+                insuranceMatches.map((ins) => {
+                  const coseguro =
+                    ins.session_price == null
+                      ? null
+                      : Number(ins.session_price).toLocaleString("es-AR");
+                  const sellado =
+                    ins.sellado_amount == null
+                      ? null
+                      : Number(ins.sellado_amount).toLocaleString("es-AR");
+                  const isSelected = Number(formData.insurance) === ins.id;
+                  return (
+                    <button
+                      key={ins.id}
+                      type="button"
+                      onClick={() => handleInsurancePick(ins)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-surface-input"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-text-primary">
+                          {ins.name}
+                          {!ins.active ? (
+                            <span className="text-text-secondary"> (inactiva)</span>
+                          ) : null}
+                        </span>
+                        <span className="block text-xs text-text-secondary">
+                          {coseguro != null
+                            ? `Coseguro $${coseguro}/ses`
+                            : "Sin coseguro"}
+                          {sellado != null ? ` · Sellado $${sellado}` : ""}
+                        </span>
+                      </span>
+                      <span className="shrink-0">
+                        {isSelected && (
+                          <Check size={16} className="text-primary" />
+                        )}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+
+        {insuranceOpen && insurances.length === 0 && (
+          <p className="mt-1 text-[11px] text-text-secondary">
+            Se guardará como texto libre.
+          </p>
+        )}
+      </div>
+
+      <input
+        type="text"
+        placeholder="Nº de Afiliado (opcional)"
+        value={formData.affiliate_number}
+        onChange={(e) =>
+          setFormData({ ...formData, affiliate_number: e.target.value })
+        }
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
       <div>

@@ -6,6 +6,60 @@ from cloudinary.models import CloudinaryField
 from gyms.models import Gym
 
 
+class HealthInsurance(models.Model):
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="health_insurances",
+        verbose_name="Gimnasio",
+    )
+    name = models.CharField(
+        max_length=120,
+        verbose_name="Obra social / seguro médico",
+    )
+    session_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Coseguro por sesión",
+        help_text=(
+            "Coseguro que paga el socio por cada sesión de actividades por "
+            "sesiones (ej. IAPOS cobra $6.000 por sesión). Si la obra social "
+            "cubre las sesiones, dejalo en 0."
+        ),
+    )
+    sellado_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Sellado (monto único)",
+        help_text=(
+            "Monto único que paga el socio al inscribirse en un paquete de "
+            "sesiones (ej. IAPOS cobra $6.000 de sellado). Opcional."
+        ),
+    )
+    active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text=(
+            "Inactivar oculta la obra social en los selectores y desvincula "
+            "a los socios al volver a cargar la ficha."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado")
+
+    class Meta:
+        verbose_name = "Obra social"
+        verbose_name_plural = "Obras sociales"
+        unique_together = ("gym", "name")
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Member(models.Model):
     class EntryMode(models.TextChoices):
         GYM = "GYM", "Gimnasio"
@@ -49,6 +103,40 @@ class Member(models.Model):
     email = models.EmailField(
         blank=True,
         verbose_name="Email",
+    )
+
+    document_number = models.CharField(
+        max_length=30,
+        blank=True,
+        verbose_name="Nº de documento",
+    )
+
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de nacimiento",
+    )
+
+    health_insurance = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name="Obra social / seguro médico",
+    )
+
+    affiliate_number = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="Nº de afiliado",
+    )
+
+    insurance = models.ForeignKey(
+        HealthInsurance,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="members",
+        verbose_name="Obra social configurada",
+        help_text="Obra social configurada, define el precio por sesión.",
     )
 
     access_token = models.CharField(

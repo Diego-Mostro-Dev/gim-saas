@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
+import { txt } from "../../utils/labels";
 import { X, Clock, CheckCircle, RotateCcw } from "lucide-react";
 import { formatHumanDate } from "../../utils/date.utils";
 
+import ClosedDatesNotice from "../../components/members/ClosedDatesNotice";
 import CurrentPlanCard from "../../components/plans/CurrentPlanCard";
 import PlanChangeModal from "../../components/plans/PlanChangeModal";
 import {
@@ -13,7 +15,7 @@ import {
   enableAutoRenewal,
 } from "../../services/routines.service";
 
-function getNextTraining(schedules, approvedSwaps) {
+function getNextTraining(schedules, approvedSwaps, closedDates) {
   if (!schedules?.length) return null;
 
   const dayIndex = {
@@ -29,6 +31,8 @@ function getNextTraining(schedules, approvedSwaps) {
   const now = new Date();
   const today = now.getDay();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const closedSet = new Set(closedDates || []);
 
   const swapsByDate = {};
   for (const swap of (approvedSwaps || [])) {
@@ -54,6 +58,8 @@ function getNextTraining(schedules, approvedSwaps) {
     const month = String(candidateDate.getMonth() + 1).padStart(2, "0");
     const day = String(candidateDate.getDate()).padStart(2, "0");
     const dateStr = `${year}-${month}-${day}`;
+
+    if (closedSet.has(dateStr)) continue;
 
     const candidateDay = candidateDate.getDay();
     const candidateDayKey = Object.keys(dayIndex).find(
@@ -104,7 +110,7 @@ function GymDashboard() {
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
-  const nextTraining = getNextTraining(routine.schedules, swapRequests);
+  const nextTraining = getNextTraining(routine.schedules, swapRequests, routine.gym?.closed_dates);
 
   const { gym, subscription, attendance_history, last_payment } =
     routine;
@@ -176,6 +182,8 @@ function GymDashboard() {
 
   return (
     <div className="space-y-4">
+      <ClosedDatesNotice closedDates={routine.gym?.closed_dates} />
+
       {/* SUSCRIPCIÓN */}
       <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-secondary">
@@ -407,7 +415,7 @@ function GymDashboard() {
         {subscription && gym.allow_plan_changes === false && (
           <button
             disabled
-            title="El gimnasio no permite cambios de plan"
+            title={txt(gym, "portal.plan_changes_blocked")}
             className="mt-4 w-full cursor-not-allowed rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white opacity-50"
           >
             Solicitar cambio de plan
@@ -609,7 +617,7 @@ function GymDashboard() {
       {(gym.whatsapp || gym.phone || gym.email) && (
         <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">
-            Contacto del gimnasio
+            {txt(gym, "portal.contact", { gym: gym.name })}
           </h2>
 
           <div className="space-y-3">

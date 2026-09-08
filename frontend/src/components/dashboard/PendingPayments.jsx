@@ -21,17 +21,24 @@ function PendingPayments({ pendingPayments = [] }) {
           </div>
         ) : (
           pendingPayments.map((item) => {
+            const isPackage = item.type === "activity_package";
+            const onOpen = () => {
+              if (isPackage) {
+                navigate("/recover-members");
+                return;
+              }
+              navigate("/payments", {
+                state: {
+                  prefillMemberId: item.member_id,
+                  prefillSubscriptionId: item.id,
+                },
+              });
+            };
+
             return (
               <button
-                key={item.id}
-                onClick={() =>
-                  navigate("/payments", {
-                    state: {
-                      prefillMemberId: item.member_id,
-                      prefillSubscriptionId: item.id,
-                    },
-                  })
-                }
+                key={`${item.type}-${item.id}`}
+                onClick={onOpen}
                 className="flex w-full items-center justify-between rounded-xl border border-border bg-surface-elevated p-4 text-left transition hover:bg-surface-input shadow-sm"
               >
                 <div className="flex min-w-0 items-center gap-3">

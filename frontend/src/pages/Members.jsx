@@ -14,10 +14,13 @@ import { useMembers } from "../hooks/useMembers";
 import { useMemberForm } from "../hooks/useMemberForm";
 import { useFilteredMembers } from "../hooks/useFilteredMembers";
 import { useFeature } from "../features/FeatureProvider";
+import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
 import { getMemberWhatsapp } from "../services/routines.service";
 import { getSlots } from "../services/attendance.service";
 import { formatHumanDate } from "../utils/date.utils";
 import { getPlans } from "../services/plans.service";
+import { getHealthInsurances } from "../services/healthInsurance.service";
 
 import {
   getMemberPayments,
@@ -26,6 +29,7 @@ import {
 import { getCached, isCacheFresh } from "../utils/cache";
 
 function Members() {
+  const { gym } = useGym();
   const { members, loading, refreshing, error, createNewMember, editMember, removeMember } =
     useMembers();
 
@@ -61,10 +65,21 @@ function Members() {
     thursday: "Jue",
     friday: "Vie",
     saturday: "Sáb",
+    sunday: "Dom",
   };
 
   function handleExportCsv() {
-    const header = ["Nombre", "Teléfono", "Email", "Plan", "Horarios"];
+    const header = [
+      "Nombre",
+      "Teléfono",
+      "Email",
+      "Documento",
+      "Fecha de nacimiento",
+      "Obra social",
+      "Nº afiliado",
+      "Plan",
+      "Horarios",
+    ];
 
     const rows = filteredMembers.map((member) => {
       const schedules = (member.schedules || [])
@@ -75,6 +90,10 @@ function Members() {
         `${member.first_name} ${member.last_name}`,
         member.phone || "",
         member.email || "",
+        member.document_number || "",
+        member.date_of_birth || "",
+        member.health_insurance || "",
+        member.affiliate_number || "",
         member.plan_name || "",
         schedules,
       ];
@@ -134,6 +153,20 @@ function Members() {
 
   const [availableActivities, setAvailableActivities] = useState([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
+
+  const [availableInsurances, setAvailableInsurances] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    getHealthInsurances()
+      .then((data) => {
+        if (active) setAvailableInsurances(data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -335,7 +368,7 @@ function Members() {
           <h1 className="text-3xl font-bold">Miembros</h1>
 
           <p className="mt-1 text-sm text-text-secondary">
-            Gestión de miembros del gimnasio
+            {txt(gym, "staff.members.title")}
             {refreshing && (
               <span className="ml-2 text-xs text-blue-400">Actualizando...</span>
             )}
@@ -440,6 +473,7 @@ function Members() {
             availableActivities={availableActivities}
             loadingActivities={loadingActivities}
             activitiesAvailable={activitiesEnabled}
+            availableInsurances={availableInsurances}
           />
         </div>
       )}
@@ -470,6 +504,8 @@ function Members() {
               <tr className="border-b border-border text-xs uppercase text-text-secondary">
                 <th className="px-4 py-3 font-medium">Miembro</th>
                 <th className="px-4 py-3 font-medium">Teléfono</th>
+                <th className="px-4 py-3 font-medium">Documento</th>
+                <th className="px-4 py-3 font-medium">Nacimiento</th>
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Acciones</th>
@@ -505,6 +541,10 @@ function Members() {
 
                   <td className="px-4 py-3 text-text-secondary">{member.phone || "—"}</td>
 
+                  <td className="px-4 py-3 text-text-secondary">{member.document_number || "—"}</td>
+
+                  <td className="px-4 py-3 text-text-secondary">{member.date_of_birth || "—"}</td>
+
                   <td className="px-4 py-3 text-text-secondary">{member.email || "—"}</td>
 
                   <td className="px-4 py-3">
@@ -520,7 +560,7 @@ function Members() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => onViewPayments(member)}
+                        onClick={() => handleViewPayments(member)}
                         className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
                         title="Historial de pagos"
                       >

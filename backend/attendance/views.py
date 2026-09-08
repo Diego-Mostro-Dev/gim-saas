@@ -10,6 +10,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework import status
 
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
+from gyms.models import GymClosedDate
 from .utils import (
     SCHEDULE_SLOT_WEEKDAY_ORDER,
     compute_effective_occupancy,
@@ -41,6 +42,7 @@ class WeeklyScheduleView(APIView):
             "thursday",
             "friday",
             "saturday",
+            "sunday",
         ]
 
         target_date_str = request.GET.get("date")
@@ -59,6 +61,11 @@ class WeeklyScheduleView(APIView):
         result = {}
 
         occ_cache = self._build_occupancy_cache(gym, target_date, approved_swaps)
+
+        open_days_set = set(
+            ScheduleSlot.objects.filter(gym=gym)
+            .values_list("day", flat=True)
+        )
 
         for day in days:
             schedules = AttendanceSchedule.objects.filter(
@@ -116,6 +123,26 @@ class WeeklyScheduleView(APIView):
                         item.update(occ)
 
             result[day] = data
+
+        result["open_days"] = [
+            day for day in days if day in open_days_set
+        ]
+
+        closed_dates = []
+        if target_date:
+            week_monday = target_date - timedelta(days=target_date.weekday())
+            week_sunday = week_monday + timedelta(days=6)
+            closed_dates = list(
+                GymClosedDate.objects.filter(
+                    gym=gym,
+                    date__gte=week_monday,
+                    date__lte=week_sunday,
+                ).values_list("date", flat=True)
+            )
+
+        result["closed_dates"] = [
+            closed_date.isoformat() for closed_date in closed_dates
+        ]
 
         return Response(result)
 

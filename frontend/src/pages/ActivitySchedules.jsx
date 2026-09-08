@@ -9,7 +9,9 @@ import ConfirmModal from "../components/ui/ConfirmModal";
 import { DAY_NAMES } from "../constants/days";
 
 import { useActivitySchedules } from "../hooks/useActivitySchedules";
+import { useGym } from "../hooks/useGym";
 import { getInactiveSchedules, updateActivitySchedule } from "../services/activitySchedules.service";
+import { txt } from "../utils/labels";
 
 function formatTime(timeStr) {
   if (!timeStr) return "";
@@ -21,6 +23,7 @@ function ActivitySchedules() {
   const { activityId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { gym } = useGym();
 
   const [isPendingActivation, setIsPendingActivation] = useState(() => {
     if (location.state?.fromReactivateWithoutSchedules) return true;
@@ -184,7 +187,7 @@ function ActivitySchedules() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 text-text-primary">
         <p className="text-text-secondary">
-          Las actividades no están habilitadas para este gimnasio.
+          {txt(gym, "staff.activity_schedules.disabled")}
         </p>
       </div>
     );

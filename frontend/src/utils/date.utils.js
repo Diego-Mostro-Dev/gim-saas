@@ -1,6 +1,16 @@
+function parseDateOnly(dateStr) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr));
+  if (!match) return null;
+  return new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+}
+
 function normalizeDate(date) {
   if (!date) return null;
-  const d = new Date(date);
+  const d = parseDateOnly(date) || new Date(date);
   if (isNaN(d.getTime())) return null;
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }

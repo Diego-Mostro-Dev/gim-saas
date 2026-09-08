@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 
@@ -19,16 +20,57 @@ class EnrollmentError(ValueError):
 
 class EnrollmentService:
     @staticmethod
-    def enroll_member(member, schedule, skip_eligibility_check=False):
+    def enroll_member(
+        member,
+        schedule,
+        skip_eligibility_check=False,
+        modality="monthly",
+        package_total_sessions=None,
+        session_price=None,
+        sellado_amount=None,
+    ):
+        activity = schedule.activity
+
+        if modality == "package":
+            if activity.billing_mode != "sessions":
+                raise EnrollmentError(
+                    "La actividad no está configurada para modalidad por sesiones."
+                )
+            try:
+                package_total = int(package_total_sessions)
+            except (TypeError, ValueError):
+                raise EnrollmentError(
+                    "La modalidad paquete requiere un total de sesiones válido."
+                )
+            if package_total <= 0:
+                raise EnrollmentError(
+                    "La modalidad paquete requiere un total de sesiones mayor a cero."
+                )
+            if session_price not in (None, ""):
+                try:
+                    session_price = Decimal(str(session_price))
+                except Exception:
+                    raise EnrollmentError(
+                        "El precio por sesión debe ser un monto válido."
+                    )
+                if session_price < 0:
+                    raise EnrollmentError(
+                        "El precio por sesión no puede ser negativo."
+                    )
+            else:
+                raise EnrollmentError(
+                    "Debés definir el coseguro por sesión. "
+                    "Usá 0 si la obra social cubre las sesiones o es sin cargo."
+                )
+        else:
+            modality = "monthly"
+            package_total = None
+            session_price = None
+            sellado_amount = None
+
         if not skip_eligibility_check:
             if not MemberEligibility.can_operate(member):
                 raise EnrollmentError("El miembro no puede operar.")
-
-            if not MemberEligibility.has_active_subscription_for_service(member, schedule.activity.service):
-                raise EnrollmentError(
-                    "El miembro no tiene una suscripción activa "
-                    "para el servicio de esta actividad."
-                )
 
         gym = SubscriptionDomain.resolve_gym(member)
 
@@ -58,25 +100,106 @@ class EnrollmentService:
                     status_code=409,
                 )
 
-            sub = SubscriptionDomain.get_current_subscription(member)
-
             activity_item = None
-            if sub is not None:
-                locked_sub = Subscription.objects.select_for_update().get(
-                    pk=sub.pk
-                )
-                activity_item = _ensure_activity_item(locked_sub, schedule.activity)
-                sync_subscription_paid(locked_sub)
+            if modality == "monthly":
+                sub = SubscriptionDomain.get_current_subscription(member)
+                if sub is not None:
+                    locked_sub = Subscription.objects.select_for_update().get(
+                        pk=sub.pk
+                    )
+                    activity_item = _ensure_activity_item(locked_sub, activity)
+                    sync_subscription_paid(locked_sub)
 
             enrollment = Enrollment.objects.create(
                 gym=gym,
                 member=member,
                 schedule=locked_schedule,
                 subscription_item=activity_item,
+                modality=modality,
+                package_total_sessions=package_total,
+                session_price=session_price,
+                sellado_amount=sellado_amount,
                 active=True,
             )
 
         return enrollment
+
+    @staticmethod
+    def record_package_payment(
+        enrollment,
+        amount,
+        payment_method="cash",
+        notes="",
+    ):
+        """Register an amount paid against a package enrollment.
+
+        Accumulates the amount into enrollment.amount_paid and records a
+        Payment with concept="coseguro". Total paid cannot exceed the
+        package total (session_price * total sessions).
+
+        Args:
+            enrollment: The package Enrollment.
+            amount: The Decimal amount being collected.
+            payment_method: Payment method ("cash", "transfer", "card").
+            notes: Optional note stored on the Payment record.
+
+        Returns:
+            The updated Enrollment.
+        """
+        from payments.models import Payment
+
+        if enrollment.modality != "package":
+            raise EnrollmentError(
+                "Solo las inscripciones por paquete admiten cobro de sesiones."
+            )
+
+        if enrollment.total_amount is None:
+            raise EnrollmentError(
+                "Este paquete no tiene coseguro definido. "
+                "No se pueden cobrar sesiones."
+            )
+
+        try:
+            amount = Decimal(str(amount))
+        except (InvalidOperation, ValueError):
+            raise EnrollmentError(
+                "El monto cobrado debe ser un valor válido."
+            )
+
+        if amount <= 0:
+            raise EnrollmentError(
+                "El monto cobrado debe ser mayor a cero."
+            )
+
+        total = enrollment.total_amount
+        if enrollment.amount_paid + amount > total:
+            remaining = total - enrollment.amount_paid
+            raise EnrollmentError(
+                f"El monto supera el saldo pendiente. "
+                f"Falta cobrar ${remaining}."
+            )
+
+        with transaction.atomic():
+            locked = Enrollment.objects.select_for_update().get(pk=enrollment.pk)
+            locked.amount_paid += amount
+            locked.save(update_fields=["amount_paid"])
+
+            Payment.objects.create(
+                gym=locked.gym,
+                member=locked.member,
+                enrollment=locked,
+                concept="coseguro",
+                amount=amount,
+                payment_method=payment_method,
+                notes=notes,
+                member_name=(
+                    f"{locked.member.first_name} {locked.member.last_name}"
+                ),
+                plan_name=f"{locked.schedule.activity.name} · Sesiones",
+            )
+
+        locked.refresh_from_db()
+        return locked
 
     @staticmethod
     def unenroll_member(member, schedule):

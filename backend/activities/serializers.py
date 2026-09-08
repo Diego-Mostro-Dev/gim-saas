@@ -31,6 +31,7 @@ class ActivitySerializer(serializers.ModelSerializer):
             "description",
             "instructor_name",
             "monthly_price",
+            "billing_mode",
             "active",
             "enrolled_count",
             "schedule_count",
@@ -140,6 +141,12 @@ class ActivityScheduleSerializer(serializers.ModelSerializer):
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     member = MemberBasicSerializer(read_only=True)
+    sessions_total = serializers.SerializerMethodField()
+    sessions_used = serializers.SerializerMethodField()
+    exhausted = serializers.SerializerMethodField()
+    last_session_date = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Enrollment
@@ -149,9 +156,63 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             "member",
             "schedule",
             "active",
+            "modality",
+            "package_total_sessions",
+            "sessions_total",
+            "sessions_used",
+            "exhausted",
+            "session_price",
+            "amount_paid",
+            "total_amount",
+            "remaining_amount",
+            "sellado_amount",
+            "sellado_paid",
+            "last_session_date",
             "enrolled_at",
         ]
-        read_only_fields = ["gym", "enrolled_at"]
+        read_only_fields = ["gym", "enrolled_at", "amount_paid"]
+        validators = []
+
+    def get_sessions_total(self, obj):
+        if obj.modality != "package":
+            return 0
+        return obj.package_total_sessions or 0
+
+    def get_sessions_used(self, obj):
+        used = getattr(obj, "used_sessions_count", None)
+        if used is None:
+            used = obj.used_sessions
+        return used
+
+    def get_exhausted(self, obj):
+        if obj.modality != "package":
+            return False
+        total = obj.package_total_sessions
+        return total is not None and self.get_sessions_used(obj) >= total
+
+    def get_last_session_date(self, obj):
+        if obj.modality != "package":
+            return None
+        last = getattr(obj, "last_session_date", None)
+        if last is None:
+            last_record = obj.session_records.order_by("-date").first()
+            last = last_record.date if last_record else None
+        return last.isoformat() if last else None
+
+    def get_total_amount(self, obj):
+        total = obj.total_amount
+        return str(total) if total is not None else None
+
+    def get_remaining_amount(self, obj):
+        remaining = obj.remaining_amount
+        return str(remaining) if remaining is not None else None
+
+    def validate_session_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError(
+                "El precio por sesión no puede ser negativo."
+            )
+        return value
 
     def validate_schedule(self, schedule):
         if self.instance is not None:
@@ -174,6 +235,9 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
     activity_name = serializers.CharField(source="schedule.activity.name", read_only=True)
     activity_id = serializers.IntegerField(source="schedule.activity_id", read_only=True)
     activity_active = serializers.BooleanField(source="schedule.activity.active", read_only=True)
+    activity_billing_mode = serializers.CharField(
+        source="schedule.activity.billing_mode", read_only=True
+    )
     monthly_price = serializers.DecimalField(
         source="schedule.activity.monthly_price",
         max_digits=10,
@@ -184,6 +248,27 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
     day = serializers.CharField(source="schedule.day", read_only=True)
     start_time = serializers.TimeField(source="schedule.start_time", read_only=True)
     end_time = serializers.TimeField(source="schedule.end_time", read_only=True)
+    sessions_total = serializers.SerializerMethodField()
+    sessions_used = serializers.SerializerMethodField()
+    exhausted = serializers.SerializerMethodField()
+    sellado_amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+    )
+    sellado_paid = serializers.BooleanField(read_only=True)
+    session_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+    )
+    amount_paid = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+    )
+    total_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Enrollment
@@ -192,6 +277,7 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
             "activity_name",
             "activity_id",
             "activity_active",
+            "activity_billing_mode",
             "monthly_price",
             "schedule_active",
             "schedule",
@@ -199,5 +285,37 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
             "start_time",
             "end_time",
             "active",
+            "modality",
+            "sessions_total",
+            "sessions_used",
+            "exhausted",
+            "session_price",
+            "amount_paid",
+            "total_amount",
+            "remaining_amount",
+            "sellado_amount",
+            "sellado_paid",
             "enrolled_at",
         ]
+
+    def get_total_amount(self, obj):
+        total = obj.total_amount
+        return str(total) if total is not None else None
+
+    def get_remaining_amount(self, obj):
+        remaining = obj.remaining_amount
+        return str(remaining) if remaining is not None else None
+
+    def get_sessions_total(self, obj):
+        if obj.modality != "package":
+            return 0
+        return obj.package_total_sessions or 0
+
+    def get_sessions_used(self, obj):
+        return obj.used_sessions
+
+    def get_exhausted(self, obj):
+        if obj.modality != "package":
+            return False
+        total = obj.package_total_sessions
+        return total is not None and obj.used_sessions >= total

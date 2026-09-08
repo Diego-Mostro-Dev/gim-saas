@@ -18,9 +18,70 @@ export async function unenrollMember(scheduleId, memberId) {
   });
 }
 
-export async function enrollMember(scheduleId, memberId) {
+export async function enrollMember(scheduleId, memberId, options = {}) {
   return apiFetch(`/api/activities/schedules/${scheduleId}/enroll/`, {
     method: "POST",
-    body: JSON.stringify({ member_id: memberId }),
+    body: JSON.stringify({ member_id: memberId, ...options }),
   });
+}
+
+export async function recordSession(enrollmentId, date) {
+  return apiFetch(
+    `/api/activities/enrollments/${enrollmentId}/record-session/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ date }),
+    }
+  );
+}
+
+export async function removeSession(enrollmentId, date) {
+  return apiFetch(
+    `/api/activities/enrollments/${enrollmentId}/remove-session/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ date }),
+    }
+  );
+}
+
+export async function renewEnrollment(enrollmentId, additionalSessions) {
+  return apiFetch(`/api/activities/enrollments/${enrollmentId}/renew/`, {
+    method: "POST",
+    body: JSON.stringify({ additional_sessions: additionalSessions }),
+  });
+}
+
+export async function toggleSellado(enrollmentId) {
+  return apiFetch(
+    `/api/activities/enrollments/${enrollmentId}/toggle-sellado/`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+}
+
+export async function paySellado(enrollmentId, amount, paymentMethod = "cash") {
+  return apiFetch(
+    `/api/activities/enrollments/${enrollmentId}/pay_sellado/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ amount, payment_method: paymentMethod }),
+    }
+  );
+}
+
+export async function recordEnrollmentPayment(
+  enrollmentId,
+  amount,
+  paymentMethod = "cash"
+) {
+  return apiFetch(
+    `/api/activities/enrollments/${enrollmentId}/record_payment/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ amount, payment_method: paymentMethod }),
+    }
+  );
 }

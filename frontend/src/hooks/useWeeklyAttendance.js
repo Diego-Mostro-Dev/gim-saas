@@ -80,6 +80,8 @@ export function useWeeklyAttendance() {
 
   return {
     weeklyAttendance,
+    openDays: weeklyAttendance.open_days || [],
+    closedDates: weeklyAttendance.closed_dates || [],
     loading,
     refreshing,
     error,

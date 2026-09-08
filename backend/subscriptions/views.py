@@ -31,6 +31,7 @@ from .services import (
     calculate_effective_date,
     cancel_future_plan_change,
     get_last_day_of_month,
+    gym_activity_package_debt,
     gym_outstanding_subscriptions,
     member_total_outstanding_debt,
     recover_member,
@@ -135,10 +136,29 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         page = paginator.paginate_queryset(subscriptions, request, view=self)
         if page is not None:
             serializer = OutstandingSubscriptionSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            data = serializer.data
+        else:
+            serializer = OutstandingSubscriptionSerializer(subscriptions, many=True)
+            data = serializer.data
 
-        serializer = OutstandingSubscriptionSerializer(subscriptions, many=True)
-        return Response(serializer.data)
+        packages = gym_activity_package_debt(gym)
+        for pkg in packages:
+            member = pkg["member"]
+            data.append({
+                "subscription_id": None,
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "plan_name": f"{pkg['name']} · paquete de sesiones",
+                "payment_status": "pending",
+                "items": [],
+                "total": str(pkg["total"]),
+                "paid_amount": str(pkg["paid_amount"]),
+                "remaining": str(pkg["remaining"]),
+            })
+
+        if page is not None:
+            return paginator.get_paginated_response(data)
+        return Response(data)
 
 
 class PlanChangeRequestViewSet(GymModelViewSet):

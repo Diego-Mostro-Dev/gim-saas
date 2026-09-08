@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from members.models import Member
+from gyms.models import GymClosedDate
 from .models import (
     Attendance,
     AttendanceSchedule,
@@ -29,6 +30,43 @@ from .serializers import (
 from config.api.throttles import PublicAttendanceRateThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
+
+
+DAY_BY_WEEKDAY = {
+    0: "monday",
+    1: "tuesday",
+    2: "wednesday",
+    3: "thursday",
+    4: "friday",
+    5: "saturday",
+    6: "sunday",
+}
+
+
+def _count_sessions_if_in_window(member, gym, now_dt, today):
+    """Auto-count a package activity session when the check-in happens within
+    the activity's time window. Returns nothing; a failed or duplicate count
+    is silently ignored (the member is still allowed into the gym)."""
+    from activities.models import Enrollment
+    from activities.session_service import SessionService
+
+    day = DAY_BY_WEEKDAY[today.weekday()]
+    now_time = now_dt.time()
+
+    enrollments = Enrollment.objects.filter(
+        gym=gym,
+        member=member,
+        active=True,
+        modality="package",
+        schedule__day=day,
+        schedule__active=True,
+        schedule__activity__active=True,
+    ).select_related("schedule")
+
+    for enrollment in enrollments:
+        schedule = enrollment.schedule
+        if schedule.start_time <= now_time <= schedule.end_time:
+            SessionService.record_auto(enrollment, today)
 
 
 class PublicCheckinView(APIView):
@@ -65,6 +103,15 @@ class PublicCheckinView(APIView):
 
         gym = SubscriptionDomain.resolve_gym(member)
         today = timezone.localdate()
+
+        if GymClosedDate.objects.filter(gym=gym, date=today).exists():
+            return Response(
+                {
+                    "success": False,
+                    "message": "El gimnasio está cerrado hoy.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         weekly_limit = MemberEligibility.get_schedule_limit(member)
         if (
@@ -126,6 +173,10 @@ class PublicCheckinView(APIView):
                 slot=slot,
             )
 
+            _count_sessions_if_in_window(
+                member, gym, timezone.localtime(), today
+            )
+
             return Response(
                 {
                     "success": True,
@@ -153,15 +204,6 @@ class PublicCheckinView(APIView):
         # Resolve the member's active schedule for today so the attendance
         # is linked to a recurring slot (otherwise it would be orphaned with
         # schedule=None and never show up in the per-slot attendance views).
-        DAY_BY_WEEKDAY = {
-            0: "monday",
-            1: "tuesday",
-            2: "wednesday",
-            3: "thursday",
-            4: "friday",
-            5: "saturday",
-            6: "sunday",
-        }
         today_day = DAY_BY_WEEKDAY[today.weekday()]
         schedule = (
             AttendanceSchedule.objects.filter(
@@ -204,6 +246,8 @@ class PublicCheckinView(APIView):
             slot=slot,
         )
 
+        _count_sessions_if_in_window(member, gym, timezone.localtime(), today)
+
         return Response(
             {
                 "success": True,
@@ -221,6 +265,11 @@ class PublicMemberSlotsView(APIView):
         gym = SubscriptionDomain.resolve_gym(member)
         target_date_str = request.GET.get("date")
         target_date = date.fromisoformat(target_date_str) if target_date_str else None
+
+        if target_date and GymClosedDate.objects.filter(
+            gym=gym, date=target_date
+        ).exists():
+            return Response([])
 
         slots = list(ScheduleSlot.objects.filter(
             gym=gym,

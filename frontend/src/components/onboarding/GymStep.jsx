@@ -1,4 +1,5 @@
 import PlanSelector from "../plans/PlanSelector";
+import { txt } from "../../utils/labels";
 
 const DAYS = [
   { value: "monday", label: "Lunes" },
@@ -7,6 +8,7 @@ const DAYS = [
   { value: "thursday", label: "Jueves" },
   { value: "friday", label: "Viernes" },
   { value: "saturday", label: "Sábado" },
+  { value: "sunday", label: "Domingo" },
 ];
 
 function GymStep({
@@ -17,6 +19,7 @@ function GymStep({
   schedules,
   onToggleDay,
   onHourChange,
+  gym,
 }) {
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
   const limit = selectedPlan ? selectedPlan.weekly_visits : null;
@@ -59,7 +62,7 @@ function GymStep({
     <div className="space-y-6">
       <div>
         <h3 className="mb-1 text-sm font-medium text-text-primary">
-          Elegí tu plan de gimnasio
+          {txt(gym, "onboarding.plan_title")}
         </h3>
         <p className="mb-3 text-sm text-text-secondary">
           Cada plan incluye un límite de visitas semanales.
@@ -81,7 +84,7 @@ function GymStep({
       {selectedPlan && (
         <div className="rounded-lg border border-border bg-surface-input p-4">
           <p className="mb-2 text-sm font-medium text-text-primary">
-            Horarios de asistencia al gimnasio
+            {txt(gym, "onboarding.schedule_hours")}
           </p>
 
           {limit !== null && (

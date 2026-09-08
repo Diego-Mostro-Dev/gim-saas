@@ -12,8 +12,9 @@ from django.conf import settings
 
 from members.models import Member
 from profiles.models import UserProfile
-from .models import Gym
-from .serializers import GymSerializer
+from .labels import get_gym_labels
+from .models import Gym, GymClosedDate
+from .serializers import GymSerializer, GymClosedDateSerializer
 
 
 def _truncate_short_name(name, limit):
@@ -167,6 +168,70 @@ class GymMeView(APIView):
         return Response(
             serializer.data
         )
+
+
+class GymClosedDateListCreateView(APIView):
+    """Listar y crear fechas cerradas del gimnasio. Gestiona solo el owner."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_gym(self, request):
+        profile = getattr(request.user, "profile", None)
+
+        if not profile or not profile.gym:
+            raise PermissionDenied("Usuario sin gimnasio asignado")
+
+        return profile.gym
+
+    def require_owner(self, request):
+        if request.user.profile.role != UserProfile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede gestionar las fechas cerradas"
+            )
+
+    def get(self, request):
+        gym = self.get_gym(request)
+
+        closed_dates = GymClosedDate.objects.filter(gym=gym).order_by("date")
+
+        serializer = GymClosedDateSerializer(closed_dates, many=True)
+
+        return Response(serializer.data)
+
+    def post(self, request):
+        self.require_owner(request)
+        gym = self.get_gym(request)
+
+        serializer = GymClosedDateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(gym=gym)
+
+        return Response(serializer.data, status=201)
+
+
+class GymClosedDateDetailView(APIView):
+    """Elimina una fecha cerrada del gimnasio. Solo el owner."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, closed_date_id):
+        if request.user.profile.role != UserProfile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede gestionar las fechas cerradas"
+            )
+
+        profile = getattr(request.user, "profile", None)
+        if not profile or not profile.gym:
+            raise PermissionDenied("Usuario sin gimnasio asignado")
+
+        closed_date = get_object_or_404(
+            GymClosedDate,
+            pk=closed_date_id,
+            gym=profile.gym,
+        )
+        closed_date.delete()
+
+        return Response(status=204)
 
 
 class GymStaffView(APIView):
@@ -339,3 +404,39 @@ class GymSeoView(APIView):
         }
 
         return JsonResponse(payload)
+
+
+class PublicGymView(APIView):
+    """Datos públicos de un gimnasio para los flujos abiertos (registro, check-in).
+
+    Devuelve identidad visual y labels de texto para que el frontend hable
+    con el vocabulario de cada gimnasio (ej: SINKRO usa "entrenamiento").
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, gym_code):
+        gym = get_object_or_404(Gym, onboarding_code=gym_code)
+
+        logo_url = None
+        app_icon_url = None
+        app_icon_favicon_url = None
+        if gym.logo:
+            logo_url = gym.logo.url
+        if gym.app_icon:
+            app_icon_url = gym.app_icon.url
+            app_icon_favicon_url = gym.app_icon.build_url(
+                width=64, height=64, crop="fill", format="png"
+            )
+
+        return JsonResponse(
+            {
+                "name": gym.name,
+                "slug": gym.slug,
+                "logo_url": logo_url,
+                "app_icon_url": app_icon_url,
+                "app_icon_favicon_url": app_icon_favicon_url,
+                "labels": get_gym_labels(gym),
+                "active": gym.active,
+            }
+        )

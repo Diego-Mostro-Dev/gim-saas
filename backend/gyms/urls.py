@@ -5,14 +5,25 @@ from .views import (
     GymStaffView,
     GymStaffRemoveView,
     GymSeoView,
+    GymClosedDateListCreateView,
+    GymClosedDateDetailView,
     PwaMemberManifestView,
     PwaStaffManifestView,
+    PublicGymView,
 )
 
 urlpatterns = [
     path(
         "me/",
         GymMeView.as_view()
+    ),
+    path(
+        "me/closed-dates/",
+        GymClosedDateListCreateView.as_view(),
+    ),
+    path(
+        "me/closed-dates/<int:closed_date_id>/",
+        GymClosedDateDetailView.as_view(),
     ),
     path(
         "staff/",
@@ -26,6 +37,11 @@ urlpatterns = [
         "public/seo/<str:gym_code>/",
         GymSeoView.as_view(),
         name="gym-seo",
+    ),
+    path(
+        "public/<str:gym_code>/",
+        PublicGymView.as_view(),
+        name="gym-public",
     ),
     path(
         "pwa/member/<str:token>/",
