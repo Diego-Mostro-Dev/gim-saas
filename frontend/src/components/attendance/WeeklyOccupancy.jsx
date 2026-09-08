@@ -1,5 +1,6 @@
 import { formatHumanDate } from "../../utils/date.utils";
 import { DAY_NAMES, DAY_ORDER } from "../../constants/days";
+import { txt } from "../../utils/labels";
 
 function getWeekRange(dateStr) {
   if (!dateStr) return "";
@@ -51,7 +52,7 @@ function weekDatesByKey(dateStr) {
   return map;
 }
 
-function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
+function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
   const days = DAY_ORDER.map((key) => ({ key, label: DAY_NAMES[key] }));
 
   function groupByHour(schedules) {
@@ -180,7 +181,7 @@ function WeeklyOccupancy({ weeklyAttendance, date, onDateChange }) {
 
             {isClosed ? (
               <div className="rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger-text dark:bg-danger/10 dark:text-danger">
-                Gimnasio cerrado este día
+                {txt(gym, "occupancy.closed_day")}
               </div>
             ) : schedules.length === 0 ? (
               <div className="rounded-xl bg-surface-input px-4 py-3 text-sm text-text-secondary">

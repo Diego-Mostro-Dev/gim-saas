@@ -461,6 +461,7 @@ function Members() {
       {showForm && (editingMember || availableSlots.length > 0 || activitiesEnabled) && (
         <div ref={formRef}>
           <MemberForm
+            gym={gym}
             formData={formData}
             setFormData={setFormData}
             onSubmit={handleSubmit}

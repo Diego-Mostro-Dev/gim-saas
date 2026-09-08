@@ -1,5 +1,6 @@
 import { CalendarOff } from "lucide-react";
 import { formatHumanDate } from "../../utils/date.utils";
+import { txt } from "../../utils/labels";
 
 function parseDate(d) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d));
@@ -54,7 +55,7 @@ function toEntries(closedDates) {
   });
 }
 
-export default function ClosedDatesNotice({ closedDates = [], excludeToday = false }) {
+export default function ClosedDatesNotice({ gym, closedDates = [], excludeToday = false }) {
   const today = todayMidnight();
   const todayStr = formatDate(today);
   const tomorrow = new Date(today);
@@ -79,16 +80,19 @@ export default function ClosedDatesNotice({ closedDates = [], excludeToday = fal
         let message;
         if (includesToday) {
           message = isSingle
-            ? "El gimnasio está cerrado hoy."
+            ? txt(gym, "portal.closed_today")
             : group.length === 2
-              ? "El gimnasio está cerrado hoy y mañana."
-              : `El gimnasio está cerrado hoy hasta el ${plainDate(group[group.length - 1])}.`;
+              ? txt(gym, "portal.closed_today_tomorrow")
+              : txt(gym, "portal.closed_today_until", { fecha: plainDate(group[group.length - 1]) });
         } else if (isSingle && startStr === tomorrowStr) {
-          message = "El gimnasio estará cerrado mañana.";
+          message = txt(gym, "portal.closed_tomorrow");
         } else if (isSingle) {
-          message = `El gimnasio estará cerrado el ${formatHumanDate(startStr)}.`;
+          message = txt(gym, "portal.closed_single", { fecha: formatHumanDate(startStr) });
         } else {
-          message = `El gimnasio estará cerrado del ${plainDate(group[0])} al ${plainDate(group[group.length - 1])}.`;
+          message = txt(gym, "portal.closed_range", {
+            fecha1: plainDate(group[0]),
+            fecha2: plainDate(group[group.length - 1]),
+          });
         }
 
         if (reason) {

@@ -182,7 +182,7 @@ function GymDashboard() {
 
   return (
     <div className="space-y-4">
-      <ClosedDatesNotice closedDates={routine.gym?.closed_dates} />
+      <ClosedDatesNotice gym={gym} closedDates={routine.gym?.closed_dates} />
 
       {/* SUSCRIPCIÓN */}
       <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">

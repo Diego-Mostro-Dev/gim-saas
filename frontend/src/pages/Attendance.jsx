@@ -58,15 +58,16 @@ function Attendance() {
         </div>
       )}
 
-      <ClosedDatesNotice closedDates={allClosedDates} excludeToday />
+      <ClosedDatesNotice gym={gym} closedDates={allClosedDates} excludeToday />
 
       {/* Registro de asistencia */}
       <div className="mb-6">
-        <AttendanceStatus openDays={openDays} closedDates={closedDates} />
+        <AttendanceStatus gym={gym} openDays={openDays} closedDates={closedDates} />
       </div>
 
       {/* Vista semanal */}
       <WeeklyOccupancy
+        gym={gym}
         weeklyAttendance={weeklyAttendance}
         date={date}
         onDateChange={setDate}

@@ -13,6 +13,7 @@ import {
 import { StaleDataNotice, LoadErrorNotice, SectionSkeleton } from "../components/member/SectionFeedback";
 import { DAY_NAMES, DAY_ORDER } from "../constants/days";
 import { formatHumanDate } from "../utils/date.utils";
+import { txt } from "../utils/labels";
 
 function PublicRoutine() {
   const {
@@ -366,7 +367,7 @@ function PublicRoutine() {
                           : req.status === "rejected"
                             ? "✕ Rechazado"
                             : req.status === "cancelled_by_staff"
-                              ? "Cancelado por el gimnasio"
+                              ? txt(gym, "portal.routine_cancelled")
                               : "Cancelado"}
                   </span>
                 </div>

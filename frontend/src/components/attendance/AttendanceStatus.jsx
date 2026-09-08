@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { useAttendanceStatus } from "../../hooks/useAttendanceStatus";
 import { DAY_NAMES } from "../../constants/days";
+import { txt } from "../../utils/labels";
 
-function AttendanceStatus({ openDays = [], closedDates = [] }) {
+function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
   const {
     day,
     setDay,
@@ -63,7 +64,7 @@ function AttendanceStatus({ openDays = [], closedDates = [] }) {
 
       {isTodayClosed && (
         <div className="rounded-lg border border-danger/30 bg-danger-bg dark:bg-danger/15 p-3 text-xs text-danger-text dark:text-danger">
-          El gimnasio está cerrado hoy. Hoy no se puede registrar asistencia.
+          {txt(gym, "attendance.closed_today")}
         </div>
       )}
 

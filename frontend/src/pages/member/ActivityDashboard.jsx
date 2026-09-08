@@ -81,7 +81,7 @@ function ActivityDashboard() {
         <p className="mt-1 text-sm text-text-secondary">{gym.name}</p>
       </div>
 
-      <ClosedDatesNotice closedDates={gym?.closed_dates} />
+      <ClosedDatesNotice gym={gym} closedDates={gym?.closed_dates} />
 
       {/* ACTIVIDADES ACTIVAS */}
       <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">

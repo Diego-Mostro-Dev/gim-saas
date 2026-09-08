@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Download, Menu, Share, X } from "lucide-react";
 import { usePWAInstall } from "../hooks/usePWAInstall";
+import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
 
 const INSTALL_DISMISS_KEY = "__pwa_install_dismissed__";
 
@@ -62,6 +64,7 @@ function GuideSheet({ title, children, onClose }) {
 }
 
 export default function InstallBanner() {
+  const { gym } = useGym();
   const { canInstall, installed, isIOS, isAndroid, isStandalone, promptInstall } =
     usePWAInstall();
   const [dismissedForever, setDismissedForever] = useState(isDismissedForever);
@@ -194,7 +197,7 @@ export default function InstallBanner() {
               <span className="font-medium text-text-primary">
                 &quot;Instalar aplicación&quot;
               </span>{" "}
-              (verás el ícono del gimnasio).
+              {txt(gym, "install.banner_icon")}
             </li>
             <li className="pl-1">Confirmá y listo.</li>
           </ol>

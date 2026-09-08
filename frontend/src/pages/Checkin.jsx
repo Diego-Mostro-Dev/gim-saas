@@ -2,14 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { apiFetch } from "../services/api";
+import { getPublicGym } from "../services/gym.service";
+import { txt } from "../utils/labels";
 
 export default function Checkin() {
   const { gymCode } = useParams();
   const navigate = useNavigate();
 
   const [message, setMessage] = useState("Registrando asistencia...");
+  const [gym, setGym] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
   const redirectTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!gymCode) return;
+    getPublicGym(gymCode).then(setGym).catch(() => {});
+  }, [gymCode]);
 
   useEffect(() => {
     return () => {
@@ -62,7 +70,7 @@ export default function Checkin() {
         setMessage(
           "Acceso operativo suspendido\n\n" +
             "No podés registrar tu asistencia porque tenés un saldo pendiente.\n" +
-            "Regularizá el pago con el gimnasio para volver a utilizar esta función."
+            txt(gym, "checkin.regularize")
         );
       } else if (error?.status === 404) {
         setMessage("Socio no encontrado.");

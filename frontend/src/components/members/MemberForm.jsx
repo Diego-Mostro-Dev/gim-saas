@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { DAY_NAMES } from "../../constants/days";
 import { formatCurrency } from "../../utils/currency.utils";
+import { txt } from "../../utils/labels";
 import PlanSelector from "../plans/PlanSelector";
 
 const DAYS_LIST = [
@@ -23,6 +24,7 @@ function formatTime(t) {
 }
 
 function MemberForm({
+  gym,
   formData,
   setFormData,
   onSubmit,
@@ -400,7 +402,7 @@ function MemberForm({
               }`}
             >
               <Dumbbell size={18} />
-              Gimnasio
+              {txt(gym, "member_form.entry_gym")}
             </button>
             <button
               type="button"
