@@ -46,6 +46,9 @@ class MemberEligibility:
         if not member.active:
             return False
 
+        if member.is_comp:
+            return True
+
         from subscriptions.domain import SubscriptionDomain
 
         subscription = SubscriptionDomain.get_current_subscription(member)

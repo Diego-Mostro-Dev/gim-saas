@@ -50,6 +50,11 @@ export async function createMember(memberData) {
   }
 
   formData.append(
+    "is_comp",
+    memberData.is_comp ? "true" : "false",
+  );
+
+  formData.append(
     "document_number",
     memberData.document_number || "",
   );
@@ -160,6 +165,15 @@ export async function updateMember(
   if (memberData.insurance !== undefined && memberData.insurance) {
     formData.append("insurance", memberData.insurance);
   }
+
+  if (memberData.plan_id) {
+    formData.append("plan_id", memberData.plan_id);
+  }
+
+  formData.append(
+    "is_comp",
+    memberData.is_comp ? "true" : "false",
+  );
 
   formData.append(
     "schedules",

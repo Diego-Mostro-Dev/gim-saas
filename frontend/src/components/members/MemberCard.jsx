@@ -54,13 +54,21 @@ function MemberCard({
               </p>
             )}
 
+            {member.is_comp && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-warning-bg dark:bg-warning/15 px-2 py-0.5 text-xs text-warning-text dark:text-warning">
+                  Pase de cortesía
+                </span>
+              </div>
+            )}
+
             {member.plan_name && (
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
                   {member.plan_name}
                 </span>
 
-                {member.subscription_end_date && (
+                {!member.is_comp && member.subscription_end_date && (
                     <span className="text-xs text-text-secondary">
                     {member.subscription_days_remaining != null
                       ? `${

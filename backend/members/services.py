@@ -132,7 +132,9 @@ class RegistrationService:
                 enrollment or schedule creation. The whole registration is
                 atomic: any failure rolls back all created records.
         """
-        if has_gym and not plan_id:
+        is_comp = validated_member_data.get("is_comp", False)
+
+        if has_gym and not plan_id and not is_comp:
             raise RegistrationError(
                 {"plan_id": "Debes seleccionar un plan de membresía para los horarios de gym."},
                 status_code=400,
@@ -143,7 +145,7 @@ class RegistrationService:
 
             subscription = None
 
-            if plan_id:
+            if plan_id and not is_comp:
                 plan = MembershipPlan.objects.get(id=plan_id, gym=gym)
                 today = timezone.localdate()
                 subscription = SubscriptionDomain.open_subscription(
@@ -154,7 +156,20 @@ class RegistrationService:
                     origin="onboarding",
                 )
 
-            if has_activities and not has_gym:
+            if is_comp:
+                base_plan = ensure_base_plan_for_gym(gym)
+                today = timezone.localdate()
+                subscription = SubscriptionDomain.open_subscription(
+                    member=member,
+                    plan=base_plan,
+                    start_date=today,
+                    end_date=get_last_day_of_month(today),
+                    paid=True,
+                    auto_renew=True,
+                    origin="onboarding",
+                )
+
+            if has_activities and not has_gym and not is_comp:
                 base_plan = ensure_base_plan_for_gym(gym)
                 today = timezone.localdate()
                 subscription = SubscriptionDomain.open_subscription(

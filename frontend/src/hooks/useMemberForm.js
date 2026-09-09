@@ -13,6 +13,7 @@ const INITIAL_FORM = {
   schedules: [],
   services: ["gym"],
   activity_schedules: [],
+  is_comp: false,
 };
 
 export function useMemberForm() {
@@ -51,6 +52,7 @@ export function useMemberForm() {
       schedules: member.schedules || [],
       services: ["gym"],
       activity_schedules: [],
+      is_comp: member.is_comp || false,
     });
 
     setShowForm(true);

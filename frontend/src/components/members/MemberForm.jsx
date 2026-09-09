@@ -102,6 +102,7 @@ function MemberForm({
 
   const hasGym = services.includes("gym");
   const hasActivities = services.includes("activities");
+  const showBillingSections = !editingMember || !formData.is_comp;
 
   const plans = availablePlans || [];
   const selectedPlan = plans.find((p) => p.id === formData.plan_id);
@@ -386,7 +387,45 @@ function MemberForm({
         />
       </div>
 
-      {!editingMember && (
+      {editingMember && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-text-primary">
+            Acceso
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              setFormData({ ...formData, is_comp: !formData.is_comp })
+            }
+            className={`flex w-full items-center justify-between rounded-xl border p-3 text-sm font-medium transition ${
+              formData.is_comp
+                ? "border-warning bg-warning/15 text-warning-text dark:border-warning dark:text-warning"
+                : "border-border bg-surface-input text-text-secondary"
+            }`}
+          >
+            <span>Pase de cortesía</span>
+            <span
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+                formData.is_comp ? "bg-warning" : "bg-zinc-300 dark:bg-zinc-600"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  formData.is_comp ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </span>
+          </button>
+        </div>
+      )}
+
+      {editingMember && formData.is_comp && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning-text dark:text-warning">
+          Este socio tiene acceso gratuito. Al desactivar el pase de cortesía se le pedirá elegir un plan de membresía.
+        </div>
+      )}
+
+      {!editingMember && showBillingSections && (
         <div className="space-y-2">
           <p className="text-sm font-medium text-text-primary">
             Servicios
@@ -423,7 +462,7 @@ function MemberForm({
         </div>
       )}
 
-      {hasGym && (
+      {hasGym && showBillingSections && (
         <>
           {!loadingPlans && plans.length > 0 && (
             <PlanSelector
@@ -512,7 +551,7 @@ function MemberForm({
         </>
       )}
 
-      {hasActivities && (
+      {hasActivities && showBillingSections && (
         <div className="rounded-lg bg-surface-input border border-border p-4">
           <p className="mb-2 text-sm font-medium text-text-primary">
             Actividades

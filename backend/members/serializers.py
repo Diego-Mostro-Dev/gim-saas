@@ -110,6 +110,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "insurance",
             "active",
             "entry_mode",
+            "is_comp",
             "schedules",
             "gym",
             "photo",
@@ -159,12 +160,16 @@ class MemberSerializer(serializers.ModelSerializer):
         return self._current_subscription(obj) is not None
 
     def get_plan_name(self, obj):
+        if obj.is_comp:
+            return "Pase de cortesía"
         sub = self._active_subscription(obj)
         if sub is None:
             return None
         return public_plan_name(sub.plan)
 
     def get_plan_price(self, obj):
+        if obj.is_comp:
+            return None
         sub = self._active_subscription(obj)
         if sub is None or sub.plan is None:
             return None
@@ -219,6 +224,9 @@ class MemberSerializer(serializers.ModelSerializer):
         - A base plan is only rejected when there is no current subscription.
         """
         today = timezone.localdate()
+
+        if obj.is_comp:
+            return False
 
         has_debt = False
         has_current = False
@@ -448,10 +456,30 @@ class MemberSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         validated_data.pop("plan_id", None)
+
+        is_comp = validated_data.pop("is_comp", None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.save()
+
+        if is_comp is not None and is_comp != instance.is_comp:
+            # ── Pase de cortesía: transición de membresía ─────────────
+            if is_comp:
+                SubscriptionDomain.mutate_membership(
+                    member=instance,
+                    comp=True,
+                )
+            else:
+                plan = self._resolve_plan_for_comp_off(instance)
+                SubscriptionDomain.mutate_membership(
+                    member=instance,
+                    comp=False,
+                    plan=plan,
+                )
+            instance.is_comp = is_comp
+            instance.save(update_fields=["is_comp"])
 
         if "schedules" in self.initial_data:
             schedules = self._parse_schedules()
@@ -463,6 +491,34 @@ class MemberSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
 
         return instance
+
+    def _resolve_plan_for_comp_off(self, member):
+        """Return the paid plan to apply when the courtesy pass is removed.
+
+        Activity-only members return to the base plan (no charge). Members
+        with gym access must pick a valid paid membership plan.
+        """
+        if member.entry_mode == "ACTIVITY_ONLY":
+            from plans.services import ensure_base_plan_for_gym
+
+            return ensure_base_plan_for_gym(member.gym)
+
+        raw = self.initial_data.get("plan_id")
+        if isinstance(raw, list):
+            raw = raw[0] if raw else None
+        if raw in ("", None):
+            raise serializers.ValidationError(
+                {"plan_id": "Para quitar el pase de cortesía elegí un plan de membresía."}
+            )
+
+        plan = MembershipPlan.objects.filter(
+            id=raw, gym=member.gym, is_base=False
+        ).first()
+        if plan is None:
+            raise serializers.ValidationError(
+                {"plan_id": "El plan seleccionado no es válido."}
+            )
+        return plan
 
 
 class PublicMemberSerializer(MemberSerializer):

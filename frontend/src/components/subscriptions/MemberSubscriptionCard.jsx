@@ -60,6 +60,11 @@ function MemberSubscriptionCard({ member, subscriptions }) {
         />
         <div className="min-w-0">
           <p className="truncate font-medium text-text-primary">{memberName}</p>
+          {member?.is_comp && (
+            <span className="mt-0.5 inline-flex rounded-md bg-warning-bg dark:bg-warning/15 px-2 py-0.5 text-xs text-warning-text dark:text-warning">
+              Pase de cortesía
+            </span>
+          )}
           {currentSub && (
             <p className="truncate text-sm text-text-secondary">{currentSub.plan_name}</p>
           )}

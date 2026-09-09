@@ -152,6 +152,15 @@ class Member(models.Model):
         verbose_name="Activo",
     )
 
+    is_comp = models.BooleanField(
+        default=False,
+        verbose_name="Pase de cortesía",
+        help_text=(
+            "Socio con acceso de cortesía: no se le cobra por la membresía "
+            "ni por las actividades y nunca se le bloquea por falta de pago."
+        ),
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="Fecha de creación",

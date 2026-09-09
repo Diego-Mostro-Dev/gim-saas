@@ -179,6 +179,17 @@ def subscription_remaining_balance(subscription, paid_amount=None):
         overpayment = -remaining
         remaining = Decimal("0")
 
+    if subscription.member.is_comp:
+        # Pase de cortesía: nunca genera saldo pendiente, sin importar el
+        # historial de items o pagos. Es la garantía de que un socio comp
+        # no figure en deudas, pendientes ni recuperables.
+        return {
+            "total": total,
+            "paid_amount": total,
+            "remaining": Decimal("0"),
+            "overpayment": Decimal("0"),
+        }
+
     return {
         "total": total,
         "paid_amount": paid_amount,
@@ -238,6 +249,8 @@ def _package_debt_entries(queryset, include_member=False):
     """Map pending package enrollments into debt entry dicts."""
     entries = []
     for e in queryset:
+        if getattr(e.member, "is_comp", False):
+            continue
         remaining = e.remaining_amount
         if remaining is None or remaining <= 0:
             continue
@@ -514,12 +527,13 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
     plan, approved_pcr = _resolve_plan(expired_sub.member, expired_sub, target_start)
 
     with transaction.atomic():
+        is_comp = expired_sub.member.is_comp
         new_sub = SubscriptionDomain.open_subscription(
             member=expired_sub.member,
             plan=plan,
             start_date=target_start,
             end_date=target_end,
-            paid=False,
+            paid=is_comp,
             auto_renew=expired_sub.auto_renew,
             origin=origin,
         )
@@ -660,7 +674,10 @@ def _collect_renewal_candidates(queryset):
         base_plan = get_base_plan_for_gym(sub.gym)
         if base_plan and sub.plan_id == base_plan.pk:
             if not sub.gym.allow_activity_without_membership:
-                continue
+                # Un socio con pase de cortesía siempre renueva gratis,
+                # incluso si el gym desactiva el acceso sin membresía.
+                if not sub.member.is_comp:
+                    continue
 
         # ── Member active guard ──────────────────────────────────────
         if not sub.member.active:

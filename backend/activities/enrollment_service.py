@@ -30,6 +30,7 @@ class EnrollmentService:
         sellado_amount=None,
     ):
         activity = schedule.activity
+        is_comp = member.is_comp
 
         if modality == "package":
             if activity.billing_mode != "sessions":
@@ -46,7 +47,10 @@ class EnrollmentService:
                 raise EnrollmentError(
                     "La modalidad paquete requiere un total de sesiones mayor a cero."
                 )
-            if session_price not in (None, ""):
+            if is_comp:
+                session_price = Decimal("0")
+                sellado_amount = None
+            elif session_price not in (None, ""):
                 try:
                     session_price = Decimal(str(session_price))
                 except Exception:
@@ -107,7 +111,11 @@ class EnrollmentService:
                     locked_sub = Subscription.objects.select_for_update().get(
                         pk=sub.pk
                     )
-                    activity_item = _ensure_activity_item(locked_sub, activity)
+                    activity_item = _ensure_activity_item(
+                        locked_sub,
+                        activity,
+                        price=Decimal("0") if is_comp else None,
+                    )
                     sync_subscription_paid(locked_sub)
 
             enrollment = Enrollment.objects.create(
@@ -234,10 +242,17 @@ class EnrollmentService:
         return enrollment
 
 
-def _ensure_activity_item(subscription, activity):
+def _ensure_activity_item(subscription, activity, price=None):
     """Create a SubscriptionItem for an activity in the given subscription.
 
     Returns the existing or newly created SubscriptionItem.
+
+    Args:
+        subscription: The Subscription instance.
+        activity: The Activity instance.
+        price: Optional Decimal override for price_snapshot (used for
+            courtesy-pass members, billed at 0). When None, the activity's
+            current monthly price is used.
     """
     activity_item = SubscriptionItem.objects.filter(
         subscription=subscription,
@@ -246,6 +261,9 @@ def _ensure_activity_item(subscription, activity):
     ).first()
 
     if activity_item is not None:
+        if price is not None and activity_item.price_snapshot != price:
+            activity_item.price_snapshot = price
+            activity_item.save(update_fields=["price_snapshot"])
         return activity_item
 
     return SubscriptionItem.objects.create(
@@ -254,7 +272,7 @@ def _ensure_activity_item(subscription, activity):
         plan=None,
         activity=activity,
         name_snapshot=activity.name,
-        price_snapshot=activity.monthly_price,
+        price_snapshot=price if price is not None else activity.monthly_price,
         status="active",
         start_date=subscription.start_date,
         end_date=subscription.end_date,

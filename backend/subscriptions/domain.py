@@ -116,6 +116,130 @@ class SubscriptionDomain:
             return sub
 
     @staticmethod
+    def mutate_membership(*, member, comp=False, plan=None, origin="plan_change"):
+        """Reclassify a live membership in place, keeping the same period.
+
+        Used by the staff member-edition form for the "pase de cortesía"
+        toggle so enrollments keep pointing at their SubscriptionItem:
+
+        - comp=True: switches the current period to the free base plan.
+          Every active item is re-snapshotted to 0 and the subscription
+          is marked paid.
+        - comp=False: switches to a paid plan (base plan when the member
+          is activity-only). Prices are restored and the subscription is
+          marked unpaid so the member generates a balance.
+
+        When the member has no subscription covering today, a new one is
+        opened for the current month.
+
+        Args:
+            member: The Member instance.
+            comp: Whether to apply the courtesy-pass reclassification.
+            plan: The paid MembershipPlan (required when comp=False unless
+                the member is activity-only).
+            origin: Subscription.ORIGIN_CHOICES value for new subscriptions.
+
+        Returns:
+            The (possibly new) Subscription covering today.
+        """
+        from decimal import Decimal
+        from datetime import timedelta
+
+        from django.db import transaction
+
+        from .models import Subscription, SubscriptionItem
+
+        today = timezone.localdate()
+
+        with transaction.atomic():
+            current = Subscription.objects.select_for_update().filter(
+                member=member,
+                start_date__lte=today,
+                end_date__gte=today,
+            ).order_by("-created_at").first()
+
+            if current is not None:
+                if comp:
+                    from plans.services import ensure_base_plan_for_gym
+
+                    base_plan = ensure_base_plan_for_gym(member.gym)
+                    current.plan = base_plan
+                    current.paid = True
+                    current.auto_renew = True
+                    current.save(update_fields=["plan", "paid", "auto_renew"])
+
+                    for item in SubscriptionItem.objects.filter(
+                        subscription=current, status="active"
+                    ):
+                        item.price_snapshot = Decimal("0")
+                        if item.item_type == "plan":
+                            item.plan = base_plan
+                            item.name_snapshot = base_plan.name
+                        item.save(
+                            update_fields=["price_snapshot", "plan", "name_snapshot"]
+                        )
+                else:
+                    if plan is None:
+                        raise SubscriptionConflictError(
+                            "Para quitar el pase de cortesía hay que elegir "
+                            "un plan de membresía."
+                        )
+
+                    current.plan = plan
+                    current.paid = False
+                    current.save(update_fields=["plan", "paid"])
+
+                    plan_item = SubscriptionItem.objects.filter(
+                        subscription=current,
+                        item_type="plan",
+                        status="active",
+                    ).first()
+                    if plan_item is not None:
+                        plan_item.plan = plan
+                        plan_item.price_snapshot = plan.price
+                        plan_item.name_snapshot = plan.name
+                        plan_item.save(
+                            update_fields=["plan", "price_snapshot", "name_snapshot"]
+                        )
+
+                    # Restore monthly billing for active activities
+                    # (their snapshots were zeroed while comp was active).
+                    for item in SubscriptionItem.objects.filter(
+                        subscription=current,
+                        item_type="activity",
+                        status="active",
+                    ).select_related("activity"):
+                        if item.activity is not None:
+                            item.price_snapshot = item.activity.monthly_price
+                            item.save(update_fields=["price_snapshot"])
+
+                return current
+
+            # No subscription covers today → open one for the current month.
+            from .services import get_last_day_of_month
+
+            if comp:
+                from plans.services import ensure_base_plan_for_gym
+
+                target_plan = ensure_base_plan_for_gym(member.gym)
+            else:
+                if plan is None:
+                    raise SubscriptionConflictError(
+                        "Es necesario elegir un plan de membresía."
+                    )
+                target_plan = plan
+
+            return SubscriptionDomain.open_subscription(
+                member=member,
+                plan=target_plan,
+                start_date=today,
+                end_date=get_last_day_of_month(today),
+                paid=comp,
+                auto_renew=True,
+                origin=origin,
+            )
+
+    @staticmethod
     def get_active_subscription(member):
         """Return the member's currently-active Subscription, or the most recent one.
 
