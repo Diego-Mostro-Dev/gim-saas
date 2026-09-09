@@ -120,13 +120,38 @@ function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
       )}
 
       <p className="text-sm text-text-secondary">
-        Asistieron {members.filter((member) => member.attended).length}
+        Asistieron {members.filter((member) => !member.is_class && member.attended).length}
         {" / "}
-        {members.length}
+        {members.filter((member) => !member.is_class).length}
       </p>
 
       <div className="space-y-2">
         {filteredMembers.map((member) => {
+          if (member.is_class) {
+            return (
+              <div
+                key={`class-${member.schedule_id}`}
+                className="flex flex-col gap-2 rounded-lg bg-surface-input px-3 py-2 md:flex-row md:items-center md:justify-between"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm text-text-primary">
+                    {member.member_name}
+                  </span>
+                  {member.service_name && (
+                    <p className="mt-0.5 truncate text-xs text-text-secondary">
+                      {member.service_name}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="shrink-0 rounded-md bg-info-bg px-2 py-1 text-[11px] font-medium text-info-text dark:bg-info/15 dark:text-info">
+                    Clase · {member.class_name} · {member.start_time} - {member.end_time}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+
           const statusColor = member.is_swap
             ? "text-blue-400"
             : member.attended
@@ -151,7 +176,7 @@ function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
 
           return (
             <div
-              key={member.schedule_id}
+              key={`att-${member.schedule_id}`}
               className="flex flex-col gap-2 rounded-lg bg-surface-input px-3 py-2 md:flex-row md:items-center md:justify-between"
             >
               <div className="min-w-0 flex-1">
@@ -163,6 +188,11 @@ function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
                     </span>
                   )}
                 </span>
+                {member.service_name && (
+                  <p className="mt-0.5 truncate text-xs text-text-secondary">
+                    {member.service_name}
+                  </p>
+                )}
                 {member.is_swap && member.origin_day && (
                   <p className="mt-0.5 truncate text-xs text-text-secondary">
                     {DAY_NAMES[member.origin_day]} {member.origin_hour} → {DAY_NAMES[member.destination_day]} {member.destination_hour}

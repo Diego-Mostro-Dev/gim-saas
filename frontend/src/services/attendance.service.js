@@ -46,6 +46,13 @@ export async function createSlot(data) {
   });
 }
 
+export async function createSlotsBulk(data) {
+  return apiFetch("/api/attendance/slots/bulk/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function updateSlot(id, data) {
   return apiFetch(`/api/attendance/slots/${id}/`, {
     method: "PATCH",

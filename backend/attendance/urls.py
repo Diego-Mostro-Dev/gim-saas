@@ -8,6 +8,7 @@ from .views import (
     attendance_status,
     AttendanceCreateView,
     ScheduleSlotListCreateView,
+    ScheduleSlotBulkCreateView,
     ScheduleSlotDetailView,
     ScheduleChangeRequestViewSet,
     ScheduleSwapRequestViewSet,
@@ -69,6 +70,11 @@ urlpatterns = router.urls + [
         "slots/",
         ScheduleSlotListCreateView.as_view(),
         name="slot-list-create",
+    ),
+    path(
+        "slots/bulk/",
+        ScheduleSlotBulkCreateView.as_view(),
+        name="slot-bulk-create",
     ),
     path(
         "slots/<int:pk>/",

@@ -15,6 +15,7 @@ import {
 import {
   getSlots,
   createSlot,
+  createSlotsBulk,
   updateSlot,
   deleteSlot,
 } from "../services/attendance.service";
@@ -105,6 +106,15 @@ function Settings() {
   const [newSlot, setNewSlot] = useState({
     day: "monday",
     hour: "08:00",
+    capacity: "",
+  });
+  const [showBatchForm, setShowBatchForm] = useState(false);
+  const [creatingBatch, setCreatingBatch] = useState(false);
+  const [batchForm, setBatchForm] = useState({
+    days: [],
+    start_time: "08:00",
+    end_time: "20:00",
+    step_minutes: 60,
     capacity: "",
   });
   const [editingSlotId, setEditingSlotId] = useState(null);
@@ -325,6 +335,60 @@ function Settings() {
       loadSlots();
     } catch (error) {
       toast.error(error.message || "Error al crear horario");
+    }
+  }
+
+  function computeBatchCount() {
+    const start = batchForm.start_time;
+    const end = batchForm.end_time;
+    const step = Number(batchForm.step_minutes) || 60;
+    if (!start || !end || end <= start) {
+      return 0;
+    }
+    const [sh, sm] = start.split(":").map(Number);
+    const [eh, em] = end.split(":").map(Number);
+    const perDay = Math.floor(((eh * 60 + em) - (sh * 60 + sm)) / step) + 1;
+    return perDay * batchForm.days.length;
+  }
+
+  async function handleCreateSlotsBulk(e) {
+    e.preventDefault();
+    if (batchForm.days.length === 0) {
+      toast.error("Seleccioná al menos un día");
+      return;
+    }
+    setCreatingBatch(true);
+    try {
+      const data = {
+        days: batchForm.days,
+        start_time: batchForm.start_time,
+        end_time: batchForm.end_time,
+        step_minutes: Number(batchForm.step_minutes),
+      };
+      if (batchForm.capacity !== "") {
+        data.capacity = Number(batchForm.capacity);
+      }
+      const response = await createSlotsBulk(data);
+      const createdCount = response.created?.length ?? 0;
+      const skippedCount = response.skipped?.length ?? 0;
+      if (skippedCount > 0) {
+        toast.success(`Creados ${createdCount} · Ya existían ${skippedCount}`);
+      } else {
+        toast.success(`Horarios creados: ${createdCount}`);
+      }
+      setBatchForm({
+        days: [],
+        start_time: "08:00",
+        end_time: "20:00",
+        step_minutes: 60,
+        capacity: "",
+      });
+      setShowBatchForm(false);
+      loadSlots();
+    } catch (error) {
+      toast.error(error.message || "Error al crear horarios");
+    } finally {
+      setCreatingBatch(false);
     }
   }
 
@@ -1283,13 +1347,36 @@ function Settings() {
             Horarios disponibles
           </h2>
 
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-white transition active:scale-95"
-          >
-            <Plus size={14} />
-            Agregar
-          </button>
+          <div className="flex rounded-lg border border-border p-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setShowBatchForm(false);
+                setShowCreateForm(true);
+              }}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                showCreateForm && !showBatchForm
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:bg-surface-input"
+              }`}
+            >
+              Uno
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateForm(false);
+                setShowBatchForm(true);
+              }}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                showBatchForm
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:bg-surface-input"
+              }`}
+            >
+              Por lotes
+            </button>
+          </div>
         </div>
 
         {showCreateForm && (
@@ -1352,6 +1439,131 @@ function Settings() {
                 className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition active:scale-95"
               >
                 Crear
+              </button>
+            </div>
+          </form>
+        )}
+
+        {showBatchForm && (
+          <form
+            onSubmit={handleCreateSlotsBulk}
+            className="mb-4 rounded-xl border border-border bg-surface-input p-3"
+          >
+            <div className="mb-3">
+              <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+                Días
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(DAY_LABELS).map(([key, label]) => {
+                  const active = batchForm.days.includes(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() =>
+                        setBatchForm({
+                          ...batchForm,
+                          days: active
+                            ? batchForm.days.filter((d) => d !== key)
+                            : [...batchForm.days, key],
+                        })
+                      }
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition active:scale-95 ${
+                        active
+                          ? "border-primary bg-primary text-white"
+                          : "border-border bg-surface-elevated text-text-secondary hover:bg-surface-input"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="flex-1 basis-32">
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+                  Desde
+                </label>
+                <input
+                  type="time"
+                  value={batchForm.start_time}
+                  onChange={(e) =>
+                    setBatchForm({ ...batchForm, start_time: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary outline-none"
+                />
+              </div>
+
+              <div className="flex-1 basis-32">
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+                  Hasta
+                </label>
+                <input
+                  type="time"
+                  value={batchForm.end_time}
+                  onChange={(e) =>
+                    setBatchForm({ ...batchForm, end_time: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary outline-none"
+                />
+              </div>
+
+              <div className="flex-1 basis-24">
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+                  Cada
+                </label>
+                <select
+                  value={batchForm.step_minutes}
+                  onChange={(e) =>
+                    setBatchForm({ ...batchForm, step_minutes: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary outline-none"
+                >
+                  <option value={30}>30 minutos</option>
+                  <option value={60}>60 minutos</option>
+                </select>
+              </div>
+
+              <div className="flex-1 basis-24">
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+                  Capacidad
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Por defecto"
+                  value={batchForm.capacity}
+                  onChange={(e) =>
+                    setBatchForm({ ...batchForm, capacity: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mb-3 text-xs font-medium text-info-text dark:text-info">
+              {computeBatchCount() > 0
+                ? `Se crearán ${computeBatchCount()} horarios`
+                : "Seleccioná un día y un rango horario válido"}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchForm(false)}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary transition hover:bg-surface-input"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={creatingBatch}
+                className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition active:scale-95 disabled:opacity-50"
+              >
+                {creatingBatch ? "Creando..." : "Crear lote"}
               </button>
             </div>
           </form>

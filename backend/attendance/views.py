@@ -1,6 +1,7 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.db.models.deletion import ProtectedError
+from django.db.models import Count, Q, Prefetch
 from django.utils import timezone
 
 from rest_framework import generics, viewsets
@@ -9,13 +10,16 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view
 from rest_framework import status
 
-from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest
+from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest, DAY_CHOICES
 from gyms.models import GymClosedDate
+from gyms.features import activities_enabled
+from activities.models import ActivitySchedule, Enrollment
 from .utils import (
     SCHEDULE_SLOT_WEEKDAY_ORDER,
     compute_effective_occupancy,
     compute_effective_occupancies,
     get_swap_usage_metrics,
+    member_service_label,
 )
 from members.models import Member
 from subscriptions.domain import ScheduleDomain, SubscriptionDomain
@@ -28,7 +32,101 @@ from .serializers import (
     ScheduleSwapRequestSerializer,
     ScheduleSwapRequestActionSerializer,
 )
-from django.db.models import Count, Q
+
+
+def _build_class_items(gym, day):
+    """Members enrolled in active activity schedules for the given day, as
+    attendance-list items grouped by class (time range)."""
+    if not activities_enabled(gym):
+        return []
+
+    items = []
+    schedules = ActivitySchedule.objects.filter(
+        activity__service__gym=gym,
+        day=day,
+        active=True,
+        activity__active=True,
+    ).select_related("activity").prefetch_related(
+        Prefetch(
+            "enrollments",
+            queryset=Enrollment.objects.filter(
+                gym=gym, active=True
+            ).select_related("member"),
+        )
+    )
+
+    for schedule in schedules:
+        enrolled = list(schedule.enrollments.all())
+        cap = schedule.capacity
+        occ = len(enrolled)
+        available = max(0, cap - occ) if cap is not None else None
+
+        for enrollment in enrolled:
+            member = enrollment.member
+            items.append({
+                "id": -enrollment.id,
+                "is_class": True,
+                "class_name": schedule.activity.name,
+                "group_key": f"class:{schedule.id}",
+                "day": day,
+                "hour": None,
+                "start_time": schedule.start_time.strftime("%H:%M"),
+                "end_time": schedule.end_time.strftime("%H:%M"),
+                "member": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "capacity": cap,
+                "occupancy": occ,
+                "available": available,
+                "service_name": member_service_label(member),
+            })
+
+    return items
+
+
+def _build_class_items_for_status(gym, day, selected_time):
+    """Enrolled members of classes that cover the selected time on `day`,
+    as read-only checklist items (`is_class: True`)."""
+    if not activities_enabled(gym) or selected_time is None:
+        return []
+
+    items = []
+    schedules = ActivitySchedule.objects.filter(
+        activity__service__gym=gym,
+        day=day,
+        active=True,
+        activity__active=True,
+        start_time__lte=selected_time,
+        end_time__gt=selected_time,
+    ).select_related("activity").prefetch_related(
+        Prefetch(
+            "enrollments",
+            queryset=Enrollment.objects.filter(
+                gym=gym, active=True
+            ).select_related("member"),
+        )
+    )
+
+    for schedule in schedules:
+        for enrollment in schedule.enrollments.all():
+            member = enrollment.member
+            items.append({
+                "schedule_id": -(10**9 + schedule.id),
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "service_name": member_service_label(member),
+                "attended": False,
+                "is_swap": False,
+                "is_class": True,
+                "class_name": schedule.activity.name,
+                "start_time": schedule.start_time.strftime("%H:%M"),
+                "end_time": schedule.end_time.strftime("%H:%M"),
+                "origin_day": None,
+                "origin_hour": None,
+                "destination_day": None,
+                "destination_hour": None,
+            })
+
+    return items
 
 
 class WeeklyScheduleView(APIView):
@@ -55,7 +153,9 @@ class WeeklyScheduleView(APIView):
                     gym=gym,
                     swap_date=target_date,
                     status="approved",
-                ).select_related("origin_schedule__slot", "destination_slot", "member")
+                ).select_related(
+                    "origin_schedule__slot", "destination_slot", "member"
+                ).prefetch_related("member__subscription_set")
             )
 
         result = {}
@@ -72,7 +172,12 @@ class WeeklyScheduleView(APIView):
                 gym=gym,
                 slot__day=day,
                 active=True,
-            ).select_related("member", "slot", "gym")
+            ).select_related(
+                "member",
+                "slot",
+                "gym",
+                "subscription__plan__service",
+            ).prefetch_related("member__subscription_set")
 
             data = AttendanceScheduleSerializer(schedules, many=True).data
 
@@ -113,6 +218,11 @@ class WeeklyScheduleView(APIView):
                             ),
                             "slot_id": sid,
                             "capacity": cap,
+                            "service_name": member_service_label(swap.member),
+                            "start_time": swap.destination_slot.hour.strftime(
+                                "%H:%M"
+                            ),
+                            "group_key": f"slot:{sid}",
                         })
                         existing.setdefault(mid, set()).add(sid)
 
@@ -121,6 +231,8 @@ class WeeklyScheduleView(APIView):
                     occ = occ_cache.get(item["slot_id"])
                     if occ:
                         item.update(occ)
+
+            data.extend(_build_class_items(gym, day))
 
             result[day] = data
 
@@ -263,7 +375,11 @@ def attendance_status(request):
         slot__day=day,
         slot__hour=hour,
         active=True,
-    ).select_related("member", "slot"))
+    ).select_related(
+        "member",
+        "slot",
+        "subscription__plan__service",
+    ).prefetch_related("member__subscription_set"))
 
     today = timezone.localdate()
 
@@ -287,6 +403,7 @@ def attendance_status(request):
             "schedule_id": schedule.id,
             "member_id": schedule.member.id,
             "member_name": f"{schedule.member.first_name} {schedule.member.last_name}",
+            "service_name": member_service_label(schedule.member, schedule=schedule),
             "attended": schedule.id in attended_schedule_ids,
             "is_swap": False,
         })
@@ -309,7 +426,9 @@ def attendance_status(request):
         destination_slot__hour=hour,
         swap_date=target_date,
         status="approved",
-    ).select_related("member", "origin_schedule__slot", "destination_slot"))
+    ).select_related(
+        "member", "origin_schedule__slot", "destination_slot"
+    ).prefetch_related("member__subscription_set"))
 
     swap_ids = [s.id for s in swaps_in]
     used_swap_ids = set()
@@ -330,6 +449,7 @@ def attendance_status(request):
                     f"{swap.member.first_name} "
                     f"{swap.member.last_name}"
                 ),
+                "service_name": member_service_label(swap.member),
                 "attended": swap.id in used_swap_ids,
                 "is_swap": True,
                 "origin_day": swap.origin_schedule.slot.day,
@@ -360,7 +480,7 @@ def attendance_status(request):
             date=today,
             schedule__isnull=True,
             swap_request__isnull=True,
-        ).select_related("member")
+        ).select_related("member").prefetch_related("member__subscription_set")
 
         for att in orphaned_attendances:
             if att.member_id in existing_member_ids:
@@ -372,6 +492,7 @@ def attendance_status(request):
                     f"{att.member.first_name} "
                     f"{att.member.last_name}"
                 ),
+                "service_name": member_service_label(att.member),
                 "attended": True,
                 "is_swap": False,
                 "origin_day": None,
@@ -379,6 +500,17 @@ def attendance_status(request):
                 "destination_day": None,
                 "destination_hour": None,
             })
+
+    try:
+        selected_time = time.fromisoformat(hour)
+    except (TypeError, ValueError):
+        selected_time = None
+
+    for item in _build_class_items_for_status(gym, day, selected_time):
+        if item["member_id"] in existing_member_ids:
+            continue
+        existing_member_ids.add(item["member_id"])
+        result.append(item)
 
     return Response(result)
 
@@ -420,6 +552,125 @@ class ScheduleSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
                 {"detail": "No se puede eliminar el horario porque tiene socios asignados."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
+MAX_BULK_SLOTS = 336
+BULK_STEP_CHOICES = (30, 60)
+
+
+def _generate_slot_times(start_time, end_time, step_minutes):
+    """Times from start to end inclusive, stepped by step_minutes."""
+    current = datetime.combine(date(2000, 1, 1), start_time)
+    end = datetime.combine(date(2000, 1, 1), end_time)
+    times = []
+    while current <= end:
+        times.append(current.time())
+        current = current + timedelta(minutes=step_minutes)
+    return times
+
+
+class ScheduleSlotBulkCreateView(APIView):
+    """Create many ScheduleSlots at once: day(s) × a time range with a step."""
+
+    def post(self, request, *args, **kwargs):
+        gym = request.user.profile.gym
+        data = request.data
+
+        days = data.get("days") or []
+        if not isinstance(days, list) or not days:
+            return Response(
+                {"detail": "Debés seleccionar al menos un día."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        valid_days = {d[0] for d in DAY_CHOICES}
+        unknown = [d for d in days if d not in valid_days]
+        if unknown:
+            return Response(
+                {"detail": f"Día(s) inválido(s): {', '.join(map(str, unknown))}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        days = list(dict.fromkeys(days))
+
+        try:
+            step_minutes = int(data.get("step_minutes", 60))
+        except (TypeError, ValueError):
+            step_minutes = None
+        if step_minutes not in BULK_STEP_CHOICES:
+            return Response(
+                {"detail": "El intervalo debe ser 30 o 60 minutos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            start_time = time.fromisoformat(data.get("start_time"))
+            end_time = time.fromisoformat(data.get("end_time"))
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Formato de hora inválido. Usá HH:MM."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if start_time >= end_time:
+            return Response(
+                {"detail": "La hora de inicio debe ser anterior a la de fin."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        times = _generate_slot_times(start_time, end_time, step_minutes)
+        if len(times) * len(days) > MAX_BULK_SLOTS:
+            return Response(
+                {"detail": "El lote supera el máximo de horarios permitidos por envío."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        capacity = data.get("capacity")
+        if capacity in (None, ""):
+            capacity = None
+        else:
+            try:
+                capacity = int(capacity)
+            except (TypeError, ValueError):
+                return Response(
+                    {"detail": "La capacidad debe ser un número."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if capacity < 1:
+                return Response(
+                    {"detail": "La capacidad debe ser mayor o igual a 1."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        existing = set(
+            ScheduleSlot.objects.filter(
+                gym=gym,
+                day__in=days,
+                hour__in=times,
+            ).values_list("day", "hour")
+        )
+        existing = {(day, hour.strftime("%H:%M")) for day, hour in existing}
+
+        to_create = []
+        skipped = []
+        for day in days:
+            for slot_time in times:
+                key = (day, slot_time.strftime("%H:%M"))
+                if key in existing:
+                    skipped.append({"day": day, "hour": slot_time.strftime("%H:%M")})
+                else:
+                    to_create.append(ScheduleSlot(gym=gym, day=day, hour=slot_time, capacity=capacity))
+
+        created = ScheduleSlot.objects.bulk_create(to_create)
+
+        serializer = ScheduleSlotSerializer(
+            created, many=True, context={"request": request}
+        )
+        return Response(
+            {
+                "created": serializer.data,
+                "skipped": skipped,
+                "total_requested": len(times) * len(days),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):

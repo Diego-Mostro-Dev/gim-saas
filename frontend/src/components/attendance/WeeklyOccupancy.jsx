@@ -55,13 +55,28 @@ function weekDatesByKey(dateStr) {
 function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
   const days = DAY_ORDER.map((key) => ({ key, label: DAY_NAMES[key] }));
 
-  function groupByHour(schedules) {
-    return schedules.reduce((acc, schedule) => {
-      const hour = schedule.hour || "Sin horario";
-      if (!acc[hour]) acc[hour] = [];
-      acc[hour].push(schedule);
+  function groupByGroup(schedules) {
+    const groups = schedules.reduce((acc, schedule) => {
+      const key = schedule.group_key || `hour:${schedule.hour || "Sin horario"}`;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(schedule);
       return acc;
     }, {});
+    return Object.values(groups)
+      .map((items) => {
+        const first = items[0];
+        const start =
+          first?.start_time ||
+          (first?.hour ? first.hour.slice(0, 5) : "");
+        return { items, first, start };
+      })
+      .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  }
+
+  function groupMemberCount(schedules) {
+    return new Set(
+      schedules.map((s) => s.member).filter((m) => m != null),
+    ).size;
   }
 
   function getOccupancyInfo(occupancy, capacity) {
@@ -135,7 +150,8 @@ function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
 
       {days.map((day) => {
         const schedules = weeklyAttendance[day.key] || [];
-        const groupedSchedules = groupByHour(schedules);
+        const groupedSchedules = groupByGroup(schedules);
+        const dayMemberCount = groupMemberCount(schedules);
         const isToday = date === todayStr && day.key === todayKey;
         const isSelectedDay = date != null && day.key === selectedDayKey;
         const closedSet = new Set(weeklyAttendance.closed_dates || []);
@@ -174,7 +190,7 @@ function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
               </div>
               {schedules.length > 0 && (
                 <span className="rounded-md bg-info-bg px-2 py-1 text-xs text-info-text dark:bg-info/15 dark:text-info">
-                  {schedules.length} socio{schedules.length > 1 ? "s" : ""}
+                  {dayMemberCount} socio{dayMemberCount > 1 ? "s" : ""}
                 </span>
               )}
             </div>
@@ -189,24 +205,27 @@ function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
               </div>
             ) : (
               <div className="space-y-3">
-                {Object.entries(groupedSchedules).map(([hour, people]) => {
-                  const first = people[0];
+                {groupedSchedules.map(({ items: people, first, start }) => {
                   const occupancy = first?.occupancy ?? people.length;
                   const capacity = first?.capacity;
                   const available = first?.available ?? Math.max(0, (capacity ?? people.length) - people.length);
                   const info = getOccupancyInfo(occupancy, capacity);
                   const pct = capacity ? Math.round((occupancy / capacity) * 100) : null;
+                  const isClass = Boolean(first?.is_class);
+                  const headerLabel = isClass
+                    ? `${first.class_name} · ${first.start_time} - ${first.end_time}`
+                    : start || "Sin horario";
 
                   return (
                     <div
-                      key={hour}
+                      key={first?.group_key || `${start}-${people.length}`}
                       className={`rounded-xl bg-surface-input p-3 ${
                         info ? bgStyles[info.level] : ""
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <span className="text-sm font-medium text-text-primary">
-                          {hour.slice(0, 5)}
+                          {headerLabel}
                         </span>
                         <span
                           className={`text-xs ${
@@ -230,11 +249,18 @@ function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
                         {people.map((person) => (
                           <div
                             key={person.id}
-                            className="flex items-center justify-between rounded-lg bg-surface-elevated px-3 py-2 text-xs text-text-primary"
+                            className="flex items-center justify-between gap-2 rounded-lg bg-surface-elevated px-3 py-2 text-xs text-text-primary"
                           >
-                            <span>{person.member_name}</span>
-                            {person.id < 0 && (
-                              <span className="text-blue-400">↔ Intercambio</span>
+                            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                              <span className="truncate">{person.member_name}</span>
+                              {person.service_name && (
+                                <span className="shrink-0 text-text-secondary">
+                                  · {person.service_name}
+                                </span>
+                              )}
+                            </span>
+                            {person.id < 0 && !person.is_class && (
+                              <span className="shrink-0 text-blue-400">↔ Intercambio</span>
                             )}
                           </div>
                         ))}

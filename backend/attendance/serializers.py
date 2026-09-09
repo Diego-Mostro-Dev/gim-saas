@@ -14,6 +14,7 @@ from .utils import (
     compute_effective_occupancy,
     count_member_week_attendances,
     has_effective_capacity,
+    member_service_label,
 )
 
 from members.eligibility import MemberEligibility
@@ -27,6 +28,9 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
     capacity = serializers.SerializerMethodField()
     day = serializers.SerializerMethodField()
     hour = serializers.SerializerMethodField()
+    service_name = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    group_key = serializers.SerializerMethodField()
 
     class Meta:
         model = AttendanceSchedule
@@ -39,6 +43,9 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             "hour",
             "slot_id",
             "capacity",
+            "service_name",
+            "start_time",
+            "group_key",
         ]
 
     def get_member_name(self, obj):
@@ -46,6 +53,9 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             f"{obj.member.first_name} "
             f"{obj.member.last_name}"
         )
+
+    def get_service_name(self, obj):
+        return member_service_label(obj.member, schedule=obj)
 
     def get_capacity(self, obj):
         if obj.slot_id and obj.slot.capacity is not None:
@@ -58,6 +68,12 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
 
     def get_hour(self, obj):
         return obj.slot.hour
+
+    def get_start_time(self, obj):
+        return obj.slot.hour.strftime("%H:%M")
+
+    def get_group_key(self, obj):
+        return f"slot:{obj.slot_id}"
 
 
 class ScheduleSlotSerializer(serializers.ModelSerializer):

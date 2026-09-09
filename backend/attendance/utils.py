@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.utils import timezone
 
 from .models import Attendance, AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
 
@@ -362,3 +363,52 @@ def get_swap_usage_metrics(gym, start_date, end_date):
         cancelled=Count("id", filter=Q(status="cancelled")),
     )
     return stats
+
+
+def service_label_for_subscription(sub, member=None):
+    """Human label for the service/membership a member attends under.
+
+    Priority:
+      - courtesy pass member -> "Pase de cortesía"
+      - base plan -> "Solo actividades"
+      - otherwise the plan's service name (e.g. "Gimnasio", "Kinesiología")
+      - no subscription -> None (nothing to show)
+    """
+    if sub is None:
+        if member is not None and getattr(member, "is_comp", False):
+            return "Pase de cortesía"
+        return None
+
+    plan = sub.plan
+    if plan is None:
+        return None
+    if plan.is_base:
+        return "Solo actividades"
+    if plan.service_id is None:
+        return None
+    return plan.service.name
+
+
+def _member_active_subscription(member):
+    """Most recent subscription that already started (mirrors MemberSerializer)."""
+    today = timezone.localdate()
+    candidates = [
+        sub
+        for sub in member.subscription_set.all()
+        if sub.start_date <= today
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda s: (s.start_date, s.created_at))
+
+
+def member_service_label(member, schedule=None):
+    """Service label shown next to a member in attendance lists.
+
+    Prefers the schedule's own subscription (the plan that owns that
+    schedule); falls back to the member's most recent active subscription.
+    """
+    sub = schedule.subscription if schedule is not None else None
+    if sub is None:
+        sub = _member_active_subscription(member)
+    return service_label_for_subscription(sub, member)
