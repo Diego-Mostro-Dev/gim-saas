@@ -27,6 +27,12 @@ import {
   updateHealthInsurance,
   deleteHealthInsurance,
 } from "../services/healthInsurance.service";
+import {
+  getDiscounts,
+  createDiscount,
+  updateDiscount,
+  deleteDiscount,
+} from "../services/discounts.service";
 
 function Settings() {
   const navigate = useNavigate();
@@ -134,6 +140,15 @@ function Settings() {
     active: true,
   });
 
+  const [discounts, setDiscounts] = useState([]);
+  const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+  const [discountForm, setDiscountForm] = useState({
+    id: null,
+    name: "",
+    discount_percent: "",
+    active: true,
+  });
+
   const DAY_LABELS = {
     monday: "Lunes",
     tuesday: "Martes",
@@ -164,6 +179,7 @@ function Settings() {
     loadSlots();
     loadClosedDates();
     loadInsurances();
+    loadDiscounts();
   }, []);
 
   async function loadClosedDates() {
@@ -294,6 +310,83 @@ function Settings() {
       loadInsurances();
     } catch (error) {
       toast.error(error.message || "Error al eliminar la obra social");
+    }
+  }
+
+  async function loadDiscounts() {
+    try {
+      setLoadingDiscounts(true);
+      const data = await getDiscounts();
+      setDiscounts(data);
+    } catch (error) {
+      toast.error(error.message || "Error al cargar descuentos");
+    } finally {
+      setLoadingDiscounts(false);
+    }
+  }
+
+  function resetDiscountForm() {
+    setDiscountForm({
+      id: null,
+      name: "",
+      discount_percent: "",
+      active: true,
+    });
+  }
+
+  function startEditDiscount(disc) {
+    setDiscountForm({
+      id: disc.id,
+      name: disc.name,
+      discount_percent: disc.discount_percent ?? "",
+      active: disc.active,
+    });
+  }
+
+  async function handleSaveDiscount() {
+    const name = discountForm.name.trim();
+    if (!name) {
+      toast.error("El nombre es obligatorio");
+      return;
+    }
+    const percent = Number(discountForm.discount_percent);
+    if (
+      discountForm.discount_percent === "" ||
+      Number.isNaN(percent) ||
+      percent < 1 ||
+      percent > 100
+    ) {
+      toast.error("Ingresá un porcentaje entre 1 y 100");
+      return;
+    }
+    const payload = {
+      name,
+      discount_percent: percent,
+      active: discountForm.active,
+    };
+    try {
+      if (discountForm.id) {
+        await updateDiscount(discountForm.id, payload);
+        toast.success("Descuento actualizado");
+      } else {
+        await createDiscount(payload);
+        toast.success("Descuento creado");
+      }
+      resetDiscountForm();
+      loadDiscounts();
+    } catch (error) {
+      toast.error(error.message || "Error al guardar el descuento");
+    }
+  }
+
+  async function handleDeleteDiscount(id) {
+    if (!window.confirm("¿Eliminar este descuento?")) return;
+    try {
+      await deleteDiscount(id);
+      toast.success("Descuento eliminado");
+      loadDiscounts();
+    } catch (error) {
+      toast.error(error.message || "Error al eliminar el descuento");
     }
   }
 
@@ -786,6 +879,108 @@ function Settings() {
           {errors.access_block_day && (
             <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.access_block_day}</p>
           )}
+        </div>
+
+        <div className="mb-8 rounded-xl border border-border p-4">
+        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          Descuentos
+        </h3>
+
+        <p className="mb-4 text-xs text-text-secondary">
+          Definí descuentos porcentuales (ej. "Socio de la casa 50%") y luego
+          asignalos a los socios que quieras desde su ficha. Se aplican sobre
+          el total mensual (plan + actividades). Inactivar un descuento
+          deja de aplicarse de inmediato a los socios asignados.
+        </p>
+
+        <div className="mb-4 space-y-2 rounded-xl border border-border bg-surface-input p-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <input
+              type="text"
+              value={discountForm.name}
+              onChange={(e) =>
+                setDiscountForm({ ...discountForm, name: e.target.value })
+              }
+              placeholder="Nombre (ej: Socio de la casa)"
+              className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+            />
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={discountForm.discount_percent}
+                  onChange={(e) =>
+                    setDiscountForm({ ...discountForm, discount_percent: e.target.value })
+                  }
+                  placeholder="%"
+                  className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveDiscount}
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white transition active:scale-95"
+              >
+                {discountForm.id ? "Guardar" : "Agregar"}
+              </button>
+              {discountForm.id && (
+                <button
+                  type="button"
+                  onClick={resetDiscountForm}
+                  className="rounded-lg border border-border px-3 py-2 text-xs text-text-primary transition hover:bg-surface-input"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {loadingDiscounts ? (
+          <p className="text-sm text-text-secondary">Cargando...</p>
+        ) : discounts.length === 0 ? (
+          <div className="rounded-xl border border-border bg-surface-input px-4 py-3 text-sm text-text-secondary">
+            No hay descuentos configurados.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {discounts.map((disc) => (
+              <li
+                key={disc.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-input px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">
+                    {disc.name}
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    -{disc.discount_percent}%
+                    {!disc.active && " · Inactivo (no se aplica)"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startEditDiscount(disc)}
+                    className="rounded-lg bg-info-bg p-1.5 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDiscount(disc.id)}
+                    className="rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         </div>
 
         </>
@@ -1298,13 +1493,15 @@ function Settings() {
         </>
         )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-xl bg-primary px-4 py-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
-        >
-          {isSubmitting ? "Guardando..." : "Guardar cambios"}
-        </button>
+        <div className="mt-8">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full rounded-xl bg-primary px-4 py-3 font-medium text-white transition active:scale-95 disabled:opacity-50"
+          >
+            {isSubmitting ? "Guardando..." : "Guardar cambios"}
+          </button>
+        </div>
       </form>
 
       <div className="mt-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-6">

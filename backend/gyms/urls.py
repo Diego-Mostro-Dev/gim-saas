@@ -1,6 +1,8 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
 from .views import (
+    DiscountViewSet,
     GymMeView,
     GymStaffView,
     GymStaffRemoveView,
@@ -11,6 +13,9 @@ from .views import (
     PwaStaffManifestView,
     PublicGymView,
 )
+
+discounts_router = DefaultRouter()
+discounts_router.register(r"me/discounts", DiscountViewSet, basename="discounts")
 
 urlpatterns = [
     path(
@@ -54,3 +59,5 @@ urlpatterns = [
         name="pwa-staff-manifest",
     ),
 ]
+
+urlpatterns += discounts_router.urls

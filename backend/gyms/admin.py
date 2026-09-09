@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.conf import settings
 
-from .models import Gym
+from .models import Discount, Gym
 
 
 class GymAdminForm(forms.ModelForm):
@@ -123,4 +123,24 @@ class GymAdmin(admin.ModelAdmin):
 
     public_register_link.short_description = (
         "Link de registro"
+    )
+
+
+@admin.register(Discount)
+class DiscountAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "gym",
+        "discount_percent",
+        "active",
+        "created_at",
+    )
+
+    list_filter = (
+        "active",
+        "gym",
+    )
+
+    search_fields = (
+        "name",
     )

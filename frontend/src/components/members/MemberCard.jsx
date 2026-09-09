@@ -62,6 +62,14 @@ function MemberCard({
               </div>
             )}
 
+            {member.discount_percent && !member.is_comp && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-info-bg dark:bg-info/15 px-2 py-0.5 text-xs text-info-text dark:text-info">
+                  Descuento {member.discount_percent}%
+                </span>
+              </div>
+            )}
+
             {member.plan_name && (
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">

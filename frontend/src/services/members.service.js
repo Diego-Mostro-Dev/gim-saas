@@ -78,6 +78,10 @@ export async function createMember(memberData) {
     formData.append("insurance", memberData.insurance);
   }
 
+  if (memberData.discount_id) {
+    formData.append("discount_id", memberData.discount_id);
+  }
+
   formData.append(
     "schedules",
     JSON.stringify(memberData.schedules || []),
@@ -165,6 +169,11 @@ export async function updateMember(
   if (memberData.insurance !== undefined && memberData.insurance) {
     formData.append("insurance", memberData.insurance);
   }
+
+  formData.append(
+    "discount_id",
+    memberData.discount_id || "",
+  );
 
   if (memberData.plan_id) {
     formData.append("plan_id", memberData.plan_id);

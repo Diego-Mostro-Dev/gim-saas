@@ -3,7 +3,7 @@ import secrets
 from django.db import models
 from cloudinary.models import CloudinaryField
 
-from gyms.models import Gym
+from gyms.models import Discount, Gym
 
 
 class HealthInsurance(models.Model):
@@ -158,6 +158,19 @@ class Member(models.Model):
         help_text=(
             "Socio con acceso de cortesía: no se le cobra por la membresía "
             "ni por las actividades y nunca se le bloquea por falta de pago."
+        ),
+    )
+
+    discount = models.ForeignKey(
+        Discount,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="members",
+        verbose_name="Descuento",
+        help_text=(
+            "Descuento porcentual asignado por el gimnasio a este socio. "
+            "Se aplica sobre el total mensual (plan + actividades)."
         ),
     )
 

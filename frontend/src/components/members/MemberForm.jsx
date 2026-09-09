@@ -38,6 +38,7 @@ function MemberForm({
   loadingActivities,
   activitiesAvailable,
   availableInsurances,
+  availableDiscounts,
 }) {
   const [expandedActivity, setExpandedActivity] = useState(null);
 
@@ -111,6 +112,16 @@ function MemberForm({
   const atLimit = limit !== null && scheduleCount >= limit;
 
   const activities = availableActivities || [];
+
+  const discounts = availableDiscounts || [];
+  const selectedDiscount = discounts.find(
+    (d) => String(d.id) === String(formData.discount_id || ""),
+  );
+
+  function discountedPrice(price) {
+    if (!selectedDiscount) return Number(price || 0);
+    return Number(price || 0) * (1 - selectedDiscount.discount_percent / 100);
+  }
 
   function handleServiceToggle(key) {
     if (key === "activities" && !activitiesAvailable) return;
@@ -395,7 +406,11 @@ function MemberForm({
           <button
             type="button"
             onClick={() =>
-              setFormData({ ...formData, is_comp: !formData.is_comp })
+              setFormData({
+                ...formData,
+                is_comp: !formData.is_comp,
+                discount_id: !formData.is_comp ? "" : formData.discount_id,
+              })
             }
             className={`flex w-full items-center justify-between rounded-xl border p-3 text-sm font-medium transition ${
               formData.is_comp
@@ -549,6 +564,40 @@ function MemberForm({
             </div>
           )}
         </>
+      )}
+
+      {showBillingSections && discounts.length > 0 && (
+        <div>
+          <label className="mb-1 block text-sm text-text-secondary">
+            Descuento
+          </label>
+          <select
+            value={formData.discount_id || ""}
+            onChange={(e) =>
+              setFormData({ ...formData, discount_id: e.target.value })
+            }
+            className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+          >
+            <option value="">Sin descuento</option>
+            {discounts.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} (-{d.discount_percent}%)
+              </option>
+            ))}
+          </select>
+
+          {selectedDiscount && selectedPlan && (
+            <p className="mt-1 text-xs text-text-secondary">
+              {formatCurrency(selectedPlan.price)} →{" "}
+              <span className="font-medium text-text-primary">
+                {formatCurrency(
+                  discountedPrice(selectedPlan.price).toFixed(2),
+                )}
+              </span>{" "}
+              (−{selectedDiscount.discount_percent}%)
+            </p>
+          )}
+        </div>
       )}
 
       {hasActivities && showBillingSections && (

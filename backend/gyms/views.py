@@ -1,4 +1,5 @@
 from rest_framework.response import Response
+from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -10,11 +11,12 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from django.conf import settings
 
+from core.mixins import GymQuerysetMixin
 from members.models import Member
 from profiles.models import UserProfile
 from .labels import get_gym_labels
-from .models import Gym, GymClosedDate
-from .serializers import GymSerializer, GymClosedDateSerializer
+from .models import Discount, Gym, GymClosedDate
+from .serializers import DiscountSerializer, GymSerializer, GymClosedDateSerializer
 
 
 def _truncate_short_name(name, limit):
@@ -440,3 +442,9 @@ class PublicGymView(APIView):
                 "active": gym.active,
             }
         )
+
+
+class DiscountViewSet(GymQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Discount.objects.all()
+    serializer_class = DiscountSerializer
+    pagination_class = None

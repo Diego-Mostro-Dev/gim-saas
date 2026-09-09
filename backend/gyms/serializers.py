@@ -1,7 +1,21 @@
 from rest_framework import serializers
 
 from .labels import get_gym_labels
-from .models import Gym, GymClosedDate
+from .models import Discount, Gym, GymClosedDate
+
+
+class DiscountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Discount
+        fields = ["id", "name", "discount_percent", "active", "created_at"]
+        read_only_fields = ["gym", "created_at"]
+
+    def validate_discount_percent(self, value):
+        if value < 1 or value > 100:
+            raise serializers.ValidationError(
+                "El porcentaje debe estar entre 1 y 100."
+            )
+        return value
 
 
 class GymClosedDateSerializer(serializers.ModelSerializer):

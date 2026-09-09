@@ -18,7 +18,9 @@ from subscriptions.services import (
     calculate_subscription_total,
     get_first_day_of_next_month,
     get_subscription_payment_status,
+    member_discount_percent,
     member_total_outstanding_debt,
+    subscription_original_total,
 )
 from members.eligibility import MemberEligibility
 from attendance.models import AttendanceSchedule
@@ -451,7 +453,7 @@ class PublicRoutineView(APIView):
                 start_date__lte=today,
                 end_date__gte=today,
             )
-            .select_related("plan")
+            .select_related("plan", "member__discount")
             .prefetch_related("items")
             .first()
         )
@@ -466,7 +468,7 @@ class PublicRoutineView(APIView):
                     member=member,
                     start_date__gt=today,
                 )
-                .select_related("plan")
+                .select_related("plan", "member__discount")
                 .prefetch_related("items")
                 .order_by("start_date")
                 .first()
@@ -523,6 +525,8 @@ class PublicRoutineView(APIView):
                     }
                     for item in activity_items
                 ],
+                "discount_percent": member_discount_percent(sub.member),
+                "original_total": str(subscription_original_total(sub)),
                 "total": str(total),
             }
 

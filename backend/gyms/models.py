@@ -207,3 +207,38 @@ class GymClosedDate(models.Model):
 
     def __str__(self):
         return f"{self.gym.name} - {self.date}"
+
+
+class Discount(models.Model):
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="discounts",
+        verbose_name="Gimnasio",
+    )
+    name = models.CharField(
+        max_length=100,
+        verbose_name="Nombre",
+    )
+    discount_percent = models.PositiveSmallIntegerField(
+        verbose_name="Porcentaje",
+        validators=[MinValueValidator(1), MaxValueValidator(100)],
+        help_text="Porcentaje de descuento sobre lo que paga el socio (1 a 100).",
+    )
+    active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text=(
+            "Inactivar desvincula el descuento de los socios asignados: "
+            "pasaron a pagar el precio completo."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
+
+    class Meta:
+        ordering = ["-active", "name"]
+        verbose_name = "Descuento"
+        verbose_name_plural = "Descuentos"
+
+    def __str__(self):
+        return f"{self.name} ({self.discount_percent}%)"

@@ -14,6 +14,7 @@ const INITIAL_FORM = {
   services: ["gym"],
   activity_schedules: [],
   is_comp: false,
+  discount_id: "",
 };
 
 export function useMemberForm() {
@@ -53,6 +54,7 @@ export function useMemberForm() {
       services: ["gym"],
       activity_schedules: [],
       is_comp: member.is_comp || false,
+      discount_id: member.is_comp ? "" : (member.discount_id ?? ""),
     });
 
     setShowForm(true);

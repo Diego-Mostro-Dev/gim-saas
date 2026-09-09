@@ -16,6 +16,8 @@ from .services import (
     calculate_effective_date,
     compute_projected_occupancy,
     get_subscription_payment_status,
+    member_discount_percent,
+    subscription_original_total,
     subscription_remaining_balance,
 )
 
@@ -85,6 +87,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     total = serializers.SerializerMethodField()
     paid_amount = serializers.SerializerMethodField()
     remaining = serializers.SerializerMethodField()
+    discount_percent = serializers.SerializerMethodField()
+    original_total = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
     has_pending_plan_change = serializers.SerializerMethodField()
     future_plan_name = serializers.SerializerMethodField()
@@ -126,6 +130,13 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
     def get_total(self, obj):
         return str(calculate_subscription_total(obj))
+
+    def get_discount_percent(self, obj):
+        percent = member_discount_percent(obj.member)
+        return percent if percent > 0 else None
+
+    def get_original_total(self, obj):
+        return str(subscription_original_total(obj))
 
     def _balance(self, obj):
         balance = getattr(obj, "_balance_cache", None)

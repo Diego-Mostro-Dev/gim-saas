@@ -6,8 +6,10 @@ from rest_framework import serializers
 
 from subscriptions.models import MembershipPlan
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
+from subscriptions.services import member_discount_percent
 from plans.services import public_plan_name
 from members.eligibility import MemberEligibility
+from gyms.models import Discount
 
 from .models import HealthInsurance, Member
 
@@ -22,6 +24,15 @@ def _normalize_name(name):
     text = unicodedata.normalize("NFD", name)
     text = "".join(c for c in text if unicodedata.category(c) != "Mn")
     return " ".join(text.lower().split())
+
+
+class _NullablePkField(serializers.PrimaryKeyRelatedField):
+    """PK field que acepta vacío como null (para FormData que manda "")."""
+
+    def to_internal_value(self, data):
+        if data in (None, "", "null", "None"):
+            return None
+        return super().to_internal_value(data)
 
 
 class HealthInsuranceSerializer(serializers.ModelSerializer):
@@ -89,6 +100,15 @@ class MemberSerializer(serializers.ModelSerializer):
         allow_null=True,
         write_only=True,
     )
+    discount_id = _NullablePkField(
+        source="discount",
+        queryset=Discount.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    discount_name = serializers.SerializerMethodField()
+    discount_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -108,6 +128,9 @@ class MemberSerializer(serializers.ModelSerializer):
             "insurance_session_price",
             "insurance_sellado_amount",
             "insurance",
+            "discount_id",
+            "discount_name",
+            "discount_percent",
             "active",
             "entry_mode",
             "is_comp",
@@ -313,6 +336,39 @@ class MemberSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+    def validate_discount(self, value):
+        if value is None:
+            return value
+
+        gym = self.context.get("gym")
+
+        if gym is None:
+            request = self.context.get("request")
+
+            if (
+                request
+                and hasattr(request.user, "profile")
+            ):
+                gym = request.user.profile.gym
+
+        if gym is not None and not Discount.objects.filter(
+            id=value.id, gym=gym, active=True
+        ).exists():
+            raise serializers.ValidationError(
+                "El descuento seleccionado no es válido."
+            )
+
+        return value
+
+    def get_discount_name(self, obj):
+        if obj.discount is None or not obj.discount.active:
+            return None
+        return obj.discount.name
+
+    def get_discount_percent(self, obj):
+        percent = member_discount_percent(obj)
+        return percent if percent > 0 else None
 
     def validate_plan_id(self, value):
         if value is None:

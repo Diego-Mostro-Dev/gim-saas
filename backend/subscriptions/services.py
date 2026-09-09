@@ -1,7 +1,7 @@
 import logging
 from calendar import monthrange
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.db import transaction
@@ -78,7 +78,7 @@ def ensure_subscription_items(subscription, previous_subscription=None):
         _copy_activity_items(previous_subscription, subscription)
 
 
-def calculate_subscription_total(subscription):
+def calculate_subscription_total(subscription, apply_discount=True):
     """Return the total amount to pay for a subscription.
 
     The total is the contract price for the period and is computed
@@ -93,6 +93,11 @@ def calculate_subscription_total(subscription):
     change. This is the single source of truth for the subscription total
     and must stay identical to what the member portal displays (see
     SubscriptionSerializer.get_total).
+
+    When the member has an active gym-assigned discount, the discount is
+    applied to the total (rounding half-up to cents). The original price is
+    kept in the price snapshots, so passing ``apply_discount=False`` yields
+    the undiscounted contract total for display.
 
     Defensive fallback: a subscription created before the SubscriptionItem
     backfill may lack a plan item; only then is the current plan price used
@@ -111,7 +116,44 @@ def calculate_subscription_total(subscription):
     if not has_plan_item and subscription.plan is not None:
         total += subscription.plan.price
 
-    return total
+    if not apply_discount:
+        return total
+
+    return discounted_amount(total, member_discount_percent(subscription.member))
+
+
+def member_discount_percent(member):
+    """Return the active discount percent for a member, or 0.
+
+    A member with no assigned discount (or whose discount is inactive) has
+    no discount. Pase de cortesía members are not affected here: their
+    price snapshots are zeroed, so their total is already 0.
+    """
+    discount = getattr(member, "discount", None)
+    if discount is None or not discount.active:
+        return 0
+    return discount.discount_percent
+
+
+def discounted_amount(amount, percent):
+    """Apply a percent discount to an amount, rounding half-up to cents.
+
+    Args:
+        amount: Decimal with the original price.
+        percent: Integer percentage (0-100).
+
+    Returns:
+        Decimal with the discounted amount (2 decimal places).
+    """
+    if percent <= 0 or amount is None:
+        return amount
+    discount = (amount * Decimal(percent)) / Decimal("100")
+    return (amount - discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def subscription_original_total(subscription):
+    """Undiscounted contract total for a subscription."""
+    return calculate_subscription_total(subscription, apply_discount=False)
 
 
 def sync_subscription_paid(subscription):
@@ -277,7 +319,7 @@ def member_total_outstanding_debt(member):
         Subscription.objects.filter(
             member=member,
         )
-        .select_related("plan")
+        .select_related("plan", "member__discount")
         .prefetch_related("items")
         .order_by("start_date", "created_at")
     )
@@ -348,7 +390,7 @@ def gym_outstanding_subscriptions(gym):
 
     subscriptions = (
         Subscription.objects.filter(gym=gym)
-        .select_related("member", "plan", "gym")
+        .select_related("member__discount", "plan", "gym")
         .prefetch_related("items__activity")
         .order_by("start_date", "created_at")
     )
@@ -666,7 +708,7 @@ def _collect_renewal_candidates(queryset):
     expired = queryset.filter(
         end_date__lt=today,
         auto_renew=True,
-    ).select_related("member", "plan", "gym")
+    ).select_related("member__discount", "plan", "gym")
 
     candidates = []
     for sub in expired:

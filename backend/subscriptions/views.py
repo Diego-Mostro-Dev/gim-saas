@@ -53,7 +53,7 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
 
     queryset = (
         Subscription.objects.all()
-        .select_related("member", "plan", "gym")
+        .select_related("member__discount", "plan", "gym")
         .annotate(_paid_amount=_paid_amount_subquery)
         .prefetch_related(
             Prefetch(

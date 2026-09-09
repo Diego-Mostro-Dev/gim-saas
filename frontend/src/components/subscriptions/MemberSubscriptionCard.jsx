@@ -134,12 +134,26 @@ function MemberSubscriptionCard({ member, subscriptions }) {
               ))}
             </div>
 
+            {currentSub.discount_percent ? (
+              <div className="flex items-center justify-between border-t border-border pt-2 mt-2">
+                <p className="text-xs font-semibold text-text-secondary">
+                  Descuento {currentSub.discount_percent}%
+                </p>
+                <p className="text-sm font-semibold text-text-primary">
+                  <span className="mr-1.5 line-through opacity-60">
+                    ${Number(currentSub.original_total ?? currentSub.total).toLocaleString("es-AR")}
+                  </span>
+                  ${Number(currentSub.total).toLocaleString("es-AR")}
+                </p>
+              </div>
+            ) : (
             <div className="flex items-center justify-between border-t border-border pt-2 mt-2">
               <p className="text-xs font-semibold text-text-secondary">Total</p>
               <p className="text-sm font-semibold text-text-primary">
                 ${Number(currentSub.total ?? currentSub.plan_price).toLocaleString("es-AR")}
               </p>
             </div>
+            )}
 
             {currentRemaining > 0 && (
               <button

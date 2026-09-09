@@ -21,6 +21,7 @@ import { getSlots } from "../services/attendance.service";
 import { formatHumanDate } from "../utils/date.utils";
 import { getPlans } from "../services/plans.service";
 import { getHealthInsurances } from "../services/healthInsurance.service";
+import { getDiscounts } from "../services/discounts.service";
 
 import {
   getMemberPayments,
@@ -156,6 +157,8 @@ function Members() {
 
   const [availableInsurances, setAvailableInsurances] = useState([]);
 
+  const [availableDiscounts, setAvailableDiscounts] = useState([]);
+
   useEffect(() => {
     let active = true;
     getHealthInsurances()
@@ -163,6 +166,18 @@ function Members() {
         if (active) setAvailableInsurances(data);
       })
       .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getDiscounts()
+      .then((data) => {
+        if (active) setAvailableDiscounts(data);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -475,6 +490,7 @@ function Members() {
             loadingActivities={loadingActivities}
             activitiesAvailable={activitiesEnabled}
             availableInsurances={availableInsurances}
+            availableDiscounts={availableDiscounts}
           />
         </div>
       )}
@@ -549,13 +565,20 @@ function Members() {
                   <td className="px-4 py-3 text-text-secondary">{member.email || "—"}</td>
 
                   <td className="px-4 py-3">
-                    {member.plan_name ? (
-                      <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
-                        {member.plan_name}
-                      </span>
-                    ) : (
-                      <span className="text-text-secondary">—</span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {member.plan_name ? (
+                        <span className="rounded-md bg-success-bg dark:bg-success/15 px-2 py-0.5 text-xs text-success-text dark:text-success">
+                          {member.plan_name}
+                        </span>
+                      ) : (
+                        <span className="text-text-secondary">—</span>
+                      )}
+                      {member.discount_percent > 0 && (
+                        <span className="rounded-md bg-info-bg dark:bg-info/15 px-2 py-0.5 text-xs font-medium text-info-text dark:text-info">
+                          -{member.discount_percent}%
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-4 py-3">

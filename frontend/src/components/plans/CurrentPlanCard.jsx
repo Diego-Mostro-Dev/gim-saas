@@ -30,6 +30,8 @@ function CurrentPlanCard({ subscription }) {
     (i) => i.item_type === "activity"
   ) || [];
 
+  const hasDiscount = subscription.discount_percent > 0;
+
   return (
     <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex items-start justify-between">
@@ -38,8 +40,22 @@ function CurrentPlanCard({ subscription }) {
             {subscription.plan}
           </h3>
           <p className="mt-1 text-lg font-bold text-info-text dark:text-info">
-            ${Number(subscription.plan_price).toLocaleString("es-AR")}
+            {hasDiscount && (
+              <span className="mr-1.5 align-middle text-base font-medium text-text-secondary line-through">
+                ${Number(subscription.plan_price).toLocaleString("es-AR")}
+              </span>
+            )}
+            ${Number(
+              hasDiscount
+                ? subscription.total ?? subscription.plan_price
+                : subscription.plan_price,
+            ).toLocaleString("es-AR")}
           </p>
+          {hasDiscount && (
+            <p className="mt-0.5 text-xs font-medium text-info-text dark:text-info">
+              Descuento aplicado {subscription.discount_percent}%
+            </p>
+          )}
           <p className="mt-1 text-sm text-text-secondary">
             {subscription.plan_duration_days} días
           </p>
@@ -75,6 +91,11 @@ function CurrentPlanCard({ subscription }) {
           <div className="flex items-center justify-between border-t border-border pt-2">
             <p className="text-sm font-semibold text-text-secondary">Total</p>
             <p className="text-sm font-bold text-info-text dark:text-info">
+              {hasDiscount && (
+                <span className="mr-1.5 font-medium text-text-secondary line-through">
+                  ${Number(subscription.original_total ?? subscription.plan_price).toLocaleString("es-AR")}
+                </span>
+              )}
               ${Number(subscription.total ?? subscription.plan_price).toLocaleString("es-AR")}
             </p>
           </div>

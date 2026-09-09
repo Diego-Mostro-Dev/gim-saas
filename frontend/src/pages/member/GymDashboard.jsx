@@ -234,9 +234,27 @@ function GymDashboard() {
               <div className="flex items-center justify-between">
                 <span className="text-text-secondary">Precio del plan</span>
                 <span className="text-text-primary">
-                  ${Number(subscription.plan_price).toLocaleString("es-AR")}
+                  {subscription.discount_percent > 0 && (
+                    <span className="mr-1.5 line-through text-text-secondary">
+                      ${Number(subscription.plan_price).toLocaleString("es-AR")}
+                    </span>
+                  )}
+                  ${Number(
+                    subscription.discount_percent > 0
+                      ? subscription.total ?? subscription.plan_price
+                      : subscription.plan_price,
+                  ).toLocaleString("es-AR")}
                 </span>
               </div>
+
+              {subscription.discount_percent > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">Descuento aplicado</span>
+                  <span className="font-medium text-info-text dark:text-info">
+                    -{subscription.discount_percent}%
+                  </span>
+                </div>
+              )}
 
               {subscription.items?.filter((i) => i.item_type === "activity").length > 0 && (
                 <div className="rounded-xl bg-surface-input px-3 py-2 space-y-2">

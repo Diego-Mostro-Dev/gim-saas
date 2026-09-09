@@ -41,7 +41,7 @@ class MemberViewSet(GymModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        return super().get_queryset().select_related("insurance").prefetch_related(
+        return super().get_queryset().select_related("insurance", "discount").prefetch_related(
             Prefetch(
                 "schedules",
                 queryset=AttendanceSchedule.objects.filter(
