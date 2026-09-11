@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 from gyms.models import Gym
 from members.models import Member
 
@@ -119,6 +120,20 @@ class Attendance(models.Model):
         verbose_name="Solicitud de intercambio",
     )
 
+    recovery = models.ForeignKey(
+        "SessionRecovery",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendances",
+        verbose_name="Recuperación",
+    )
+
+    is_recovery = models.BooleanField(
+        default=False,
+        verbose_name="Es recuperación",
+    )
+
     slot = models.ForeignKey(
         ScheduleSlot,
         on_delete=models.SET_NULL,
@@ -128,7 +143,9 @@ class Attendance(models.Model):
         verbose_name="Horario",
     )
 
-    date = models.DateField(auto_now_add=True, db_index=True, verbose_name="Fecha")
+    date = models.DateField(
+        default=timezone.localdate, db_index=True, verbose_name="Fecha"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
 
     class Meta:
@@ -306,5 +323,119 @@ class ScheduleSwapRequest(models.Model):
             f"{self.destination_slot.day} "
             f"{self.destination_slot.hour} "
             f"({self.swap_date}) "
+            f"({self.status})"
+        )
+
+
+class SessionRecovery(models.Model):
+    KIND_CHOICES = [
+        ("training", "Entrenamiento gimnasio"),
+        ("activity", "Clase de actividad"),
+    ]
+
+    STATUS_CHOICES = [
+        ("scheduled", "Programada"),
+        ("available", "Disponible"),
+        ("used", "Usada"),
+        ("cancelled", "Cancelada"),
+        ("expired", "Expirada"),
+    ]
+
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="session_recoveries",
+        verbose_name="Gimnasio",
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="session_recoveries",
+        verbose_name="Miembro",
+    )
+
+    granted_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="granted_session_recoveries",
+        verbose_name="Otorgada por",
+    )
+
+    kind = models.CharField(
+        max_length=20,
+        choices=KIND_CHOICES,
+        default="training",
+        verbose_name="Tipo",
+    )
+
+    activity = models.ForeignKey(
+        "activities.Activity",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="session_recoveries",
+        verbose_name="Actividad",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="available",
+        verbose_name="Estado",
+    )
+
+    expires_at = models.DateField(verbose_name="Expira el")
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Usada el",
+    )
+
+    used_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de uso",
+    )
+
+    used_schedule = models.ForeignKey(
+        "activities.ActivitySchedule",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recoveries_used",
+        verbose_name="Clase usada",
+    )
+
+    used_slot = models.ForeignKey(
+        ScheduleSlot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recoveries_used",
+        verbose_name="Horario usado",
+    )
+
+    note = models.TextField(blank=True, verbose_name="Nota")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizada")
+
+    class Meta:
+        verbose_name = "Recuperación de clase"
+        verbose_name_plural = "Recuperaciones de clases"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["member", "status"]),
+            models.Index(fields=["gym", "status"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.member} - "
+            f"{self.get_kind_display()} "
             f"({self.status})"
         )

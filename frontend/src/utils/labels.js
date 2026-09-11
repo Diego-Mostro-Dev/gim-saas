@@ -45,6 +45,8 @@ const DEFAULT_LABELS = {
     "El gimnasio está cerrado hoy. Hoy no se puede registrar asistencia.",
   "occupancy.closed_day": "Gimnasio cerrado este día",
   "install.banner_icon": "(verás el ícono del gimnasio).",
+  "recovery.kind.training": "Gimnasio",
+  "recovery.kind.activity": "Clase (actividad)",
 };
 
 function interpolate(text, vars = {}) {

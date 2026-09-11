@@ -19,6 +19,7 @@ import MemberPortalLayout from "./pages/member/MemberPortalLayout";
 import DashboardSelector from "./pages/member/DashboardSelector";
 import MemberWorkout from "./pages/member/MemberWorkout";
 import MemberPayments from "./pages/member/MemberPayments";
+import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
@@ -49,6 +50,7 @@ function App() {
         <Route index element={<DashboardSelector />} />
         <Route path="workout" element={<MemberWorkout />} />
         <Route path="payments" element={<MemberPayments />} />
+        <Route path="recoveries" element={<MemberRecoveries />} />
         <Route path="activities" element={<MemberActivities />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>

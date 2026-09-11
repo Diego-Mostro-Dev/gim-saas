@@ -53,6 +53,8 @@ DEFAULT_LABELS = {
     "attendance.closed_today": "El gimnasio está cerrado hoy. Hoy no se puede registrar asistencia.",
     "occupancy.closed_day": "Gimnasio cerrado este día",
     "install.banner_icon": "(verás el ícono del gimnasio).",
+    "recovery.kind.training": "Gimnasio",
+    "recovery.kind.activity": "Clase (actividad)",
 }
 
 SINKRO_LABELS = {
@@ -94,6 +96,8 @@ SINKRO_LABELS = {
     "attendance.closed_today": "Hoy no hay entrenamiento. No se puede registrar asistencia.",
     "occupancy.closed_day": "No hay entrenamiento este día",
     "install.banner_icon": "(verás el ícono).",
+    "recovery.kind.training": "Entrenamiento",
+    "recovery.kind.activity": "Clase (actividad)",
 }
 
 

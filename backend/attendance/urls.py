@@ -13,6 +13,9 @@ from .views import (
     ScheduleChangeRequestViewSet,
     ScheduleSwapRequestViewSet,
     attendance_analytics,
+    SessionRecoveryListCreateView,
+    SessionRecoveryOptionsView,
+    SessionRecoveryUndoView,
 )
 
 from .public_views import (
@@ -22,6 +25,7 @@ from .public_views import (
     PublicCancelScheduleChangeRequestView,
     PublicScheduleSwapRequestView,
     PublicCancelScheduleSwapRequestView,
+    PublicSessionRecoveryView,
 )
 
 router = DefaultRouter()
@@ -88,6 +92,22 @@ urlpatterns = router.urls + [
         name="attendance-analytics",
     ),
 
+    path(
+        "recoveries/",
+        SessionRecoveryListCreateView.as_view(),
+        name="session-recovery-list-create",
+    ),
+    path(
+        "recoveries/options/",
+        SessionRecoveryOptionsView.as_view(),
+        name="session-recovery-options",
+    ),
+    path(
+        "recoveries/<int:recovery_pk>/undo/",
+        SessionRecoveryUndoView.as_view(),
+        name="session-recovery-undo",
+    ),
+
     # Public (member-facing) endpoints
     path(
         "public/slots/<str:token>/",
@@ -113,5 +133,10 @@ urlpatterns = router.urls + [
         "public/schedule-swap-requests/<str:token>/<int:pk>/cancel/",
         PublicCancelScheduleSwapRequestView.as_view(),
         name="public-cancel-schedule-swap-request",
+    ),
+    path(
+        "public/recoveries/<str:token>/",
+        PublicSessionRecoveryView.as_view(),
+        name="public-session-recovery",
     ),
 ]

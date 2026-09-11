@@ -29,6 +29,7 @@ ENROLLMENT_MODALITY_CHOICES = [
 SESSION_SOURCE_CHOICES = [
     ("auto", "Automática"),
     ("manual", "Manual"),
+    ("recovery", "Recuperación"),
 ]
 
 

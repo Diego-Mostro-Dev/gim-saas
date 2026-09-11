@@ -9,7 +9,9 @@ from .models import (
     ScheduleSlot,
     ScheduleChangeRequest,
     ScheduleSwapRequest,
+    SessionRecovery,
 )
+from .recovery_service import effective_status
 from .utils import (
     compute_effective_occupancy,
     count_member_week_attendances,
@@ -20,6 +22,97 @@ from .utils import (
 from members.eligibility import MemberEligibility
 from gyms.models import GymClosedDate
 from subscriptions.domain import SubscriptionDomain
+
+
+class SessionRecoverySerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    member_photo = serializers.SerializerMethodField()
+    activity_name = serializers.SerializerMethodField()
+    kind_label = serializers.SerializerMethodField()
+    granted_by_name = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    used_hour = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SessionRecovery
+        fields = [
+            "id",
+            "gym",
+            "member",
+            "member_name",
+            "member_photo",
+            "kind",
+            "kind_label",
+            "activity",
+            "activity_name",
+            "granted_by",
+            "granted_by_name",
+            "status",
+            "expires_at",
+            "used_at",
+            "used_date",
+            "used_hour",
+            "used_schedule",
+            "used_slot",
+            "note",
+            "created_at",
+        ]
+        read_only_fields = [
+            "gym",
+            "member",
+            "kind",
+            "activity",
+            "granted_by",
+            "expires_at",
+            "status",
+            "used_at",
+            "used_date",
+            "used_schedule",
+            "used_slot",
+            "created_at",
+        ]
+
+    def get_member_name(self, obj):
+        return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_member_photo(self, obj):
+        if obj.member.photo:
+            try:
+                return obj.member.photo.url
+            except Exception:
+                return str(obj.member.photo)
+        return None
+
+    def get_activity_name(self, obj):
+        if obj.kind == "activity" and obj.activity_id:
+            return obj.activity.name
+        return None
+
+    def get_kind_label(self, obj):
+        from gyms.labels import get_gym_labels
+
+        labels = get_gym_labels(obj.gym)
+        if obj.kind == "training":
+            return labels.get("recovery.kind.training", "Gimnasio")
+        return labels.get("recovery.kind.activity", "Clase (actividad)")
+
+    def get_granted_by_name(self, obj):
+        if obj.granted_by_id:
+            return (
+                obj.granted_by.get_full_name()
+                or obj.granted_by.username
+            )
+        return None
+
+    def get_status(self, obj):
+        return effective_status(obj)
+
+    def get_used_hour(self, obj):
+        if obj.used_slot_id:
+            return obj.used_slot.hour.strftime("%H:%M")
+        if obj.used_schedule_id:
+            return obj.used_schedule.start_time.strftime("%H:%M")
+        return None
 
 
 class AttendanceScheduleSerializer(serializers.ModelSerializer):

@@ -664,6 +664,7 @@ class PublicRoutineView(APIView):
                 "schedule_change_notice_hours": gym.schedule_change_notice_hours,
                 "allow_plan_changes": gym.allow_plan_changes,
                 "allow_schedule_changes": gym.allow_schedule_changes,
+                "allow_session_recovery": gym.allow_session_recovery,
                 "features": gym.features,
                 "labels": get_gym_labels(gym),
                 "closed_dates": [

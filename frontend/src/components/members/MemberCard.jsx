@@ -8,6 +8,7 @@ function MemberCard({
   onSharePortal,
   onCopyPortalLink,
   onViewPayments,
+  onViewRecoveries,
 }) {
   const dayLabels = {
     monday: "Lun",
@@ -128,6 +129,13 @@ function MemberCard({
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
         >
           Historial
+        </button>
+
+        <button
+          onClick={() => onViewRecoveries(member)}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+        >
+          Recuperaciones
         </button>
 
         <button

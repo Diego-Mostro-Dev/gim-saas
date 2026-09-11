@@ -102,6 +102,20 @@ class Gym(models.Model):
     schedule_change_cooldown_hours = models.PositiveIntegerField(default=168, verbose_name="Horas de espera entre cambios")
     max_schedule_changes_per_month = models.PositiveIntegerField(default=4, verbose_name="Máximo de cambios por mes")
 
+    # --- Recuperación de clases / sesiones ---
+    allow_session_recovery = models.BooleanField(
+        default=False,
+        verbose_name="Permitir recuperación de clases",
+    )
+    max_session_recoveries_per_month = models.PositiveIntegerField(
+        default=2,
+        verbose_name="Máximo de recuperaciones por mes",
+    )
+    session_recovery_expiration_days = models.PositiveIntegerField(
+        default=30,
+        verbose_name="Días de expiración de la recuperación",
+    )
+
     features = models.JSONField(default=dict, blank=True, verbose_name="Características")
 
     # --- SEO (opcional, configurable por el owner del gimnasio) ---

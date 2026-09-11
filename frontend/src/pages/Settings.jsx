@@ -53,6 +53,9 @@ function Settings() {
     schedule_change_cooldown_days: "",
     max_schedule_changes_per_month: "",
     schedule_change_notice_days: "",
+    allow_session_recovery: false,
+    max_session_recoveries_per_month: "",
+    session_recovery_expiration_days: "",
     qr_attendance_message: "",
     qr_registration_message: "",
     seo_title: "",
@@ -72,6 +75,8 @@ function Settings() {
     const cooldown = Number(formData.schedule_change_cooldown_days);
     const maxChanges = Number(formData.max_schedule_changes_per_month);
     const noticeDays = Number(formData.schedule_change_notice_days);
+    const maxRecoveries = Number(formData.max_session_recoveries_per_month);
+    const recoveryExpiration = Number(formData.session_recovery_expiration_days);
 
     if (formData.payment_due_day !== "" && (isNaN(due) || due < 1)) {
       errs.payment_due_day = "Debe ser mayor a 0";
@@ -94,6 +99,12 @@ function Settings() {
     }
     if (formData.schedule_change_notice_days !== "" && (isNaN(noticeDays) || noticeDays < 0)) {
       errs.schedule_change_notice_days = "No puede ser negativo";
+    }
+    if (formData.max_session_recoveries_per_month !== "" && (isNaN(maxRecoveries) || maxRecoveries < 0)) {
+      errs.max_session_recoveries_per_month = "No puede ser negativo";
+    }
+    if (formData.session_recovery_expiration_days !== "" && (isNaN(recoveryExpiration) || recoveryExpiration < 1)) {
+      errs.session_recovery_expiration_days = "Debe ser mayor a 0";
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -541,6 +552,9 @@ function Settings() {
         gym.schedule_change_notice_hours == null
           ? ""
           : Number(gym.schedule_change_notice_hours) / 24,
+      allow_session_recovery: gym.allow_session_recovery ?? false,
+      max_session_recoveries_per_month: gym.max_session_recoveries_per_month ?? "",
+      session_recovery_expiration_days: gym.session_recovery_expiration_days ?? "",
       qr_attendance_message: gym.qr_attendance_message || "",
       qr_registration_message: gym.qr_registration_message || "",
       seo_title: gym.seo_title || "",
@@ -597,6 +611,19 @@ function Settings() {
       }
       data.append("allow_schedule_changes", formData.allow_schedule_changes);
       data.append("allow_plan_changes", formData.allow_plan_changes);
+      data.append("allow_session_recovery", formData.allow_session_recovery);
+      if (formData.max_session_recoveries_per_month !== "") {
+        data.append(
+          "max_session_recoveries_per_month",
+          formData.max_session_recoveries_per_month,
+        );
+      }
+      if (formData.session_recovery_expiration_days !== "") {
+        data.append(
+          "session_recovery_expiration_days",
+          formData.session_recovery_expiration_days,
+        );
+      }
 
       data.append("qr_attendance_message", formData.qr_attendance_message);
       data.append(
@@ -981,6 +1008,85 @@ function Settings() {
             ))}
           </ul>
         )}
+        </div>
+
+        <div className="mb-8 rounded-xl border border-border p-4">
+          <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
+            Recuperación de clases
+          </h3>
+
+          <p className="mb-4 text-xs text-text-secondary">
+            Si un socio no pudo asistir a su clase o sesión (ej. kinesiología,
+            yoga o entrenamiento), el staff le otorga una recuperación de esa
+            misma clase para que la haga otro día con cupo y sin chocar con sus
+            horarios. Se usa en la ficha del socio.
+          </p>
+
+          <div className="mb-4 flex items-center justify-between">
+            <label className="text-sm text-text-primary">Permitir recuperación de clases</label>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, allow_session_recovery: !formData.allow_session_recovery })}
+              className={`relative h-6 w-11 rounded-full transition ${
+                formData.allow_session_recovery ? "bg-primary" : "bg-border"
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                  formData.allow_session_recovery ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm text-text-primary">
+                Máximo por mes
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.max_session_recoveries_per_month}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_session_recoveries_per_month: e.target.value })
+                }
+                className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+              />
+              {errors.max_session_recoveries_per_month && (
+                <p className="mt-1 text-xs text-danger-text dark:text-danger">
+                  {errors.max_session_recoveries_per_month}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-text-primary">
+                Días para usarla
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.session_recovery_expiration_days}
+                onChange={(e) =>
+                  setFormData({ ...formData, session_recovery_expiration_days: e.target.value })
+                }
+                className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+              />
+              {errors.session_recovery_expiration_days && (
+                <p className="mt-1 text-xs text-danger-text dark:text-danger">
+                  {errors.session_recovery_expiration_days}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <p className="text-[11px] leading-snug text-text-secondary">
+            El máximo por mes se cuenta sobre las recuperaciones otorgadas en el
+            mes calendario, por socio. La recuperación vence si no se usa dentro
+            de los días configurados y no consume la sesión del paquete ni la
+            cuota semanal de gym.
+          </p>
         </div>
 
         </>

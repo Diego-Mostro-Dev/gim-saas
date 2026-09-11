@@ -218,6 +218,15 @@ class MemberViewSet(GymModelViewSet):
             active=True,
         ).prefetch_related("schedules")
 
+        member_id = request.GET.get("member")
+        if member_id:
+            enrolled_activity_ids = set(
+                Enrollment.objects.filter(
+                    gym=gym, member_id=member_id, active=True
+                ).values_list("schedule__activity_id", flat=True)
+            )
+            activities = activities.filter(id__in=enrolled_activity_ids)
+
         result = []
         for activity in activities:
             schedules = []

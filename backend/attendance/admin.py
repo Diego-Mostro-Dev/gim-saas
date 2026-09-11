@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AttendanceSchedule, Attendance, ScheduleSlot
+from .models import AttendanceSchedule, Attendance, ScheduleSlot, SessionRecovery
 
 
 @admin.register(ScheduleSlot)
@@ -54,11 +54,13 @@ class AttendanceAdmin(admin.ModelAdmin):
         "schedule",
         "slot",
         "date",
+        "is_recovery",
         "created_at",
     )
 
     list_filter = (
         "date",
+        "is_recovery",
     )
 
     search_fields = (

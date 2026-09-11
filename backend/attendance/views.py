@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view
 from rest_framework import status
 
-from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest, DAY_CHOICES
+from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest, SessionRecovery, DAY_CHOICES
 from gyms.models import GymClosedDate
 from gyms.features import activities_enabled
 from activities.models import ActivitySchedule, Enrollment
@@ -20,6 +20,12 @@ from .utils import (
     compute_effective_occupancies,
     get_swap_usage_metrics,
     member_service_label,
+)
+from .recovery_service import (
+    RecoveryError,
+    eligible_options,
+    grant_scheduled,
+    undo_recovery,
 )
 from members.models import Member
 from subscriptions.domain import ScheduleDomain, SubscriptionDomain
@@ -31,6 +37,7 @@ from .serializers import (
     ScheduleChangeRequestActionSerializer,
     ScheduleSwapRequestSerializer,
     ScheduleSwapRequestActionSerializer,
+    SessionRecoverySerializer,
 )
 
 
@@ -892,3 +899,230 @@ class ScheduleSwapRequestViewSet(viewsets.ModelViewSet):
         )
 
         return Response(ScheduleSwapRequestSerializer(instance).data)
+
+
+def _get_recovery(request, recovery_pk):
+    gym = request.user.profile.gym
+    return SessionRecovery.objects.filter(
+        gym=gym,
+        pk=recovery_pk,
+    ).select_related("member", "activity", "granted_by").first()
+
+
+class SessionRecoveryListCreateView(APIView):
+    """Listar y otorgar recuperaciones de clases del gimnasio (staff)."""
+
+    def get(self, request):
+        gym = request.user.profile.gym
+        qs = SessionRecovery.objects.filter(
+            gym=gym,
+        ).select_related("member", "activity", "granted_by")
+
+        member_id = request.GET.get("member")
+        if member_id:
+            qs = qs.filter(member_id=member_id)
+
+        status_query = request.GET.get("status")
+        if status_query:
+            if status_query == "expired":
+                qs = qs.filter(
+                    Q(status="available", expires_at__lt=timezone.localdate())
+                    | Q(status="scheduled", used_date__lt=timezone.localdate())
+                )
+            else:
+                qs = qs.filter(status=status_query)
+
+        serializer = SessionRecoverySerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        gym = request.user.profile.gym
+        member_id = request.data.get("member")
+        kind = request.data.get("kind", "training")
+        activity_id = request.data.get("activity")
+        note = request.data.get("note", "")
+        date_str = request.data.get("date")
+        slot_id = request.data.get("slot_id")
+        schedule_id = request.data.get("schedule_id")
+
+        if not member_id:
+            return Response(
+                {"detail": "Debés seleccionar el socio."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        member = Member.objects.filter(
+            gym=gym,
+            pk=member_id,
+        ).first()
+        if member is None:
+            return Response(
+                {"detail": "Socio no encontrado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not date_str:
+            return Response(
+                {"detail": "Debés indicar la fecha en que se recupera la clase."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return Response(
+                {"detail": "Formato de fecha inválido. Usá AAAA-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        activity = None
+        if kind == "activity":
+            if not activities_enabled(gym):
+                return Response(
+                    {"detail": "El gimnasio no tiene actividades habilitadas."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            from activities.models import Activity
+            activity = Activity.objects.filter(pk=activity_id).first()
+            if activity is None:
+                return Response(
+                    {"detail": "Actividad no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        slot = None
+        schedule = None
+        if kind == "training":
+            if not slot_id:
+                return Response(
+                    {"detail": "Debés elegir el horario de entrenamiento."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            slot = ScheduleSlot.objects.filter(
+                gym=gym,
+                pk=slot_id,
+            ).first()
+            if slot is None:
+                return Response(
+                    {"detail": "Horario de entrenamiento no encontrado."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            if not schedule_id:
+                return Response(
+                    {"detail": "Debés elegir la clase que se recupera."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            schedule = ActivitySchedule.objects.filter(
+                activity_id=activity_id,
+                pk=schedule_id,
+            ).first()
+            if schedule is None:
+                return Response(
+                    {"detail": "Clase no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        try:
+            recovery = grant_scheduled(
+                gym,
+                member,
+                granted_by=request.user,
+                kind=kind,
+                activity=activity,
+                note=note,
+                target_date=target_date,
+                slot=slot,
+                schedule=schedule,
+            )
+        except RecoveryError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            SessionRecoverySerializer(recovery).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SessionRecoveryOptionsView(APIView):
+    """Opciones de día/horario disponibles para otorgar una recuperación."""
+
+    def get(self, request):
+        gym = request.user.profile.gym
+        member_id = request.GET.get("member")
+        kind = request.GET.get("kind", "training")
+        activity_id = request.GET.get("activity")
+        date_str = request.GET.get("date")
+
+        if not member_id:
+            return Response(
+                {"detail": "Debés indicar el socio."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not date_str:
+            return Response(
+                {"detail": "Debés indicar la fecha."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        member = Member.objects.filter(
+            gym=gym,
+            pk=member_id,
+        ).first()
+        if member is None:
+            return Response(
+                {"detail": "Socio no encontrado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return Response(
+                {"detail": "Formato de fecha inválido. Usá AAAA-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        activity = None
+        if kind == "activity":
+            from activities.models import Activity
+            activity = Activity.objects.filter(pk=activity_id).first()
+            if activity is None:
+                return Response(
+                    {"detail": "Actividad no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        try:
+            options = eligible_options(gym, member, kind, activity, target_date)
+        except RecoveryError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(options)
+
+
+class SessionRecoveryUndoView(APIView):
+    """Deshace una recuperación ya usada (borra la asistencia creada)."""
+
+    def post(self, request, recovery_pk):
+        recovery = _get_recovery(request, recovery_pk)
+        if recovery is None:
+            return Response(
+                {"detail": "Recuperación no encontrada."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            recovery = undo_recovery(recovery)
+        except RecoveryError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(SessionRecoverySerializer(recovery).data)

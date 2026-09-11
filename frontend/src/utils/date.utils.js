@@ -39,3 +39,16 @@ export function formatHumanDate(date) {
   const weekday = d.toLocaleDateString("es-AR", { weekday: "long" });
   return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${dateStr}`;
 }
+
+export function formatLongDate(date) {
+  const d = normalizeDate(date);
+  if (!d) return "-";
+
+  const weekday = d.toLocaleDateString("es-AR", { weekday: "long" });
+  const dateStr = d.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${dateStr}`;
+}

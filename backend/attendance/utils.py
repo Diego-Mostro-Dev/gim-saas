@@ -315,7 +315,7 @@ def count_member_week_attendances(gym, member, target_date):
     return Attendance.objects.filter(
         member=member,
         date__in=counted_dates,
-    ).count()
+    ).exclude(is_recovery=True).count()
 
 
 def get_attendance_breakdown(gym, target_date):

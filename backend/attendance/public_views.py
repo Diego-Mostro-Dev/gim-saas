@@ -16,6 +16,7 @@ from .models import (
     ScheduleSlot,
     ScheduleChangeRequest,
     ScheduleSwapRequest,
+    SessionRecovery,
 )
 from .utils import (
     SCHEDULE_SLOT_WEEKDAY_ORDER,
@@ -26,10 +27,12 @@ from .utils import (
 from .serializers import (
     PublicScheduleChangeRequestSerializer,
     PublicScheduleSwapRequestSerializer,
+    SessionRecoverySerializer,
 )
 from config.api.throttles import PublicAttendanceRateThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
+from .recovery_service import RecoveryError, _add_hour, use_recovery
 
 
 DAY_BY_WEEKDAY = {
@@ -124,6 +127,53 @@ class PublicCheckinView(APIView):
                     "message": f"Alcanzaste el límite de {weekly_limit} visitas semanales de tu plan.",
                 },
                 status=status.HTTP_403_FORBIDDEN,
+            )
+
+        scheduled_recovery = SessionRecovery.objects.filter(
+            member=member,
+            status="scheduled",
+            used_date=today,
+        ).first()
+
+        if scheduled_recovery:
+            now_time = timezone.localtime().time()
+            if scheduled_recovery.kind == "training":
+                slot = scheduled_recovery.used_slot
+                window_start = slot.hour
+                window_end = _add_hour(slot.hour)
+            else:
+                schedule = scheduled_recovery.used_schedule
+                window_start = schedule.start_time
+                window_end = schedule.end_time
+
+            if not (window_start <= now_time <= window_end):
+                message = (
+                    f"Tu recuperación de hoy era a las {window_start:%H:%M}. "
+                    "Ese horario ya pasó."
+                    if now_time > window_end
+                    else f"Tu recuperación de hoy recién es a las {window_start:%H:%M}."
+                )
+                return Response(
+                    {
+                        "success": False,
+                        "message": message,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            try:
+                use_recovery(scheduled_recovery, today)
+            except RecoveryError as exc:
+                return Response(
+                    {"success": False, "message": str(exc)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "✓ Asistencia registrada (recuperación)",
+                }
             )
 
         approved_swap = ScheduleSwapRequest.objects.filter(
@@ -428,4 +478,19 @@ class PublicCancelScheduleSwapRequestView(APIView):
 
         return Response(
             PublicScheduleSwapRequestSerializer(swap_request).data
+        )
+
+
+class PublicSessionRecoveryView(APIView):
+    permission_classes = []
+    throttle_classes = [PublicAttendanceRateThrottle]
+
+    def get(self, request, token):
+        member = get_object_or_404(Member, access_token=token)
+        recoveries = SessionRecovery.objects.filter(
+            member=member,
+        ).select_related("member", "activity", "granted_by", "used_schedule", "used_slot").order_by("-created_at")
+
+        return Response(
+            SessionRecoverySerializer(recoveries, many=True).data
         )

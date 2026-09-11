@@ -198,6 +198,7 @@ export async function updateMember(
   );
 }
 
-export async function getMemberActivities() {
-  return apiFetch("/api/members/activities/");
+export async function getMemberActivities(memberId) {
+  const query = memberId ? `?member=${memberId}` : "";
+  return apiFetch(`/api/members/activities/${query}`);
 }
