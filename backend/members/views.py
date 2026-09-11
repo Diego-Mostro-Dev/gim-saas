@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
+from django.db import models
 from django.shortcuts import get_object_or_404
 from django.db.models import Prefetch
 
@@ -26,11 +27,12 @@ from members.eligibility import MemberEligibility
 from plans.models import MembershipPlan
 from plans.services import public_plan_name_from_snapshot
 
-from .models import HealthInsurance, Member
+from .models import HealthInsurance, Member, MemberAttachment
 from .serializers import (
     HealthInsuranceSerializer,
     MemberSerializer,
     MemberPhotoSerializer,
+    MemberAttachmentSerializer,
 )
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
 
@@ -58,6 +60,11 @@ class MemberViewSet(GymModelViewSet):
             "subscription_set__plan",
             "subscription_set__items",
             "subscription_set__payments",
+        ).annotate(
+            pending_attachments_count=models.Count(
+                "attachments",
+                filter=models.Q(attachments__reviewed=False),
+            ),
         )
 
     def create(self, request, *args, **kwargs):
@@ -326,3 +333,40 @@ class HealthInsuranceViewSet(GymModelViewSet):
 
     def perform_destroy(self, instance):
         instance.delete()
+
+
+class MemberAttachmentViewSet(GymModelViewSet):
+    queryset = MemberAttachment.objects.all()
+    serializer_class = MemberAttachmentSerializer
+    pagination_class = None
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related("member")
+
+        member_id = self.request.query_params.get("member")
+        if member_id:
+            queryset = queryset.filter(member_id=member_id)
+
+        return queryset
+
+    @action(
+        detail=True,
+        methods=["patch"],
+        url_path="review",
+    )
+    def review(self, request, pk=None):
+        attachment = self.get_object()
+
+        reviewed = request.data.get("reviewed")
+        if not isinstance(reviewed, bool):
+            return Response(
+                {"reviewed": "El campo reviewed debe ser true o false."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attachment.reviewed = reviewed
+        attachment.save(update_fields=["reviewed"])
+
+        serializer = self.get_serializer(attachment)
+        return Response(serializer.data)

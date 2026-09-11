@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 
-import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil, X, Info, CheckCircle2 } from "lucide-react";
+import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil, X, Info, CheckCircle2, Paperclip } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
@@ -35,6 +35,10 @@ import {
   getMemberPayments,
   getMemberActivities,
 } from "../services/members.service";
+import {
+  getMemberAttachments,
+  reviewMemberAttachment,
+} from "../services/attachments.service";
 import { getCached, isCacheFresh } from "../utils/cache";
 
 const RECOVERY_FILTERS = [
@@ -189,6 +193,18 @@ function Members() {
   const [recoveryFilter, setRecoveryFilter] = useState("all");
 
   const [undoRecoveryTarget, setUndoRecoveryTarget] = useState(null);
+
+  const [showAttachmentsModal, setShowAttachmentsModal] = useState(false);
+
+  const [attachmentsMemberName, setAttachmentsMemberName] = useState("");
+
+  const [attachmentsList, setAttachmentsList] = useState([]);
+
+  const [attachmentsStatus, setAttachmentsStatus] = useState("idle");
+
+  const [reviewingAttachmentId, setReviewingAttachmentId] = useState(null);
+
+  const [attachmentLightbox, setAttachmentLightbox] = useState(null);
 
   const activitiesEnabled = useFeature("activities");
 
@@ -426,6 +442,46 @@ function Members() {
       } catch {
         setGrantActivities([]);
       }
+    }
+  }
+
+  async function handleViewAttachments(member) {
+    setAttachmentsMemberName(`${member.first_name} ${member.last_name}`);
+
+    setAttachmentsStatus("loading");
+
+    setShowAttachmentsModal(true);
+
+    try {
+      const data = await getMemberAttachments(member.id);
+
+      setAttachmentsList(data);
+
+      setAttachmentsStatus("success");
+    } catch (error) {
+      console.error(error);
+
+      setAttachmentsStatus("error");
+
+      toast.error("No se pudieron cargar los adjuntos");
+    }
+  }
+
+  async function handleToggleReview(attachment, reviewed) {
+    try {
+      setReviewingAttachmentId(attachment.id);
+
+      const updated = await reviewMemberAttachment(attachment.id, reviewed);
+
+      setAttachmentsList((prev) =>
+        prev.map((a) => (a.id === updated.id ? updated : a)),
+      );
+    } catch (error) {
+      console.error(error);
+
+      toast.error("No se pudo actualizar el estado");
+    } finally {
+      setReviewingAttachmentId(null);
     }
   }
 
@@ -784,6 +840,7 @@ function Members() {
               onCopyPortalLink={handleCopyPortalLink}
               onViewPayments={handleViewPayments}
               onViewRecoveries={handleViewRecoveries}
+              onViewAttachments={handleViewAttachments}
             />
           ))}
         </div>
@@ -865,6 +922,21 @@ function Members() {
                       </button>
 
                       <button
+                        onClick={() => handleViewAttachments(member)}
+                        className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
+                        title="Adjuntos"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Paperclip size={16} />
+                          {member.pending_attachments_count > 0 && (
+                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold text-warning-text dark:text-warning">
+                              {member.pending_attachments_count}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+
+                      <button
                         onClick={() => openEditForm(member)}
                         className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
                         title="Editar"
@@ -915,6 +987,145 @@ function Members() {
           if (recoveryId) handleUndoRecovery(recoveryId);
         }}
       />
+
+      {showAttachmentsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-surface-elevated p-4 shadow-2xl sm:p-6">
+            <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-text-primary">
+                  Adjuntos de {attachmentsMemberName}
+                </h2>
+
+                <p className="text-sm text-text-secondary">
+                  Órdenes, comprobantes y estudios enviados por el socio.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAttachmentsModal(false)}
+                className="rounded-lg p-2 text-text-secondary transition hover:bg-surface-input"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="-mx-2 flex-1 space-y-2 overflow-y-auto px-2">
+              {attachmentsStatus === "loading" ? (
+                <p className="py-6 text-center text-sm text-text-secondary">
+                  Cargando...
+                </p>
+              ) : attachmentsStatus === "error" ? (
+                <p className="py-6 text-center text-sm text-danger-text dark:text-danger">
+                  No se pudieron cargar los adjuntos.
+                </p>
+              ) : attachmentsList.length === 0 ? (
+                <p className="py-6 text-center text-sm text-text-secondary">
+                  No hay adjuntos cargados por este socio.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {attachmentsList.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="flex gap-3 rounded-xl bg-surface-input p-3"
+                    >
+                      <button
+                        onClick={() => setAttachmentLightbox(attachment.url)}
+                        className="shrink-0"
+                      >
+                        <img
+                          src={attachment.url}
+                          alt={attachment.category_label}
+                          className="h-20 w-20 rounded-lg border border-border object-cover"
+                        />
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-text-primary">
+                          {attachment.category_label}
+                        </p>
+
+                        {attachment.note && (
+                          <p className="mt-0.5 line-clamp-2 text-xs text-text-secondary">
+                            {attachment.note}
+                          </p>
+                        )}
+
+                        <p className="mt-1 text-[11px] text-text-secondary">
+                          {formatHumanDate(attachment.created_at)}
+                        </p>
+
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                              attachment.reviewed
+                                ? "bg-success/15 text-success-text dark:text-success"
+                                : "bg-warning/15 text-warning-text dark:text-warning"
+                            }`}
+                          >
+                            {attachment.reviewed ? "Revisado" : "Pendiente"}
+                          </span>
+
+                          <button
+                            onClick={() =>
+                              handleToggleReview(
+                                attachment,
+                                !attachment.reviewed,
+                              )
+                            }
+                            disabled={reviewingAttachmentId === attachment.id}
+                            className="rounded-lg bg-surface-elevated px-2 py-1 text-[11px] font-medium text-info-text dark:text-info transition hover:bg-info/20 disabled:opacity-50"
+                          >
+                            {reviewingAttachmentId === attachment.id
+                              ? "Guardando..."
+                              : attachment.reviewed
+                                ? "Desmarcar"
+                                : "Marcar revisado"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex shrink-0 gap-3">
+              <button
+                onClick={() => setShowAttachmentsModal(false)}
+                className="flex-1 rounded-xl bg-surface-input py-2 text-sm font-medium text-text-primary transition hover:bg-surface-elevated"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+
+{attachmentLightbox && (
+              <div
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+                onClick={() => setAttachmentLightbox(null)}
+              >
+              <div className="relative">
+                <img
+                  src={attachmentLightbox}
+                  alt="Adjunto"
+                  className="max-h-[85vh] max-w-full rounded-2xl object-contain"
+                />
+
+                <button
+                  onClick={() => setAttachmentLightbox(null)}
+                  className="absolute -top-3 -right-3 rounded-full bg-surface-elevated p-2 text-text-primary shadow transition hover:bg-surface-input"
+                  aria-label="Cerrar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {showPaymentsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">

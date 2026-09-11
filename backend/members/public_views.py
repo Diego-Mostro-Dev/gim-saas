@@ -14,9 +14,10 @@ from gyms.features import require_activities
 from gyms.models import Gym
 from plans.models import MembershipPlan
 
-from .serializers import MemberSerializer, PublicMemberSerializer
+from .serializers import MemberSerializer, PublicMemberSerializer, PublicMemberAttachmentSerializer
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
 from config.api.throttles import PublicMemberRateThrottle, PublicRegisterRateThrottle
+from .models import Member, MemberAttachment
 
 
 VALID_SERVICES = frozenset({"gym", "activities"})
@@ -251,3 +252,87 @@ class PublicPlansView(APIView):
             }
             for p in plans
         ])
+
+
+class PublicMemberAttachmentListView(APIView):
+    """Lista y crea adjuntos del socio a través de su access_token.
+
+    No se bloquea por falta de pago a propósito: subir un comprobante de
+    transferencia justamente sirve para destrabar el acceso suspendido.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
+
+    def _get_member(self, token):
+        return get_object_or_404(
+            Member,
+            access_token=token,
+        )
+
+    def get(self, request, token):
+        member = self._get_member(token)
+
+        attachments = (
+            MemberAttachment.objects
+            .filter(member=member)
+            .select_related("member")
+            .order_by("-created_at")
+        )
+
+        serializer = PublicMemberAttachmentSerializer(
+            attachments,
+            many=True,
+        )
+
+        return Response(serializer.data)
+
+    def post(self, request, token):
+        member = self._get_member(token)
+
+        serializer = PublicMemberAttachmentSerializer(
+            data=request.data,
+            context={"member": member},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(member=member, gym=member.gym)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PublicMemberAttachmentDetailView(APIView):
+    """Elimina un adjunto del socio mientras no haya sido revisado."""
+
+    authentication_classes = []
+    permission_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
+
+    def _get_attachment(self, token, attachment_id):
+        return get_object_or_404(
+            MemberAttachment,
+            id=attachment_id,
+            member__access_token=token,
+        )
+
+    def delete(self, request, token, attachment_id):
+        attachment = self._get_attachment(token, attachment_id)
+
+        if attachment.reviewed:
+            return Response(
+                {
+                    "detail": (
+                        "Este adjunto ya fue revisado por el gimnasio "
+                        "y no puede eliminarse."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attachment.delete()
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )

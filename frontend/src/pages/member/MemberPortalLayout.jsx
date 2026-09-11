@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { txt } from "../../utils/labels";
 
-import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck } from "lucide-react";
+import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import { useGymTitle } from "../../hooks/useGymTitle";
@@ -359,6 +359,10 @@ function MemberPortalLayoutContent({
     { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
   ];
 
+  const attachmentsTab = [
+    { path: `/routine/${token}/attachments`, label: "Adjuntos", icon: Paperclip },
+  ];
+
   const recoveriesTab = gym.allow_session_recovery
     ? [{ path: `/routine/${token}/recoveries`, label: "Recuperaciones", icon: CalendarCheck }]
     : [];
@@ -369,6 +373,7 @@ function MemberPortalLayoutContent({
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
         ...activitiesTab,
+        ...attachmentsTab,
       ]
     : [
         { path: `/routine/${token}`, label: "Inicio", icon: Home },
@@ -376,6 +381,7 @@ function MemberPortalLayoutContent({
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
         ...activitiesTab,
+        ...attachmentsTab,
         { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
       ];
 

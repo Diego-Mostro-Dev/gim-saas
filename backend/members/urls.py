@@ -4,13 +4,26 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     HealthInsuranceViewSet,
+    MemberAttachmentViewSet,
     MemberViewSet,
     PublicMemberPhotoView,
 )
-from .public_views import PublicRegisterView, PublicSlotsView, PublicPlansView
+from .public_views import (
+    PublicMemberAttachmentDetailView,
+    PublicMemberAttachmentListView,
+    PublicRegisterView,
+    PublicSlotsView,
+    PublicPlansView,
+)
 from activities.public_views import PublicGymActivitiesView
 
 router = DefaultRouter()
+
+router.register(
+    r"members/attachments",
+    MemberAttachmentViewSet,
+    basename="attachments",
+)
 
 router.register(
     r"members",
@@ -49,5 +62,15 @@ urlpatterns = router.urls + [
         "public/<str:token>/photo/",
         PublicMemberPhotoView.as_view(),
         name="public-member-photo",
+    ),
+    path(
+        "public/<str:token>/attachments/",
+        PublicMemberAttachmentListView.as_view(),
+        name="public-member-attachments",
+    ),
+    path(
+        "public/<str:token>/attachments/<int:attachment_id>/",
+        PublicMemberAttachmentDetailView.as_view(),
+        name="public-member-attachment-detail",
     ),
 ]

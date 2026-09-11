@@ -11,7 +11,8 @@ from plans.services import public_plan_name
 from members.eligibility import MemberEligibility
 from gyms.models import Discount
 
-from .models import HealthInsurance, Member
+from .attachments import signed_attachment_url, upload_member_attachment
+from .models import HealthInsurance, Member, MemberAttachment
 
 import json
 
@@ -109,6 +110,7 @@ class MemberSerializer(serializers.ModelSerializer):
     )
     discount_name = serializers.SerializerMethodField()
     discount_percent = serializers.SerializerMethodField()
+    pending_attachments_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -145,6 +147,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "subscription_end_date",
             "member_created_at",
             "is_recoverable",
+            "pending_attachments_count",
         ]
 
         read_only_fields = ["gym", "active"]
@@ -228,6 +231,21 @@ class MemberSerializer(serializers.ModelSerializer):
         if obj.insurance_id is None or obj.insurance.sellado_amount is None:
             return None
         return str(obj.insurance.sellado_amount)
+
+    def get_pending_attachments_count(self, obj):
+        """
+        Cantidad de adjuntos aún no revisados por el staff. Se usa para el
+        badge de pendientes en la ficha del socio. Se calcula sobre el
+        queryset anotado (members list) o con una query puntual cuando el
+        miembro se serializa en soledad.
+        """
+        annotated = getattr(obj, "pending_attachments_count", None)
+        if annotated is not None:
+            return annotated
+        return MemberAttachment.objects.filter(
+            member=obj,
+            reviewed=False,
+        ).count()
 
     def get_is_recoverable(self, obj):
         """Replicate recover_member's preconditions in read-only mode.
@@ -602,3 +620,105 @@ class MemberPhotoSerializer(serializers.ModelSerializer):
             data["photo"] = None
 
         return data
+
+
+class MemberAttachmentSerializer(serializers.ModelSerializer):
+    category_label = serializers.SerializerMethodField()
+    member_name = serializers.SerializerMethodField()
+    file = serializers.FileField(write_only=True)
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MemberAttachment
+        fields = [
+            "id",
+            "category",
+            "category_label",
+            "file",
+            "url",
+            "note",
+            "reviewed",
+            "member_id",
+            "member_name",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "category_label",
+            "url",
+            "reviewed",
+            "member_id",
+            "member_name",
+            "created_at",
+        ]
+
+    def get_category_label(self, obj):
+        return obj.get_category_display()
+
+    def get_member_name(self, obj):
+        return f"{obj.member.first_name} {obj.member.last_name}"
+
+    def get_url(self, obj):
+        return signed_attachment_url(obj.file)
+
+    def create(self, validated_data):
+        upload = validated_data.pop("file")
+        member = validated_data["member"]
+
+        public_id = upload_member_attachment(
+            upload,
+            member.gym_id,
+            member.id,
+        )
+
+        return MemberAttachment.objects.create(
+            file=public_id,
+            **validated_data,
+        )
+
+
+class PublicMemberAttachmentSerializer(serializers.ModelSerializer):
+    category_label = serializers.SerializerMethodField()
+    file = serializers.FileField(write_only=True)
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MemberAttachment
+        fields = [
+            "id",
+            "category",
+            "category_label",
+            "file",
+            "url",
+            "note",
+            "reviewed",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "category_label",
+            "url",
+            "reviewed",
+            "created_at",
+        ]
+
+    def get_category_label(self, obj):
+        return obj.get_category_display()
+
+    def get_url(self, obj):
+        return signed_attachment_url(obj.file)
+
+    def create(self, validated_data):
+        upload = validated_data.pop("file")
+        member = validated_data["member"]
+
+        public_id = upload_member_attachment(
+            upload,
+            member.gym_id,
+            member.id,
+        )
+
+        return MemberAttachment.objects.create(
+            file=public_id,
+            **validated_data,
+        )

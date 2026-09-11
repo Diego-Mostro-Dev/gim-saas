@@ -19,6 +19,7 @@ import MemberPortalLayout from "./pages/member/MemberPortalLayout";
 import DashboardSelector from "./pages/member/DashboardSelector";
 import MemberWorkout from "./pages/member/MemberWorkout";
 import MemberPayments from "./pages/member/MemberPayments";
+import MemberAttachments from "./pages/member/MemberAttachments";
 import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
 import PublicRoutine from "./pages/PublicRoutine";
@@ -51,6 +52,7 @@ function App() {
         <Route path="workout" element={<MemberWorkout />} />
         <Route path="payments" element={<MemberPayments />} />
         <Route path="recoveries" element={<MemberRecoveries />} />
+        <Route path="attachments" element={<MemberAttachments />} />
         <Route path="activities" element={<MemberActivities />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>

@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Share2, Link } from "lucide-react";
+import { Pencil, Trash2, Share2, Link, Paperclip } from "lucide-react";
 import { formatHumanDate } from "../../utils/date.utils";
 
 function MemberCard({
@@ -9,6 +9,7 @@ function MemberCard({
   onCopyPortalLink,
   onViewPayments,
   onViewRecoveries,
+  onViewAttachments,
 }) {
   const dayLabels = {
     monday: "Lun",
@@ -129,6 +130,19 @@ function MemberCard({
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
         >
           Historial
+        </button>
+
+        <button
+          onClick={() => onViewAttachments(member)}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-info-bg px-3 py-1.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/30"
+        >
+          <Paperclip size={14} />
+          Adjuntos
+          {member.pending_attachments_count > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold text-warning-text dark:text-warning">
+              {member.pending_attachments_count}
+            </span>
+          )}
         </button>
 
         <button
