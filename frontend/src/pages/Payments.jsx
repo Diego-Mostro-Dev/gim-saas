@@ -19,6 +19,8 @@ import { useGym } from "../hooks/useGym";
 import { txt } from "../utils/labels";
 import { formatCurrency } from "../utils/currency.utils";
 
+import { exportPaymentsCsv } from "../services/payments.service";
+
 function Payments() {
   const location = useLocation();
   const { gym } = useGym();
@@ -56,6 +58,14 @@ function Payments() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [paymentToDelete, setPaymentToDelete] = useState(null);
+
+  const [exportMonth, setExportMonth] = useState(() => {
+    const now = new Date();
+
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  const [exporting, setExporting] = useState(false);
 
   const formRef = useRef(null);
 
@@ -142,6 +152,28 @@ function Payments() {
     }
   }
 
+  async function handleExport() {
+    if (!exportMonth) {
+      toast.error("Seleccioná un mes para descargar");
+
+      return;
+    }
+
+    try {
+      setExporting(true);
+
+      await exportPaymentsCsv(exportMonth);
+
+      toast.success("CSV descargado");
+    } catch (error) {
+      console.error(error);
+
+      toast.error(error.message || "No se pudo descargar el CSV");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
@@ -162,19 +194,36 @@ function Payments() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (showForm) {
-              closeForm();
-            } else {
-              openCreateForm();
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-        >
-          <Plus size={18} />
-          {showForm ? "Cerrar" : "Nuevo"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="month"
+            value={exportMonth}
+            onChange={(e) => setExportMonth(e.target.value)}
+            className="rounded-xl border border-border bg-surface-input px-3 py-2 text-sm text-text-primary focus:border-blue-500 focus:outline-none"
+          />
+
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input disabled:opacity-50"
+          >
+            {exporting ? "Descargando..." : "Descargar CSV"}
+          </button>
+
+          <button
+            onClick={() => {
+              if (showForm) {
+                closeForm();
+              } else {
+                openCreateForm();
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            <Plus size={18} />
+            {showForm ? "Cerrar" : "Nuevo"}
+          </button>
+        </div>
       </div>
 
       {/* ERROR */}
