@@ -10,7 +10,7 @@ from .services import ActivityService
 class MemberBasicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
-        fields = ["id", "first_name", "last_name", "entry_mode"]
+        fields = ["id", "first_name", "last_name", "entry_mode", "is_comp"]
 
 
 class ActivitySerializer(serializers.ModelSerializer):

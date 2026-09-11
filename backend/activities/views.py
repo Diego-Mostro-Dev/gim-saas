@@ -372,6 +372,12 @@ class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.G
     def pay_sellado(self, request, pk=None):
         enrollment = self.get_object()
 
+        if enrollment.member.is_comp:
+            return Response(
+                {"detail": "Socio con pase de cortesía: no se le cobra por las sesiones."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if enrollment.sellado_amount is None:
             return Response(
                 {"detail": "Este paquete no tiene sellado configurado."},

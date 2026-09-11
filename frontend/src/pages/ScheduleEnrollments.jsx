@@ -326,10 +326,12 @@ function handleOpenSellado(enrollment) {
 
             const isPackage = enrollment.modality === "package";
             const selladoLabel = money(enrollment.sellado_amount);
+            const isComp = Boolean(enrollment.member?.is_comp);
             const noCharge =
               isPackage &&
-              enrollment.session_price != null &&
-              Number(enrollment.session_price) === 0;
+              (isComp ||
+                (enrollment.session_price != null &&
+                  Number(enrollment.session_price) === 0));
 
             return (
               <div
@@ -394,7 +396,7 @@ function handleOpenSellado(enrollment) {
                         </span>
                       )}
 
-                      {isPackage && selladoLabel && (
+                      {isPackage && selladoLabel && !isComp && (
                         enrollment.sellado_paid ? (
                           <span className="mt-1 inline-block rounded-md bg-muted-bg px-2 py-0.5 text-xs font-medium text-muted-text">
                             Sellado {selladoLabel} · Cobrado
@@ -452,7 +454,9 @@ function handleOpenSellado(enrollment) {
                       </>
                     )}
 
-                      {isPackage && Number(enrollment.remaining_amount) > 0 && (
+                      {isPackage &&
+                        Number(enrollment.remaining_amount) > 0 &&
+                        !isComp && (
                         <button
                           onClick={() => handleOpenPayment(enrollment)}
                           disabled={actionLoading}

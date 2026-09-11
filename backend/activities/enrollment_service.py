@@ -161,6 +161,11 @@ class EnrollmentService:
                 "Solo las inscripciones por paquete admiten cobro de sesiones."
             )
 
+        if enrollment.member.is_comp:
+            raise EnrollmentError(
+                "Socio con pase de cortesía: no se le cobra por las sesiones."
+            )
+
         if enrollment.total_amount is None:
             raise EnrollmentError(
                 "Este paquete no tiene coseguro definido. "

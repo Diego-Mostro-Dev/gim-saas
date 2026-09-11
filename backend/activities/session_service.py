@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -118,10 +120,14 @@ class SessionService:
 
         update_fields = ["package_total_sessions", "sellado_paid", "active"]
 
-        insurance = getattr(enrollment.member, "insurance", None)
-        if insurance is not None:
-            enrollment.session_price = insurance.session_price
+        if enrollment.member.is_comp:
+            enrollment.session_price = Decimal("0")
             update_fields.append("session_price")
+        else:
+            insurance = getattr(enrollment.member, "insurance", None)
+            if insurance is not None:
+                enrollment.session_price = insurance.session_price
+                update_fields.append("session_price")
 
         enrollment.save(update_fields=update_fields)
         return enrollment
