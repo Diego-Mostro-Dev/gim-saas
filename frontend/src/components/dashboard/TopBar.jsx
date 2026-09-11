@@ -14,7 +14,7 @@ function TopBar() {
   }
 
   return (
-    <header className="fixed top-0 z-50 flex h-16 w-full items-center justify-between border-b border-border/10 bg-surface/80 px-4 backdrop-blur-xl">
+    <header className="fixed top-0 z-40 flex h-16 w-full items-center justify-between border-b border-border/10 bg-surface/80 px-4 backdrop-blur-xl">
       <div className="flex min-w-0 items-center gap-3">
         {gym?.logo_url ? (
           <img

@@ -111,10 +111,6 @@ class Gym(models.Model):
         default=2,
         verbose_name="Máximo de recuperaciones por mes",
     )
-    session_recovery_expiration_days = models.PositiveIntegerField(
-        default=30,
-        verbose_name="Días de expiración de la recuperación",
-    )
 
     features = models.JSONField(default=dict, blank=True, verbose_name="Características")
 

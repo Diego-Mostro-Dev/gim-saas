@@ -1,6 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 30000;
 
 export const NETWORK_ERROR_MESSAGE =
   "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";

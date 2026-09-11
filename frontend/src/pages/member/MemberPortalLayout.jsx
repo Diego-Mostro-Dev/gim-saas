@@ -505,6 +505,7 @@ function MemberPortalLayoutContent({
                 <button
                   key={tab.path}
                   onClick={() => navigate(tab.path)}
+                  title={tab.label}
                   className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium transition flex items-center justify-center gap-1.5 sm:gap-2 sm:px-4 ${
                     active
                       ? "bg-primary text-white shadow-sm"
@@ -512,7 +513,7 @@ function MemberPortalLayoutContent({
                   }`}
                 >
                   <Icon size={18} />
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sr-only">{tab.label}</span>
                 </button>
               );
             })}

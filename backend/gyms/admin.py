@@ -81,7 +81,6 @@ class GymAdmin(admin.ModelAdmin):
                 "fields": (
                     "allow_session_recovery",
                     "max_session_recoveries_per_month",
-                    "session_recovery_expiration_days",
                 )
             },
         ),

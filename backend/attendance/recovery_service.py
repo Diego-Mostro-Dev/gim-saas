@@ -8,8 +8,10 @@ Reglas:
   con estado ``scheduled`` (``grant_scheduled``). No se crea asistencia ni se
   descuenta sesión en ese momento.
 - La recuperación se consume cuando el socio escanea su QR el día programado
-  (``use_recovery``): training crea la Attendance ``is_recovery=True``;
-  activity con paquete descuenta 1 sesión (ActivitySessionRecord).
+  (``use_recovery``): training crea la Attendance ``is_recovery=True`` en el
+  horario programado; activity con paquete descuenta 1 sesión
+  (ActivitySessionRecord) y también crea la Attendance ``is_recovery=True``,
+  de modo que la recuperación es siempre la asistencia del día.
 - Si el socio no escanea el día programado, la recuperación vence: el estado
   efectivo pasa a ``expired`` de forma perezosa (``effective_status``).
 - ``undo_recovery`` permite deshacer una recuperación usada y borrar la
@@ -56,27 +58,22 @@ def effective_status(recovery):
     today = timezone.localdate()
     if recovery.status == "scheduled" and recovery.used_date and recovery.used_date < today:
         return "expired"
-    if recovery.status == "available" and recovery.expires_at < today:
-        return "expired"
     return recovery.status
 
 
 def _assert_usable(recovery, target_date):
     if effective_status(recovery) in ("expired", "cancelled"):
         raise RecoveryError("La recuperación ya no está disponible.")
-    if recovery.status not in ("scheduled", "available"):
+    if recovery.status not in ("scheduled",):
         raise RecoveryError(
             "La recuperación ya no está disponible."
         )
     if target_date < timezone.localdate():
         raise RecoveryError("La fecha de uso no puede ser anterior a hoy.")
-    if recovery.status == "scheduled":
-        if recovery.used_date != target_date:
-            raise RecoveryError(
-                "La recuperación debe usarse el día en que fue programada."
-            )
-    elif recovery.expires_at is not None and target_date > recovery.expires_at:
-        raise RecoveryError("La recuperación vence antes de esa fecha.")
+    if recovery.used_date != target_date:
+        raise RecoveryError(
+            "La recuperación debe usarse el día en que fue programada."
+        )
 
     if not MemberEligibility.can_operate(recovery.member):
         raise RecoveryError(
@@ -160,6 +157,9 @@ def _validate_plan_date(gym, member, target_date):
     """Precondiciones compartidas para programar el uso en una fecha."""
     if not MemberEligibility.can_operate(member):
         raise RecoveryError("Acceso suspendido por falta de pago del socio.")
+
+    if target_date < timezone.localdate():
+        raise RecoveryError("La fecha programada no puede ser anterior a hoy.")
 
     if GymClosedDate.objects.filter(gym=gym, date=target_date).exists():
         raise RecoveryError("El gimnasio está cerrado esa fecha.")
@@ -303,8 +303,9 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
     """Consume la recuperación en la fecha programada.
 
     Para ``kind=training`` crea la Attendance (``is_recovery=True``) en el
-    horario programado. Para ``kind=activity`` con paquete descuenta 1 sesión
-    del paquete (``ActivitySessionRecord`` source="recovery").
+    horario programado. Para ``kind=activity`` también crea la Attendance
+    (``is_recovery=True``) y, con paquete, descuenta 1 sesión del paquete
+    (``ActivitySessionRecord`` source="recovery").
     """
     _assert_usable(recovery, target_date)
 
@@ -316,10 +317,9 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
             )
         if slot.gym_id != recovery.gym_id or slot.day != DAY_BY_WEEKDAY[target_date.weekday()]:
             raise RecoveryError("El horario seleccionado no es válido para esa fecha.")
-        options = _eligible_training_slots(recovery.gym, recovery.member, target_date, slot.day)
-        if not any(o["slot_id"] == slot.id for o in options):
+        if _gym_slot_overlaps_activity(slot, recovery.member, slot.day):
             raise RecoveryError(
-                "El horario programado ya no tiene cupo o colisiona con una clase del socio."
+                "El horario programado colisiona con una clase del socio."
             )
 
         attendance = Attendance.objects.create(
@@ -348,13 +348,11 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
         )
     if schedule.activity_id != recovery.activity_id:
         raise RecoveryError("La clase no pertenece a la actividad de la recuperación.")
-
-    options = _eligible_activity_schedules(
-        recovery.gym, recovery.activity, recovery.member, target_date, schedule.day
-    )
-    if not any(o["schedule_id"] == schedule.id for o in options):
+    if schedule.day != DAY_BY_WEEKDAY[target_date.weekday()]:
+        raise RecoveryError("La clase seleccionada no es válida para esa fecha.")
+    if _activity_overlaps_member(recovery.member, recovery.gym, schedule):
         raise RecoveryError(
-            "La clase seleccionada ya no tiene cupo o colisiona con otra clase del socio."
+            "La clase seleccionada colisiona con otra clase del socio."
         )
 
     enrollment = (
@@ -372,6 +370,14 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
             enrollment, target_date, source="recovery", schedule=schedule
         )
 
+    attendance = Attendance.objects.create(
+        gym=recovery.gym,
+        member=recovery.member,
+        date=target_date,
+        is_recovery=True,
+        recovery=recovery,
+    )
+
     recovery.status = "used"
     recovery.used_at = timezone.now()
     recovery.used_date = target_date
@@ -379,7 +385,7 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
     recovery.save(
         update_fields=["status", "used_at", "used_date", "used_schedule", "updated_at"]
     )
-    return recovery, None
+    return recovery, attendance
 
 
 @transaction.atomic

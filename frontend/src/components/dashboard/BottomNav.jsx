@@ -35,7 +35,7 @@ function BottomNav() {
   const cambiosBlueClass = pendingCount > 0 ? "text-info-text dark:text-info" : "";
 
   return (
-    <div className="fixed bottom-0 z-50 w-full">
+    <div className="fixed bottom-0 z-40 w-full">
       <div className="relative">
         <nav className="flex h-20 w-full snap-x snap-mandatory items-center justify-start gap-1 overflow-x-auto overflow-y-hidden border-t border-border/10 bg-surface-elevated px-2 scroll-smooth sm:justify-around">
       <NavLink

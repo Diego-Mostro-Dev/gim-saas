@@ -41,16 +41,16 @@ from .serializers import (
 )
 
 
-def _build_class_items(gym, day):
-    """Members enrolled in active activity schedules for the given day, as
-    attendance-list items grouped by class (time range)."""
+def _build_class_items_by_day(gym, days):
+    """Members enrolled in active activity schedules for the given days, as
+    attendance-list items keyed by day and grouped by class (time range)."""
     if not activities_enabled(gym):
-        return []
+        return {}
 
-    items = []
+    by_day = {}
     schedules = ActivitySchedule.objects.filter(
         activity__service__gym=gym,
-        day=day,
+        day__in=days,
         active=True,
         activity__active=True,
     ).select_related("activity").prefetch_related(
@@ -68,14 +68,16 @@ def _build_class_items(gym, day):
         occ = len(enrolled)
         available = max(0, cap - occ) if cap is not None else None
 
+        day_items = by_day.setdefault(schedule.day, [])
+
         for enrollment in enrolled:
             member = enrollment.member
-            items.append({
+            day_items.append({
                 "id": -enrollment.id,
                 "is_class": True,
                 "class_name": schedule.activity.name,
                 "group_key": f"class:{schedule.id}",
-                "day": day,
+                "day": schedule.day,
                 "hour": None,
                 "start_time": schedule.start_time.strftime("%H:%M"),
                 "end_time": schedule.end_time.strftime("%H:%M"),
@@ -87,7 +89,7 @@ def _build_class_items(gym, day):
                 "service_name": member_service_label(member),
             })
 
-    return items
+    return by_day
 
 
 def _build_class_items_for_status(gym, day, selected_time):
@@ -174,17 +176,28 @@ class WeeklyScheduleView(APIView):
             .values_list("day", flat=True)
         )
 
+        schedules_by_day = {}
         for day in days:
-            schedules = AttendanceSchedule.objects.filter(
-                gym=gym,
-                slot__day=day,
-                active=True,
-            ).select_related(
-                "member",
-                "slot",
-                "gym",
-                "subscription__plan__service",
-            ).prefetch_related("member__subscription_set")
+            schedules_by_day[day] = []
+
+        all_schedules = AttendanceSchedule.objects.filter(
+            gym=gym,
+            slot__day__in=days,
+            active=True,
+        ).select_related(
+            "member",
+            "slot",
+            "gym",
+            "subscription__plan__service",
+        ).prefetch_related("member__subscription_set")
+
+        for schedule in all_schedules:
+            schedules_by_day[schedule.slot.day].append(schedule)
+
+        class_items_by_day = _build_class_items_by_day(gym, days)
+
+        for day in days:
+            schedules = schedules_by_day[day]
 
             data = AttendanceScheduleSerializer(schedules, many=True).data
 
@@ -239,7 +252,7 @@ class WeeklyScheduleView(APIView):
                     if occ:
                         item.update(occ)
 
-            data.extend(_build_class_items(gym, day))
+            data.extend(class_items_by_day.get(day, []))
 
             result[day] = data
 
@@ -925,10 +938,7 @@ class SessionRecoveryListCreateView(APIView):
         status_query = request.GET.get("status")
         if status_query:
             if status_query == "expired":
-                qs = qs.filter(
-                    Q(status="available", expires_at__lt=timezone.localdate())
-                    | Q(status="scheduled", used_date__lt=timezone.localdate())
-                )
+                qs = qs.filter(status="scheduled", used_date__lt=timezone.localdate())
             else:
                 qs = qs.filter(status=status_query)
 

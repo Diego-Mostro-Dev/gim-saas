@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
-import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil, X } from "lucide-react";
+import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil, X, Info, CheckCircle2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
@@ -9,6 +9,8 @@ import MemberCard from "../components/members/MemberCard";
 import MemberForm from "../components/members/MemberForm";
 
 import ConfirmModal from "../components/ui/ConfirmModal";
+
+import RecoveryCard from "../components/recoveries/RecoveryCard";
 
 import { useMembers } from "../hooks/useMembers";
 import { useMemberForm } from "../hooks/useMemberForm";
@@ -34,6 +36,14 @@ import {
   getMemberActivities,
 } from "../services/members.service";
 import { getCached, isCacheFresh } from "../utils/cache";
+
+const RECOVERY_FILTERS = [
+  { key: "all", label: "Todas" },
+  { key: "scheduled", label: "Programadas" },
+  { key: "used", label: "Usadas" },
+  { key: "expired", label: "Vencidas" },
+  { key: "cancelled", label: "Canceladas" },
+];
 
 function Members() {
   const { gym } = useGym();
@@ -175,6 +185,10 @@ function Members() {
   const [grantOptions, setGrantOptions] = useState([]);
 
   const [grantOptionsStatus, setGrantOptionsStatus] = useState("idle");
+
+  const [recoveryFilter, setRecoveryFilter] = useState("all");
+
+  const [undoRecoveryTarget, setUndoRecoveryTarget] = useState(null);
 
   const activitiesEnabled = useFeature("activities");
 
@@ -367,24 +381,6 @@ function Members() {
     }
   }
 
-  function recoveryStatusLabel(status) {
-    const map = {
-      scheduled: "Programada",
-      available: "Disponible",
-      used: "Usada",
-      cancelled: "Cancelada",
-      expired: "Vencida",
-    };
-    return map[status] || status;
-  }
-
-  function recoveryStatusClass(status) {
-    if (status === "scheduled") return "bg-info-bg dark:bg-info/15 text-info-text dark:text-info";
-    if (status === "available") return "bg-success-bg dark:bg-success/15 text-success-text dark:text-success";
-    if (status === "used") return "bg-info-bg dark:bg-info/15 text-info-text dark:text-info";
-    return "bg-surface-input text-text-secondary";
-  }
-
   async function handleViewRecoveries(member) {
     setRecoveryMemberId(member.id);
 
@@ -404,6 +400,8 @@ function Members() {
 
     setShowRecoveryModal(true);
 
+    setRecoveryFilter("all");
+
     setRecoveryStatus("loading");
 
     try {
@@ -422,7 +420,7 @@ function Members() {
 
     if (activitiesEnabled) {
       try {
-        const activities = await getMemberActivities(recoveryMemberId);
+        const activities = await getMemberActivities(member.id);
 
         setGrantActivities(activities);
       } catch {
@@ -563,13 +561,6 @@ function Members() {
   }
 
   async function handleUndoRecovery(recoveryId) {
-    if (
-      !window.confirm(
-        "¿Deshacer esta recuperación? Se borra la asistencia registrada y la recuperación queda cancelada.",
-      )
-    )
-      return;
-
     try {
       const updated = await undoRecovery(recoveryId);
 
@@ -612,6 +603,28 @@ function Members() {
       toast.error("El socio no tiene una rutina activa");
     }
   }
+
+  const grantedThisMonth = useMemo(() => {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return recoveries.filter(
+      (r) => r.created_at && r.created_at.startsWith(monthKey),
+    ).length;
+  }, [recoveries]);
+
+  const maxSessionRecoveries = gym?.max_session_recoveries_per_month;
+
+  const recoveriesLimitReached =
+    typeof maxSessionRecoveries === "number" &&
+    grantedThisMonth >= maxSessionRecoveries;
+
+  const filteredRecoveries = useMemo(
+    () =>
+      recoveryFilter === "all"
+        ? recoveries
+        : recoveries.filter((r) => r.status === recoveryFilter),
+    [recoveries, recoveryFilter],
+  );
 
   if (loading) {
     return (
@@ -887,6 +900,22 @@ function Members() {
         }}
       />
 
+      <ConfirmModal
+        isOpen={Boolean(undoRecoveryTarget)}
+        title="Deshacer recuperación"
+        message="Se borra la asistencia registrada y la recuperación queda cancelada."
+        confirmText="Deshacer"
+        cancelText="Cancelar"
+        onClose={() => setUndoRecoveryTarget(null)}
+        onConfirm={() => {
+          const recoveryId = undoRecoveryTarget?.id;
+
+          setUndoRecoveryTarget(null);
+
+          if (recoveryId) handleUndoRecovery(recoveryId);
+        }}
+      />
+
       {showPaymentsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-2xl rounded-2xl bg-surface-elevated p-6">
@@ -979,6 +1008,26 @@ function Members() {
                 Otorgar recuperación
               </h3>
 
+              {typeof maxSessionRecoveries === "number" && (
+                <div
+                  className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+                    recoveriesLimitReached
+                      ? "bg-danger/10 text-danger-text dark:text-danger"
+                      : "bg-info-bg dark:bg-info/15 text-info-text dark:text-info"
+                  }`}
+                >
+                  <Info size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    {maxSessionRecoveries === 0
+                      ? "Las recuperaciones están deshabilitadas este mes."
+                      : `${grantedThisMonth} de ${maxSessionRecoveries} recuperaciones usadas este mes.`}
+                    {maxSessionRecoveries > 0 &&
+                      recoveriesLimitReached &&
+                      " Ya se alcanzó el límite."}
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs text-text-primary">
@@ -1013,6 +1062,9 @@ function Members() {
                         </option>
                       ))}
                     </select>
+                    <p className="mt-1 text-[11px] leading-snug text-text-secondary">
+                      La recuperación reemplaza la asistencia del socio ese día.
+                    </p>
                   </div>
                 )}
 
@@ -1022,6 +1074,7 @@ function Members() {
                   </label>
                   <input
                     type="date"
+                    min={new Date().toISOString().slice(0, 10)}
                     value={grantForm.date}
                     onChange={handleGrantDateChange}
                     className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none"
@@ -1100,23 +1153,35 @@ function Members() {
               </div>
 
               {grantForm.date && !granting && (
-                <p className="mt-2 rounded-lg bg-surface-elevated px-3 py-2 text-xs text-text-primary">
-                  Se programará para el{" "}
-                  <span className="font-medium">{formatLongDate(grantForm.date)}</span>
-                  {selectedGrantOptionLabel && (
-                    <>
-                      {" "}
-                      a las{" "}
-                      <span className="font-medium">{selectedGrantOptionLabel}</span>
-                    </>
-                  )}
-                  .
-                </p>
+                <div className="mt-2 flex items-start gap-2 rounded-lg bg-surface-elevated px-3 py-2 text-xs text-text-primary">
+                  <CheckCircle2
+                    size={14}
+                    className="mt-0.5 shrink-0 text-success-text dark:text-success"
+                  />
+                  <span>
+                    Se programará para el{" "}
+                    <span className="font-medium">
+                      {formatLongDate(grantForm.date)}
+                    </span>
+                    {selectedGrantOptionLabel ? (
+                      <>
+                        {" "}
+                        a las{" "}
+                        <span className="font-medium">
+                          {selectedGrantOptionLabel}
+                        </span>
+                        .
+                      </>
+                    ) : (
+                      ". Elegí el horario para confirmar."
+                    )}
+                  </span>
+                </div>
               )}
 
               <button
                 type="submit"
-                disabled={granting}
+                disabled={granting || recoveriesLimitReached}
                 className="mt-3 w-full rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
               >
                 {granting ? "Otorgando..." : "Programar y otorgar"}
@@ -1138,75 +1203,68 @@ function Members() {
                 No hay recuperaciones otorgadas.
               </p>
             ) : (
-              <div className="space-y-2">
-                {recoveries.map((recovery) => {
-                  const used = recovery.status === "used";
+              <>
+                <div className="mb-3 flex gap-2 overflow-x-auto">
+                  {RECOVERY_FILTERS.map((f) => {
+                    const count =
+                      f.key === "all"
+                        ? recoveries.length
+                        : recoveries.filter((r) => r.status === f.key).length;
 
-                  return (
-                    <div
-                      key={recovery.id}
-                      className="rounded-xl border border-border bg-surface-input p-3"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-text-primary">
-                            {recovery.kind_label}
-                            {recovery.activity_name && (
-                              <> · {recovery.activity_name}</>
-                            )}
-                          </p>
-
-                          <p className="mt-0.5 text-xs text-text-secondary">
-                            {recovery.granted_by_name
-                              ? `Otorgada por ${recovery.granted_by_name} · `
-                              : ""}
-                            {recovery.created_at &&
-                              formatLongDate(recovery.created_at)}
-                          </p>
-
-                          {recovery.used_date &&
-                            (recovery.status === "scheduled" ||
-                              recovery.status === "used" ||
-                              recovery.status === "expired") && (
-                              <p className="mt-0.5 text-xs text-text-secondary">
-                                {recovery.status === "scheduled" &&
-                                  `Programada para el ${formatLongDate(recovery.used_date)}${recovery.used_hour ? ` a las ${recovery.used_hour}` : ""}`}
-                                {recovery.status === "used" &&
-                                  `Usada el ${formatLongDate(recovery.used_date)}${recovery.used_hour ? ` a las ${recovery.used_hour}` : ""}`}
-                                {recovery.status === "expired" &&
-                                  `Era para el ${formatLongDate(recovery.used_date)}${recovery.used_hour ? ` a las ${recovery.used_hour}` : ""}. No se usó.`}
-                              </p>
-                            )}
-
-                          {recovery.note && (
-                            <p className="mt-0.5 text-xs text-text-secondary">
-                              {recovery.note}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => setRecoveryFilter(f.key)}
+                        className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                          recoveryFilter === f.key
+                            ? "bg-info text-white"
+                            : "bg-surface-elevated text-text-secondary hover:bg-surface-input"
+                        }`}
+                      >
+                        {f.label}
+                        {count > 0 && (
                           <span
-                            className={`rounded-md px-2 py-0.5 text-xs font-medium ${recoveryStatusClass(recovery.status)}`}
+                            className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                              recoveryFilter === f.key
+                                ? "bg-white/20 text-white"
+                                : "bg-surface-input text-text-secondary"
+                            }`}
                           >
-                            {recoveryStatusLabel(recovery.status)}
+                            {count}
                           </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
 
-                          {used && (
+                {filteredRecoveries.length === 0 ? (
+                  <p className="rounded-xl bg-surface-input px-4 py-3 text-sm text-text-secondary">
+                    No hay recuperaciones con ese estado.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredRecoveries.map((recovery) => (
+                      <RecoveryCard
+                        key={recovery.id}
+                        recovery={recovery}
+                        showGrantedMeta
+                        actions={
+                          recovery.status === "used" ? (
                             <button
                               type="button"
-                              onClick={() => handleUndoRecovery(recovery.id)}
+                              onClick={() => setUndoRecoveryTarget(recovery)}
                               className="rounded-lg border border-danger/40 px-2.5 py-1 text-xs text-danger-text dark:text-danger transition hover:bg-danger/10"
                             >
                               Deshacer
                             </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          ) : null
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             </div>

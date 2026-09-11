@@ -116,19 +116,6 @@ class PublicCheckinView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        weekly_limit = MemberEligibility.get_schedule_limit(member)
-        if (
-            weekly_limit is not None
-            and count_member_week_attendances(gym, member, today) >= weekly_limit
-        ):
-            return Response(
-                {
-                    "success": False,
-                    "message": f"Alcanzaste el límite de {weekly_limit} visitas semanales de tu plan.",
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         scheduled_recovery = SessionRecovery.objects.filter(
             member=member,
             status="scheduled",
@@ -174,6 +161,19 @@ class PublicCheckinView(APIView):
                     "success": True,
                     "message": "✓ Asistencia registrada (recuperación)",
                 }
+            )
+
+        weekly_limit = MemberEligibility.get_schedule_limit(member)
+        if (
+            weekly_limit is not None
+            and count_member_week_attendances(gym, member, today) >= weekly_limit
+        ):
+            return Response(
+                {
+                    "success": False,
+                    "message": f"Alcanzaste el límite de {weekly_limit} visitas semanales de tu plan.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         approved_swap = ScheduleSwapRequest.objects.filter(

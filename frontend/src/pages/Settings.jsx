@@ -55,7 +55,6 @@ function Settings() {
     schedule_change_notice_days: "",
     allow_session_recovery: false,
     max_session_recoveries_per_month: "",
-    session_recovery_expiration_days: "",
     qr_attendance_message: "",
     qr_registration_message: "",
     seo_title: "",
@@ -76,7 +75,6 @@ function Settings() {
     const maxChanges = Number(formData.max_schedule_changes_per_month);
     const noticeDays = Number(formData.schedule_change_notice_days);
     const maxRecoveries = Number(formData.max_session_recoveries_per_month);
-    const recoveryExpiration = Number(formData.session_recovery_expiration_days);
 
     if (formData.payment_due_day !== "" && (isNaN(due) || due < 1)) {
       errs.payment_due_day = "Debe ser mayor a 0";
@@ -102,9 +100,6 @@ function Settings() {
     }
     if (formData.max_session_recoveries_per_month !== "" && (isNaN(maxRecoveries) || maxRecoveries < 0)) {
       errs.max_session_recoveries_per_month = "No puede ser negativo";
-    }
-    if (formData.session_recovery_expiration_days !== "" && (isNaN(recoveryExpiration) || recoveryExpiration < 1)) {
-      errs.session_recovery_expiration_days = "Debe ser mayor a 0";
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -554,7 +549,6 @@ function Settings() {
           : Number(gym.schedule_change_notice_hours) / 24,
       allow_session_recovery: gym.allow_session_recovery ?? false,
       max_session_recoveries_per_month: gym.max_session_recoveries_per_month ?? "",
-      session_recovery_expiration_days: gym.session_recovery_expiration_days ?? "",
       qr_attendance_message: gym.qr_attendance_message || "",
       qr_registration_message: gym.qr_registration_message || "",
       seo_title: gym.seo_title || "",
@@ -616,12 +610,6 @@ function Settings() {
         data.append(
           "max_session_recoveries_per_month",
           formData.max_session_recoveries_per_month,
-        );
-      }
-      if (formData.session_recovery_expiration_days !== "") {
-        data.append(
-          "session_recovery_expiration_days",
-          formData.session_recovery_expiration_days,
         );
       }
 
@@ -1059,33 +1047,13 @@ function Settings() {
                 </p>
               )}
             </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-text-primary">
-                Días para usarla
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={formData.session_recovery_expiration_days}
-                onChange={(e) =>
-                  setFormData({ ...formData, session_recovery_expiration_days: e.target.value })
-                }
-                className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
-              />
-              {errors.session_recovery_expiration_days && (
-                <p className="mt-1 text-xs text-danger-text dark:text-danger">
-                  {errors.session_recovery_expiration_days}
-                </p>
-              )}
-            </div>
           </div>
 
           <p className="text-[11px] leading-snug text-text-secondary">
             El máximo por mes se cuenta sobre las recuperaciones otorgadas en el
-            mes calendario, por socio. La recuperación vence si no se usa dentro
-            de los días configurados y no consume la sesión del paquete ni la
-            cuota semanal de gym.
+            mes calendario, por socio. Cada recuperación se programa para un día
+            y horario puntual y vence ese día si el socio no la usa en su franja
+            horaria. No consume la sesión del paquete ni la cuota semanal de gym.
           </p>
         </div>
 

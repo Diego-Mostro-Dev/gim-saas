@@ -335,7 +335,6 @@ class SessionRecovery(models.Model):
 
     STATUS_CHOICES = [
         ("scheduled", "Programada"),
-        ("available", "Disponible"),
         ("used", "Usada"),
         ("cancelled", "Cancelada"),
         ("expired", "Expirada"),
@@ -383,7 +382,7 @@ class SessionRecovery(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default="available",
+        default="scheduled",
         verbose_name="Estado",
     )
 
