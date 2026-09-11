@@ -89,11 +89,24 @@ function PaymentForm({
       >
         <option value="">Seleccionar miembro</option>
 
-        {members.map((member) => (
-          <option key={member.id} value={member.id}>
-            {member.first_name} {member.last_name}
-          </option>
-        ))}
+        {members.map((member) => {
+          const identityBits = [
+            member.document_number
+              ? `DNI ${member.document_number}`
+              : null,
+            member.phone || null,
+            member.insurance_name || null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+
+          return (
+            <option key={member.id} value={member.id}>
+              {member.first_name} {member.last_name}
+              {identityBits ? ` · ${identityBits}` : ""}
+            </option>
+          );
+        })}
       </select>
 
       {(!formData.member || filteredSubscriptions.length !== 1) && (

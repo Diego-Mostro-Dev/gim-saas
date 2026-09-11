@@ -20,6 +20,7 @@ from .utils import (
 )
 
 from members.eligibility import MemberEligibility
+from members.identity import MemberIdentityMixin
 from gyms.models import GymClosedDate
 from subscriptions.domain import SubscriptionDomain
 
@@ -115,8 +116,9 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
         return None
 
 
-class AttendanceScheduleSerializer(serializers.ModelSerializer):
+class AttendanceScheduleSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
+    member_identity = serializers.SerializerMethodField()
     slot_id = serializers.IntegerField(read_only=True)
     capacity = serializers.SerializerMethodField()
     day = serializers.SerializerMethodField()
@@ -132,6 +134,7 @@ class AttendanceScheduleSerializer(serializers.ModelSerializer):
             "id",
             "member",
             "member_name",
+            "member_identity",
             "day",
             "hour",
             "slot_id",
@@ -351,9 +354,12 @@ def compute_next_occurrence(slot_day, slot_time, closed_dates=None):
     return slot_dt
 
 
-class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
+class ScheduleChangeRequestSerializer(
+    MemberIdentityMixin, serializers.ModelSerializer
+):
     member_name = serializers.SerializerMethodField()
     member_photo = serializers.SerializerMethodField()
+    member_identity = serializers.SerializerMethodField()
     current_day = serializers.SerializerMethodField()
     current_hour = serializers.SerializerMethodField()
     requested_day = serializers.SerializerMethodField()
@@ -369,6 +375,7 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
             "member",
             "member_name",
             "member_photo",
+            "member_identity",
             "current_schedule",
             "current_day",
             "current_hour",
@@ -424,7 +431,6 @@ class ScheduleChangeRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "El gimnasio no permite cambios permanentes de horario."
             )
-
     def validate_current_schedule(self, value):
         if not value.active:
             raise serializers.ValidationError(
@@ -717,9 +723,12 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
+class ScheduleSwapRequestSerializer(
+    MemberIdentityMixin, serializers.ModelSerializer
+):
     member_name = serializers.SerializerMethodField()
     member_photo = serializers.SerializerMethodField()
+    member_identity = serializers.SerializerMethodField()
     origin_day = serializers.SerializerMethodField()
     origin_hour = serializers.SerializerMethodField()
     destination_day = serializers.SerializerMethodField()
@@ -734,6 +743,7 @@ class ScheduleSwapRequestSerializer(serializers.ModelSerializer):
             "member",
             "member_name",
             "member_photo",
+            "member_identity",
             "origin_schedule",
             "origin_day",
             "origin_hour",

@@ -1,4 +1,5 @@
 import { Pencil, Trash2 } from "lucide-react";
+import MemberIdentity from "../common/MemberIdentity";
 
 function PaymentCard({ payment, onEdit, onDelete }) {
   const paymentMethodLabels = {
@@ -7,10 +8,21 @@ function PaymentCard({ payment, onEdit, onDelete }) {
     card: "Tarjeta",
   };
 
+  const identity = payment.member_identity || {};
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm md:flex-row md:items-center md:justify-between">
       <div>
         <p className="font-medium text-text-primary">{payment.member_name}</p>
+
+        {(identity.document_number || identity.phone || identity.insurance_name) && (
+          <MemberIdentity
+            identity={identity}
+            showAvatar={false}
+            showName={false}
+            className="mt-1"
+          />
+        )}
 
         <p className="text-sm text-text-secondary">
           {paymentMethodLabels[payment.payment_method] ||

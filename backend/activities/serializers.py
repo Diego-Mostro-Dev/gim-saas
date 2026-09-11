@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from members.identity import member_identity
 from members.models import Member
 from plans.models import Service as PlanService
 
@@ -8,9 +9,24 @@ from .services import ActivityService
 
 
 class MemberBasicSerializer(serializers.ModelSerializer):
+    insurance_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Member
-        fields = ["id", "first_name", "last_name", "entry_mode", "is_comp"]
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "entry_mode",
+            "is_comp",
+            "phone",
+            "document_number",
+            "insurance_name",
+            "affiliate_number",
+        ]
+
+    def get_insurance_name(self, obj):
+        return member_identity(obj)["insurance_name"]
 
 
 class ActivitySerializer(serializers.ModelSerializer):

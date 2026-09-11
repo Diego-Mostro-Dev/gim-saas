@@ -32,7 +32,9 @@ METHOD_LABELS = {
 
 
 class PaymentViewSet(GymModelViewSet):
-    queryset = Payment.objects.all()
+    queryset = Payment.objects.select_related(
+        "member", "member__insurance"
+    )
     serializer_class = PaymentSerializer
     ordering = ['-created_at']
 

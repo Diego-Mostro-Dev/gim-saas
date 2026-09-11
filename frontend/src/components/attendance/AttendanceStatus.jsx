@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { useAttendanceStatus } from "../../hooks/useAttendanceStatus";
 import { DAY_NAMES } from "../../constants/days";
 import { txt } from "../../utils/labels";
+import MemberIdentity from "../common/MemberIdentity";
 
 function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
   const {
@@ -21,9 +22,20 @@ function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [registeringId, setRegisteringId] = useState(null);
 
-  const filteredMembers = members.filter((member) =>
-    member.member_name.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredMembers = members.filter((member) => {
+    const term = searchTerm.toLowerCase();
+    const identity = member.member_identity || {};
+    const haystack = [
+      member.member_name,
+      identity.document_number,
+      identity.phone,
+      identity.insurance_name,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(term);
+  });
 
   return (
     <div className="space-y-4 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
@@ -188,6 +200,17 @@ function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
                     </span>
                   )}
                 </span>
+                {(member.member_identity?.document_number ||
+                  member.member_identity?.phone ||
+                  member.member_identity?.insurance_name) && (
+                  <MemberIdentity
+                    member={member.member_identity}
+                    showAvatar={false}
+                    showName={false}
+                    dense
+                    className="mt-0.5"
+                  />
+                )}
                 {member.service_name && (
                   <p className="mt-0.5 truncate text-xs text-text-secondary">
                     {member.service_name}

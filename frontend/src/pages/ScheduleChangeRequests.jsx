@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, X, ArrowLeftRight } from "lucide-react";
+import { Check, X, ArrowLeftRight, Search } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
@@ -11,6 +11,7 @@ import { getScheduleChangesLastRefresh } from "../hooks/useScheduleChangeWatcher
 import { DAY_NAMES } from "../constants/days";
 import { formatHumanDate } from "../utils/date.utils";
 import MemberAvatar from "../components/common/MemberAvatar";
+import MemberIdentity from "../components/common/MemberIdentity";
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -30,6 +31,7 @@ function ScheduleChangeRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState(() => sessionStorage.getItem("change_filter") || "all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [approvalTarget, setApprovalTarget] = useState(null);
   const [rejectionTarget, setRejectionTarget] = useState(null);
@@ -111,8 +113,24 @@ function ScheduleChangeRequests() {
   }, [requests]);
 
   const filteredRequests = requests.filter((r) => {
-    if (filter === "all") return true;
-    return r.status === filter;
+    if (filter !== "all" && r.status !== filter) return false;
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const identity = r.member_identity || {};
+      const haystack = [
+        r.member_name,
+        identity.document_number,
+        identity.phone,
+        identity.insurance_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(term)) return false;
+    }
+
+    return true;
   });
 
   function statusBadge(status) {
@@ -217,6 +235,18 @@ function ScheduleChangeRequests() {
           </p>
         </div>
 
+      <div className="mb-4 mx-4 flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-3">
+        <Search size={18} className="text-text-secondary" />
+
+        <input
+          type="text"
+          placeholder="Buscar por socio, DNI, teléfono u obra social..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
+        />
+      </div>
+
       <div className="mb-6 flex gap-2 overflow-x-auto px-4">
         {FILTERS.map((f) => (
           <button
@@ -261,6 +291,16 @@ function ScheduleChangeRequests() {
                     <p className="text-sm font-medium text-text-primary">
                       {req.member_name}
                     </p>
+                    {(req.member_identity?.document_number ||
+                      req.member_identity?.phone ||
+                      req.member_identity?.insurance_name) && (
+                      <MemberIdentity
+                        identity={req.member_identity}
+                        showAvatar={false}
+                        showName={false}
+                        className="mt-0.5"
+                      />
+                    )}
                   <p className="mt-0.5 text-xs text-text-secondary">
                     Solicitado:{" "}
                     {formatHumanDate(req.requested_at)}

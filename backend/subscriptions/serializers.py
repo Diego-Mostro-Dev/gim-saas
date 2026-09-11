@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from attendance.models import AttendanceSchedule
 
+from members.identity import MemberIdentityMixin
 from plans.services import public_plan_name, public_plan_name_from_snapshot
 
 from .models import Subscription, SubscriptionItem, PlanChangeRequest
@@ -71,9 +72,10 @@ class SubscriptionItemSerializer(serializers.ModelSerializer):
         return public_plan_name_from_snapshot(obj.name_snapshot)
 
 
-class SubscriptionSerializer(serializers.ModelSerializer):
+class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
     member_photo = serializers.SerializerMethodField()
+    member_identity = serializers.SerializerMethodField()
     plan_name = serializers.SerializerMethodField()
 
     plan_price = serializers.DecimalField(
@@ -256,9 +258,10 @@ class OutstandingSubscriptionSerializer(serializers.Serializer):
         )
 
 
-class PlanChangeRequestSerializer(serializers.ModelSerializer):
+class PlanChangeRequestSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
     member_photo = serializers.SerializerMethodField()
+    member_identity = serializers.SerializerMethodField()
     plan_name = serializers.CharField(
         source="requested_plan.name",
         read_only=True,
@@ -275,6 +278,7 @@ class PlanChangeRequestSerializer(serializers.ModelSerializer):
             "member",
             "member_name",
             "member_photo",
+            "member_identity",
             "subscription",
             "requested_plan",
             "plan_name",

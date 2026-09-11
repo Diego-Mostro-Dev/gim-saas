@@ -11,6 +11,7 @@ import { getScheduleSwapsLastRefresh } from "../hooks/useScheduleSwapWatcher";
 import { DAY_NAMES } from "../constants/days";
 import { formatHumanDate } from "../utils/date.utils";
 import MemberAvatar from "../components/common/MemberAvatar";
+import MemberIdentity from "../components/common/MemberIdentity";
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -161,10 +162,18 @@ function ScheduleSwapRequests() {
     if (timeFilter === "month" && !isThisMonth(r.swap_date)) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
+      const identity = r.member_identity || {};
+      const identityMatch = [
+        identity.document_number,
+        identity.phone,
+        identity.insurance_name,
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(term));
       const nameMatch = r.member_name?.toLowerCase().includes(term);
       const destDay = DAY_NAMES[r.destination_day] || r.destination_day || "";
       const slotMatch = destDay.toLowerCase().includes(term);
-      if (!nameMatch && !slotMatch) return false;
+      if (!nameMatch && !identityMatch && !slotMatch) return false;
     }
     return true;
   });
@@ -373,6 +382,16 @@ function ScheduleSwapRequests() {
                     <p className="text-sm font-medium text-text-primary">
                       {req.member_name}
                     </p>
+                    {(req.member_identity?.document_number ||
+                      req.member_identity?.phone ||
+                      req.member_identity?.insurance_name) && (
+                      <MemberIdentity
+                        identity={req.member_identity}
+                        showAvatar={false}
+                        showName={false}
+                        className="mt-0.5"
+                      />
+                    )}
                     <p className="mt-0.5 text-xs text-text-secondary">
                       Solicitado:{" "}
                     {formatHumanDate(req.requested_at)}

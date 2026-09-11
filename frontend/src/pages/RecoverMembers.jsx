@@ -15,6 +15,7 @@ import { recordEnrollmentPayment } from "../services/scheduleEnrollments.service
 import { formatCurrency } from "../utils/currency.utils";
 import { findRecentCashPayment } from "../utils/paymentAlerts";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import MemberIdentity from "../components/common/MemberIdentity";
 
 function formatPeriod(dateStr) {
   const date = new Date(dateStr);
@@ -263,7 +264,7 @@ function RecoverMembers() {
 
             <input
               type="text"
-              placeholder="Buscar socio..."
+              placeholder="Buscar por nombre, DNI, teléfono u obra social..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
@@ -327,9 +328,12 @@ function RecoverMembers() {
                     {member.first_name} {member.last_name}
                   </p>
 
-                  <p className="truncate text-xs text-text-secondary">
-                    {member.phone}
-                  </p>
+                  <MemberIdentity
+                    member={member}
+                    showAvatar={false}
+                    showName={false}
+                    className="mt-0.5"
+                  />
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -359,6 +363,13 @@ function RecoverMembers() {
               <h2 className="mb-4 text-lg font-bold text-text-primary">
                 Deuda de {selectedMember.first_name} {selectedMember.last_name}
               </h2>
+
+              <MemberIdentity
+                member={selectedMember}
+                showAvatar={false}
+                showName={false}
+                className="-mt-2 mb-3"
+              />
 
           {debtLoading && (
             <p className="text-sm text-text-secondary">Cargando deuda...</p>

@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from plans.services import public_plan_name
 
+from members.identity import MemberIdentityMixin
 from subscriptions.models import Subscription
 from subscriptions.services import (
     calculate_subscription_total,
@@ -16,7 +17,9 @@ from subscriptions.services import (
 from .models import Payment
 
 
-class PaymentSerializer(serializers.ModelSerializer):
+class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
+    member_identity = serializers.SerializerMethodField()
+
     class Meta:
         model = Payment
         fields = "__all__"

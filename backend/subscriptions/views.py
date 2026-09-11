@@ -53,7 +53,7 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
 
     queryset = (
         Subscription.objects.all()
-        .select_related("member__discount", "plan", "gym")
+        .select_related("member__insurance", "member__discount", "plan", "gym")
         .annotate(_paid_amount=_paid_amount_subquery)
         .prefetch_related(
             Prefetch(
@@ -173,7 +173,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
 
     def get_queryset(self):
         return super().get_queryset().select_related(
-            "member", "requested_plan", "reviewed_by",
+            "member__insurance", "member", "requested_plan", "reviewed_by",
         ).prefetch_related("planned_schedules").annotate(
             _fallback_plan_name=Subquery(
                 Subscription.objects.filter(

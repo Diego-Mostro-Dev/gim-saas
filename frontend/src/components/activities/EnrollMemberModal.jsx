@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 
 import { getMembers } from "../../services/members.service";
 import { enrollMember } from "../../services/scheduleEnrollments.service";
+import MemberIdentity from "../common/MemberIdentity";
 
 const alreadyEnrolledIds = new Set();
 
@@ -50,8 +51,18 @@ function EnrollMemberModal({ scheduleId, enrollments, activity, onClose, onSucce
     if (!m.subscription_active) return false;
 
     if (!searchTerm) return true;
-    const fullName = `${m.first_name} ${m.last_name}`.toLowerCase();
-    return fullName.includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const haystack = [
+      `${m.first_name} ${m.last_name}`,
+      m.document_number,
+      m.phone,
+      m.insurance_name,
+      m.affiliate_number,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(term);
   });
 
   function needsChargeConfirm(member) {
@@ -170,7 +181,7 @@ function EnrollMemberModal({ scheduleId, enrollments, activity, onClose, onSucce
 
             <input
               type="text"
-              placeholder="Buscar miembro por nombre..."
+              placeholder="Buscar por nombre, DNI, teléfono u obra social..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
@@ -369,26 +380,32 @@ function EnrollMemberModal({ scheduleId, enrollments, activity, onClose, onSucce
                     )}
 
                     {(member.insurance_name || member.affiliate_number) && (
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-secondary">
-                        <span className="truncate">
-                          {member.insurance_name || "Sin obra social"}
-                        </span>
-                        {member.insurance_session_price != null && (
-                          <span className="text-info-text dark:text-info">
-                            Coseguro $
-                            {Number(member.insurance_session_price).toLocaleString("es-AR")}/sesión
-                          </span>
+                      <>
+                        <MemberIdentity
+                          member={member}
+                          showAvatar={false}
+                          showName={false}
+                          className="mt-0.5"
+                        />
+
+                        {(member.insurance_session_price != null ||
+                          member.insurance_sellado_amount != null) && (
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+                            {member.insurance_session_price != null && (
+                              <span className="rounded-md bg-surface-input px-1.5 py-0.5 text-[11px] font-medium text-info-text dark:text-info">
+                                Coseguro $
+                                {Number(member.insurance_session_price).toLocaleString("es-AR")}/sesión
+                              </span>
+                            )}
+                            {member.insurance_sellado_amount != null && (
+                              <span className="rounded-md bg-surface-input px-1.5 py-0.5 text-[11px] font-medium text-warning-text dark:text-warning">
+                                Sellado $
+                                {Number(member.insurance_sellado_amount).toLocaleString("es-AR")}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        {member.insurance_sellado_amount != null && (
-                          <span className="text-warning-text dark:text-warning">
-                            Sellado $
-                            {Number(member.insurance_sellado_amount).toLocaleString("es-AR")}
-                          </span>
-                        )}
-                        {member.affiliate_number && (
-                          <span>Nº {member.affiliate_number}</span>
-                        )}
-                      </div>
+                      </>
                     )}
                   </div>
 

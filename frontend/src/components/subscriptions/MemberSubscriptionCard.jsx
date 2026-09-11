@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MemberAvatar from "../common/MemberAvatar";
+import MemberIdentity from "../common/MemberIdentity";
 import { formatHumanDate } from "../../utils/date.utils";
 import { formatCurrency } from "../../utils/currency.utils";
 import {
@@ -67,6 +68,14 @@ function MemberSubscriptionCard({ member, subscriptions }) {
           )}
           {currentSub && (
             <p className="truncate text-sm text-text-secondary">{currentSub.plan_name}</p>
+          )}
+          {(member || currentSub?.member_identity) && (
+            <MemberIdentity
+              member={member || currentSub?.member_identity}
+              showAvatar={false}
+              showName={false}
+              className="mt-1"
+            />
           )}
         </div>
       </div>

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import ConfirmModal from "../components/ui/ConfirmModal";
 import EnrollMemberModal from "../components/activities/EnrollMemberModal";
+import MemberIdentity from "../components/common/MemberIdentity";
 import { DAY_NAMES } from "../constants/days";
 import { useScheduleEnrollments } from "../hooks/useScheduleEnrollments";
 import {
@@ -85,9 +86,19 @@ function ScheduleEnrollments() {
 
   const filteredEnrollments = activeEnrollments.filter((e) => {
     if (!searchTerm) return true;
-    const fullName =
-      `${e.member.first_name} ${e.member.last_name}`.toLowerCase();
-    return fullName.includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const m = e.member || {};
+    const haystack = [
+      `${m.first_name} ${m.last_name}`,
+      m.phone,
+      m.document_number,
+      m.insurance_name,
+      m.affiliate_number,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(term);
   });
 
   function handleOpenUnenrollModal(memberId) {
@@ -282,7 +293,7 @@ function handleOpenSellado(enrollment) {
 
         <input
           type="text"
-          placeholder="Buscar por nombre..."
+          placeholder="Buscar por nombre, DNI, teléfono u obra social..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
@@ -304,7 +315,7 @@ function handleOpenSellado(enrollment) {
           <div className="rounded-xl border border-border bg-surface-elevated p-8 text-center shadow-sm">
             <p className="text-sm text-text-primary">
               {searchTerm
-                ? "No se encontraron miembros con ese nombre."
+                ? "No se encontraron miembros."
                 : "No hay miembros inscriptos todavía."}
             </p>
 
@@ -352,6 +363,13 @@ function handleOpenSellado(enrollment) {
                       {enrollment.member.first_name}{" "}
                       {enrollment.member.last_name}
                     </p>
+
+                    <MemberIdentity
+                      member={enrollment.member}
+                      showAvatar={false}
+                      showName={false}
+                      className="mt-1"
+                    />
 
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {isPackage ? (
@@ -569,6 +587,13 @@ function handleOpenSellado(enrollment) {
               {payTarget.member.first_name} {payTarget.member.last_name} ·{" "}
               {payTarget.activity_name || payTarget.schedule?.activity || "Actividad"}
             </p>
+
+            <MemberIdentity
+              member={payTarget.member}
+              showAvatar={false}
+              showName={false}
+              className="mt-2"
+            />
 
             <div className="mt-3 rounded-xl border border-border bg-surface-input p-3 text-sm">
               {payConcept === "sellado" ? (

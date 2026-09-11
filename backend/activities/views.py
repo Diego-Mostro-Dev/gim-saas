@@ -147,7 +147,7 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
             gym=gym,
             schedule=schedule,
             active=True,
-        ).select_related("member").annotate(
+        ).select_related("member", "member__insurance").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),
         ).order_by("-enrolled_at")
@@ -264,7 +264,7 @@ class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.G
         return Enrollment.objects.filter(
             gym=gym,
             active=True,
-        ).select_related("member", "schedule__activity").annotate(
+        ).select_related("member__insurance", "member", "schedule__activity").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),
         )

@@ -27,6 +27,7 @@ from .recovery_service import (
     grant_scheduled,
     undo_recovery,
 )
+from members.identity import member_identity
 from members.models import Member
 from subscriptions.domain import ScheduleDomain, SubscriptionDomain
 from .serializers import (
@@ -232,6 +233,7 @@ class WeeklyScheduleView(APIView):
                                 f"{swap.member.first_name} "
                                 f"{swap.member.last_name}"
                             ),
+                            "member_identity": member_identity(swap.member),
                             "day": swap.destination_slot.day,
                             "hour": swap.destination_slot.hour.strftime(
                                 "%H:%M:%S"
@@ -319,13 +321,14 @@ def members_by_schedule(request):
         slot__day=day,
         slot__hour=hour,
         active=True,
-    ).select_related("member", "slot")
+    ).select_related("member__insurance", "member", "slot")
 
     result = [
         {
             "schedule_id": s.id,
             "member_id": s.member.id,
             "member_name": f"{s.member.first_name} {s.member.last_name}",
+            "member_identity": member_identity(s.member),
         }
         for s in schedules
     ]
@@ -352,7 +355,7 @@ def members_by_schedule(request):
             destination_slot__hour=hour,
             swap_date=target_date,
             status="approved",
-        ).select_related("member")
+        ).select_related("member__insurance", "member")
 
         for swap in swaps_in:
             if swap.member_id not in existing_member_ids:
@@ -363,6 +366,7 @@ def members_by_schedule(request):
                         f"{swap.member.first_name} "
                         f"{swap.member.last_name}"
                     ),
+                    "member_identity": member_identity(swap.member),
                 })
                 existing_member_ids.add(swap.member_id)
 
@@ -396,6 +400,7 @@ def attendance_status(request):
         slot__hour=hour,
         active=True,
     ).select_related(
+        "member__insurance",
         "member",
         "slot",
         "subscription__plan__service",
@@ -423,6 +428,7 @@ def attendance_status(request):
             "schedule_id": schedule.id,
             "member_id": schedule.member.id,
             "member_name": f"{schedule.member.first_name} {schedule.member.last_name}",
+            "member_identity": member_identity(schedule.member),
             "service_name": member_service_label(schedule.member, schedule=schedule),
             "attended": schedule.id in attended_schedule_ids,
             "is_swap": False,
@@ -447,7 +453,7 @@ def attendance_status(request):
         swap_date=target_date,
         status="approved",
     ).select_related(
-        "member", "origin_schedule__slot", "destination_slot"
+        "member__insurance", "member", "origin_schedule__slot", "destination_slot"
     ).prefetch_related("member__subscription_set"))
 
     swap_ids = [s.id for s in swaps_in]
@@ -469,6 +475,7 @@ def attendance_status(request):
                     f"{swap.member.first_name} "
                     f"{swap.member.last_name}"
                 ),
+                "member_identity": member_identity(swap.member),
                 "service_name": member_service_label(swap.member),
                 "attended": swap.id in used_swap_ids,
                 "is_swap": True,
@@ -512,6 +519,7 @@ def attendance_status(request):
                     f"{att.member.first_name} "
                     f"{att.member.last_name}"
                 ),
+                "member_identity": member_identity(att.member),
                 "service_name": member_service_label(att.member),
                 "attended": True,
                 "is_swap": False,
@@ -706,7 +714,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
         return ScheduleChangeRequest.objects.filter(
             gym=self.request.user.profile.gym,
         ).select_related(
-            "member", "current_schedule__slot", "requested_slot", "reviewed_by"
+            "member__insurance", "member", "current_schedule__slot", "requested_slot", "reviewed_by"
         )
 
     def perform_create(self, serializer):
@@ -875,7 +883,7 @@ class ScheduleSwapRequestViewSet(viewsets.ModelViewSet):
         return ScheduleSwapRequest.objects.filter(
             gym=self.request.user.profile.gym,
         ).select_related(
-            "member", "origin_schedule__slot", "destination_slot", "reviewed_by"
+            "member__insurance", "member", "origin_schedule__slot", "destination_slot", "reviewed_by"
         )
 
     def perform_create(self, serializer):
