@@ -178,6 +178,10 @@ class SubscriptionDomain:
                         item.save(
                             update_fields=["price_snapshot", "plan", "name_snapshot"]
                         )
+
+                    # Neutralize any pending package co-pay balances: courtesy
+                    # members are never billed, so their packages are zeroed.
+                    SubscriptionDomain._neutralize_comp_package_balances(member)
                 else:
                     if plan is None:
                         raise SubscriptionConflictError(
@@ -229,7 +233,7 @@ class SubscriptionDomain:
                     )
                 target_plan = plan
 
-            return SubscriptionDomain.open_subscription(
+            opened = SubscriptionDomain.open_subscription(
                 member=member,
                 plan=target_plan,
                 start_date=today,
@@ -238,6 +242,35 @@ class SubscriptionDomain:
                 auto_renew=True,
                 origin=origin,
             )
+
+            if comp:
+                SubscriptionDomain._neutralize_comp_package_balances(member)
+
+            return opened
+
+    @staticmethod
+    def _neutralize_comp_package_balances(member):
+        """Zero pending package co-pay balances for a courtesy-pass member.
+
+        Courtesy members are never billed, so any active package enrollment
+        that still carries a session price or an accumulated payment is reset.
+        """
+        from decimal import Decimal
+
+        from activities.models import Enrollment
+
+        for enrollment in Enrollment.objects.filter(
+            member=member, active=True
+        ).exclude(modality="monthly", session_price=None):
+            update_fields = []
+            if enrollment.session_price is not None and enrollment.session_price != 0:
+                enrollment.session_price = Decimal("0")
+                update_fields.append("session_price")
+            if enrollment.amount_paid is not None and enrollment.amount_paid != 0:
+                enrollment.amount_paid = Decimal("0")
+                update_fields.append("amount_paid")
+            if update_fields:
+                enrollment.save(update_fields=update_fields)
 
     @staticmethod
     def get_active_subscription(member):
