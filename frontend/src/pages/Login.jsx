@@ -18,7 +18,8 @@ export default function Login() {
     const success = await login({ username, password });
 
     if (success) {
-      navigate("/dashboard");
+      const isSuperuser = useAuthStore.getState().isSuperuser;
+      navigate(isSuperuser ? "/admin" : "/dashboard");
     }
   }
 

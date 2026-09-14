@@ -2,6 +2,11 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppLayout from "./layouts/AppLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
+import AdminLayout from "./layouts/AdminLayout";
+import AdminRoute from "./components/admin/AdminRoute";
+import AdminGyms from "./pages/admin/AdminGyms";
+import AdminGymEdit from "./pages/admin/AdminGymEdit";
+import AdminGymWizard from "./pages/admin/AdminGymWizard";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import RecoverMembers from "./pages/RecoverMembers";
@@ -36,13 +41,19 @@ import ScheduleEnrollments from "./pages/ScheduleEnrollments";
 import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
+import useAuthStore from "./store/auth.store";
+
+function HomeRedirect() {
+  const isSuperuser = useAuthStore((state) => state.isSuperuser);
+  return <Navigate to={isSuperuser ? "/admin" : "/dashboard"} replace />;
+}
 
 function App() {
   return (
     <ErrorBoundary>
       <Routes>
       {/* redirect */}
-      <Route path="/" element={<Navigate to="/dashboard" />} />
+      <Route path="/" element={<HomeRedirect />} />
 
       {/* public */}
       <Route path="/login" element={<Login />} />
@@ -87,6 +98,21 @@ function App() {
         <Route path="/activities" element={<ProtectedFeature feature="activities"><Activities /></ProtectedFeature>} />
         <Route path="/activities/:activityId/schedules" element={<ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature>} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature>} />
+      </Route>
+
+      {/* admin central (solo superuser) */}
+      <Route
+        element={
+          <ProtectedLayout>
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          </ProtectedLayout>
+        }
+      >
+        <Route path="/admin" element={<AdminGyms />} />
+        <Route path="/admin/gyms/new" element={<AdminGymWizard />} />
+        <Route path="/admin/gyms/:gymId" element={<AdminGymEdit />} />
       </Route>
 
       {/* catch-all */}

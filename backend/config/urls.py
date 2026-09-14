@@ -36,6 +36,8 @@ urlpatterns = [
 
     path("api/routines/", include("routines.urls")),
     path("api/activities/", include("activities.urls")),
+
+    path("api/admin/", include("admins.urls")),
 ]
 
 if settings.DEBUG:
