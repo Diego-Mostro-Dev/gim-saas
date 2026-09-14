@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Building2, Copy, Link2, Pencil, Plus, UserRound } from "lucide-react";
@@ -17,6 +17,7 @@ export default function AdminGyms() {
   const navigate = useNavigate();
   const [gyms, setGyms] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("activos");
 
   useEffect(() => {
     async function load() {
@@ -34,6 +35,32 @@ export default function AdminGyms() {
     load();
   }, []);
 
+  const counts = useMemo(() => {
+    const base = {
+      activos: 0,
+      inactivos: 0,
+      todos: gyms?.length || 0,
+    };
+    for (const g of gyms || []) {
+      if (g.active) base.activos += 1;
+      else base.inactivos += 1;
+    }
+    return base;
+  }, [gyms]);
+
+  const visibleGyms = useMemo(() => {
+    if (!gyms) return [];
+    if (filter === "todos") return gyms;
+    const wantActive = filter === "activos";
+    return gyms.filter((g) => g.active === wantActive);
+  }, [gyms, filter]);
+
+  const filters = [
+    { key: "activos", label: "Activos" },
+    { key: "inactivos", label: "Inactivos" },
+    { key: "todos", label: "Todos" },
+  ];
+
   if (loading && !gyms) {
     return (
       <div className="pt-10 text-center text-sm text-text-secondary">
@@ -48,7 +75,9 @@ export default function AdminGyms() {
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Gimnasios</h1>
           <p className="text-sm text-text-secondary">
-            {gyms ? `${gyms.length} creados` : ""}
+            {gyms
+              ? `${counts.activos} activos · ${counts.inactivos} inactivos`
+              : ""}
           </p>
         </div>
         <button
@@ -61,17 +90,47 @@ export default function AdminGyms() {
         </button>
       </div>
 
-      {gyms && gyms.length === 0 && (
+      <div className="flex items-center gap-3">
+        <div className="flex rounded-lg border border-border bg-surface-input p-0.5">
+          {filters.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                filter === key
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {label}
+              <span className="ml-1 opacity-70">{counts[key]}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-text-secondary">
+          Mostrando {visibleGyms.length}
+          {filter === "activos"
+            ? " activos"
+            : filter === "inactivos"
+              ? " inactivos"
+              : " gimnasios"}
+        </p>
+      </div>
+
+      {gyms && visibleGyms.length === 0 && (
         <div className="rounded-xl border border-border bg-surface-elevated p-8 text-center">
           <Building2 className="mx-auto mb-2 text-text-secondary" size={32} />
           <p className="text-sm text-text-secondary">
-            Todavía no hay gimnasios creados.
+            {filter === "inactivos"
+              ? "No hay gimnasios inactivos."
+              : "Todavía no hay gimnasios creados."}
           </p>
         </div>
       )}
 
       <div className="space-y-3">
-        {gyms?.map((gym) => {
+        {visibleGyms.map((gym) => {
           const featuresOn = Object.entries(gym.features || {})
             .filter(([, enabled]) => enabled)
             .map(([key]) => key);
