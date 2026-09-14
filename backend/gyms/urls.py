@@ -8,6 +8,7 @@ from .views import (
     GymStaffRemoveView,
     GymSeoView,
     GymClosedDateListCreateView,
+    GymClosedDateHolidaysView,
     GymClosedDateDetailView,
     PwaMemberManifestView,
     PwaStaffManifestView,
@@ -25,6 +26,10 @@ urlpatterns = [
     path(
         "me/closed-dates/",
         GymClosedDateListCreateView.as_view(),
+    ),
+    path(
+        "me/closed-dates/holidays/",
+        GymClosedDateHolidaysView.as_view(),
     ),
     path(
         "me/closed-dates/<int:closed_date_id>/",

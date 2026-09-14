@@ -10,10 +10,12 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.utils import timezone
 
 from core.mixins import GymQuerysetMixin
 from members.models import Member
 from profiles.models import UserProfile
+from .holidays import HolidaysAPIError, fetch_argentina_holidays
 from .labels import get_gym_labels
 from .models import Discount, Gym, GymClosedDate
 from .serializers import DiscountSerializer, GymSerializer, GymClosedDateSerializer
@@ -234,6 +236,79 @@ class GymClosedDateDetailView(APIView):
         closed_date.delete()
 
         return Response(status=204)
+
+
+class GymClosedDateHolidaysView(APIView):
+    """Carga en bloque los feriados de Argentina. Solo el owner.
+
+    Trae los feriados del año desde la API pública y crea una fecha cerrada
+    por cada uno que sea futura y no exista aún en el gimnasio.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.profile.role != UserProfile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede gestionar las fechas cerradas"
+            )
+
+        profile = getattr(request.user, "profile", None)
+        if not profile or not profile.gym:
+            raise PermissionDenied("Usuario sin gimnasio asignado")
+
+        gym = profile.gym
+
+        raw_year = request.data.get("year")
+        try:
+            year = int(raw_year)
+        except (TypeError, ValueError):
+            return Response({"error": "Año inválido"}, status=400)
+
+        try:
+            holidays = fetch_argentina_holidays(year)
+        except HolidaysAPIError as exc:
+            return Response({"error": str(exc)}, status=502)
+
+        today = timezone.localdate()
+        existing = set(
+            GymClosedDate.objects.filter(gym=gym).values_list("date", flat=True)
+        )
+
+        to_create = []
+        added = []
+        skipped_past = []
+        skipped_existing = []
+
+        for holiday_date, reason in holidays:
+            if holiday_date < today:
+                skipped_past.append(
+                    {"date": holiday_date.isoformat(), "reason": reason}
+                )
+                continue
+            if holiday_date in existing:
+                skipped_existing.append(
+                    {"date": holiday_date.isoformat(), "reason": reason}
+                )
+                continue
+            to_create.append(
+                GymClosedDate(gym=gym, date=holiday_date, reason=reason)
+            )
+            added.append(
+                {"date": holiday_date.isoformat(), "reason": reason}
+            )
+
+        if to_create:
+            GymClosedDate.objects.bulk_create(to_create)
+
+        return Response(
+            {
+                "created": len(to_create),
+                "added": added,
+                "skipped_past": skipped_past,
+                "skipped_existing": skipped_existing,
+            }
+        )
 
 
 class GymStaffView(APIView):

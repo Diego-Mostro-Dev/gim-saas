@@ -48,3 +48,11 @@ export async function deleteClosedDate(id) {
   window.dispatchEvent(new Event("closed-dates:updated"));
   return result;
 }
+
+export async function loadHolidays(year) {
+  return apiFetch("/api/gyms/me/closed-dates/holidays/", {
+    method: "POST",
+    body: JSON.stringify(year ? { year } : {}),
+    headers: { "Content-Type": "application/json" },
+  });
+}

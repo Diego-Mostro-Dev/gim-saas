@@ -11,6 +11,7 @@ import {
   getClosedDates,
   createClosedDate,
   deleteClosedDate,
+  loadHolidays,
 } from "../services/gym.service";
 import {
   getSlots,
@@ -135,6 +136,8 @@ function Settings() {
   const [closedDates, setClosedDates] = useState([]);
   const [loadingClosedDates, setLoadingClosedDates] = useState(false);
   const [newClosedDate, setNewClosedDate] = useState({ date: "", reason: "" });
+  const [loadingHolidays, setLoadingHolidays] = useState(false);
+  const [holidayYear, setHolidayYear] = useState(() => new Date().getFullYear());
 
   const [insurances, setInsurances] = useState([]);
   const [loadingInsurances, setLoadingInsurances] = useState(false);
@@ -232,6 +235,23 @@ function Settings() {
       toast.error(
         error.message || "Error al eliminar la fecha cerrada",
       );
+    }
+  }
+
+  async function handleLoadHolidays() {
+    try {
+      setLoadingHolidays(true);
+      const result = await loadHolidays(holidayYear);
+      toast.success(
+        `Se cargaron ${result.created} feriados. (${result.skipped_past.length} pasados, ${result.skipped_existing.length} ya cargados)`,
+      );
+      loadClosedDates();
+    } catch (error) {
+      toast.error(
+        error.message || "Error al cargar los feriados",
+      );
+    } finally {
+      setLoadingHolidays(false);
     }
   }
 
@@ -1493,6 +1513,34 @@ function Settings() {
           los socios no podrán registrar asistencia ni pedir intercambios, y el
           panel no mostrará actividad.
         </p>
+
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface-input p-3">
+          <span className="text-xs text-text-secondary whitespace-nowrap">
+            Feriados Argentina
+          </span>
+          <select
+            value={holidayYear}
+            onChange={(e) => setHolidayYear(Number(e.target.value))}
+            className="rounded-lg border border-border bg-surface-input px-2 py-1.5 text-sm text-text-primary outline-none"
+          >
+            {[...Array(5)].map((_, i) => {
+              const y = new Date().getFullYear() + i;
+              return (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              );
+            })}
+          </select>
+          <button
+            type="button"
+            onClick={handleLoadHolidays}
+            disabled={loadingHolidays}
+            className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition active:scale-95 disabled:opacity-50"
+          >
+            {loadingHolidays ? "Cargando…" : "Cargar feriados"}
+          </button>
+        </div>
 
         <div className="mb-4 flex flex-wrap items-start gap-2 rounded-xl border border-border bg-surface-input p-3">
           <input

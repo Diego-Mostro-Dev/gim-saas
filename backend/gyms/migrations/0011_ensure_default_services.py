@@ -19,6 +19,7 @@ def ensure_default_services(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("gyms", "0010_feature_flags_v1"),
+        ("plans", "0007_alter_membershipplan_options_and_more"),
     ]
 
     operations = [
