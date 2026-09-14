@@ -26,7 +26,7 @@ function Dashboard() {
       {closedDatesError && (
         <div className="rounded-xl bg-danger-bg dark:bg-danger/10 p-4 text-danger-text dark:text-danger">{closedDatesError}</div>
       )}
-      <ClosedDatesNotice gym={gym} closedDates={closedDates} />
+      <ClosedDatesNotice gym={gym} closedDates={closedDates} compact />
       <StatsCards data={dashboardData} />
       <QuickActions />
       <WeeklyChart data={dashboardData?.weeklyAttendance || []} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, QrCode, Plus, Pencil, Trash2, X, Check, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,7 @@ import {
 
 function Settings() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { gym } = useGym();
   const role = useAuthStore((state) => state.role);
   const queryClient = useQueryClient();
@@ -111,7 +112,12 @@ function Settings() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("info");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get("tab");
+    return ["info", "pagos", "planes", "obras-sociales", "cierres", "qr", "seo"].includes(tab)
+      ? tab
+      : "info";
+  });
 
   const [slots, setSlots] = useState(() => getCached("slots") || []);
   const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));

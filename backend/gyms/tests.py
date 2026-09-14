@@ -199,7 +199,7 @@ class GymClosedDateHolidaysTests(BaseAPITest):
         self.client.credentials(**self.credentials(self.staff))
         with self.mock_api(self.payload), patch(
             "gyms.holidays.HARDCODED_HOLIDAYS", {}
-        ):
+        ), patch("gyms.holidays._jueves_santo", return_value=None):
             resp = self.client.post(
                 "/api/gyms/me/closed-dates/holidays/", {"year": 2026}, format="json"
             )
@@ -209,7 +209,7 @@ class GymClosedDateHolidaysTests(BaseAPITest):
         self.client.credentials(**self.credentials(self.owner))
         with self.mock_api(self.payload), patch(
             "gyms.holidays.HARDCODED_HOLIDAYS", {}
-        ):
+        ), patch("gyms.holidays._jueves_santo", return_value=None):
             resp = self.client.post(
                 "/api/gyms/me/closed-dates/holidays/", {"year": 2026}, format="json"
             )
@@ -235,7 +235,7 @@ class GymClosedDateHolidaysTests(BaseAPITest):
         self.client.credentials(**self.credentials(self.owner))
         with self.mock_api(self.payload), patch(
             "gyms.holidays.HARDCODED_HOLIDAYS", {}
-        ):
+        ), patch("gyms.holidays._jueves_santo", return_value=None):
             resp = self.client.post(
                 "/api/gyms/me/closed-dates/holidays/", {"year": 2026}, format="json"
             )
@@ -254,7 +254,7 @@ class GymClosedDateHolidaysTests(BaseAPITest):
         self.client.credentials(**self.credentials(self.owner))
         with self.mock_api(self.payload), patch(
             "gyms.holidays.HARDCODED_HOLIDAYS", {}
-        ):
+        ), patch("gyms.holidays._jueves_santo", return_value=None):
             resp = self.client.post("/api/gyms/me/closed-dates/holidays/", {}, format="json")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["created"], 2)
@@ -280,3 +280,16 @@ class GymClosedDateHolidaysTests(BaseAPITest):
         with self.mock_api([]):
             holidays = fetch_argentina_holidays(2026)
         self.assertIn((date(2026, 10, 7), "Día de Rosario"), holidays)
+
+    def test_fetch_includes_traditional_non_working_days(self):
+        with self.mock_api([]):
+            holidays = fetch_argentina_holidays(2026)
+        self.assertIn((date(2026, 12, 24), "Nochebuena"), holidays)
+        self.assertIn((date(2026, 12, 31), "Fin de año"), holidays)
+
+    def test_fetch_includes_jueves_santo_from_easter(self):
+        with self.mock_api([]):
+            holidays_2026 = fetch_argentina_holidays(2026)
+            holidays_2027 = fetch_argentina_holidays(2027)
+        self.assertIn((date(2026, 4, 2), "Jueves Santo"), holidays_2026)
+        self.assertIn((date(2027, 3, 25), "Jueves Santo"), holidays_2027)

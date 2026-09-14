@@ -1,4 +1,5 @@
-import { CalendarOff } from "lucide-react";
+import { CalendarClock, CalendarOff } from "lucide-react";
+import { Link } from "react-router-dom";
 import { formatHumanDate } from "../../utils/date.utils";
 import { txt } from "../../utils/labels";
 
@@ -55,7 +56,7 @@ function toEntries(closedDates) {
   });
 }
 
-export default function ClosedDatesNotice({ gym, closedDates = [], excludeToday = false }) {
+export default function ClosedDatesNotice({ gym, closedDates = [], excludeToday = false, compact = false }) {
   const today = todayMidnight();
   const todayStr = formatDate(today);
   const tomorrow = new Date(today);
@@ -68,6 +69,37 @@ export default function ClosedDatesNotice({ gym, closedDates = [], excludeToday 
   const entriesByDate = new Map(entries.map((e) => [e.date, e.reason]));
 
   if (groups.length === 0) return null;
+
+  if (compact) {
+    const sortedEntries = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+    const next = sortedEntries[0];
+    const nextDate = parseDate(next.date);
+    const daysUntil = Math.round((nextDate - today) / 86400000);
+    if (daysUntil > 14) return null;
+
+    const reason = next.reason;
+    const remaining = entries.length - 1;
+
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/10 bg-surface-elevated px-4 py-3 text-sm text-text-primary">
+        <div className="flex items-start gap-3">
+          <CalendarClock size={18} className="mt-0.5 shrink-0 text-text-secondary" />
+          <p>
+            Próximo cierre: {formatHumanDate(next.date)}
+            {reason ? ` · ${reason}` : "."}
+          </p>
+        </div>
+        {remaining > 0 && (
+          <Link
+            to="/settings?tab=cierres"
+            className="shrink-0 text-sm font-medium text-primary transition hover:underline"
+          >
+            Ver todas ({entries.length})
+          </Link>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
