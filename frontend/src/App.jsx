@@ -2,6 +2,10 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppLayout from "./layouts/AppLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
+import AdminLayout from "./layouts/AdminLayout";
+import AdminRoute from "./components/admin/AdminRoute";
+import AdminGyms from "./pages/admin/AdminGyms";
+import AdminGymWizard from "./pages/admin/AdminGymWizard";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import RecoverMembers from "./pages/RecoverMembers";
@@ -87,6 +91,20 @@ function App() {
         <Route path="/activities" element={<ProtectedFeature feature="activities"><Activities /></ProtectedFeature>} />
         <Route path="/activities/:activityId/schedules" element={<ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature>} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature>} />
+      </Route>
+
+      {/* admin central (solo superuser) */}
+      <Route
+        element={
+          <ProtectedLayout>
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          </ProtectedLayout>
+        }
+      >
+        <Route path="/admin" element={<AdminGyms />} />
+        <Route path="/admin/gyms/new" element={<AdminGymWizard />} />
       </Route>
 
       {/* catch-all */}

@@ -6,6 +6,7 @@ const useAuthStore = create((set, get) => ({
   user: null,
   gym: null,
   role: null,
+  isSuperuser: false,
 
   must_change_password: false,
 
@@ -32,6 +33,7 @@ const useAuthStore = create((set, get) => ({
         user: { username: data.username },
         gym: data.gym ? { name: data.gym, id: data.gym_id } : null,
         role: data.role || "staff",
+        isSuperuser: data.is_superuser || false,
         must_change_password: data.must_change_password || false,
         initialized: true,
       });
@@ -43,6 +45,7 @@ const useAuthStore = create((set, get) => ({
         user: null,
         gym: null,
         role: null,
+        isSuperuser: false,
         must_change_password: false,
         initialized: true,
       });
@@ -71,6 +74,7 @@ const useAuthStore = create((set, get) => ({
           user: { username: me.username },
           gym: me.gym ? { name: me.gym, id: me.gym_id } : null,
           role: me.role || "staff",
+          isSuperuser: me.is_superuser || false,
           must_change_password:
             me.must_change_password || false,
           loading: false,
@@ -83,6 +87,7 @@ const useAuthStore = create((set, get) => ({
           user: null,
           gym: null,
           role: null,
+          isSuperuser: false,
           must_change_password: false,
           loading: false,
         });
@@ -109,6 +114,7 @@ const useAuthStore = create((set, get) => ({
       user: null,
       gym: null,
       role: null,
+      isSuperuser: false,
       must_change_password: false,
       error: null,
     });

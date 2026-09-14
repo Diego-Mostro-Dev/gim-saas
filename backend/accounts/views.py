@@ -100,6 +100,7 @@ class MeView(APIView):
                     if profile
                     else UserProfile.ROLE_STAFF
                 ),
+                "is_superuser": request.user.is_superuser,
             },
             status=status.HTTP_200_OK,
         )
