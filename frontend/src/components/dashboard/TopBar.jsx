@@ -1,4 +1,4 @@
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useGym } from "../../hooks/useGym";
 import useAuthStore from "../../store/auth.store";
@@ -7,6 +7,7 @@ import ThemeToggle from "../ui/ThemeToggle";
 function TopBar() {
   const { gym } = useGym();
   const role = useAuthStore((state) => state.role);
+  const isSuperuser = useAuthStore((state) => state.isSuperuser);
 
   function handleLogout() {
     localStorage.removeItem("token");
@@ -39,6 +40,16 @@ function TopBar() {
 
       <div className="flex shrink-0 items-center gap-2">
         <ThemeToggle />
+
+        {isSuperuser && (
+          <Link
+            to="/admin"
+            className="rounded-lg border border-border/10 p-2 text-text-secondary transition hover:bg-surface-input"
+            title="Panel central"
+          >
+            <ShieldCheck size={18} />
+          </Link>
+        )}
 
         {role === "owner" && (
           <Link

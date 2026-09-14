@@ -40,13 +40,19 @@ import ScheduleEnrollments from "./pages/ScheduleEnrollments";
 import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
+import useAuthStore from "./store/auth.store";
+
+function HomeRedirect() {
+  const isSuperuser = useAuthStore((state) => state.isSuperuser);
+  return <Navigate to={isSuperuser ? "/admin" : "/dashboard"} replace />;
+}
 
 function App() {
   return (
     <ErrorBoundary>
       <Routes>
       {/* redirect */}
-      <Route path="/" element={<Navigate to="/dashboard" />} />
+      <Route path="/" element={<HomeRedirect />} />
 
       {/* public */}
       <Route path="/login" element={<Login />} />
