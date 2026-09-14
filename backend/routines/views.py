@@ -26,7 +26,7 @@ from members.eligibility import MemberEligibility
 from attendance.models import AttendanceSchedule
 from payments.models import Payment
 from plans.models import MembershipPlan
-from plans.services import public_plan_name, public_plan_name_from_snapshot
+from plans.services import display_plan_name, public_plan_name, public_plan_name_from_snapshot
 from subscriptions.domain import SubscriptionDomain
 from config.api.throttles import PublicMemberRateThrottle
 from .models import (
@@ -493,7 +493,7 @@ class PublicRoutineView(APIView):
             return {
                 "id": sub.id,
                 "plan_id": plan.id,
-                "plan": public_plan_name(plan),
+                "plan": display_plan_name(plan, sub.member),
                 "plan_price": str(plan.price),
                 "plan_duration_days": plan.duration_days,
                 "plan_weekly_visits": plan.weekly_visits,

@@ -3,6 +3,18 @@ from .models import MembershipPlan, Service
 
 BASE_PLAN_NAME = "Base Access"
 BASE_PLAN_PUBLIC_LABEL = "Solo actividades"
+COURTESY_PUBLIC_LABEL = "Pase de cortesía"
+
+
+def display_plan_name(plan, member=None):
+    """Return the user-facing name for a plan, honoring courtesy passes.
+
+    Courtesy-pass members always see "Pase de cortesía" regardless of the
+    underlying plan; otherwise it delegates to public_plan_name().
+    """
+    if member is not None and getattr(member, "is_comp", False):
+        return COURTESY_PUBLIC_LABEL
+    return public_plan_name(plan)
 
 
 def public_plan_name(plan):
