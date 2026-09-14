@@ -8,6 +8,10 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Entorno de ejecución: "production", "staging" o "" (dev local).
+# Se usa para detectar mezclas de base entre entornos.
+ENVIRONMENT = os.getenv("ENVIRONMENT", "").strip().lower()
+
 
 # =========================
 # SENTRY (monitoreo)
@@ -19,7 +23,7 @@ SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        environment=os.getenv("ENVIRONMENT", "production"),
+        environment=ENVIRONMENT or "production",
         traces_sample_rate=float(
             os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.25")
         ),
@@ -246,6 +250,42 @@ if _pg_host and not _pg_host.startswith(("{", "/")):
         pass  # fall back to default resolution
 
 DATABASES = {"default": _db_config}
+
+
+# =========================
+# ENVIRONMENT CHECK (startup)
+# =========================
+# Advertencia de alto nivel: si el entorno declarado no coincide con la DB
+# conectada, se loguea un error visible en los logs de Render.
+import logging as _env_logging
+_env_log = _env_logging.getLogger("environment")
+
+_DB_HOST = _db_config.get("HOST", "")
+_DB_NAME = _db_config.get("NAME", "")
+
+if ENVIRONMENT:
+    # Neon pooler endpoints: ep-<name>-pooler.c-<id>.<region>.aws.neon.tech
+    # Los endpoint IDs son únicos por branch.
+    _env_log.warning(
+        "ENVIRONMENT=%s  |  DB host=%s  |  DB name=%s",
+        ENVIRONMENT, _DB_HOST, _DB_NAME,
+    )
+
+    if ENVIRONMENT == "staging" and _DB_NAME == "neondb":
+        _env_log.warning(
+            "STAGING CHECK: DATABASE_URL apunta a '%s' (neondb). "
+            "Si esta branch es la de producción, staging y producción "
+            "comparten la misma base. Actualizá DATABASE_URL en Render "
+            "para apuntar a la branch 'staging' de Neon.",
+            _DB_HOST,
+        )
+else:
+    _env_log.warning(
+        "ENVIRONMENT no definido. DB host=%s  |  DB name=%s. "
+        "Se recomienda definir ENVIRONMENT en cada servicio de Render "
+        "(production / staging) para detectar mezclas de base.",
+        _DB_HOST, _DB_NAME,
+    )
 
 
 # =========================
