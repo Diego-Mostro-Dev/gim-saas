@@ -182,7 +182,7 @@ function GymDashboard() {
 
   return (
     <div className="space-y-4">
-      <ClosedDatesNotice gym={gym} closedDates={routine.gym?.closed_dates} />
+      <ClosedDatesNotice gym={gym} closedDates={routine.gym?.closed_dates} compact bannerDaysAhead={7} dropdown />
 
       {/* SUSCRIPCIÓN */}
       <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
