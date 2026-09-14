@@ -260,3 +260,122 @@ class AdminGymApiTests(BaseAPITest):
         self.assertEqual(resp.status_code, 200)
         keys = [f["key"] for f in resp.data["features"]]
         self.assertIn("activities", keys)
+
+    def test_admin_get_gym_detail(self):
+        self.client.post(
+            "/api/admin/gyms/",
+            data=PAYLOAD_BASE,
+            format="json",
+            **self.auth(self.super_token),
+        )
+        gym = Gym.objects.get(slug="sportbox-villa-urquiza")
+
+        resp = self.client.get(
+            f"/api/admin/gyms/{gym.id}/",
+            **self.auth(self.super_token),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["name"], "SportBox Villa Urquiza")
+        self.assertEqual(resp.data["features"], {"activities": False})
+        self.assertTrue(resp.data["register_url"])
+
+    def test_admin_update_features_merge(self):
+        self.client.post(
+            "/api/admin/gyms/",
+            data=PAYLOAD_BASE,
+            format="json",
+            **self.auth(self.super_token),
+        )
+        gym = Gym.objects.get(slug="sportbox-villa-urquiza")
+
+        resp = self.client.patch(
+            f"/api/admin/gyms/{gym.id}/",
+            data={"features": {"activities": True}},
+            format="json",
+            **self.auth(self.super_token),
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        gym.refresh_from_db()
+        self.assertEqual(gym.features, {"activities": True})
+
+        # Apagar la feature usando merge no pisa el resto del JSON
+        resp2 = self.client.patch(
+            f"/api/admin/gyms/{gym.id}/",
+            data={"features": {"activities": False}},
+            format="json",
+            **self.auth(self.super_token),
+        )
+        self.assertEqual(resp2.status_code, 200, resp2.data)
+        gym.refresh_from_db()
+        self.assertEqual(gym.features, {"activities": False})
+
+    def test_admin_update_gym_fields(self):
+        self.client.post(
+            "/api/admin/gyms/",
+            data=PAYLOAD_BASE,
+            format="json",
+            **self.auth(self.super_token),
+        )
+        gym = Gym.objects.get(slug="sportbox-villa-urquiza")
+
+        resp = self.client.patch(
+            f"/api/admin/gyms/{gym.id}/",
+            data={
+                "name": "SportBox Devoto",
+                "whatsapp": "+5491111111111",
+                "payment_due_day": 20,
+                "access_block_day": 22,
+                "active": False,
+            },
+            format="json",
+            **self.auth(self.super_token),
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        gym.refresh_from_db()
+        self.assertEqual(gym.name, "SportBox Devoto")
+        self.assertEqual(gym.whatsapp, "+5491111111111")
+        self.assertEqual(gym.payment_due_day, 20)
+        self.assertEqual(gym.access_block_day, 22)
+        self.assertFalse(gym.active)
+
+    def test_admin_update_block_day_validation(self):
+        self.client.post(
+            "/api/admin/gyms/",
+            data=PAYLOAD_BASE,
+            format="json",
+            **self.auth(self.super_token),
+        )
+        gym = Gym.objects.get(slug="sportbox-villa-urquiza")
+
+        resp = self.client.patch(
+            f"/api/admin/gyms/{gym.id}/",
+            data={
+                "payment_due_day": 15,
+                "access_block_day": 10,
+            },
+            format="json",
+            **self.auth(self.super_token),
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_admin_update_requires_superuser(self):
+        gym = self.create_gym()
+        user = self.create_user(gym, username="owner", role="owner")
+        token = Token.objects.create(user=user).key
+
+        resp = self.client.patch(
+            f"/api/admin/gyms/{gym.id}/",
+            data={"name": "Hack"},
+            format="json",
+            **self.auth(token),
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_admin_update_not_found(self):
+        resp = self.client.patch(
+            "/api/admin/gyms/99999/",
+            data={"name": "Nada"},
+            format="json",
+            **self.auth(self.super_token),
+        )
+        self.assertEqual(resp.status_code, 404)

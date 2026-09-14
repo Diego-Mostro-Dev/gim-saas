@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
@@ -7,7 +8,7 @@ from gyms.features import feature_catalog
 from gyms.models import Gym
 from gyms.serializers import GymSerializer
 
-from .serializers import AdminGymCreateSerializer
+from .serializers import AdminGymCreateSerializer, AdminGymUpdateSerializer
 from .services import create_gym_with_config
 
 
@@ -39,6 +40,29 @@ class AdminGymListCreateView(APIView):
             data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class AdminGymDetailView(APIView):
+    """Detalle y actualización de un gimnasio. Solo superusuario central."""
+
+    permission_classes = [IsSuperUser]
+
+    def get(self, request, pk):
+        gym = get_object_or_404(Gym, pk=pk)
+        return Response(GymSerializer(gym).data)
+
+    def patch(self, request, pk):
+        gym = get_object_or_404(Gym, pk=pk)
+        serializer = AdminGymUpdateSerializer(gym, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        features = serializer.validated_data.pop("features", None)
+        if features is not None:
+            gym.features = {**gym.features, **features}
+
+        serializer.save()
+
+        return Response(GymSerializer(gym).data)
 
 
 class AdminFeaturesView(APIView):

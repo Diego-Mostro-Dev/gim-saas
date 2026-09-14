@@ -5,6 +5,7 @@ import ProtectedLayout from "./layouts/ProtectedLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminRoute from "./components/admin/AdminRoute";
 import AdminGyms from "./pages/admin/AdminGyms";
+import AdminGymEdit from "./pages/admin/AdminGymEdit";
 import AdminGymWizard from "./pages/admin/AdminGymWizard";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
@@ -111,6 +112,7 @@ function App() {
       >
         <Route path="/admin" element={<AdminGyms />} />
         <Route path="/admin/gyms/new" element={<AdminGymWizard />} />
+        <Route path="/admin/gyms/:gymId" element={<AdminGymEdit />} />
       </Route>
 
       {/* catch-all */}

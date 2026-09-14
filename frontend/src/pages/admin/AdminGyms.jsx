@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Building2, Copy, Link2, Plus, UserRound } from "lucide-react";
+import { Building2, Copy, Link2, Pencil, Plus, UserRound } from "lucide-react";
 
 import { adminListGyms } from "../../services/admin.service";
 import { formatHumanDate } from "../../utils/date.utils";
@@ -146,6 +146,14 @@ export default function AdminGyms() {
                   <UserRound size={14} />
                   Registro
                   <Copy size={12} className="text-text-secondary" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/gyms/${gym.id}`)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-text-primary hover:bg-surface-input"
+                >
+                  <Pencil size={14} />
+                  Editar
                 </button>
                 <a
                   href={gym.onboarding_url}

@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from rest_framework import serializers
 
 from gyms.models import Gym
+from gyms.serializers import GymSerializer
 from .services import slugify
 
 
@@ -223,3 +224,16 @@ class AdminGymCreateSerializer(serializers.Serializer):
             services_seen.add(slug)
 
         return attrs
+
+
+# ---------------------------------------------------------------------------
+# Serializer de actualización (datos + features)
+# ---------------------------------------------------------------------------
+
+class AdminGymUpdateSerializer(GymSerializer):
+    """GymSerializer pero con `features` escribible (el owner no puede tocarlas)."""
+
+    features = serializers.DictField(required=False)
+
+    class Meta(GymSerializer.Meta):
+        read_only_fields = []
