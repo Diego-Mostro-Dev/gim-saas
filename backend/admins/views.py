@@ -8,7 +8,7 @@ from gyms.features import feature_catalog
 from gyms.models import Gym
 from gyms.serializers import GymSerializer
 
-from .serializers import AdminGymCreateSerializer, AdminGymUpdateSerializer
+from .serializers import AdminGymListSerializer, AdminGymCreateSerializer, AdminGymUpdateSerializer
 from .services import create_gym_with_config
 
 
@@ -19,7 +19,7 @@ class AdminGymListCreateView(APIView):
 
     def get(self, request):
         gyms = Gym.objects.all().order_by("-created_at", "name")
-        return Response(GymSerializer(gyms, many=True).data)
+        return Response(AdminGymListSerializer(gyms, many=True).data)
 
     def post(self, request):
         serializer = AdminGymCreateSerializer(data=request.data)

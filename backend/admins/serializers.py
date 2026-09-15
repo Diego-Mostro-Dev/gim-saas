@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from gyms.models import Gym
 from gyms.serializers import GymSerializer
+from profiles.models import UserProfile
 from .services import slugify
 
 
@@ -224,6 +225,26 @@ class AdminGymCreateSerializer(serializers.Serializer):
             services_seen.add(slug)
 
         return attrs
+
+
+# ---------------------------------------------------------------------------
+# Serializer de listado (owner user_id para el reset de contraseña)
+# ---------------------------------------------------------------------------
+
+class AdminGymListSerializer(GymSerializer):
+    owner_user_id = serializers.SerializerMethodField()
+    owner_username = serializers.SerializerMethodField()
+
+    class Meta(GymSerializer.Meta):
+        fields = GymSerializer.Meta.fields + ["owner_user_id", "owner_username"]
+
+    def get_owner_user_id(self, obj):
+        owner = obj.users.filter(role=UserProfile.ROLE_OWNER).first()
+        return owner.user_id if owner else None
+
+    def get_owner_username(self, obj):
+        owner = obj.users.filter(role=UserProfile.ROLE_OWNER).first()
+        return owner.user.username if owner else None
 
 
 # ---------------------------------------------------------------------------
