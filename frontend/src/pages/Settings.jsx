@@ -1740,40 +1740,33 @@ function Settings() {
       )}
       </div>
 
-      <div className="mt-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
-          Códigos QR
-        </h2>
+      {activeTab === "qr" && (
+        <div className="mt-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+            Códigos QR
+          </h2>
 
-        <button
-          onClick={() => navigate("/registration")}
-          className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
-        >
-          <QrCode size={18} className="text-primary" />
+          <button
+            onClick={() => navigate("/registration")}
+            className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
+          >
+            <QrCode size={18} className="text-primary" />
 
-          <span>Registro de miembros</span>
-        </button>
+            <span>Registro de miembros</span>
+          </button>
 
-        <button
-          onClick={() => navigate("/attendance-qr")}
-          className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
-        >
-          <QrCode size={18} className="text-success-text dark:text-success" />
+          <button
+            onClick={() => navigate("/attendance-qr")}
+            className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
+          >
+            <QrCode size={18} className="text-success-text dark:text-success" />
 
-          <span>Asistencia QR</span>
-        </button>
+            <span>Asistencia QR</span>
+          </button>
+        </div>
+      )}
 
-        <button
-          onClick={() => navigate("/staff")}
-          className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm text-text-primary transition hover:bg-surface-input"
-        >
-          <Users size={18} className="text-primary" />
-
-          <span>Gestionar staff</span>
-        </button>
-      </div>
-
-      {/* Horarios disponibles */}
+      {activeTab === "planes" && (
       <div className="mt-6 rounded-xl border border-border bg-surface-elevated p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
@@ -2080,6 +2073,7 @@ function Settings() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
