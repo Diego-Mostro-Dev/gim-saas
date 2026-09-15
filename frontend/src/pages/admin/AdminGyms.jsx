@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Building2, Copy, Link2, Pencil, Plus, UserRound } from "lucide-react";
 
-import { adminListGyms } from "../../services/admin.service";
+import { adminListFeatures, adminListGyms } from "../../services/admin.service";
 import { formatHumanDate } from "../../utils/date.utils";
 
 function copyText(text, label) {
@@ -18,13 +18,18 @@ export default function AdminGyms() {
   const [gyms, setGyms] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("activos");
+  const [catalogKeys, setCatalogKeys] = useState(null);
 
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const data = await adminListGyms();
+        const [data, features] = await Promise.all([
+          adminListGyms(),
+          adminListFeatures().catch(() => null),
+        ]);
         setGyms(data);
+        setCatalogKeys((features?.features || []).map((f) => f.key));
       } catch (error) {
         toast.error(error.message || "Error al listar gimnasios");
       } finally {
@@ -132,7 +137,10 @@ export default function AdminGyms() {
       <div className="space-y-3">
         {visibleGyms.map((gym) => {
           const featuresOn = Object.entries(gym.features || {})
-            .filter(([, enabled]) => enabled)
+            .filter(([key, enabled]) => {
+              if (catalogKeys && !catalogKeys.includes(key)) return false;
+              return Boolean(enabled);
+            })
             .map(([key]) => key);
 
           return (
