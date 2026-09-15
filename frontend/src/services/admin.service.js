@@ -29,3 +29,13 @@ export async function adminCreateGym(data) {
 export async function adminListFeatures() {
   return apiFetch("/api/admin/features/");
 }
+
+export async function adminResetPassword(userId, newPassword) {
+  return apiFetch("/api/auth/admin-reset-password/", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      new_password: newPassword,
+    }),
+  });
+}

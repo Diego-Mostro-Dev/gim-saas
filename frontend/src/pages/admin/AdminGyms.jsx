@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Building2, Copy, Link2, Pencil, Plus, UserRound } from "lucide-react";
+import { Building2, Copy, KeyRound, Link2, Pencil, Plus, UserRound } from "lucide-react";
 
-import { adminListFeatures, adminListGyms } from "../../services/admin.service";
+import {
+  adminListFeatures,
+  adminListGyms,
+  adminResetPassword,
+} from "../../services/admin.service";
 import { formatHumanDate } from "../../utils/date.utils";
 
 function copyText(text, label) {
@@ -19,6 +23,9 @@ export default function AdminGyms() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("activos");
   const [catalogKeys, setCatalogKeys] = useState(null);
+  const [resetModalGym, setResetModalGym] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -214,6 +221,21 @@ export default function AdminGyms() {
                   Registro
                   <Copy size={12} className="text-text-secondary" />
                 </button>
+                {gym.owner_user_id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetModalGym(gym);
+                      setNewPassword("");
+                      setIsResetting(false);
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-text-primary hover:bg-surface-input"
+                    title={`Restablecer contraseña del owner ${gym.owner_username || ""}`}
+                  >
+                    <KeyRound size={14} />
+                    Renovar contraseña
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => navigate(`/admin/gyms/${gym.id}`)}
@@ -238,6 +260,81 @@ export default function AdminGyms() {
           );
         })}
       </div>
+
+      {resetModalGym && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-surface-elevated p-6">
+            <h2 className="mb-1 text-lg font-semibold text-text-primary">
+              Renovar contraseña del owner
+            </h2>
+
+            <p className="mb-4 text-sm text-text-secondary">
+              Nueva contraseña para{" "}
+              <strong>
+                {resetModalGym.owner_username || resetModalGym.name}
+              </strong>
+              . El owner deberá cambiarla al iniciar sesión.
+            </p>
+
+            <form
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (newPassword.length < 8) {
+                  toast.error("La contraseña debe tener al menos 8 caracteres.");
+                  return;
+                }
+                setIsResetting(true);
+                try {
+                  await adminResetPassword(
+                    resetModalGym.owner_user_id,
+                    newPassword
+                  );
+                  toast.success(
+                    "Contraseña del owner restablecida correctamente."
+                  );
+                  setResetModalGym(null);
+                  setNewPassword("");
+                } catch (error) {
+                  toast.error(error.message || "Error al restablecer contraseña");
+                } finally {
+                  setIsResetting(false);
+                }
+              }}
+            >
+              <input
+                type="password"
+                className="mb-4 w-full rounded-xl border border-border/10 bg-surface-input px-4 py-3 text-text-primary outline-none"
+                placeholder="Nueva contraseña (mínimo 8 caracteres)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoFocus
+                required
+              />
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetModalGym(null);
+                    setNewPassword("");
+                  }}
+                  className="rounded-lg border border-border px-3 py-2 text-xs text-text-primary transition hover:bg-surface-input"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-medium text-white transition active:scale-95 disabled:opacity-50"
+                >
+                  {isResetting ? "Guardando..." : "Restablecer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
