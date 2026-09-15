@@ -58,7 +58,9 @@ function Attendance() {
         </div>
       )}
 
-      <ClosedDatesNotice gym={gym} closedDates={allClosedDates} excludeToday />
+      <div className="mb-8">
+        <ClosedDatesNotice gym={gym} closedDates={allClosedDates} excludeToday compact bannerDaysAhead={7} maxDaysAhead={7} dropdown />
+      </div>
 
       {/* Registro de asistencia */}
       <div className="mb-6">
