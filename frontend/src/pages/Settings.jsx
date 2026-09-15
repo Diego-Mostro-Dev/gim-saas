@@ -1,11 +1,27 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, QrCode, Plus, Pencil, Trash2, X, Check, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  QrCode,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+  Users,
+  Info,
+  CreditCard,
+  CalendarDays,
+  CalendarOff,
+  Search,
+  Shield,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useGym } from "../hooks/useGym";
 import useAuthStore from "../store/auth.store";
+import Staff from "./Staff";
 import {
   updateGym,
   getClosedDates,
@@ -34,6 +50,49 @@ import {
   updateDiscount,
   deleteDiscount,
 } from "../services/discounts.service";
+
+function normalizeGymValue(value) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function buildFormDataFromGym(gym) {
+  return {
+    name: gym.name || "",
+    whatsapp: gym.whatsapp || "",
+    phone: gym.phone || "",
+    email: gym.email || "",
+    default_schedule_capacity: normalizeGymValue(gym.default_schedule_capacity),
+    payment_due_day: normalizeGymValue(gym.payment_due_day ?? ""),
+    access_block_day: normalizeGymValue(gym.access_block_day ?? ""),
+    allow_plan_changes: gym.allow_plan_changes ?? false,
+    allow_schedule_changes: gym.allow_schedule_changes ?? false,
+    schedule_change_cooldown_days: normalizeGymValue(
+      gym.schedule_change_cooldown_hours == null
+        ? ""
+        : Number(gym.schedule_change_cooldown_hours) / 24,
+    ),
+    max_schedule_changes_per_month: normalizeGymValue(
+      gym.max_schedule_changes_per_month ?? "",
+    ),
+    schedule_change_notice_days: normalizeGymValue(
+      gym.schedule_change_notice_hours == null
+        ? ""
+        : Number(gym.schedule_change_notice_hours) / 24,
+    ),
+    allow_session_recovery: gym.allow_session_recovery ?? false,
+    max_session_recoveries_per_month: normalizeGymValue(
+      gym.max_session_recoveries_per_month ?? "",
+    ),
+    qr_attendance_message: gym.qr_attendance_message || "",
+    qr_registration_message: gym.qr_registration_message || "",
+    seo_title: gym.seo_title || "",
+    seo_description: gym.seo_description || "",
+    seo_keywords: gym.seo_keywords || "",
+    seo_city: gym.seo_city || "",
+    seo_address: gym.seo_address || "",
+    seo_hours: gym.seo_hours || "",
+  };
+}
 
 function Settings() {
   const navigate = useNavigate();
@@ -114,7 +173,7 @@ function Settings() {
 
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get("tab");
-    return ["info", "pagos", "planes", "obras-sociales", "cierres", "qr", "seo"].includes(tab)
+    return ["info", "pagos", "planes", "obras-sociales", "staff", "cierres", "qr", "seo"].includes(tab)
       ? tab
       : "info";
   });
@@ -181,14 +240,46 @@ function Settings() {
   ];
 
   const TABS = [
-    { id: "info", label: "Información" },
-    { id: "pagos", label: "Pagos" },
-    { id: "planes", label: "Planes & Horarios" },
-    { id: "obras-sociales", label: "Obras sociales" },
-    { id: "cierres", label: "Fechas cerradas" },
-    { id: "qr", label: "QR" },
-    { id: "seo", label: "SEO" },
+    { id: "info", label: "Información", icon: Info },
+    { id: "pagos", label: "Pagos", icon: CreditCard },
+    { id: "planes", label: "Planes & Horarios", icon: CalendarDays },
+    { id: "obras-sociales", label: "Obras sociales", icon: Users },
+    { id: "staff", label: "Staff", icon: Shield },
+    { id: "cierres", label: "Fechas cerradas", icon: CalendarOff },
+    { id: "qr", label: "QR", icon: QrCode },
+    { id: "seo", label: "SEO", icon: Search },
   ];
+
+  function handleTabKeyDown(e) {
+    const index = TABS.findIndex((tab) => tab.id === activeTab);
+    if (index < 0) return;
+    let next;
+    if (e.key === "ArrowDown") {
+      next = TABS[(index + 1) % TABS.length].id;
+    } else if (e.key === "ArrowUp") {
+      next = TABS[(index - 1 + TABS.length) % TABS.length].id;
+    } else if (e.key === "Home") {
+      next = TABS[0].id;
+    } else if (e.key === "End") {
+      next = TABS[TABS.length - 1].id;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setActiveTab(next);
+    document.getElementById(`tab-${next}`)?.focus();
+  }
+
+  const tabIssues = {
+    pagos: discounts.length === 0,
+    planes: slots.length === 0,
+    "obras-sociales": insurances.length === 0,
+    cierres: closedDates.length === 0,
+  };
+
+  const isDirty = gym
+    ? JSON.stringify(formData) !== JSON.stringify(buildFormDataFromGym(gym))
+    : false;
 
   useEffect(() => {
     loadSlots();
@@ -429,7 +520,9 @@ function Settings() {
       try {
         const data = await getSlots();
         setSlots(data);
-      } catch {}
+      } catch {
+        return;
+      }
       return;
     }
     try {
@@ -550,41 +643,11 @@ function Settings() {
     setEditCapacity(slot.capacity ?? "");
   }
 
-  useEffect(() => {
-    if (!gym) return;
-
-    setFormData({
-      name: gym.name || "",
-      whatsapp: gym.whatsapp || "",
-      phone: gym.phone || "",
-      email: gym.email || "",
-      default_schedule_capacity:
-        gym.default_schedule_capacity ?? "",
-      payment_due_day: gym.payment_due_day ?? "",
-      access_block_day: gym.access_block_day ?? "",
-      allow_plan_changes: gym.allow_plan_changes ?? false,
-      allow_schedule_changes: gym.allow_schedule_changes ?? false,
-      schedule_change_cooldown_days:
-        gym.schedule_change_cooldown_hours == null
-          ? ""
-          : Number(gym.schedule_change_cooldown_hours) / 24,
-      max_schedule_changes_per_month: gym.max_schedule_changes_per_month ?? "",
-      schedule_change_notice_days:
-        gym.schedule_change_notice_hours == null
-          ? ""
-          : Number(gym.schedule_change_notice_hours) / 24,
-      allow_session_recovery: gym.allow_session_recovery ?? false,
-      max_session_recoveries_per_month: gym.max_session_recoveries_per_month ?? "",
-      qr_attendance_message: gym.qr_attendance_message || "",
-      qr_registration_message: gym.qr_registration_message || "",
-      seo_title: gym.seo_title || "",
-      seo_description: gym.seo_description || "",
-      seo_keywords: gym.seo_keywords || "",
-      seo_city: gym.seo_city || "",
-      seo_address: gym.seo_address || "",
-      seo_hours: gym.seo_hours || "",
-    });
-  }, [gym]);
+  const [prevGymId, setPrevGymId] = useState(null);
+  if (gym && gym.id !== prevGymId) {
+    setPrevGymId(gym.id);
+    setFormData(buildFormDataFromGym(gym));
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -694,23 +757,66 @@ function Settings() {
 
       <p className="mb-4 text-text-secondary">Información básica del gimnasio.</p>
 
-      <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
-              activeTab === tab.id
-                ? "bg-primary text-white"
-                : "bg-surface-input text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div
+        role="tablist"
+        aria-label="Secciones de configuración"
+        className="mb-4 flex flex-col divide-y divide-border/60"
+      >
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          const issue = tabIssues[tab.id];
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={isActive}
+              aria-controls={`panel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              onKeyDown={handleTabKeyDown}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${
+                isActive
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:bg-surface-input hover:text-text-primary"
+              }`}
+            >
+              <Icon size={18} className={isActive ? "text-white" : "text-text-secondary"} />
+              <span className="flex-1 text-left">{tab.label}</span>
+
+              {issue && (
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    isActive ? "bg-white/80" : "bg-warning"
+                  }`}
+                  aria-label={`${tab.label} incompleta`}
+                />
+              )}
+
+              {isDirty && isActive && (
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full bg-white ring-2 ring-primary"
+                  aria-label="Cambios sin guardar"
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
+      {isDirty && (
+        <p className="mb-2 flex items-center gap-2 text-xs text-warning-text">
+          <span className="inline-block h-2 w-2 rounded-full bg-primary" />
+          Tenés cambios sin guardar. Guardalos antes de salir o se perderán.
+        </p>
+      )}
+
+      <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
+      {activeTab === "staff" ? (
+        <Staff embedded />
+      ) : (
       <form
         onSubmit={handleSubmit}
         className="rounded-xl border border-border bg-surface-elevated p-6"
@@ -1631,6 +1737,8 @@ function Settings() {
           </button>
         </div>
       </form>
+      )}
+      </div>
 
       <div className="mt-6 space-y-3 rounded-xl border border-border bg-surface-elevated p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">

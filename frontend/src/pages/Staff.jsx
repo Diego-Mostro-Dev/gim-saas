@@ -8,7 +8,7 @@ import { getStaff, createStaff, deleteStaff, adminResetPassword } from "../servi
 import { useGym } from "../hooks/useGym";
 import { txt } from "../utils/labels";
 
-function Staff() {
+function Staff({ embedded = false }) {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.role);
   const { gym } = useGym();
@@ -40,7 +40,8 @@ function Staff() {
   }
 
   useEffect(() => {
-    loadStaff();
+    const loadTimer = setTimeout(loadStaff, 0);
+    return () => clearTimeout(loadTimer);
   }, []);
 
   async function handleCreate(e) {
@@ -100,7 +101,7 @@ function Staff() {
     }
   }
 
-  if (role && role !== "owner") {
+  if (!embedded && role && role !== "owner") {
     return (
       <div className="mx-auto max-w-xl">
         <button
@@ -125,18 +126,22 @@ function Staff() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <button
-        onClick={() => navigate("/dashboard")}
-        className="mb-4 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
-      >
-        <ArrowLeft size={18} />
-        Volver
-      </button>
+      {!embedded && (
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="mb-4 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
+        >
+          <ArrowLeft size={18} />
+          Volver
+        </button>
+      )}
 
-      <h1 className="mb-2 flex items-center gap-2 text-3xl font-bold text-text-primary">
-        <Users size={26} />
-        Staff
-      </h1>
+      {!embedded && (
+        <h1 className="mb-2 flex items-center gap-2 text-3xl font-bold text-text-primary">
+          <Users size={26} />
+          Staff
+        </h1>
+      )}
 
       <p className="mb-6 text-text-secondary">
         {txt(gym, "staff.staff.title")}
