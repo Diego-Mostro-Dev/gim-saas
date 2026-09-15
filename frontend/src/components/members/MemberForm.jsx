@@ -31,7 +31,6 @@ function MemberForm({
   editingMember,
   isSubmitting,
   availableSlots,
-  loadingSlots,
   availablePlans,
   loadingPlans,
   availableActivities,
@@ -122,6 +121,17 @@ function MemberForm({
     if (!selectedDiscount) return Number(price || 0);
     return Number(price || 0) * (1 - selectedDiscount.discount_percent / 100);
   }
+
+  const selectedActivityIds = [
+    ...new Set(
+      activitySelections.map((s) => String(s.activity_id)).filter(Boolean),
+    ),
+  ];
+  const selectedActivitiesTotal = selectedActivityIds.reduce((sum, id) => {
+    const activity = activities.find((a) => String(a.id) === String(id));
+    return sum + Number(activity?.monthly_price || 0);
+  }, 0);
+  const baseTotal = Number(selectedPlan?.price || 0) + selectedActivitiesTotal;
 
   function handleServiceToggle(key) {
     if (key === "activities" && !activitiesAvailable) return;
@@ -586,16 +596,35 @@ function MemberForm({
             ))}
           </select>
 
-          {selectedDiscount && selectedPlan && (
-            <p className="mt-1 text-xs text-text-secondary">
-              {formatCurrency(selectedPlan.price)} →{" "}
-              <span className="font-medium text-text-primary">
-                {formatCurrency(
-                  discountedPrice(selectedPlan.price).toFixed(2),
+          {selectedDiscount && baseTotal > 0 && (
+            <>
+              <p className="mt-1 text-xs text-text-secondary">
+                {selectedPlan && (
+                  <>
+                    {formatCurrency(selectedPlan.price)}
+                    {selectedActivitiesTotal > 0 && (
+                      <>
+                        {" "}+ actividades{" "}
+                        {formatCurrency(selectedActivitiesTotal)} ={" "}
+                      </>
+                    )}{" "}
+                    →{" "}
+                  </>
                 )}
-              </span>{" "}
-              (−{selectedDiscount.discount_percent}%)
-            </p>
+                {!selectedPlan && (
+                  <>
+                    Actividades {formatCurrency(selectedActivitiesTotal)} →{" "}
+                  </>
+                )}
+                <span className="font-medium text-text-primary">
+                  {formatCurrency(discountedPrice(baseTotal).toFixed(2))}
+                </span>{" "}
+                (−{selectedDiscount.discount_percent}%)
+              </p>
+              <p className="mt-1 text-xs text-text-secondary">
+                El descuento se aplica al total mensual (plan + actividades).
+              </p>
+            </>
           )}
         </div>
       )}

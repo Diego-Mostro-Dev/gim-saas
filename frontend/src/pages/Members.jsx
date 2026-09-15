@@ -273,7 +273,9 @@ function Members() {
         try {
           const data = await getSlots();
           setAvailableSlots(data);
-        } catch {}
+        } catch {
+          toast.error("Error al cargar horarios disponibles");
+        }
         return;
       }
       try {
@@ -811,7 +813,6 @@ function Members() {
             editingMember={editingMember}
             isSubmitting={isSubmitting}
             availableSlots={availableSlots}
-            loadingSlots={loadingSlots}
             availablePlans={availablePlans}
             loadingPlans={loadingPlans}
             availableActivities={availableActivities}
