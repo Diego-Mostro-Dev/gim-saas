@@ -17,6 +17,8 @@ import Attendance from "./pages/Attendance";
 import Routines from "./pages/Routines";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
 import Settings from "./pages/Settings";
@@ -57,6 +59,8 @@ function App() {
 
       {/* public */}
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/register/:gymCode" element={<Register />} />
       <Route path="/routine/:token" element={<MemberPortalLayout />}>
         <Route index element={<DashboardSelector />} />

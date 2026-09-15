@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import useAuthStore from "../store/auth.store";
-import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -54,6 +54,13 @@ export default function Login() {
         >
           {loading ? "Entrando..." : "Entrar"}
         </button>
+
+        <Link
+          to="/forgot-password"
+          className="mt-3 block text-center text-sm text-text-secondary hover:text-text-primary"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
       </form>
     </div>
   );

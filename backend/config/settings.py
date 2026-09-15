@@ -65,6 +65,21 @@ if not DEBUG:
 # API key compartida para disparar tareas del sistema desde un cron externo
 SCHEDULED_TASKS_KEY = os.getenv("SCHEDULED_TASKS_KEY", "")
 
+# =========================
+# EMAIL (Resend)
+# =========================
+# API key del servicio Resend para emails transaccionales (password reset).
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+
+# Remitente para los emails transaccionales. En Resend hay que verificar el
+# dominio antes de poder enviar desde una dirección propia.
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Gim-SaaS <onboarding@resend.dev>")
+
+# Tiempo de vida de los tokens de reseteo de contraseña (segundos). Default 3600.
+PASSWORD_RESET_TOKEN_TTL_SECONDS = int(
+    os.getenv("PASSWORD_RESET_TOKEN_TTL_SECONDS", "3600")
+)
+
 # Intervalo mínimo entre ejecuciones del mantenimiento (segundos).
 SCHEDULED_TASKS_INTERVAL_SECONDS = int(
     os.getenv("SCHEDULED_TASKS_INTERVAL_SECONDS", "21600")

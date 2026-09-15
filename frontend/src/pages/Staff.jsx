@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Users, Shield } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Users, Shield, KeyRound } from "lucide-react";
 import toast from "react-hot-toast";
 
 import useAuthStore from "../store/auth.store";
-import { getStaff, createStaff, deleteStaff } from "../services/staff.service";
+import { getStaff, createStaff, deleteStaff, adminResetPassword } from "../services/staff.service";
 import { useGym } from "../hooks/useGym";
 import { txt } from "../utils/labels";
 
@@ -22,6 +22,10 @@ function Staff() {
     email: "",
     password: "",
   });
+
+  const [resetModalUser, setResetModalUser] = useState(null);
+  const [newPasswordReset, setNewPasswordReset] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   async function loadStaff() {
     setLoading(true);
@@ -70,6 +74,29 @@ function Staff() {
       loadStaff();
     } catch (error) {
       toast.error(error.message || "No se pudo eliminar el staff");
+    }
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+
+    if (!newPasswordReset || newPasswordReset.length < 8) {
+      toast.error("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+
+    try {
+      setIsResetting(true);
+      await adminResetPassword(resetModalUser.id, newPasswordReset);
+      toast.success(
+        `Contraseña de "${resetModalUser.username}" restablecida. El usuario deberá cambiarla al iniciar sesión.`
+      );
+      setResetModalUser(null);
+      setNewPasswordReset("");
+    } catch (error) {
+      toast.error(error.message || "No se pudo restablecer la contraseña");
+    } finally {
+      setIsResetting(false);
     }
   }
 
@@ -233,14 +260,76 @@ function Staff() {
                 )}
               </div>
 
+              <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setResetModalUser(user);
+                  setNewPasswordReset("");
+                }}
+                className="shrink-0 rounded-lg border border-border p-1.5 text-text-secondary transition hover:bg-surface-input"
+                title="Restablecer contraseña"
+              >
+                <KeyRound size={16} />
+              </button>
+
               <button
                 onClick={() => handleDelete(user)}
-                className="ml-2 shrink-0 rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
+                className="shrink-0 rounded-lg bg-danger-bg dark:bg-danger/15 p-1.5 text-danger-text dark:text-danger transition hover:bg-danger/30"
               >
                 <Trash2 size={16} />
               </button>
             </div>
+            </div>
           ))}
+        </div>
+      )}
+
+      {resetModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-surface-elevated p-6">
+            <h2 className="mb-1 text-lg font-semibold text-text-primary">
+              Restablecer contraseña
+            </h2>
+
+            <p className="mb-4 text-sm text-text-secondary">
+              Nueva contraseña para{" "}
+              <strong>{resetModalUser.username}</strong>. El usuario deberá
+              cambiarla al iniciar sesión.
+            </p>
+
+            <form onSubmit={handleResetPassword}>
+              <input
+                type="password"
+                className="mb-4 w-full rounded-xl border border-border/10 bg-surface px-4 py-3 text-text-primary outline-none"
+                placeholder="Nueva contraseña (mínimo 8 caracteres)"
+                value={newPasswordReset}
+                onChange={(e) => setNewPasswordReset(e.target.value)}
+                autoFocus
+                required
+              />
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetModalUser(null);
+                    setNewPasswordReset("");
+                  }}
+                  className="rounded-lg border border-border px-3 py-2 text-xs text-text-primary transition hover:bg-surface-input"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-medium text-white transition active:scale-95 disabled:opacity-50"
+                >
+                  {isResetting ? "Guardando..." : "Restablecer"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
