@@ -25,3 +25,13 @@ class PublicMemberRateThrottle(AnonRateThrottle):
 class PublicRegisterRateThrottle(AnonRateThrottle):
     scope = "public_register"
     rate = "20/hour"
+
+
+class PasswordResetRequestRateThrottle(AnonRateThrottle):
+    scope = "password_reset_request"
+    rate = "5/hour"
+
+
+class PasswordResetConfirmRateThrottle(AnonRateThrottle):
+    scope = "password_reset_confirm"
+    rate = "10/hour"

@@ -7,6 +7,9 @@ from .views import (
     GymOnboardingView,
     CreateGymOwnerView,
     ChangePasswordView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
+    AdminResetPasswordView,
 )
 
 urlpatterns = [
@@ -17,6 +20,18 @@ urlpatterns = [
     path(
         "change-password/",
         ChangePasswordView.as_view(),
+    ),
+    path(
+        "password-reset/request/",
+        PasswordResetRequestView.as_view(),
+    ),
+    path(
+        "password-reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+    ),
+    path(
+        "admin-reset-password/",
+        AdminResetPasswordView.as_view(),
     ),
 
     # onboarding SaaS
