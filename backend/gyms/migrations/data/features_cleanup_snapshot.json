@@ -1,0 +1,47 @@
+[
+  {
+    "pk": 9,
+    "name": "Gym Dev",
+    "slug": "GymDev",
+    "features": {
+      "activities": true,
+      "extra_activities": true
+    }
+  },
+  {
+    "pk": 17,
+    "name": "Sched Other",
+    "slug": "sched-other",
+    "features": {
+      "activities": false,
+      "extra_activities": true
+    }
+  },
+  {
+    "pk": 16,
+    "name": "Sched Test",
+    "slug": "sched-test",
+    "features": {
+      "activities": false,
+      "extra_activities": true
+    }
+  },
+  {
+    "pk": 15,
+    "name": "Sched Test",
+    "slug": "test-sched",
+    "features": {
+      "activities": false,
+      "extra_activities": true
+    }
+  },
+  {
+    "pk": 14,
+    "name": "Other Gym",
+    "slug": "other-gym",
+    "features": {
+      "activities": false,
+      "extra_activities": true
+    }
+  }
+]
