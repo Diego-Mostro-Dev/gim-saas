@@ -19,8 +19,10 @@ import { useScheduleChangeData } from "../../hooks/useScheduleChangeData";
 import { useScheduleSwapData } from "../../hooks/useScheduleSwapData";
 import { usePlanChangeData } from "../../hooks/usePlanChangeData";
 import { useFeature } from "../../hooks/useFeature";
+import useAuthStore from "../../store/auth.store";
 
 function BottomNav() {
+  const role = useAuthStore((state) => state.role);
   const activitiesEnabled = useFeature("activities");
   const { pendingCount } = useScheduleChangeData();
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
@@ -33,6 +35,31 @@ function BottomNav() {
   const inactiveClass = "text-text-secondary";
 
   const cambiosBlueClass = pendingCount > 0 ? "text-info-text dark:text-info" : "";
+
+  const routinesLink = (
+    <NavLink
+      to="/routines"
+      className={({ isActive }) =>
+        `${baseClass} ${isActive ? activeClass : inactiveClass}`
+      }
+    >
+      <ClipboardList size={20} />
+
+      <span className="text-xs">Rutinas</span>
+    </NavLink>
+  );
+
+  if (role === "professor") {
+    return (
+      <div className="fixed bottom-0 z-40 w-full">
+        <div className="relative">
+          <nav className="flex h-20 w-full snap-x snap-mandatory items-center justify-center gap-1 overflow-x-auto overflow-y-hidden border-t border-border/10 bg-surface-elevated px-2 scroll-smooth sm:justify-around">
+            {routinesLink}
+          </nav>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed bottom-0 z-40 w-full">

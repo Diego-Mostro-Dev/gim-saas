@@ -5,7 +5,7 @@ from .views import (
     DiscountViewSet,
     GymMeView,
     GymStaffView,
-    GymStaffRemoveView,
+    GymStaffDetailView,
     GymSeoView,
     GymClosedDateListCreateView,
     GymClosedDateHolidaysView,
@@ -41,7 +41,7 @@ urlpatterns = [
     ),
     path(
         "staff/<int:user_id>/",
-        GymStaffRemoveView.as_view(),
+        GymStaffDetailView.as_view(),
     ),
     path(
         "public/seo/<str:gym_code>/",

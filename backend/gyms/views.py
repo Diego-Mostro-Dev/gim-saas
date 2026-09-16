@@ -355,10 +355,17 @@ class GymStaffView(APIView):
         username = (request.data.get("username") or "").strip()
         email = (request.data.get("email") or "").strip()
         password = request.data.get("password")
+        role = request.data.get("role", UserProfile.ROLE_STAFF)
 
         if not username or not password:
             return Response(
                 {"error": "Faltan campos obligatorios"},
+                status=400,
+            )
+
+        if role not in (UserProfile.ROLE_STAFF, UserProfile.ROLE_PROFESSOR):
+            return Response(
+                {"error": "Rol inválido"},
                 status=400,
             )
 
@@ -376,7 +383,7 @@ class GymStaffView(APIView):
 
         profile = user.profile
         profile.gym = gym
-        profile.role = UserProfile.ROLE_STAFF
+        profile.role = role
         profile.save()
 
         return Response(
@@ -390,8 +397,8 @@ class GymStaffView(APIView):
         )
 
 
-class GymStaffRemoveView(APIView):
-    """Elimina un usuario staff del gimnasio. Solo el owner."""
+class GymStaffDetailView(APIView):
+    """Elimina o edita un usuario staff/profesor del gimnasio. Solo el owner."""
 
     permission_classes = [IsAuthenticated]
 
@@ -422,6 +429,42 @@ class GymStaffRemoveView(APIView):
         profile.user.delete()
 
         return Response(status=204)
+
+    def patch(self, request, user_id):
+        if request.user.profile.role != UserProfile.ROLE_OWNER:
+            raise PermissionDenied(
+                "Solo el dueño del gimnasio puede gestionar el staff"
+            )
+
+        gym = self.get_gym(request)
+
+        if user_id == request.user.id:
+            raise PermissionDenied("No puedes cambiar tu propio rol")
+
+        profile = get_object_or_404(UserProfile, user_id=user_id, gym=gym)
+
+        if profile.role == UserProfile.ROLE_OWNER:
+            raise PermissionDenied("No se puede cambiar el rol del dueño")
+
+        role = request.data.get("role")
+
+        if role not in (UserProfile.ROLE_STAFF, UserProfile.ROLE_PROFESSOR):
+            return Response(
+                {"error": "Rol inválido"},
+                status=400,
+            )
+
+        profile.role = role
+        profile.save()
+
+        return Response(
+            {
+                "id": profile.user.id,
+                "username": profile.user.username,
+                "email": profile.user.email,
+                "role": profile.role,
+            }
+        )
 
 
 class GymSeoView(APIView):
