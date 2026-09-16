@@ -11,8 +11,8 @@ const inputClass =
   "w-full rounded-xl border border-border bg-surface-input px-3.5 py-2.5 text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 function MemberData() {
-  const { routine, refreshRoutine } = useOutletContext();
-  const { gym, access_token } = routine;
+  const { routine, refreshRoutine, token } = useOutletContext();
+  const { gym } = routine;
 
   const [form, setForm] = useState({
     first_name: "",
@@ -35,7 +35,7 @@ function MemberData() {
       setStatus("loading");
       setError("");
       try {
-        const data = await getPublicMemberData(access_token);
+        const data = await getPublicMemberData(token);
         if (cancelled) return;
         setForm({
           first_name: data.first_name || "",
@@ -61,7 +61,7 @@ function MemberData() {
     return () => {
       cancelled = true;
     };
-  }, [access_token]);
+  }, [token]);
 
   function setField(field, value) {
     setForm((prev) => ({
@@ -74,7 +74,7 @@ function MemberData() {
     e.preventDefault();
     setSaving(true);
     try {
-      await updatePublicMemberData(access_token, form);
+      await updatePublicMemberData(token, form);
       await refreshRoutine();
       toast.success("Datos actualizados correctamente");
     } catch (err) {
