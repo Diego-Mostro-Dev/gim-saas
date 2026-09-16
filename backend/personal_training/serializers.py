@@ -447,6 +447,9 @@ class PublicAssignmentSerializer(serializers.ModelSerializer):
     service_name = serializers.CharField(source="service.name", read_only=True)
     trainer_name = serializers.SerializerMethodField()
     trainer_gender = serializers.SerializerMethodField()
+    trainer_phone = serializers.SerializerMethodField()
+    trainer_whatsapp = serializers.SerializerMethodField()
+    trainer_email = serializers.SerializerMethodField()
     modality = serializers.CharField(read_only=True)
     sessions_total = serializers.SerializerMethodField()
     sessions_used = serializers.SerializerMethodField()
@@ -464,6 +467,9 @@ class PublicAssignmentSerializer(serializers.ModelSerializer):
             "service_name",
             "trainer_name",
             "trainer_gender",
+            "trainer_phone",
+            "trainer_whatsapp",
+            "trainer_email",
             "day",
             "start_time",
             "end_time",
@@ -485,6 +491,17 @@ class PublicAssignmentSerializer(serializers.ModelSerializer):
     def get_trainer_gender(self, obj):
         profile = getattr(obj.trainer, "profile", None)
         return profile.gender if profile else None
+
+    def get_trainer_phone(self, obj):
+        profile = getattr(obj.trainer, "profile", None)
+        return profile.phone or None if profile else None
+
+    def get_trainer_whatsapp(self, obj):
+        profile = getattr(obj.trainer, "profile", None)
+        return profile.whatsapp or None if profile else None
+
+    def get_trainer_email(self, obj):
+        return obj.trainer.email or None if obj.trainer else None
 
     def get_member_address(self, obj):
         return obj.member.address or None

@@ -35,7 +35,7 @@ class PublicMemberPersonalTrainingView(APIView):
         assignments = PersonalTrainingAssignment.objects.filter(
             member=member,
             active=True,
-        ).select_related("trainer", "service").order_by("day", "start_time")
+        ).select_related("trainer__profile", "service").order_by("day", "start_time")
 
         pending = PersonalTrainingChangeRequest.objects.filter(
             member=member,

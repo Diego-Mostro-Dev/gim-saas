@@ -90,7 +90,7 @@ function MemberPersonalTraining() {
     setSubmitting(true);
     try {
       await createPublicPersonalTrainingChangeRequest(token, {
-        assignment: editingAssignment.id,
+        assignment_id: editingAssignment.id,
         requested_day: request.requested_day,
         requested_start_time: request.requested_start_time,
         requested_end_time: request.requested_end_time,
@@ -127,7 +127,7 @@ function MemberPersonalTraining() {
     );
   }
 
-  const assignments = data?.assignments || [];
+  const assignments = data?.personal_training || [];
   const changeRequests = data?.change_requests || [];
   const pendingRequests = changeRequests.filter(
     (r) => r.status === "pending",
