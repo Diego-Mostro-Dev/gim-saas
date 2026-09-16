@@ -50,6 +50,19 @@ class Service(models.Model):
         )
         return service
 
+    @classmethod
+    def get_default_personal_training_service(cls, gym):
+        service, _ = cls.objects.get_or_create(
+            gym=gym,
+            slug="personal_training",
+            defaults={
+                "name": "Entrenamiento personal",
+                "description": "Default service for personal training",
+                "active": True,
+            },
+        )
+        return service
+
 
 class MembershipPlan(models.Model):
     gym = models.ForeignKey(

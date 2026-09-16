@@ -396,6 +396,16 @@ function MemberForm({
         className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
       />
 
+      <input
+        type="text"
+        placeholder="Dirección (opcional)"
+        value={formData.address}
+        onChange={(e) =>
+          setFormData({ ...formData, address: e.target.value })
+        }
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+      />
+
       <div>
         <label className="mb-1 block text-sm text-text-secondary">Foto</label>
         <input

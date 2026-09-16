@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Users, Shield, KeyRound, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Users, Shield, KeyRound, Pencil, Phone, MessageCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
 import useAuthStore from "../store/auth.store";
-import { getStaff, createStaff, deleteStaff, updateStaffRole, adminResetPassword } from "../services/staff.service";
+import { getStaff, createStaff, deleteStaff, updateStaff, adminResetPassword } from "../services/staff.service";
 import { useGym } from "../hooks/useGym";
 import { txt } from "../utils/labels";
 
@@ -22,6 +22,9 @@ function Staff({ embedded = false }) {
     email: "",
     password: "",
     role: "staff",
+    gender: "",
+    phone: "",
+    whatsapp: "",
   });
 
   const [resetModalUser, setResetModalUser] = useState(null);
@@ -30,6 +33,9 @@ function Staff({ embedded = false }) {
 
   const [roleModalUser, setRoleModalUser] = useState(null);
   const [newRole, setNewRole] = useState("staff");
+  const [newGender, setNewGender] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newWhatsapp, setNewWhatsapp] = useState("");
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
   async function loadStaff() {
@@ -62,7 +68,15 @@ function Staff({ embedded = false }) {
       await createStaff(form);
       toast.success("Staff creado correctamente");
       setShowCreate(false);
-      setForm({ username: "", email: "", password: "", role: "staff" });
+      setForm({
+        username: "",
+        email: "",
+        password: "",
+        role: "staff",
+        gender: "",
+        phone: "",
+        whatsapp: "",
+      });
       loadStaff();
     } catch (error) {
       toast.error(error.message || "No se pudo crear el staff");
@@ -109,14 +123,29 @@ function Staff({ embedded = false }) {
   async function handleUpdateRole(e) {
     e.preventDefault();
 
-    if (!roleModalUser || !["staff", "professor"].includes(newRole)) return;
+    if (!roleModalUser || !["staff", "professor", "trainer"].includes(newRole))
+      return;
+
+    if (newRole === "trainer" && !newWhatsapp) {
+      toast.error("El whatsapp es obligatorio para entrenadores");
+      return;
+    }
 
     try {
       setIsUpdatingRole(true);
-      await updateStaffRole(roleModalUser.id, newRole);
+      await updateStaff(roleModalUser.id, {
+        role: newRole,
+        gender: newGender,
+        phone: newPhone,
+        whatsapp: newWhatsapp,
+      });
       toast.success(
         `Rol de "${roleModalUser.username}" actualizado a ${
-          newRole === "professor" ? "Profesor" : "Staff"
+          newRole === "professor"
+            ? "Profesor"
+            : newRole === "trainer"
+            ? "Entrenador/a"
+            : "Staff"
         }.`
       );
       setRoleModalUser(null);
@@ -144,11 +173,41 @@ function Staff({ embedded = false }) {
           className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
             user.role === "professor"
               ? "bg-info-bg text-info-text dark:bg-info/15 dark:text-info"
+              : user.role === "trainer"
+              ? "bg-success-bg text-success-text dark:bg-success/15 dark:text-success"
               : "bg-surface-elevated text-text-secondary"
           }`}
         >
-          {user.role === "professor" ? "Profesor" : "Staff"}
+          {user.role === "professor"
+            ? "Profesor"
+            : user.role === "trainer"
+            ? "Entrenador/a"
+            : "Staff"}
         </span>
+
+        {user.role === "trainer" && user.gender && (
+          <span className="ml-1.5 text-[10px] capitalize text-text-secondary">
+            {user.gender === "male" ? "Varón" : "Mujer"}
+          </span>
+        )}
+
+        {(user.role === "trainer" || user.role === "professor") &&
+          (user.whatsapp || user.phone) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-secondary">
+              {user.whatsapp && (
+                <a
+                  href={`https://wa.me/${user.whatsapp.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-success-text dark:text-success transition hover:underline"
+                >
+                  <MessageCircle size={11} />
+                  WhatsApp
+                </a>
+              )}
+              {user.phone && <span className="inline-flex items-center gap-1"><Phone size={11} />{user.phone}</span>}
+            </div>
+          )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -156,6 +215,9 @@ function Staff({ embedded = false }) {
           onClick={() => {
             setRoleModalUser(user);
             setNewRole(user.role);
+            setNewGender(user.gender || "");
+            setNewPhone(user.phone || "");
+            setNewWhatsapp(user.whatsapp || "");
           }}
           className="shrink-0 rounded-lg border border-border p-1.5 text-text-secondary transition hover:bg-surface-input"
           title="Editar rol"
@@ -207,6 +269,7 @@ function Staff({ embedded = false }) {
   const owner = staff.find((u) => u.role === "owner");
   const regularStaff = staff.filter((u) => u.role === "staff");
   const professors = staff.filter((u) => u.role === "professor");
+  const trainers = staff.filter((u) => u.role === "trainer");
 
   return (
     <div className="mx-auto max-w-xl">
@@ -316,11 +379,58 @@ function Staff({ embedded = false }) {
             >
               <option value="staff">Staff</option>
               <option value="professor">Profesor</option>
+              <option value="trainer">Entrenador/a</option>
             </select>
             <p className="mt-1 text-xs text-text-secondary">
-              El profesor solo puede gestionar rutinas.
+              {txt(gym, "staff.staff.role_hint")}
             </p>
           </div>
+
+          {form.role === "trainer" && (
+            <>
+              <div>
+                <label className="mb-1 block text-xs text-text-secondary">
+                  Género
+                </label>
+                <select
+                  value={form.gender}
+                  onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                  className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                >
+                  <option value="">Seleccioná un género</option>
+                  <option value="male">Varón</option>
+                  <option value="female">Mujer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs text-text-secondary">
+                  Whatsapp <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.whatsapp}
+                  onChange={(e) =>
+                    setForm({ ...form, whatsapp: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs text-text-secondary">
+                  Teléfono (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-2">
             <button
@@ -346,7 +456,7 @@ function Staff({ embedded = false }) {
         <div className="py-4 text-center text-sm text-text-secondary">
           Cargando...
         </div>
-      ) : regularStaff.length === 0 && professors.length === 0 ? (
+      ) : regularStaff.length === 0 && professors.length === 0 && trainers.length === 0 ? (
         <div className="rounded-xl bg-surface-input px-4 py-3 text-sm text-text-secondary">
           No hay staff. Agregá usuarios para que accedan al panel.
         </div>
@@ -367,6 +477,15 @@ function Staff({ embedded = false }) {
                 Profesores
               </h3>
               {professors.map(renderUserRow)}
+            </div>
+          )}
+
+          {trainers.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-success-text dark:text-success">
+                Entrenadores/as
+              </h3>
+              {trainers.map(renderUserRow)}
             </div>
           )}
         </div>
@@ -441,7 +560,52 @@ function Staff({ embedded = false }) {
               >
                 <option value="staff">Staff</option>
                 <option value="professor">Profesor</option>
+                <option value="trainer">Entrenador/a</option>
               </select>
+
+              {newRole === "trainer" && (
+                <>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-xs text-text-secondary">
+                      Género
+                    </label>
+                    <select
+                      value={newGender}
+                      onChange={(e) => setNewGender(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none"
+                    >
+                      <option value="">Seleccioná un género</option>
+                      <option value="male">Varón</option>
+                      <option value="female">Mujer</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="mb-1 block text-xs text-text-secondary">
+                      Whatsapp <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newWhatsapp}
+                      onChange={(e) => setNewWhatsapp(e.target.value)}
+                      placeholder="+5491100000000"
+                      className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="mb-1 block text-xs text-text-secondary">
+                      Teléfono (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none"
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end gap-2">
                 <button

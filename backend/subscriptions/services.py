@@ -66,16 +66,53 @@ def _copy_activity_items(from_subscription, to_subscription):
         )
 
 
+def _copy_personal_training_items(from_subscription, to_subscription):
+    """Copy active personal-training items from one subscription to another.
+
+    Mirrors _copy_activity_items: when the gym's personal-training add-on
+    is disabled, PT items are not copied so the service stops being billed
+    in renewals. Re-enabling the add-on restores billing in later renewals.
+    """
+    from gyms.features import personal_training_enabled
+
+    if not personal_training_enabled(to_subscription.gym):
+        return
+
+    previous_items = SubscriptionItem.objects.filter(
+        subscription=from_subscription,
+        item_type="personal_training",
+        status="active",
+    ).select_related("personal_training")
+
+    for prev_item in previous_items:
+        pt_service = prev_item.personal_training
+        if pt_service is None or not pt_service.active:
+            continue
+        SubscriptionItem.objects.create(
+            subscription=to_subscription,
+            item_type="personal_training",
+            plan=None,
+            personal_training=pt_service,
+            status="active",
+            name_snapshot=pt_service.name,
+            price_snapshot=pt_service.monthly_price,
+            start_date=to_subscription.start_date,
+            end_date=to_subscription.end_date,
+        )
+
+
 def ensure_subscription_items(subscription, previous_subscription=None):
     """Ensure all billing items exist for a subscription.
 
     1. Creates the plan item (gym membership or base plan).
-    2. If previous_subscription is provided, copies active activity items.
+    2. If previous_subscription is provided, copies active activity and
+       personal-training items.
     """
     ensure_subscription_item(subscription)
 
     if previous_subscription is not None:
         _copy_activity_items(previous_subscription, subscription)
+        _copy_personal_training_items(previous_subscription, subscription)
 
 
 def calculate_subscription_total(subscription, apply_discount=True):
@@ -287,6 +324,43 @@ def gym_activity_package_debt(gym):
     return _package_debt_entries(pending_enrollments, include_member=True)
 
 
+def member_personal_training_package_debt(member):
+    """Return unpaid per-session personal-training packages for a single member.
+
+    Mirrors member_activity_package_debt for PT assignments in package
+    modality, which accumulate independent of the subscription payment
+    system in PersonalTrainingAssignment.amount_paid.
+    """
+    from personal_training.models import PersonalTrainingAssignment
+
+    pending_assignments = (
+        PersonalTrainingAssignment.objects.filter(
+            member=member,
+            active=True,
+            modality="package",
+            session_price__isnull=False,
+        )
+        .select_related("service", "member")
+    )
+    return _pt_package_debt_entries(pending_assignments)
+
+
+def gym_personal_training_package_debt(gym):
+    """Gym-wide version of member_personal_training_package_debt."""
+    from personal_training.models import PersonalTrainingAssignment
+
+    pending_assignments = (
+        PersonalTrainingAssignment.objects.filter(
+            gym=gym,
+            active=True,
+            modality="package",
+            session_price__isnull=False,
+        )
+        .select_related("service", "member")
+    )
+    return _pt_package_debt_entries(pending_assignments, include_member=True)
+
+
 def _package_debt_entries(queryset, include_member=False):
     """Map pending package enrollments into debt entry dicts."""
     entries = []
@@ -308,6 +382,31 @@ def _package_debt_entries(queryset, include_member=False):
         }
         if include_member:
             entry["member"] = e.member
+        entries.append(entry)
+    return entries
+
+
+def _pt_package_debt_entries(queryset, include_member=False):
+    """Map pending PT package assignments into debt entry dicts."""
+    entries = []
+    for a in queryset:
+        if getattr(a.member, "is_comp", False):
+            continue
+        remaining = a.remaining_amount
+        if remaining is None or remaining <= 0:
+            continue
+        entry = {
+            "type": "personal_training_package",
+            "assignment": a,
+            "name": a.service.name,
+            "sessions_total": a.package_total_sessions,
+            "session_price": a.session_price,
+            "total": a.total_amount or Decimal("0"),
+            "paid_amount": a.amount_paid or Decimal("0"),
+            "remaining": remaining,
+        }
+        if include_member:
+            entry["member"] = a.member
         entries.append(entry)
     return entries
 
@@ -357,6 +456,7 @@ def member_total_outstanding_debt(member):
     # session price. Independent of the subscription payment system but must
     # count as outstanding debt so the member is flagged as a debtor.
     packages = member_activity_package_debt(member)
+    packages += member_personal_training_package_debt(member)
 
     package_total = sum(
         (pkg["remaining"] for pkg in packages),
@@ -580,6 +680,7 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
             origin=origin,
         )
         _copy_activity_items(expired_sub, new_sub)
+        _copy_personal_training_items(expired_sub, new_sub)
 
         if approved_pcr is not None:
             apply_plan_change(approved_pcr)
@@ -677,6 +778,7 @@ def recover_member(member):
             origin="recovery",
         )
         _copy_activity_items(latest_sub, new_sub)
+        _copy_personal_training_items(latest_sub, new_sub)
 
         if approved_pcr is not None:
             _finalize_plan_change(approved_pcr, new_sub)
@@ -911,6 +1013,7 @@ def apply_plan_change(plan_change_request):
             )
             if current_sub:
                 _copy_activity_items(current_sub, period_sub)
+                _copy_personal_training_items(current_sub, period_sub)
         else:
             if period_sub.plan != plan_change_request.requested_plan:
                 period_sub.plan = plan_change_request.requested_plan

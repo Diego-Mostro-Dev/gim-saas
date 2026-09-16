@@ -21,10 +21,10 @@ export async function deleteStaff(userId) {
   });
 }
 
-export async function updateStaffRole(userId, role) {
+export async function updateStaff(userId, data) {
   return apiFetch(`/api/gyms/staff/${userId}/`, {
     method: "PATCH",
-    body: JSON.stringify({ role }),
+    body: JSON.stringify(data),
     headers: {
       "Content-Type": "application/json",
     },

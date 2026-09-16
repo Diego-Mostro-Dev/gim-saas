@@ -22,6 +22,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Registration from "./pages/Registration";
 import ChangePassword from "./pages/ChangePassword";
 import Settings from "./pages/Settings";
+import PersonalTrainingSettings from "./pages/PersonalTrainingSettings";
 import MemberPortalLayout from "./pages/member/MemberPortalLayout";
 import DashboardSelector from "./pages/member/DashboardSelector";
 import MemberWorkout from "./pages/member/MemberWorkout";
@@ -29,6 +30,8 @@ import MemberPayments from "./pages/member/MemberPayments";
 import MemberAttachments from "./pages/member/MemberAttachments";
 import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
+import MemberPersonalTraining from "./pages/MemberPersonalTraining";
+import TrainerAgenda from "./pages/TrainerAgenda";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
 import AttendanceQR from "./pages/AttendanceQR";
@@ -43,13 +46,18 @@ import ScheduleEnrollments from "./pages/ScheduleEnrollments";
 import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
+import { useFeature } from "./features/FeatureProvider";
 import useAuthStore from "./store/auth.store";
 
 function HomeRedirect() {
   const isSuperuser = useAuthStore((state) => state.isSuperuser);
   const role = useAuthStore((state) => state.role);
+  const personalTrainingEnabled = useFeature("personal_training");
   if (role === "professor") {
     return <Navigate to="/routines" replace />;
+  }
+  if (role === "trainer" && personalTrainingEnabled) {
+    return <Navigate to="/trainer-agenda" replace />;
   }
   return <Navigate to={isSuperuser ? "/admin" : "/dashboard"} replace />;
 }
@@ -58,6 +66,9 @@ function ProfessorRoute({ children }) {
   const role = useAuthStore((state) => state.role);
   if (role === "professor") {
     return <Navigate to="/routines" replace />;
+  }
+  if (role === "trainer") {
+    return <Navigate to="/trainer-agenda" replace />;
   }
   return children;
 }
@@ -81,6 +92,7 @@ function App() {
         <Route path="recoveries" element={<MemberRecoveries />} />
         <Route path="attachments" element={<MemberAttachments />} />
         <Route path="activities" element={<MemberActivities />} />
+        <Route path="personal-training" element={<MemberPersonalTraining />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>
       <Route path="/checkin/:gymCode" element={<Checkin />} />
@@ -104,7 +116,9 @@ function App() {
         <Route path="/registration" element={<ProfessorRoute><Registration /></ProfessorRoute>} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/settings" element={<ProfessorRoute><Settings /></ProfessorRoute>} />
+        <Route path="/personal-training" element={<ProfessorRoute><ProtectedFeature feature="personal_training"><PersonalTrainingSettings /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/staff" element={<ProfessorRoute><Staff /></ProfessorRoute>} />
+        <Route path="/trainer-agenda" element={<ProtectedFeature feature="personal_training"><TrainerAgenda /></ProtectedFeature>} />
         <Route path="/routines" element={<Routines />} />
         <Route path="/attendance-qr" element={<ProfessorRoute><AttendanceQR /></ProfessorRoute>} />
         <Route path="/schedule-change-requests" element={<ProfessorRoute><ScheduleChangeRequests /></ProfessorRoute>} />

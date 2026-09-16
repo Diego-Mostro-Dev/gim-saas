@@ -24,6 +24,7 @@ import useAuthStore from "../../store/auth.store";
 function BottomNav() {
   const role = useAuthStore((state) => state.role);
   const activitiesEnabled = useFeature("activities");
+  const personalTrainingEnabled = useFeature("personal_training");
   const { pendingCount } = useScheduleChangeData();
   const { pendingCount: swapPendingCount } = useScheduleSwapData();
   const { pendingCount: planPendingCount } = usePlanChangeData();
@@ -55,6 +56,26 @@ function BottomNav() {
         <div className="relative">
           <nav className="flex h-20 w-full snap-x snap-mandatory items-center justify-center gap-1 overflow-x-auto overflow-y-hidden border-t border-border/10 bg-surface-elevated px-2 scroll-smooth sm:justify-around">
             {routinesLink}
+          </nav>
+        </div>
+      </div>
+    );
+  }
+
+  if (role === "trainer") {
+    return (
+      <div className="fixed bottom-0 z-40 w-full">
+        <div className="relative">
+          <nav className="flex h-20 w-full snap-x snap-mandatory items-center justify-center gap-1 overflow-x-auto overflow-y-hidden border-t border-border/10 bg-surface-elevated px-2 scroll-smooth sm:justify-around">
+            <NavLink
+              to="/trainer-agenda"
+              className={({ isActive }) =>
+                `${baseClass} ${isActive ? activeClass : inactiveClass}`
+              }
+            >
+              <CalendarDays size={20} />
+              <span className="text-xs">Mi agenda</span>
+            </NavLink>
           </nav>
         </div>
       </div>
@@ -97,6 +118,19 @@ function BottomNav() {
           <Activity size={20} />
 
           <span className="text-xs">Actividades</span>
+        </NavLink>
+      )}
+
+      {personalTrainingEnabled && (
+        <NavLink
+          to="/personal-training"
+          className={({ isActive }) =>
+            `${baseClass} ${isActive ? activeClass : inactiveClass}`
+          }
+        >
+          <Dumbbell size={20} />
+
+          <span className="text-xs">Entrenam.</span>
         </NavLink>
       )}
 
