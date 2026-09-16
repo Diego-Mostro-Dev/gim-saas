@@ -74,6 +74,10 @@ export async function createMember(memberData) {
     memberData.affiliate_number || "",
   );
 
+  if (memberData.address) {
+    formData.append("address", memberData.address);
+  }
+
   if (memberData.insurance) {
     formData.append("insurance", memberData.insurance);
   }
@@ -166,14 +170,17 @@ export async function updateMember(
     memberData.affiliate_number || "",
   );
 
+  if (memberData.address) {
+    formData.append("address", memberData.address);
+  }
+
   if (memberData.insurance !== undefined && memberData.insurance) {
     formData.append("insurance", memberData.insurance);
   }
 
-  formData.append(
-    "discount_id",
-    memberData.discount_id || "",
-  );
+  if (memberData.discount_id) {
+    formData.append("discount_id", memberData.discount_id);
+  }
 
   if (memberData.plan_id) {
     formData.append("plan_id", memberData.plan_id);

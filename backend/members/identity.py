@@ -30,6 +30,7 @@ def member_identity(member):
         "photo": photo,
         "document_number": member.document_number or None,
         "phone": member.phone or None,
+        "whatsapp": getattr(member, "whatsapp", None) or None,
         "insurance_name": insurance_name,
         "affiliate_number": member.affiliate_number or None,
     }

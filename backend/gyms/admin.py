@@ -8,6 +8,7 @@ from .models import Discount, Gym
 
 class GymAdminForm(forms.ModelForm):
     activities = forms.BooleanField(required=False, label="Actividades extra")
+    personal_training = forms.BooleanField(required=False, label="Entrenamiento personal")
 
     class Meta:
         model = Gym
@@ -16,13 +17,14 @@ class GymAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            initial = self.instance.features.get("activities", False)
-            self.fields["activities"].initial = initial
+            self.fields["activities"].initial = self.instance.features.get("activities", False)
+            self.fields["personal_training"].initial = self.instance.features.get("personal_training", False)
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         features = instance.features or {}
         features["activities"] = self.cleaned_data.get("activities", False)
+        features["personal_training"] = self.cleaned_data.get("personal_training", False)
         instance.features = features
         if commit:
             instance.save()
@@ -87,7 +89,7 @@ class GymAdmin(admin.ModelAdmin):
         (
             "Características",
             {
-                "fields": ("activities",),
+                "fields": ("activities", "personal_training"),
             },
         ),
         (

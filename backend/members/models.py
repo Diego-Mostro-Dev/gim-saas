@@ -109,6 +109,12 @@ class Member(models.Model):
         verbose_name="Teléfono",
     )
 
+    whatsapp = models.CharField(
+        max_length=30,
+        blank=True,
+        verbose_name="Whatsapp",
+    )
+
     email = models.EmailField(
         blank=True,
         verbose_name="Email",
@@ -136,6 +142,13 @@ class Member(models.Model):
         max_length=50,
         blank=True,
         verbose_name="Nº de afiliado",
+    )
+
+    address = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Dirección",
+        help_text="Dirección del socio (ej: domicilio donde entrena el personal trainer).",
     )
 
     insurance = models.ForeignKey(

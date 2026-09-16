@@ -15,13 +15,16 @@ import {
   CalendarOff,
   Search,
   Shield,
+  Dumbbell,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useGym } from "../hooks/useGym";
+import { useFeature } from "../hooks/useFeature";
 import useAuthStore from "../store/auth.store";
 import Staff from "./Staff";
+import PersonalTrainingSettings from "./PersonalTrainingSettings";
 import {
   updateGym,
   getClosedDates,
@@ -99,6 +102,7 @@ function Settings() {
   const [searchParams] = useSearchParams();
   const { gym } = useGym();
   const role = useAuthStore((state) => state.role);
+  const personalTrainingEnabled = useFeature("personal_training");
   const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
@@ -178,6 +182,12 @@ function Settings() {
       : "info";
   });
 
+  useEffect(() => {
+    if (!personalTrainingEnabled && activeTab === "personal-training") {
+      setActiveTab("info");
+    }
+  }, [personalTrainingEnabled, activeTab]);
+
   const [slots, setSlots] = useState(() => getCached("slots") || []);
   const [loadingSlots, setLoadingSlots] = useState(() => !isCacheFresh("slots", 10 * 60 * 1000));
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -245,6 +255,9 @@ function Settings() {
     { id: "planes", label: "Planes & Horarios", icon: CalendarDays },
     { id: "obras-sociales", label: "Obras sociales", icon: Users },
     { id: "staff", label: "Staff", icon: Shield },
+    ...(personalTrainingEnabled
+      ? [{ id: "personal-training", label: "Entrenamiento", icon: Dumbbell }]
+      : []),
     { id: "cierres", label: "Fechas cerradas", icon: CalendarOff },
     { id: "qr", label: "QR", icon: QrCode },
     { id: "seo", label: "SEO", icon: Search },
@@ -816,6 +829,8 @@ function Settings() {
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
       {activeTab === "staff" ? (
         <Staff embedded />
+      ) : activeTab === "personal-training" ? (
+        <PersonalTrainingSettings embedded />
       ) : (
       <form
         onSubmit={handleSubmit}

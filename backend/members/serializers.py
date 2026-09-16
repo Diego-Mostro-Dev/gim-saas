@@ -125,6 +125,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "date_of_birth",
             "health_insurance",
             "affiliate_number",
+            "address",
             "insurance_id",
             "insurance_name",
             "insurance_session_price",

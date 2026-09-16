@@ -327,6 +327,7 @@ function MemberPortalLayoutContent({
   useGymTitle(routine.gym, token);
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
   const activitiesEnabled = useFeature("activities");
+  const personalTrainingEnabled = useFeature("personal_training");
   const { features } = useContext(FeatureContext);
   const paymentStatus = routine?.subscription?.payment_status;
   const isOperativeBlocked =
@@ -336,6 +337,7 @@ function MemberPortalLayoutContent({
 
   const routeFeatureMap = {
     [`/routine/${token}/activities`]: "activities",
+    [`/routine/${token}/personal-training`]: "personal_training",
   };
   const homeRoute = `/routine/${token}`;
 
@@ -359,6 +361,10 @@ function MemberPortalLayoutContent({
     { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },
   ];
 
+  const personalTrainingTab = [
+    { path: `/routine/${token}/personal-training`, label: "Entrenamiento", icon: Dumbbell },
+  ];
+
   const attachmentsTab = [
     { path: `/routine/${token}/attachments`, label: "Adjuntos", icon: Paperclip },
   ];
@@ -373,6 +379,7 @@ function MemberPortalLayoutContent({
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
         ...activitiesTab,
+        ...personalTrainingTab,
         ...attachmentsTab,
       ]
     : [
@@ -381,11 +388,17 @@ function MemberPortalLayoutContent({
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
         ...activitiesTab,
+        ...personalTrainingTab,
         ...attachmentsTab,
         { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
       ];
 
-  const tabs = activitiesEnabled ? allTabs : allTabs.filter((t) => t.path !== `/routine/${token}/activities`);
+  const tabs = activitiesEnabled
+    ? allTabs
+    : allTabs.filter((t) => t.path !== `/routine/${token}/activities`);
+  const visibleTabs = personalTrainingEnabled
+    ? tabs
+    : tabs.filter((t) => t.path !== `/routine/${token}/personal-training`);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -504,7 +517,7 @@ function MemberPortalLayoutContent({
 
         <div className="px-4 mb-6">
           <div className="flex rounded-xl bg-surface-elevated border border-border p-1">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const active = location.pathname === tab.path;
               const Icon = tab.icon;
               return (

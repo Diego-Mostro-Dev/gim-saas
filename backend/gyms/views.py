@@ -342,6 +342,9 @@ class GymStaffView(APIView):
                     "username": p.user.username,
                     "email": p.user.email,
                     "role": p.role,
+                    "gender": p.gender,
+                    "phone": p.phone or None,
+                    "whatsapp": p.whatsapp or None,
                     "must_change_password": p.must_change_password,
                 }
                 for p in users
@@ -356,6 +359,9 @@ class GymStaffView(APIView):
         email = (request.data.get("email") or "").strip()
         password = request.data.get("password")
         role = request.data.get("role", UserProfile.ROLE_STAFF)
+        gender = (request.data.get("gender") or "").strip()
+        phone = (request.data.get("phone") or "").strip()
+        whatsapp = (request.data.get("whatsapp") or "").strip()
 
         if not username or not password:
             return Response(
@@ -363,9 +369,25 @@ class GymStaffView(APIView):
                 status=400,
             )
 
-        if role not in (UserProfile.ROLE_STAFF, UserProfile.ROLE_PROFESSOR):
+        if role not in (
+            UserProfile.ROLE_STAFF,
+            UserProfile.ROLE_PROFESSOR,
+            UserProfile.ROLE_TRAINER,
+        ):
             return Response(
                 {"error": "Rol inválido"},
+                status=400,
+            )
+
+        if gender and gender not in dict(UserProfile.GENDER_CHOICES):
+            return Response(
+                {"error": "Género inválido"},
+                status=400,
+            )
+
+        if role == UserProfile.ROLE_TRAINER and not whatsapp:
+            return Response(
+                {"error": "El whatsapp es obligatorio para entrenadores"},
                 status=400,
             )
 
@@ -384,6 +406,9 @@ class GymStaffView(APIView):
         profile = user.profile
         profile.gym = gym
         profile.role = role
+        profile.gender = gender
+        profile.phone = phone
+        profile.whatsapp = whatsapp
         profile.save()
 
         return Response(
@@ -392,6 +417,9 @@ class GymStaffView(APIView):
                 "username": user.username,
                 "email": user.email,
                 "role": profile.role,
+                "gender": profile.gender,
+                "phone": profile.phone,
+                "whatsapp": profile.whatsapp,
             },
             status=201,
         )
@@ -448,13 +476,40 @@ class GymStaffDetailView(APIView):
 
         role = request.data.get("role")
 
-        if role not in (UserProfile.ROLE_STAFF, UserProfile.ROLE_PROFESSOR):
-            return Response(
-                {"error": "Rol inválido"},
-                status=400,
-            )
+        if role is not None:
+            if role not in (
+                UserProfile.ROLE_STAFF,
+                UserProfile.ROLE_PROFESSOR,
+                UserProfile.ROLE_TRAINER,
+            ):
+                return Response(
+                    {"error": "Rol inválido"},
+                    status=400,
+                )
+            profile.role = role
 
-        profile.role = role
+        gender = (request.data.get("gender") or "").strip()
+        if gender:
+            if gender not in dict(UserProfile.GENDER_CHOICES):
+                return Response(
+                    {"error": "Género inválido"},
+                    status=400,
+                )
+            profile.gender = gender
+
+        phone = (request.data.get("phone") or "").strip()
+        if phone:
+            profile.phone = phone
+
+        whatsapp = (request.data.get("whatsapp") or "").strip()
+        if whatsapp or role == UserProfile.ROLE_TRAINER:
+            if role == UserProfile.ROLE_TRAINER and not whatsapp:
+                return Response(
+                    {"error": "El whatsapp es obligatorio para entrenadores"},
+                    status=400,
+                )
+            profile.whatsapp = whatsapp
+
         profile.save()
 
         return Response(
@@ -463,6 +518,9 @@ class GymStaffDetailView(APIView):
                 "username": profile.user.username,
                 "email": profile.user.email,
                 "role": profile.role,
+                "gender": profile.gender,
+                "phone": profile.phone,
+                "whatsapp": profile.whatsapp,
             }
         )
 

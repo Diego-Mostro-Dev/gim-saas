@@ -108,6 +108,12 @@ async function throwIfNotOk(res, options = {}) {
     if (res.status === 401 && !options.suppressUnauthorized) {
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
+    // Structured FEATURE_DISABLED (new features raise FeatureDisabled with code+feature).
+    if (res.status === 403 && body?.code === "FEATURE_DISABLED" && body?.feature) {
+      window.dispatchEvent(new Event("features:updated"));
+      throw new ApiError(detail, 403, "FEATURE_DISABLED", body.feature, body);
+    }
+    // Legacy string-based detection for old Activity-only code paths.
     if (res.status === 403 && detail?.includes("Actividades no está habilitado")) {
       window.dispatchEvent(new Event("features:updated"));
       throw new ApiError(detail, 403, "FEATURE_DISABLED", "activities", body);
