@@ -623,6 +623,89 @@ class MemberPhotoSerializer(serializers.ModelSerializer):
         return data
 
 
+class PublicMemberDataSerializer(serializers.ModelSerializer):
+    """Edición de sus propios datos desde el portal del socio.
+
+    Solo expone campos editables por el propio miembro. El contexto recibe
+    la instancia de Member (resuelta por access_token) para poder validar
+    unicidad de teléfono dentro de su gimnasio.
+    """
+
+    class Meta:
+        model = Member
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "whatsapp",
+            "phone",
+            "email",
+            "address",
+            "date_of_birth",
+            "document_number",
+            "entry_mode",
+            "active",
+            "photo",
+        ]
+        read_only_fields = [
+            "id",
+            "entry_mode",
+            "active",
+            "photo",
+        ]
+
+    def validate_phone(self, value):
+        member = self.instance
+
+        if member is None:
+            return value
+
+        qs = Member.objects.filter(
+            phone=value,
+            gym=member.gym,
+        ).exclude(id=member.id)
+
+        if qs.exists():
+            raise serializers.ValidationError(
+                "Ya existe un socio con ese teléfono."
+            )
+
+        return value
+
+    def validate_date_of_birth(self, value):
+        if value and value > timezone.localdate():
+            raise serializers.ValidationError(
+                "La fecha de nacimiento no puede ser futura."
+            )
+        return value
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.photo:
+            try:
+                data["photo"] = instance.photo.url
+            except Exception:
+                data["photo"] = str(instance.photo)
+        else:
+            data["photo"] = None
+
+        return data
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.photo:
+            try:
+                data["photo"] = instance.photo.url
+            except Exception:
+                data["photo"] = str(instance.photo)
+        else:
+            data["photo"] = None
+
+        return data
+
+
 class MemberAttachmentSerializer(serializers.ModelSerializer):
     category_label = serializers.SerializerMethodField()
     member_name = serializers.SerializerMethodField()

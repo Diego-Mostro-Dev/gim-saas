@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { txt } from "../../utils/labels";
 
-import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip } from "lucide-react";
+import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import { useGymTitle } from "../../hooks/useGymTitle";
@@ -376,6 +376,7 @@ function MemberPortalLayoutContent({
   const allTabs = isActivityOnly
     ? [
         { path: `/routine/${token}`, label: "Inicio", icon: Home },
+        { path: `/routine/${token}/data`, label: "Mis datos", icon: User },
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
         ...activitiesTab,
@@ -384,6 +385,7 @@ function MemberPortalLayoutContent({
       ]
     : [
         { path: `/routine/${token}`, label: "Inicio", icon: Home },
+        { path: `/routine/${token}/data`, label: "Mis datos", icon: User },
         { path: `/routine/${token}/workout`, label: "Rutina", icon: Dumbbell },
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,

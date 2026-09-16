@@ -6,6 +6,7 @@ from .views import (
     HealthInsuranceViewSet,
     MemberAttachmentViewSet,
     MemberViewSet,
+    PublicMemberDataView,
     PublicMemberPhotoView,
 )
 from .public_views import (
@@ -62,6 +63,11 @@ urlpatterns = router.urls + [
         "public/<str:token>/photo/",
         PublicMemberPhotoView.as_view(),
         name="public-member-photo",
+    ),
+    path(
+        "public/<str:token>/data/",
+        PublicMemberDataView.as_view(),
+        name="public-member-data",
     ),
     path(
         "public/<str:token>/attachments/",
