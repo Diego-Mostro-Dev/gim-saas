@@ -6,13 +6,15 @@ from gyms.models import Gym
 class UserProfile(models.Model):
     ROLE_OWNER = "owner"
     ROLE_STAFF = "staff"
+    ROLE_PROFESSOR = "professor"
     ROLE_CHOICES = [
         (ROLE_OWNER, "Dueño"),
         (ROLE_STAFF, "Staff"),
+        (ROLE_PROFESSOR, "Profesor"),
     ]
 
     role = models.CharField(
-        max_length=10,
+        max_length=12,
         choices=ROLE_CHOICES,
         default=ROLE_STAFF,
         verbose_name="Rol",

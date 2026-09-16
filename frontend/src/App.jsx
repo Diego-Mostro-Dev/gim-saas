@@ -47,7 +47,19 @@ import useAuthStore from "./store/auth.store";
 
 function HomeRedirect() {
   const isSuperuser = useAuthStore((state) => state.isSuperuser);
+  const role = useAuthStore((state) => state.role);
+  if (role === "professor") {
+    return <Navigate to="/routines" replace />;
+  }
   return <Navigate to={isSuperuser ? "/admin" : "/dashboard"} replace />;
+}
+
+function ProfessorRoute({ children }) {
+  const role = useAuthStore((state) => state.role);
+  if (role === "professor") {
+    return <Navigate to="/routines" replace />;
+  }
+  return children;
 }
 
 function App() {
@@ -82,26 +94,26 @@ function App() {
           </ProtectedLayout>
         }
       >
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/members" element={<Members />} />
-        <Route path="/recover-members" element={<RecoverMembers />} />
-        <Route path="/subscriptions" element={<Subscriptions />} />
-        <Route path="/plans" element={<Plans />} />
-        <Route path="/payments" element={<Payments />} />
-        <Route path="/attendance" element={<Attendance />} />
-        <Route path="/registration" element={<Registration />} />
+        <Route path="/dashboard" element={<ProfessorRoute><Dashboard /></ProfessorRoute>} />
+        <Route path="/members" element={<ProfessorRoute><Members /></ProfessorRoute>} />
+        <Route path="/recover-members" element={<ProfessorRoute><RecoverMembers /></ProfessorRoute>} />
+        <Route path="/subscriptions" element={<ProfessorRoute><Subscriptions /></ProfessorRoute>} />
+        <Route path="/plans" element={<ProfessorRoute><Plans /></ProfessorRoute>} />
+        <Route path="/payments" element={<ProfessorRoute><Payments /></ProfessorRoute>} />
+        <Route path="/attendance" element={<ProfessorRoute><Attendance /></ProfessorRoute>} />
+        <Route path="/registration" element={<ProfessorRoute><Registration /></ProfessorRoute>} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/staff" element={<Staff />} />
+        <Route path="/settings" element={<ProfessorRoute><Settings /></ProfessorRoute>} />
+        <Route path="/staff" element={<ProfessorRoute><Staff /></ProfessorRoute>} />
         <Route path="/routines" element={<Routines />} />
-        <Route path="/attendance-qr" element={<AttendanceQR />} />
-        <Route path="/schedule-change-requests" element={<ScheduleChangeRequests />} />
-        <Route path="/schedule-swap-requests" element={<ScheduleSwapRequests />} />
-        <Route path="/plan-change-requests" element={<PlanChangeRequests />} />
-        <Route path="/attendance-analytics" element={<AttendanceAnalytics />} />
-        <Route path="/activities" element={<ProtectedFeature feature="activities"><Activities /></ProtectedFeature>} />
-        <Route path="/activities/:activityId/schedules" element={<ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature>} />
-        <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature>} />
+        <Route path="/attendance-qr" element={<ProfessorRoute><AttendanceQR /></ProfessorRoute>} />
+        <Route path="/schedule-change-requests" element={<ProfessorRoute><ScheduleChangeRequests /></ProfessorRoute>} />
+        <Route path="/schedule-swap-requests" element={<ProfessorRoute><ScheduleSwapRequests /></ProfessorRoute>} />
+        <Route path="/plan-change-requests" element={<ProfessorRoute><PlanChangeRequests /></ProfessorRoute>} />
+        <Route path="/attendance-analytics" element={<ProfessorRoute><AttendanceAnalytics /></ProfessorRoute>} />
+        <Route path="/activities" element={<ProfessorRoute><ProtectedFeature feature="activities"><Activities /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/activities/:activityId/schedules" element={<ProfessorRoute><ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProfessorRoute><ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature></ProfessorRoute>} />
       </Route>
 
       {/* admin central (solo superuser) */}

@@ -21,6 +21,16 @@ export async function deleteStaff(userId) {
   });
 }
 
+export async function updateStaffRole(userId, role) {
+  return apiFetch(`/api/gyms/staff/${userId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
 export async function adminResetPassword(userId, newPassword) {
   return apiFetch("/api/auth/admin-reset-password/", {
     method: "POST",
