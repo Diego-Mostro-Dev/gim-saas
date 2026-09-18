@@ -27,6 +27,8 @@ const DEFAULT_LABELS = {
     "Todavía no podés usar las funciones del portal: tu alta está pendiente del pago inicial con el gimnasio.",
   "portal.pay_with_gym":
     "Para volver a utilizar las funciones del portal, regularizá tu pago con el gimnasio.",
+  "portal.renewal_skipped":
+    "Tu suscripción del mes anterior quedó bloqueada por falta de pago y no se renovó. Regularizá tu saldo para recuperar tu plan.",
   "portal.suspended_activity":
     "Esta actividad ha sido suspendida temporalmente por el gimnasio.",
   "portal.suspended_activity_hint":

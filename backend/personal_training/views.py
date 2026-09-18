@@ -16,6 +16,7 @@ from members.models import Member
 from profiles.models import UserProfile
 
 from .assignment_service import AssignmentError, AssignmentService
+from .availability import available_slots
 from .change_request_service import ChangeRequestError, ChangeRequestService
 from .models import (
     PersonalTrainingAssignment,
@@ -124,6 +125,51 @@ class PersonalTrainingAssignmentViewSet(
 
     def perform_create(self, serializer):
         serializer.save()
+
+    @action(detail=False, methods=["get"])
+    def available_slots(self, request):
+        member_id = request.query_params.get("member_id")
+        trainer_id = request.query_params.get("trainer_id")
+        service_id = request.query_params.get("service_id")
+        assignment_id = request.query_params.get("assignment_id")
+
+        if not member_id or not trainer_id or not service_id:
+            return Response(
+                {
+                    "detail": (
+                        "Los parámetros member_id, trainer_id y service_id "
+                        "son requeridos."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        member = get_object_or_404(Member, id=member_id)
+        service = get_object_or_404(
+            PersonalTrainingService, id=service_id, gym=self.get_gym()
+        )
+        trainer_profile = get_object_or_404(
+            UserProfile,
+            id=trainer_id,
+            gym=self.get_gym(),
+            role=UserProfile.ROLE_TRAINER,
+        )
+
+        exclude = None
+        if assignment_id:
+            exclude = get_object_or_404(
+                PersonalTrainingAssignment, id=assignment_id
+            )
+
+        result = available_slots(
+            self.get_gym(),
+            member,
+            trainer_profile.user,
+            exclude=exclude,
+            duration_minutes=service.duration_minutes,
+        )
+        result["duration_minutes"] = service.duration_minutes
+        return Response(result)
 
     def destroy(self, request, *args, **kwargs):
         assignment = self.get_object()

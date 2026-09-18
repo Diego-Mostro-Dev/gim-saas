@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   CalendarDays,
@@ -19,7 +19,15 @@ import {
   cancelPublicPersonalTrainingChangeRequest,
   createPublicPersonalTrainingChangeRequest,
   getPublicPersonalTraining,
+  getPublicPersonalTrainingAvailableSlots,
 } from "../services/personalTraining.service";
+import {
+  dayIntervals,
+  endHoursFor,
+  isFree,
+  reconcileSlot,
+  startHoursFor,
+} from "../utils/ptAvailability";
 
 const STATUS_LABELS = {
   pending: "Pendiente de aprobación",
@@ -32,12 +40,6 @@ const STATUS_LABELS = {
 const inputClass =
   "w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring";
 
-const AVAILABLE_HOURS = [
-  "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
-  "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
-  "19:00", "20:00", "21:00",
-];
-
 function MemberPersonalTraining() {
   const { token, isOperativeBlocked } = useOutletContext();
   const [data, setData] = useState(null);
@@ -48,8 +50,11 @@ function MemberPersonalTraining() {
     requested_start_time: "08:00",
     requested_end_time: "09:00",
   });
+  const [freeData, setFreeData] = useState(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
+  const slotsFetchSeq = useRef(0);
 
   async function load(force = false) {
     if (force) setLoading(true);
@@ -74,6 +79,49 @@ function MemberPersonalTraining() {
       requested_start_time: String(assignment.start_time).slice(0, 5),
       requested_end_time: String(assignment.end_time).slice(0, 5),
     });
+    const seq = ++slotsFetchSeq.current;
+    setFreeData(null);
+    setSlotsLoading(true);
+    getPublicPersonalTrainingAvailableSlots(token, assignment.id)
+      .then((res) => {
+        if (seq !== slotsFetchSeq.current) return;
+        setFreeData(res);
+        setRequest((r) => {
+          const fixed = reconcileSlot(
+            res,
+            r.requested_day,
+            r.requested_start_time,
+            r.requested_end_time,
+          );
+          if (
+            fixed.start === r.requested_start_time &&
+            fixed.end === r.requested_end_time
+          ) {
+            return r;
+          }
+          return {
+            ...r,
+            requested_start_time: fixed.start,
+            requested_end_time: fixed.end,
+          };
+        });
+      })
+      .catch((err) => {
+        if (seq !== slotsFetchSeq.current) return;
+        toast.error(err.message || "Error al cargar horarios disponibles");
+        setFreeData({ days: {}, closed_days: [] });
+      })
+      .finally(() => {
+        if (seq === slotsFetchSeq.current) setSlotsLoading(false);
+      });
+  }
+
+  function dayUnavailable(day) {
+    if (!freeData) return false;
+    return (
+      freeData.closed_days?.includes(day) ||
+      dayIntervals(freeData, day).length === 0
+    );
   }
 
   async function handleSubmit(e) {
@@ -85,6 +133,11 @@ function MemberPersonalTraining() {
     }
     if (request.requested_end_time <= request.requested_start_time) {
       toast.error("La hora de fin debe ser posterior a la de inicio");
+      return;
+    }
+    const intervals = dayIntervals(freeData, request.requested_day);
+    if (!intervals.length || !isFree(intervals, request.requested_start_time, request.requested_end_time)) {
+      toast.error("Ese horario ya no está disponible. Elegí otro de la lista.");
       return;
     }
     setSubmitting(true);
@@ -132,6 +185,8 @@ function MemberPersonalTraining() {
   const pendingRequests = changeRequests.filter(
     (r) => r.status === "pending",
   );
+  const dayIv = dayIntervals(freeData, request.requested_day);
+  const sessionDuration = freeData?.duration_minutes || 60;
 
   return (
     <div className="space-y-4">
@@ -401,76 +456,139 @@ function MemberPersonalTraining() {
             </p>
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-text-secondary">
-                  Día
-                </label>
-                <select
-                  value={request.requested_day}
-                  onChange={(e) =>
-                    setRequest({ ...request, requested_day: e.target.value })
-                  }
-                  className={inputClass}
-                >
-                  {DAY_ORDER.map((day) => (
-                    <option key={day} value={day}>
-                      {DAY_NAMES[day]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-text-secondary">
-                    Inicio
-                  </label>
-                  <select
-                    value={request.requested_start_time}
-                    onChange={(e) =>
-                      setRequest({
-                        ...request,
-                        requested_start_time: e.target.value,
-                      })
-                    }
-                    className={inputClass}
-                  >
-                    {AVAILABLE_HOURS.map(
-                      (h) =>
-                        (!request.requested_end_time ||
-                          h < request.requested_end_time) && (
-                          <option key={h} value={h}>
-                            {h}
+              {slotsLoading ? (
+                <p className="rounded-xl bg-surface-input px-4 py-3 text-xs text-text-secondary">
+                  Cargando horarios disponibles…
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-text-secondary">
+                      Día
+                    </label>
+                    <select
+                      value={request.requested_day}
+                      onChange={(e) => {
+                        const day = e.target.value;
+                        setRequest((r) => {
+                          const fixed = reconcileSlot(
+                            freeData,
+                            day,
+                            r.requested_start_time,
+                            r.requested_end_time,
+                          );
+                          return {
+                            ...r,
+                            requested_day: day,
+                            requested_start_time: fixed.start,
+                            requested_end_time: fixed.end,
+                          };
+                        });
+                      }}
+                      className={inputClass}
+                    >
+                      {DAY_ORDER.map((day) => (
+                        <option
+                          key={day}
+                          value={day}
+                          disabled={dayUnavailable(day)}
+                        >
+                          {DAY_NAMES[day]}
+                          {dayUnavailable(day)
+                            ? freeData?.closed_days?.includes(day)
+                              ? " · gym cerrado"
+                              : " · sin horarios libres"
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-text-secondary">
+                        Inicio
+                      </label>
+                      <select
+                        value={request.requested_start_time}
+                        onChange={(e) => {
+                          const nextStart = e.target.value;
+                          const ends = endHoursFor(dayIv, nextStart, sessionDuration);
+                          if (ends.includes(request.requested_end_time)) {
+                            setRequest({
+                              ...request,
+                              requested_start_time: nextStart,
+                            });
+                          } else {
+                            setRequest({
+                              ...request,
+                              requested_start_time: nextStart,
+                              requested_end_time: ends[0] || "",
+                            });
+                          }
+                        }}
+                        className={inputClass}
+                      >
+                        {request.requested_end_time && dayIv.length > 0 ? (
+                          startHoursFor(dayIv, sessionDuration)
+                            .filter((h) => h < request.requested_end_time)
+                            .map((h) => (
+                              <option key={h} value={h}>
+                                {h}
+                              </option>
+                            ))
+                        ) : (
+                          <option value="" disabled>
+                            Sin horarios
                           </option>
-                        ),
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-text-secondary">
-                    Fin
-                  </label>
-                  <select
-                    value={request.requested_end_time}
-                    onChange={(e) =>
-                      setRequest({
-                        ...request,
-                        requested_end_time: e.target.value,
-                      })
-                    }
-                    className={inputClass}
-                  >
-                    {AVAILABLE_HOURS.map(
-                      (h) =>
-                        (!request.requested_start_time ||
-                          h > request.requested_start_time) && (
-                          <option key={h} value={h}>
-                            {h}
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-text-secondary">
+                        Fin
+                      </label>
+                      <select
+                        value={request.requested_end_time}
+                        onChange={(e) =>
+                          setRequest({
+                            ...request,
+                            requested_end_time: e.target.value,
+                          })
+                        }
+                        className={inputClass}
+                      >
+                        {request.requested_start_time && dayIv.length > 0 ? (
+                          endHoursFor(
+                            dayIv,
+                            request.requested_start_time,
+                            sessionDuration,
+                          ).map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>
+                            Sin horarios
                           </option>
-                        ),
-                    )}
-                  </select>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                  {dayIv.length === 0 ? (
+                    <p className="text-xs text-danger-text dark:text-danger">
+                      No hay horarios libres este día. Elegí otro día de la
+                      lista.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-text-secondary">
+                      Solo se muestran horarios que no chocan con tus clases,
+                      tu gim común ni el resto de asignaciones. Tu horario
+                      actual siempre figura como disponible.
+                    </p>
+                  )}
                 </div>
-              </div>
+              )}
 
               <div className="flex justify-end gap-2">
                 <button
@@ -482,10 +600,14 @@ function MemberPersonalTraining() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || slotsLoading}
                   className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
                 >
-                  {submitting ? "Enviando…" : "Enviar solicitud"}
+                  {submitting
+                    ? "Enviando…"
+                    : slotsLoading
+                      ? "Cargando…"
+                      : "Enviar solicitud"}
                 </button>
               </div>
             </form>

@@ -150,3 +150,22 @@ export async function cancelPublicPersonalTrainingChangeRequest(token, requestId
     { method: "DELETE" },
   );
 }
+
+export async function getPublicPersonalTrainingAvailableSlots(token, assignmentId) {
+  const qs = new URLSearchParams({ assignment_id: assignmentId });
+  return apiFetch(
+    `/api/personal-training/public/${token}/available-slots/?${qs.toString()}`,
+  );
+}
+
+export async function getPersonalTrainingAvailableSlots(params = {}) {
+  const query = new URLSearchParams();
+  if (params.member_id) query.set("member_id", String(params.member_id));
+  if (params.trainer_id) query.set("trainer_id", String(params.trainer_id));
+  if (params.service_id) query.set("service_id", String(params.service_id));
+  if (params.assignment_id) query.set("assignment_id", String(params.assignment_id));
+  const qs = query.toString();
+  return apiFetch(
+    `/api/personal-training/assignments/available_slots/${qs ? `?${qs}` : ""}`,
+  );
+}

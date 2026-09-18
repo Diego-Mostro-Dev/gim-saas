@@ -148,6 +148,15 @@ function PublicRoutine() {
 
   const { schedules, gym } = routine;
 
+  const scheduleChangesUsed =
+    routine.schedule_changes?.used_this_month ?? 0;
+  const scheduleChangesMax =
+    routine.schedule_changes?.max_per_month ?? 0;
+  const scheduleChangesRemaining = Math.max(
+    0,
+    scheduleChangesMax - scheduleChangesUsed,
+  );
+
   const occupiedSlots = new Set(
     (schedules || []).map((s) => `${s.day}|${s.hour}`),
   );
@@ -216,6 +225,56 @@ function PublicRoutine() {
 
   return (
     <div className="space-y-4">
+      {/* CONTADOR DE CAMBIOS POR MES */}
+      {gym.allow_schedule_changes !== false && scheduleChangesMax > 0 && (
+        <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+            Cambios de horario este mes
+          </h2>
+          <p className="mt-0.5 text-xs text-text-secondary">
+            Intercambios + cambios permanentes
+          </p>
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-bold text-text-primary">
+                {scheduleChangesUsed}
+              </span>
+              <span className="text-xl font-bold text-text-secondary">/</span>
+              <span className="text-xl font-bold text-text-primary">
+                {scheduleChangesMax}
+              </span>
+            </div>
+
+            {scheduleChangesRemaining > 0 ? (
+              <p className="text-xs text-text-secondary">
+                Te quedan {scheduleChangesRemaining}{" "}
+                {scheduleChangesRemaining === 1 ? "cambio" : "cambios"}
+              </p>
+            ) : (
+              <p className="text-xs font-medium text-danger-text dark:text-danger">
+                Alcanzaste el límite de este mes
+              </p>
+            )}
+          </div>
+
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-input">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                scheduleChangesRemaining <= 0
+                  ? "bg-danger"
+                  : scheduleChangesRemaining <= Math.max(1, Math.ceil(scheduleChangesMax / 2))
+                    ? "bg-warning"
+                    : "bg-success"
+              }`}
+              style={{
+                width: `${Math.min(100, Math.round((scheduleChangesUsed / scheduleChangesMax) * 100))}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* HORARIOS */}
       <div className="rounded-xl bg-surface-elevated p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-secondary">

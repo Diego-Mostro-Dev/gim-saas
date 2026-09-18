@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from attendance.models import AttendanceSchedule
+from personal_training.models import PersonalTrainingAssignment
 from subscriptions.domain import SubscriptionDomain
 from .models import Enrollment
 
@@ -16,6 +17,7 @@ def validate_enrollment(member, schedule):
         _check_gym_schedule_overlap(active_gym_schedules, schedule)
 
     _check_activity_overlap(member, schedule)
+    _check_pt_overlap(member, schedule)
 
 
 def _check_gym_schedule_overlap(active_gym_schedules, target_schedule):
@@ -79,6 +81,26 @@ def validate_schedule_batch(schedules):
                         f"{s1.activity.name} ({s1.start_time:%H:%M}–{s1.end_time:%H:%M}) "
                         f"y {s2.activity.name} ({s2.start_time:%H:%M}–{s2.end_time:%H:%M})."
                     )
+
+
+def _check_pt_overlap(member, target_schedule):
+    gym = SubscriptionDomain.resolve_gym(member)
+    overlapping = PersonalTrainingAssignment.objects.filter(
+        gym=gym,
+        member=member,
+        active=True,
+        day=target_schedule.day,
+    )
+
+    for assignment in overlapping:
+        if _times_overlap(
+            assignment.start_time, assignment.end_time,
+            target_schedule.start_time, target_schedule.end_time,
+        ):
+            raise ValueError(
+                "El miembro tiene un entrenamiento personal cuyo horario "
+                "se superpone con esta actividad."
+            )
 
 
 def validate_gym_activity_overlap(gym_slots, activity_schedules):

@@ -9,6 +9,7 @@ from .views import (
     TrainerViewSet,
 )
 from .public_views import (
+    PublicMemberAvailableSlotsView,
     PublicMemberPersonalTrainingView,
     PublicMemberChangeRequestView,
 )
@@ -38,6 +39,11 @@ urlpatterns = [
         "public/<str:token>/change-requests/",
         PublicMemberChangeRequestView.as_view(),
         name="public-pt-change-request-create",
+    ),
+    path(
+        "public/<str:token>/available-slots/",
+        PublicMemberAvailableSlotsView.as_view(),
+        name="public-pt-available-slots",
     ),
     path(
         "public/<str:token>/change-requests/<int:request_id>/",

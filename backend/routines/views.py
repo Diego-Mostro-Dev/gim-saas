@@ -24,6 +24,7 @@ from subscriptions.services import (
 )
 from members.eligibility import MemberEligibility
 from attendance.models import AttendanceSchedule
+from attendance.utils import count_schedule_changes_used_this_month
 from payments.models import Payment
 from plans.models import MembershipPlan
 from plans.services import display_plan_name, public_plan_name, public_plan_name_from_snapshot
@@ -410,6 +411,30 @@ class PublicWorkoutProgressView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
+def _member_block_reason(member):
+    """Replicate MemberEligibility.can_operate failure reasons for the portal.
+
+    Returns None when the member can operate, or one of:
+    - "inactive": Member.active is False.
+    - "no_subscription": no subscription covers today.
+    - "blocked" | "initial_pending": the current subscription payment status.
+    """
+    if not member.active:
+        return "inactive"
+
+    if member.is_comp:
+        return None
+
+    current = SubscriptionDomain.get_current_subscription(member)
+    if not current:
+        return "no_subscription"
+
+    status = get_subscription_payment_status(current)
+    if status in ("blocked", "initial_pending"):
+        return status
+    return None
+
+
 class PublicRoutineView(APIView):
     permission_classes = []
     throttle_classes = [PublicMemberRateThrottle]
@@ -455,13 +480,27 @@ class PublicRoutineView(APIView):
             )
             .select_related("plan", "member__discount")
             .prefetch_related("items")
+            .order_by("-created_at")
             .first()
         )
 
         upcoming_subscription = None
         subscription = active_subscription
+        pending_fallback = None
 
         if not subscription:
+            last = (
+                Subscription.objects
+                .filter(
+                    member=member,
+                    start_date__lte=today,
+                )
+                .select_related("plan", "member__discount")
+                .prefetch_related("items")
+                .order_by("-created_at")
+                .first()
+            )
+
             upcoming_subscription = (
                 Subscription.objects
                 .filter(
@@ -473,7 +512,18 @@ class PublicRoutineView(APIView):
                 .order_by("start_date")
                 .first()
             )
-            subscription = upcoming_subscription
+
+            if (
+                last is not None
+                and get_subscription_payment_status(
+                    last, at_date=last.end_date
+                )
+                != "paid"
+            ):
+                pending_fallback = last
+                subscription = pending_fallback
+            else:
+                subscription = upcoming_subscription
 
         subscription_data = None
         upcoming_subscription_data = None
@@ -532,6 +582,8 @@ class PublicRoutineView(APIView):
 
         if active_subscription:
             subscription_data = _build_sub_data(active_subscription)
+        elif pending_fallback is not None:
+            subscription_data = _build_sub_data(pending_fallback)
 
         if upcoming_subscription:
             upcoming_subscription_data = _build_sub_data(upcoming_subscription)
@@ -639,6 +691,21 @@ class PublicRoutineView(APIView):
 
         combined_total = outstanding_debt["total"]
 
+        blocked_reason = _member_block_reason(member)
+        can_operate = blocked_reason is None
+
+        renewal_skipped = False
+        if blocked_reason == "no_subscription" and combined_total > 0:
+            last_past = SubscriptionDomain.get_active_subscription(member)
+            if (
+                last_past is not None
+                and get_subscription_payment_status(
+                    last_past, at_date=last_past.end_date
+                )
+                == "blocked"
+            ):
+                renewal_skipped = True
+
         data = {
             "active_plans": [
                 {
@@ -699,6 +766,10 @@ class PublicRoutineView(APIView):
                     for closed_date in gym.closed_dates.all()
                 ],
             },
+            "schedule_changes": {
+                "max_per_month": gym.max_schedule_changes_per_month,
+                "used_this_month": count_schedule_changes_used_this_month(member),
+            },
             "subscription": subscription_data,
             "upcoming_subscription": upcoming_subscription_data,
             "schedules": [
@@ -726,6 +797,11 @@ class PublicRoutineView(APIView):
                 "total": str(combined_total),
                 "subscriptions": combined_pending,
             },
+            "access": {
+                "can_operate": can_operate,
+                "blocked_reason": blocked_reason,
+            },
+            "renewal_skipped": renewal_skipped,
         }
 
         serializer = MemberPortalSerializer(

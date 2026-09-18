@@ -15,6 +15,7 @@ from .recovery_service import effective_status
 from .utils import (
     compute_effective_occupancy,
     count_member_week_attendances,
+    count_schedule_changes_used_this_month,
     has_effective_capacity,
     member_service_label,
 )
@@ -645,13 +646,10 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
                     f"Debes esperar {remaining_hours} hora(s) antes de solicitar otro cambio."
                 )
 
-        month_start = timezone.localdate().replace(day=1)
-        monthly_count = ScheduleChangeRequest.objects.filter(
-            member=member,
-            status__in=["pending", "approved", "executed"],
-            requested_at__gte=month_start,
-        ).count()
-        if monthly_count >= gym.max_schedule_changes_per_month:
+        if (
+            count_schedule_changes_used_this_month(member)
+            >= gym.max_schedule_changes_per_month
+        ):
             raise serializers.ValidationError(
                 f"Has alcanzado el límite de {gym.max_schedule_changes_per_month} cambios de horario este mes."
             )
@@ -900,6 +898,14 @@ class ScheduleSwapRequestSerializer(
                     "El socio tiene un cambio de horario pendiente para ese horario."
                 )
 
+            if (
+                count_schedule_changes_used_this_month(member)
+                >= gym.max_schedule_changes_per_month
+            ):
+                raise serializers.ValidationError(
+                    f"Has alcanzado el límite de {gym.max_schedule_changes_per_month} cambios de horario este mes."
+                )
+
         return attrs
 
     def create(self, validated_data):
@@ -1110,6 +1116,14 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
             ).exists():
                 raise serializers.ValidationError(
                     "Tienes un cambio de horario pendiente para ese horario."
+                )
+
+            if (
+                count_schedule_changes_used_this_month(member)
+                >= gym.max_schedule_changes_per_month
+            ):
+                raise serializers.ValidationError(
+                    f"Has alcanzado el límite de {gym.max_schedule_changes_per_month} cambios de horario este mes."
                 )
 
         return attrs

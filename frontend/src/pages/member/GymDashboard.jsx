@@ -115,6 +115,9 @@ function GymDashboard() {
   const { gym, subscription, attendance_history, last_payment } =
     routine;
 
+  const blockedReason = routine?.access?.blocked_reason;
+  const outstandingDebtTotal = routine?.outstanding_debt?.total;
+
   const activePlans = routine.active_plans || [];
 
   const pendingRequest = (planChangeRequests || []).find(
@@ -363,7 +366,27 @@ function GymDashboard() {
             )}
           </>
         ) : (
-          <p className="text-sm text-text-secondary">Sin suscripción activa</p>
+          <div>
+            <div className="mb-4">
+              {blockedReason === "no_subscription" &&
+              Number(outstandingDebtTotal) > 0 ? (
+                <span className="rounded-xl bg-danger-bg dark:bg-danger/15 px-3 py-1 text-sm font-semibold text-danger-text dark:text-danger">
+                  ⛔ Acceso suspendido
+                </span>
+              ) : (
+                <span className="rounded-xl bg-muted-bg px-3 py-1 text-sm font-semibold text-text-secondary">
+                  Sin suscripción activa
+                </span>
+              )}
+            </div>
+            {blockedReason === "no_subscription" &&
+              Number(outstandingDebtTotal) > 0 && (
+                <p className="text-sm text-text-secondary">
+                  Tenés un saldo pendiente de $
+                  {Number(outstandingDebtTotal).toLocaleString("es-AR")}.
+                </p>
+              )}
+          </div>
         )}
       </div>
 
@@ -415,13 +438,16 @@ function GymDashboard() {
           subscription && activePlans.length > 0 && gym.allow_plan_changes !== false && (
             <button
               onClick={() => setShowPlanModal(true)}
-              disabled={subscription.payment_status === "blocked" || subscription.payment_status === "initial_pending"}
+              disabled={isOperativeBlocked}
               title={
-                subscription.payment_status === "blocked"
+                blockedReason === "blocked" ||
+                blockedReason === "no_subscription"
                   ? "No disponible por falta de pago"
-                  : subscription.payment_status === "initial_pending"
+                  : blockedReason === "initial_pending"
                     ? "Debe registrar el pago inicial"
-                    : ""
+                    : blockedReason === "inactive"
+                      ? "No disponible"
+                      : ""
               }
               className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >

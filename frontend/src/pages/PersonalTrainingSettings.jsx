@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   CalendarDays,
@@ -25,6 +25,7 @@ import {
   deletePersonalTrainingService,
   getPersonalTrainers,
   getPersonalTrainingAssignments,
+  getPersonalTrainingAvailableSlots,
   getPersonalTrainingChangeRequests,
   getPersonalTrainingServices,
   reactivatePersonalTrainingService,
@@ -35,15 +36,16 @@ import {
   unassignPersonalTraining,
   updatePersonalTrainingService,
 } from "../services/personalTraining.service";
+import {
+  dayIntervals,
+  endHoursFor,
+  isFree,
+  reconcileSlot,
+  startHoursFor,
+} from "../utils/ptAvailability";
 
 const inputClass =
   "w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring";
-
-const AVAILABLE_HOURS = [
-  "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
-  "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
-  "19:00", "20:00", "21:00",
-];
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -53,7 +55,7 @@ const STATUS_LABELS = {
   cancelled_by_staff: "Cancelada",
 };
 
-function PersonalTrainingSettings({ embedded = false }) {
+function PersonalTrainingSettings() {
   const [activeTab, setActiveTab] = useState("services");
 
   return (
@@ -836,6 +838,64 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
 
   const [step, setStep] = useState("member");
   const [selectedService, setSelectedService] = useState(null);
+  const [freeData, setFreeData] = useState(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const fetchSeq = useRef(0);
+
+  function fetchFreeSlots(member, serviceId, trainerId) {
+    if (!member || !serviceId || !trainerId) {
+      setFreeData(null);
+      setSlotsLoading(false);
+      return;
+    }
+    const seq = ++fetchSeq.current;
+    setFreeData(null);
+    setSlotsLoading(true);
+    getPersonalTrainingAvailableSlots({
+      member_id: member.id,
+      trainer_id: Number(trainerId),
+      service_id: Number(serviceId),
+    })
+      .then((res) => {
+        if (seq !== fetchSeq.current) return;
+        setFreeData(res);
+        setForm((prev) => {
+          const fixed = reconcileSlot(
+            res,
+            prev.day,
+            prev.start_time,
+            prev.end_time,
+          );
+          if (
+            fixed.start === prev.start_time &&
+            fixed.end === prev.end_time
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            start_time: fixed.start,
+            end_time: fixed.end,
+          };
+        });
+      })
+      .catch((err) => {
+        if (seq !== fetchSeq.current) return;
+        toast.error(err.message || "Error al cargar horarios disponibles");
+        setFreeData({ days: {}, closed_days: [] });
+      })
+      .finally(() => {
+        if (seq === fetchSeq.current) setSlotsLoading(false);
+      });
+  }
+
+  function dayUnavailable(day) {
+    if (!freeData) return false;
+    return (
+      freeData.closed_days?.includes(day) ||
+      dayIntervals(freeData, day).length === 0
+    );
+  }
 
   useEffect(() => {
     async function load() {
@@ -884,6 +944,7 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
         sellado_amount: String(member.insurance_sellado_amount),
       };
     });
+    fetchFreeSlots(member, form.service, form.trainer_id);
     setStep("details");
   }
 
@@ -895,6 +956,7 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
       service: value,
       modality: service ? service.billing_mode : "monthly",
     });
+    fetchFreeSlots(selectedMember, value, form.trainer_id);
   }
 
   async function handleSubmit(e) {
@@ -912,6 +974,16 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
     }
     if (form.end_time <= form.start_time) {
       toast.error("La hora de fin debe ser posterior a la de inicio");
+      return;
+    }
+    const intervals = dayIntervals(freeData, form.day);
+    if (
+      !intervals.length ||
+      !isFree(intervals, form.start_time, form.end_time)
+    ) {
+      toast.error(
+        "Ese horario ya no está disponible. Elegí otro de la lista.",
+      );
       return;
     }
     setSubmitting(true);
@@ -945,6 +1017,8 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
   }
 
   const isPackage = form.modality === "package";
+  const dayIv = dayIntervals(freeData, form.day);
+  const sessionDuration = freeData?.duration_minutes || 60;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1054,9 +1128,11 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                 </label>
                 <select
                   value={form.trainer_id}
-                  onChange={(e) =>
-                    setForm({ ...form, trainer_id: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const trainerId = e.target.value;
+                    setForm({ ...form, trainer_id: trainerId });
+                    fetchFreeSlots(selectedMember, form.service, trainerId);
+                  }}
                   className={inputClass}
                 >
                   <option value="">
@@ -1076,66 +1152,134 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-text-secondary">
-                    Día
-                  </label>
-                  <select
-                    value={form.day}
-                    onChange={(e) => setForm({ ...form, day: e.target.value })}
-                    className={inputClass}
-                  >
-                    {DAY_ORDER.map((day) => (
-                      <option key={day} value={day}>
-                        {DAY_NAMES[day]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-text-secondary">
-                    Inicio
-                  </label>
-                  <select
-                    value={form.start_time}
-                    onChange={(e) =>
-                      setForm({ ...form, start_time: e.target.value })
-                    }
-                    className={inputClass}
-                  >
-                    {AVAILABLE_HOURS.map(
-                      (h) =>
-                        (!form.end_time || h < form.end_time) && (
-                          <option key={h} value={h}>
-                            {h}
+              {slotsLoading ? (
+                <p className="rounded-xl bg-surface-input px-4 py-3 text-xs text-text-secondary">
+                  Cargando horarios disponibles…
+                </p>
+              ) : freeData ? (
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-text-secondary">
+                        Día
+                      </label>
+                      <select
+                        value={form.day}
+                        onChange={(e) => {
+                          const day = e.target.value;
+                          setForm((prev) => {
+                            const fixed = reconcileSlot(
+                              freeData,
+                              day,
+                              prev.start_time,
+                              prev.end_time,
+                            );
+                            return {
+                              ...prev,
+                              day,
+                              start_time: fixed.start,
+                              end_time: fixed.end,
+                            };
+                          });
+                        }}
+                        className={inputClass}
+                      >
+                        {DAY_ORDER.map((day) => (
+                          <option
+                            key={day}
+                            value={day}
+                            disabled={dayUnavailable(day)}
+                          >
+                            {DAY_NAMES[day]}
+                            {dayUnavailable(day)
+                              ? freeData.closed_days?.includes(day)
+                                ? " · cerrado"
+                                : " · sin horarios"
+                              : ""}
                           </option>
-                        ),
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-text-secondary">
-                    Fin
-                  </label>
-                  <select
-                    value={form.end_time}
-                    onChange={(e) =>
-                      setForm({ ...form, end_time: e.target.value })
-                    }
-                    className={inputClass}
-                  >
-                    {AVAILABLE_HOURS.map(
-                      (h) =>
-                        (!form.start_time || h > form.start_time) && (
-                          <option key={h} value={h}>
-                            {h}
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-text-secondary">
+                        Inicio
+                      </label>
+                      <select
+                        value={form.start_time}
+                        onChange={(e) => {
+                          const nextStart = e.target.value;
+                          const ends = endHoursFor(dayIv, nextStart, sessionDuration);
+                          if (ends.includes(form.end_time)) {
+                            setForm({ ...form, start_time: nextStart });
+                          } else {
+                            setForm({
+                              ...form,
+                              start_time: nextStart,
+                              end_time: ends[0] || "",
+                            });
+                          }
+                        }}
+                        className={inputClass}
+                      >
+                        {form.end_time &&
+                        dayIv.length > 0 ? (
+                          startHoursFor(dayIv, sessionDuration)
+                            .filter((h) => h < form.end_time)
+                            .map((h) => (
+                              <option key={h} value={h}>
+                                {h}
+                              </option>
+                            ))
+                        ) : (
+                          <option value="" disabled>
+                            Sin horarios
                           </option>
-                        ),
-                    )}
-                  </select>
-                </div>
-              </div>
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-text-secondary">
+                        Fin
+                      </label>
+                      <select
+                        value={form.end_time}
+                        onChange={(e) =>
+                          setForm({ ...form, end_time: e.target.value })
+                        }
+                        className={inputClass}
+                      >
+                        {form.start_time && dayIv.length > 0 ? (
+                          endHoursFor(dayIv, form.start_time, sessionDuration).map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>
+                            Sin horarios
+                          </option>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                  {dayIv.length === 0 ? (
+                    <p className="text-xs text-danger-text dark:text-danger">
+                      No hay horarios libres este día. Elegí otro día de la
+                      lista.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-text-secondary">
+                      Solo se muestran horarios que no chocan con el gim común,
+                      las actividades ni la agenda de los trainers.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="rounded-xl bg-surface-input px-4 py-3 text-xs text-text-secondary">
+                  Seleccioná servicio y trainer para ver los horarios
+                  disponibles.
+                </p>
+              )}
 
               {isPackage && (
                 <>
