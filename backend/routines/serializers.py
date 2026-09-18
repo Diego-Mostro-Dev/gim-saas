@@ -231,6 +231,10 @@ class MemberPortalSerializer(serializers.Serializer):
     renewal_skipped = serializers.BooleanField(
         required=False,
     )
+    schedule_changes = serializers.DictField(
+        required=False,
+        allow_null=True,
+    )
 
 
 class WorkoutSetSerializer(serializers.ModelSerializer):

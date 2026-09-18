@@ -24,6 +24,7 @@ from subscriptions.services import (
 )
 from members.eligibility import MemberEligibility
 from attendance.models import AttendanceSchedule
+from attendance.utils import count_schedule_changes_used_this_month
 from payments.models import Payment
 from plans.models import MembershipPlan
 from plans.services import display_plan_name, public_plan_name, public_plan_name_from_snapshot
@@ -764,6 +765,10 @@ class PublicRoutineView(APIView):
                     closed_date.date.isoformat()
                     for closed_date in gym.closed_dates.all()
                 ],
+            },
+            "schedule_changes": {
+                "max_per_month": gym.max_schedule_changes_per_month,
+                "used_this_month": count_schedule_changes_used_this_month(member),
             },
             "subscription": subscription_data,
             "upcoming_subscription": upcoming_subscription_data,

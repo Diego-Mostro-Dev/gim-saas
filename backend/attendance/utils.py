@@ -1,9 +1,15 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.utils import timezone
 
-from .models import Attendance, AttendanceSchedule, ScheduleSlot, ScheduleSwapRequest
+from .models import (
+    Attendance,
+    AttendanceSchedule,
+    ScheduleChangeRequest,
+    ScheduleSlot,
+    ScheduleSwapRequest,
+)
 
 
 SCHEDULE_SLOT_WEEKDAY_ORDER = Case(
@@ -363,6 +369,31 @@ def get_swap_usage_metrics(gym, start_date, end_date):
         cancelled=Count("id", filter=Q(status="cancelled")),
     )
     return stats
+
+
+def count_schedule_changes_used_this_month(member):
+    """Total schedule change requests consumed by a member this calendar month.
+
+    Counts permanent changes (pending/approved/executed) plus swaps
+    (pending/approved), both by their request date. Mirrors the combined
+    monthly limit enforced across swap and permanent validations.
+    """
+    month_start = timezone.localdate().replace(day=1)
+    start_dt = timezone.make_aware(
+        datetime.combine(month_start, time.min),
+        timezone.get_current_timezone(),
+    )
+    perm_count = ScheduleChangeRequest.objects.filter(
+        member=member,
+        status__in=["pending", "approved", "executed"],
+        requested_at__gte=start_dt,
+    ).count()
+    swap_count = ScheduleSwapRequest.objects.filter(
+        member=member,
+        status__in=["pending", "approved"],
+        requested_at__gte=start_dt,
+    ).count()
+    return perm_count + swap_count
 
 
 def service_label_for_subscription(sub, member=None):
