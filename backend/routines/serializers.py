@@ -224,6 +224,13 @@ class MemberPortalSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
+    access = serializers.DictField(
+        required=False,
+        allow_null=True,
+    )
+    renewal_skipped = serializers.BooleanField(
+        required=False,
+    )
 
 
 class WorkoutSetSerializer(serializers.ModelSerializer):

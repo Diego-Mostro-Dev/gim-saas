@@ -219,8 +219,13 @@ function MemberPortalLayout() {
 
   async function handlePhotoUpload() {
     if (!photoFile) return;
-    const paymentStatus = routine?.subscription?.payment_status;
-    if (paymentStatus === "blocked" || paymentStatus === "initial_pending") {
+    const access = routine?.access;
+    const isBlocked =
+      access?.can_operate !== undefined
+        ? access.can_operate === false
+        : routine?.subscription?.payment_status === "blocked" ||
+          routine?.subscription?.payment_status === "initial_pending";
+    if (isBlocked) {
       return;
     }
 
@@ -330,10 +335,26 @@ function MemberPortalLayoutContent({
   const personalTrainingEnabled = useFeature("personal_training");
   const { features } = useContext(FeatureContext);
   const paymentStatus = routine?.subscription?.payment_status;
+  const access = routine?.access;
   const isOperativeBlocked =
-    paymentStatus === "blocked" || paymentStatus === "initial_pending";
-  const isInitialPending = paymentStatus === "initial_pending";
+    access?.can_operate !== undefined
+      ? access.can_operate === false
+      : paymentStatus === "blocked" || paymentStatus === "initial_pending";
+  const blockedReason = access?.blocked_reason;
+  const isInitialPending =
+    access?.blocked_reason !== undefined
+      ? access.blocked_reason === "initial_pending"
+      : paymentStatus === "initial_pending";
+  const renewalSkipped = Boolean(routine?.renewal_skipped);
   const outstandingDebtTotal = routine?.outstanding_debt?.total;
+  const hasDebt =
+    outstandingDebtTotal !== undefined && Number(outstandingDebtTotal) > 0;
+  const showSuspendedBanner =
+    isOperativeBlocked &&
+    (renewalSkipped ||
+      hasDebt ||
+      blockedReason === "blocked" ||
+      blockedReason === "initial_pending");
 
   const routeFeatureMap = {
     [`/routine/${token}/activities`]: "activities",
@@ -487,7 +508,7 @@ function MemberPortalLayoutContent({
           </div>
         </div>
 
-        {isOperativeBlocked && (
+        {showSuspendedBanner && (
           <div className="px-4 mb-4">
             <div className="rounded-xl border border-danger/20 bg-danger-bg/20 dark:bg-danger/10 px-4 py-3 text-sm text-danger-text dark:text-danger">
               <p className="font-semibold">
@@ -501,6 +522,11 @@ function MemberPortalLayoutContent({
                 </p>
               ) : (
                 <>
+                  {renewalSkipped && (
+                    <p className="mt-1 text-xs leading-relaxed opacity-90">
+                      {txt(gym, "portal.renewal_skipped")}
+                    </p>
+                  )}
                   {outstandingDebtTotal !== undefined &&
                     Number(outstandingDebtTotal) > 0 && (
                       <p className="mt-1 font-medium">

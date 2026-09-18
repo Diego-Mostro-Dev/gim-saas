@@ -42,6 +42,18 @@ class ChangeRequestService:
                 status_code=409,
             )
 
+        try:
+            validate_assignment(
+                assignment.member,
+                assignment.trainer,
+                requested_day,
+                requested_start_time,
+                requested_end_time,
+                exclude=assignment,
+            )
+        except ValueError as e:
+            raise ChangeRequestError(str(e))
+
         return PersonalTrainingChangeRequest.objects.create(
             gym=assignment.gym,
             member=assignment.member,
