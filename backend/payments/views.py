@@ -16,12 +16,19 @@ from subscriptions.services import sync_subscription_paid
 
 from .models import Payment
 from .serializers import PaymentSerializer
+from .services import (
+    sellado_paid_exists,
+    set_sellado_paid,
+    sync_assignment_paid,
+    sync_enrollment_paid,
+)
 
 
 CONCEPT_LABELS = {
     "subscription": "Suscripción",
     "sellado": "Sellado",
     "coseguro": "Coseguro por sesiones",
+    "personal_training": "Entrenamiento personal",
 }
 
 METHOD_LABELS = {
@@ -34,9 +41,8 @@ METHOD_LABELS = {
 class PaymentViewSet(GymModelViewSet):
     queryset = Payment.objects.select_related(
         "member", "member__insurance"
-    )
+    ).order_by("-paid_at")
     serializer_class = PaymentSerializer
-    ordering = ['-created_at']
 
     @action(detail=False, methods=["get"])
     def export(self, request):
@@ -110,17 +116,41 @@ class PaymentViewSet(GymModelViewSet):
         return response
 
     def perform_destroy(self, instance):
+        from activities.models import Enrollment
+        from personal_training.models import PersonalTrainingAssignment
+
         subscription = instance.subscription
+        enrollment = instance.enrollment
+        assignment = instance.personal_training_assignment
+        concept = instance.concept
 
         with transaction.atomic():
             instance.delete()
 
-            if not subscription:
-                return
+            if subscription is not None:
+                sub = (
+                    Subscription.objects
+                    .select_for_update()
+                    .get(pk=subscription.pk)
+                )
+                sync_subscription_paid(sub)
 
-            sub = (
-                Subscription.objects
-                .select_for_update()
-                .get(pk=subscription.pk)
-            )
-            sync_subscription_paid(sub)
+            if enrollment is not None:
+                if concept != "sellado":
+                    sync_enrollment_paid(enrollment)
+                elif enrollment.sellado_paid:
+                    # Recomputed only while the flag reads paid, so the
+                    # renewal reset is preserved.
+                    set_sellado_paid(
+                        enrollment,
+                        sellado_paid_exists(enrollment=enrollment),
+                    )
+
+            if assignment is not None:
+                if concept != "sellado":
+                    sync_assignment_paid(assignment)
+                elif assignment.sellado_paid:
+                    set_sellado_paid(
+                        assignment,
+                        sellado_paid_exists(assignment=assignment),
+                    )

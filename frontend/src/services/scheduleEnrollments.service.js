@@ -52,26 +52,6 @@ export async function renewEnrollment(enrollmentId, additionalSessions) {
   });
 }
 
-export async function toggleSellado(enrollmentId) {
-  return apiFetch(
-    `/api/activities/enrollments/${enrollmentId}/toggle-sellado/`,
-    {
-      method: "POST",
-      body: JSON.stringify({}),
-    }
-  );
-}
-
-export async function paySellado(enrollmentId, amount, paymentMethod = "cash") {
-  return apiFetch(
-    `/api/activities/enrollments/${enrollmentId}/pay_sellado/`,
-    {
-      method: "POST",
-      body: JSON.stringify({ amount, payment_method: paymentMethod }),
-    }
-  );
-}
-
 export async function recordEnrollmentPayment(
   enrollmentId,
   amount,

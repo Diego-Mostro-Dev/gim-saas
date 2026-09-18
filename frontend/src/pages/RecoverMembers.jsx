@@ -12,6 +12,7 @@ import {
 } from "../services/subscriptions.service";
 import { createPayment, getPayments } from "../services/payments.service";
 import { recordEnrollmentPayment } from "../services/scheduleEnrollments.service";
+import { recordPersonalTrainingPayment } from "../services/personalTraining.service";
 import { formatCurrency } from "../utils/currency.utils";
 import { findRecentCashPayment } from "../utils/paymentAlerts";
 import ConfirmModal from "../components/ui/ConfirmModal";
@@ -24,6 +25,18 @@ function formatPeriod(dateStr) {
     year: "numeric",
   });
   return period.charAt(0).toUpperCase() + period.slice(1);
+}
+
+function packageKey(pkg) {
+  return pkg.type === "personal_training_package"
+    ? `pt-${pkg.assignment_id}`
+    : `act-${pkg.enrollment_id}`;
+}
+
+function selladoKey(sellado) {
+  return sellado.target_type === "assignment"
+    ? `pt-${sellado.assignment_id}`
+    : `act-${sellado.enrollment_id}`;
 }
 
 function RecoverMembers() {
@@ -41,6 +54,7 @@ function RecoverMembers() {
   const [paymentAmounts, setPaymentAmounts] = useState({});
   const [payingSubscriptionId, setPayingSubscriptionId] = useState(null);
   const [payingPackageId, setPayingPackageId] = useState(null);
+  const [payingSelladoId, setPayingSelladoId] = useState(null);
   const [reopening, setReopening] = useState(false);
 
   const [warningPayment, setWarningPayment] = useState(null);
@@ -186,21 +200,30 @@ function RecoverMembers() {
     setWarningPayment(null);
     setPayingSubscriptionId(null);
     setPayingPackageId(null);
+    setPayingSelladoId(null);
   }
 
   async function handleRegisterPackagePayment(pkg) {
+    const pkgKey = packageKey(pkg);
     setDebtError(null);
-    setPayingPackageId(pkg.enrollment_id);
+    setPayingPackageId(pkgKey);
 
     try {
-      await recordEnrollmentPayment(
-        pkg.enrollment_id,
-        paymentAmounts[`pkg-${pkg.enrollment_id}`],
-      );
+      if (pkg.type === "personal_training_package") {
+        await recordPersonalTrainingPayment(
+          pkg.assignment_id,
+          paymentAmounts[`pkg-${pkgKey}`],
+        );
+      } else {
+        await recordEnrollmentPayment(
+          pkg.enrollment_id,
+          paymentAmounts[`pkg-${pkgKey}`],
+        );
+      }
 
       setPaymentAmounts((prev) => ({
         ...prev,
-        [`pkg-${pkg.enrollment_id}`]: "",
+        [`pkg-${pkgKey}`]: "",
       }));
 
       await fetchDebt(selectedMember.id);
@@ -209,6 +232,29 @@ function RecoverMembers() {
       setDebtError(err.message || "No se pudo registrar el pago del paquete");
     } finally {
       setPayingPackageId(null);
+    }
+  }
+
+  async function handleRegisterSelladoPayment(sellado) {
+    const key = selladoKey(sellado);
+    setDebtError(null);
+    setPayingSelladoId(key);
+
+    try {
+      await createPayment({
+        concept: "sellado",
+        enrollment: sellado.enrollment_id,
+        personal_training_assignment: sellado.assignment_id,
+        amount: sellado.amount,
+      });
+
+      toast.success("Sellado cobrado correctamente");
+      await fetchDebt(selectedMember.id);
+      await refreshDebtors();
+    } catch (err) {
+      setDebtError(err.message || "No se pudo registrar el pago del sellado");
+    } finally {
+      setPayingSelladoId(null);
     }
   }
 
@@ -385,7 +431,9 @@ function RecoverMembers() {
             <div className="space-y-6">
               {debt.total > 0 ? (
                 <>
-              {debt.subscriptions.length === 0 && !debt.packages?.length ? (
+              {debt.subscriptions.length === 0 &&
+              !debt.packages?.length &&
+              !debt.sellados?.length ? (
                 <p className="text-sm text-text-secondary">
                   El socio no posee deuda pendiente
                 </p>
@@ -478,13 +526,20 @@ function RecoverMembers() {
                     Paquetes de sesiones
                   </p>
 
-                  {debt.packages.map((pkg) => (
+                  {debt.packages.map((pkg) => {
+                    const pkgKey = packageKey(pkg);
+                    return (
                     <div
-                      key={pkg.enrollment_id}
+                      key={pkgKey}
                       className="rounded-xl border border-border bg-surface-input p-3"
                     >
                       <p className="text-sm font-semibold text-text-primary">
                         {pkg.name}
+                        {pkg.type === "personal_training_package" && (
+                          <span className="ml-2 text-xs font-normal text-blue-500">
+                            Personal trainer
+                          </span>
+                        )}
                         {pkg.sessions_total && (
                           <span className="ml-2 text-xs font-normal text-text-secondary">
                             {pkg.sessions_total} sesiones · $
@@ -524,11 +579,11 @@ function RecoverMembers() {
                           step="0.01"
                           max={Number(pkg.remaining)}
                           placeholder={`Monto (máx ${formatCurrency(pkg.remaining)})`}
-                          value={paymentAmounts[`pkg-${pkg.enrollment_id}`] || ""}
+                          value={paymentAmounts[`pkg-${pkgKey}`] || ""}
                           onChange={(e) =>
                             setPaymentAmounts((prev) => ({
                               ...prev,
-                              [`pkg-${pkg.enrollment_id}`]: e.target.value,
+                              [`pkg-${pkgKey}`]: e.target.value,
                             }))
                           }
                           className="min-w-0 flex-1 basis-40 rounded-xl border border-border bg-surface-input px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary"
@@ -540,17 +595,73 @@ function RecoverMembers() {
                           disabled={payingPackageId !== null}
                           className="shrink-0 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
                         >
-                          {payingPackageId === pkg.enrollment_id
+                          {payingPackageId === pkgKey
                             ? "Registrando..."
                             : "Registrar pago"}
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
-              {debt.subscriptions.length > 0 || debt.packages?.length > 0 ? (
+              {debt.sellados?.length > 0 && (
+                <div className="space-y-3">
+                  <p className="border-t border-border pt-3 text-sm font-semibold text-text-primary">
+                    Sellados (matrícula)
+                  </p>
+
+                  {debt.sellados.map((sellado) => {
+                    const key = selladoKey(sellado);
+                    return (
+                    <div
+                      key={key}
+                      className="rounded-xl border border-border bg-surface-input p-3"
+                    >
+                      <p className="text-sm font-semibold text-text-primary">
+                        {sellado.name}
+                        {sellado.target_type === "assignment" && (
+                          <span className="ml-2 text-xs font-normal text-blue-500">
+                            Personal trainer
+                          </span>
+                        )}
+                      </p>
+
+                      <div className="mt-1 space-y-1 text-sm text-text-secondary">
+                        <p>
+                          <span className="inline-block w-20">Total:</span>
+                          <span className="text-text-primary">
+                            {formatCurrency(sellado.amount)}
+                          </span>
+                        </p>
+                        <p>
+                          <span className="inline-block w-20">Restan:</span>
+                          <span className="text-text-primary">
+                            {formatCurrency(sellado.amount)}
+                          </span>
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRegisterSelladoPayment(sellado)}
+                        disabled={payingSelladoId !== null}
+                        className="mt-3 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+                      >
+                        {payingSelladoId === key
+                          ? "Cobrando..."
+                          : "Cobrar sellado"}
+                      </button>
+                    </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {debt.subscriptions.length > 0 ||
+              debt.packages?.length > 0 ||
+              debt.sellados?.length > 0 ? (
                 <div className="border-t border-border pt-4">
                   <p className="text-sm font-semibold text-text-primary">
                     Total adeudado:

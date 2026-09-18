@@ -197,7 +197,8 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
 class PackageDebtSerializer(serializers.Serializer):
     type = serializers.CharField()
-    enrollment_id = serializers.IntegerField(source="enrollment.id")
+    enrollment_id = serializers.IntegerField(source="enrollment.id", allow_null=True, default=None)
+    assignment_id = serializers.IntegerField(source="assignment.id", allow_null=True, default=None)
     name = serializers.CharField()
     sessions_total = serializers.IntegerField()
     session_price = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -221,10 +222,19 @@ class MemberOutstandingSubscriptionSerializer(serializers.Serializer):
         return public_plan_name(obj["subscription"].plan)
 
 
+class SelladoDebtSerializer(serializers.Serializer):
+    target_type = serializers.CharField()
+    enrollment_id = serializers.IntegerField(source="enrollment.id", allow_null=True, default=None)
+    assignment_id = serializers.IntegerField(source="assignment.id", allow_null=True, default=None)
+    name = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class MemberOutstandingDebtSerializer(serializers.Serializer):
     member_id = serializers.IntegerField()
     subscriptions = MemberOutstandingSubscriptionSerializer(many=True)
     packages = PackageDebtSerializer(many=True)
+    sellados = SelladoDebtSerializer(many=True, required=False)
     total = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 

@@ -16,6 +16,7 @@ from activities.models import Activity, Enrollment
 from activities.overlap import validate_gym_activity_overlap
 from attendance.models import ScheduleSlot
 from core.viewsets import GymModelViewSet
+from personal_training.models import PersonalTrainingAssignment
 from gyms.features import require_activities
 from payments.models import Payment
 
@@ -32,6 +33,7 @@ from .serializers import (
     HealthInsuranceSerializer,
     MemberSerializer,
     MemberPhotoSerializer,
+    PublicMemberDataSerializer,
     MemberAttachmentSerializer,
 )
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
@@ -56,6 +58,13 @@ class MemberViewSet(GymModelViewSet):
                     active=True,
                     modality="package",
                 ).select_related("schedule__activity"),
+            ),
+            Prefetch(
+                "personal_training_assignments",
+                queryset=PersonalTrainingAssignment.objects.filter(
+                    active=True,
+                    modality="package",
+                ).select_related("service"),
             ),
             "subscription_set__plan",
             "subscription_set__items",
@@ -291,6 +300,58 @@ class MemberViewSet(GymModelViewSet):
             pay["plan_name"] = public_plan_name_from_snapshot(pay["plan_name"])
 
         return Response(payments)
+
+
+class PublicMemberDataView(APIView):
+    """GET/PATCH de los datos del socio vía access_token.
+
+    Permite al socio ver y editar su propia información en el portal.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [PublicMemberRateThrottle]
+
+    def _get_member(self, token):
+        return get_object_or_404(
+            Member,
+            access_token=token,
+        )
+
+    def get(self, request, token):
+        member = self._get_member(token)
+
+        if not MemberEligibility.can_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = PublicMemberDataSerializer(member)
+        return Response(serializer.data)
+
+    def patch(self, request, token):
+        member = self._get_member(token)
+
+        if not MemberEligibility.can_operate(member):
+            return Response(
+                {"detail": "Acceso suspendido por falta de pago."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = PublicMemberDataSerializer(
+            member,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        serializer.save()
+
+        return Response(serializer.data)
 
 
 class PublicMemberPhotoView(APIView):

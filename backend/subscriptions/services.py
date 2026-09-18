@@ -411,6 +411,94 @@ def _pt_package_debt_entries(queryset, include_member=False):
     return entries
 
 
+def gym_sellado_debt(gym, member=None):
+    """Return unpaid one-time sellado charges for a gym (or one member).
+
+    Sellados belong to package inscriptions and PT assignments. The flag
+    sellado_paid is the source of truth: a pending sellado exists while it
+    reads False (renewals reset it).
+
+    Args:
+        gym: The Gym to scan for pending sellados.
+        member: Optional Member to restrict the scan to a single member.
+
+    Returns:
+        A list of dicts with target_type ("enrollment"/"assignment"), the
+        target instance, its display name, the sellado amount and, always,
+        the charging member.
+    """
+    from activities.models import Enrollment
+    from personal_training.models import PersonalTrainingAssignment
+
+    sellados = []
+
+    enrollments = Enrollment.objects.filter(
+        gym=gym,
+        active=True,
+        sellado_amount__isnull=False,
+        sellado_paid=False,
+    ).select_related("member", "schedule__activity")
+    if member is not None:
+        enrollments = enrollments.filter(member=member)
+    for e in enrollments:
+        if getattr(e.member, "is_comp", False):
+            continue
+        sellados.append(
+            {
+                "target_type": "enrollment",
+                "enrollment": e,
+                "assignment": None,
+                "name": e.schedule.activity.name,
+                "amount": e.sellado_amount,
+                "member": e.member,
+            }
+        )
+
+    assignments = PersonalTrainingAssignment.objects.filter(
+        gym=gym,
+        active=True,
+        sellado_amount__isnull=False,
+        sellado_paid=False,
+    ).select_related("member", "service")
+    if member is not None:
+        assignments = assignments.filter(member=member)
+    for a in assignments:
+        if getattr(a.member, "is_comp", False):
+            continue
+        sellados.append(
+            {
+                "target_type": "assignment",
+                "enrollment": None,
+                "assignment": a,
+                "name": a.service.name,
+                "amount": a.sellado_amount,
+                "member": a.member,
+            }
+        )
+
+    return sellados
+
+
+def member_sellado_debt(member):
+    """Return unpaid one-time sellado charges for a single member.
+
+    Sellados belong to package inscriptions and PT assignments. The flag
+    sellado_paid is the source of truth: a pending sellado exists while it
+    reads False (renewals reset it).
+
+    Returns:
+        A list of dicts with target_type ("enrollment"/"assignment"),
+        the target instance, its display name and the sellado amount.
+    """
+    if getattr(member, "is_comp", False):
+        return []
+
+    sellados = gym_sellado_debt(member.gym, member=member)
+    for s in sellados:
+        s.pop("member", None)
+    return sellados
+
+
 def member_total_outstanding_debt(member):
     from payments.models import Payment
 
@@ -463,10 +551,17 @@ def member_total_outstanding_debt(member):
         Decimal("0"),
     )
 
+    sellados = member_sellado_debt(member)
+    sellado_total = sum(
+        (sellado["amount"] for sellado in sellados),
+        Decimal("0"),
+    )
+
     return {
         "subscriptions": subscriptions,
         "packages": packages,
-        "total": total + package_total,
+        "sellados": sellados,
+        "total": total + package_total + sellado_total,
     }
 
 

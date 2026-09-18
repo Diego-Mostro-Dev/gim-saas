@@ -215,12 +215,22 @@ class AssignmentService:
 
     @staticmethod
     def record_package_payment(assignment, amount, payment_method="cash", notes=""):
-        """Register an amount paid against a PT package assignment."""
+        """Register an amount paid against a PT package assignment.
+
+        Records a Payment with concept="personal_training". The Payment rows
+        are the only source of truth: assignment.amount_paid is synced from
+        them.
+        """
         from payments.models import Payment
+        from payments.services import (
+            assignment_sessions_paid,
+            sync_assignment_paid,
+        )
 
         if assignment.modality != "package":
             raise AssignmentError(
-                "Solo las asignaciones por paquete admiten cobro de sesiones."
+                "Esta asignación es mensual: se cobra en la cuota del socio, "
+                "no por sesiones. Solo los paquetes admiten cobro de sesiones."
             )
 
         if assignment.member.is_comp:
@@ -242,20 +252,25 @@ class AssignmentService:
         if amount <= 0:
             raise AssignmentError("El monto cobrado debe ser mayor a cero.")
 
-        total = assignment.total_amount
-        if assignment.amount_paid + amount > total:
-            remaining = total - assignment.amount_paid
-            raise AssignmentError(
-                f"El monto supera el saldo pendiente. "
-                f"Falta cobrar ${remaining}."
-            )
-
         with transaction.atomic():
             locked = PersonalTrainingAssignment.objects.select_for_update().get(
                 pk=assignment.pk
             )
-            locked.amount_paid += amount
-            locked.save(update_fields=["amount_paid"])
+
+            total = locked.total_amount
+            if total is None:
+                raise AssignmentError(
+                    "Esta asignación no tiene coseguro definido. "
+                    "No se pueden cobrar sesiones."
+                )
+
+            paid = assignment_sessions_paid(locked)
+            if paid + amount > total:
+                remaining = total - paid
+                raise AssignmentError(
+                    f"El monto supera el saldo pendiente. "
+                    f"Falta cobrar ${remaining}."
+                )
 
             Payment.objects.create(
                 gym=locked.gym,
@@ -271,61 +286,9 @@ class AssignmentService:
                 plan_name=f"{locked.service.name} · Sesiones",
             )
 
+            sync_assignment_paid(locked)
+
         locked.refresh_from_db()
-        return locked
-
-    @staticmethod
-    def pay_sellado(assignment, amount=None, payment_method="cash", notes=""):
-        """Collect the PT sellado/coseguro, creating a Payment record."""
-        from payments.models import Payment
-
-        if assignment.member.is_comp:
-            raise AssignmentError(
-                "Socio con pase de cortesía: no se le cobra por las sesiones."
-            )
-
-        if assignment.sellado_amount is None:
-            raise AssignmentError(
-                "Esta asignación no tiene sellado configurado."
-            )
-
-        if assignment.sellado_paid:
-            raise AssignmentError("El sellado ya fue cobrado.")
-
-        if amount in (None, ""):
-            amount = assignment.sellado_amount
-
-        try:
-            amount = Decimal(str(amount))
-        except (InvalidOperation, ValueError):
-            raise AssignmentError(
-                "El monto del sellado debe ser un valor válido."
-            )
-
-        if amount <= 0:
-            raise AssignmentError("El monto del sellado debe ser mayor a cero.")
-
-        with transaction.atomic():
-            locked = PersonalTrainingAssignment.objects.select_for_update().get(
-                pk=assignment.pk
-            )
-            locked.sellado_paid = True
-            locked.save(update_fields=["sellado_paid"])
-
-            Payment.objects.create(
-                gym=locked.gym,
-                member=locked.member,
-                personal_training_assignment=locked,
-                concept="sellado",
-                amount=amount,
-                payment_method=payment_method,
-                notes=notes,
-                member_name=(
-                    f"{locked.member.first_name} {locked.member.last_name}"
-                ),
-                plan_name=f"{locked.service.name} · Sellado",
-            )
-
         return locked
 
 

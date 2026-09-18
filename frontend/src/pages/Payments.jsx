@@ -28,7 +28,6 @@ function Payments() {
   const {
     payments,
     members,
-    subscriptions,
     loading,
     error,
     isSubmitting,
@@ -83,6 +82,9 @@ function Payments() {
         subscription: state.prefillSubscriptionId
           ? String(state.prefillSubscriptionId)
           : "",
+        enrollment: "",
+        personal_training_assignment: "",
+        concept: "",
         amount: "",
         payment_method: "cash",
         notes: "",
@@ -251,7 +253,6 @@ function Payments() {
             isSubmitting={isSubmitting}
             editingPayment={editingPayment}
             members={members}
-            subscriptions={subscriptions}
           />
         </div>
       )}

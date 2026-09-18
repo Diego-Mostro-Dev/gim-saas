@@ -228,33 +228,6 @@ class PersonalTrainingAssignmentViewSet(
             )
         return Response(self.get_serializer(assignment).data)
 
-    @action(detail=True, methods=["post"])
-    def pay_sellado(self, request, pk=None):
-        assignment = self.get_object()
-        amount = request.data.get("amount")
-        payment_method = request.data.get("payment_method", "cash")
-        notes = request.data.get("notes", "")
-        try:
-            assignment = AssignmentService.pay_sellado(
-                assignment,
-                amount=amount,
-                payment_method=payment_method,
-                notes=notes,
-            )
-        except AssignmentError as e:
-            return Response(
-                {"detail": str(e)},
-                status=e.status_code,
-            )
-        return Response(self.get_serializer(assignment).data)
-
-    @action(detail=True, methods=["post"])
-    def toggle_sellado(self, request, pk=None):
-        assignment = self.get_object()
-        assignment.sellado_paid = not assignment.sellado_paid
-        assignment.save(update_fields=["sellado_paid"])
-        return Response(self.get_serializer(assignment).data)
-
 
 class PersonalTrainingChangeRequestViewSet(
     PersonalTrainingGuardMixin, GymQuerysetMixin, viewsets.ModelViewSet

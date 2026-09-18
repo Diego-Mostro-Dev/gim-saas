@@ -200,6 +200,18 @@ export async function updatePublicMemberPhoto(
   );
 }
 
+export async function getPublicMemberData(token) {
+  return apiFetch(`/api/public/${token}/data/`, { skipAuth: true });
+}
+
+export async function updatePublicMemberData(token, data) {
+  return apiFetch(`/api/public/${token}/data/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    skipAuth: true,
+  });
+}
+
 /*
 |--------------------------------------------------------------------------
 | PUBLIC SCHEDULE CHANGE REQUESTS (Member Portal)

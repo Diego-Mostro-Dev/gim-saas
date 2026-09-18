@@ -8,13 +8,7 @@ import EnrollMemberModal from "../components/activities/EnrollMemberModal";
 import MemberIdentity from "../components/common/MemberIdentity";
 import { DAY_NAMES } from "../constants/days";
 import { useScheduleEnrollments } from "../hooks/useScheduleEnrollments";
-import {
-  recordSession,
-  removeSession,
-  renewEnrollment,
-  paySellado,
-  recordEnrollmentPayment,
-} from "../services/scheduleEnrollments.service";
+import { recordSession, removeSession, renewEnrollment } from "../services/scheduleEnrollments.service";
 
 function money(n) {
   if (n == null) return null;
@@ -57,11 +51,6 @@ function ScheduleEnrollments() {
   const [renewId, setRenewId] = useState(null);
   const [renewCount, setRenewCount] = useState("10");
   const [actionLoading, setActionLoading] = useState(false);
-
-  const [payTarget, setPayTarget] = useState(null);
-  const [payConcept, setPayConcept] = useState("coseguro");
-  const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState("cash");
 
   const dayLabel = scheduleState
     ? DAY_NAMES[scheduleState.day] || scheduleState.day
@@ -131,18 +120,7 @@ function ScheduleEnrollments() {
     }
   }
 
-function handleOpenSellado(enrollment) {
-  setPayTarget(enrollment);
-  setPayConcept("sellado");
-  setPayAmount(
-    enrollment.sellado_amount != null
-      ? String(enrollment.sellado_amount)
-      : ""
-  );
-  setPayMethod("cash");
-}
-
-  async function handleAddSession(enrollment) {
+async function handleAddSession(enrollment) {
     await runAction(() => recordSession(enrollment.id), "Sesión sumada");
   }
 
@@ -169,35 +147,6 @@ function handleOpenSellado(enrollment) {
     );
     setRenewId(null);
     setRenewCount("10");
-  }
-
-  function handleOpenPayment(enrollment) {
-    setPayTarget(enrollment);
-    setPayConcept("coseguro");
-    setPayAmount(enrollment.remaining_amount ?? "");
-    setPayMethod("cash");
-  }
-
-  async function handleConfirmPayment() {
-    if (!payTarget) return;
-    const amount = Number(payAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Ingresá un monto válido");
-      return;
-    }
-    const action =
-      payConcept === "sellado"
-        ? () => paySellado(payTarget.id, amount, payMethod)
-        : () => recordEnrollmentPayment(payTarget.id, amount, payMethod);
-    await runAction(
-      action,
-      payConcept === "sellado"
-        ? "Sellado cobrado correctamente"
-        : "Pago registrado correctamente"
-    );
-    setPayTarget(null);
-    setPayAmount("");
-    setPayMethod("cash");
   }
 
   if (loading) {
@@ -420,14 +369,9 @@ function handleOpenSellado(enrollment) {
                             Sellado {selladoLabel} · Cobrado
                           </span>
                         ) : (
-                          <button
-                            onClick={() => handleOpenSellado(enrollment)}
-                            disabled={actionLoading}
-                            title="Cobrar sellado"
-                            className="mt-1 rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text transition hover:brightness-95 disabled:opacity-50 dark:bg-warning/15 dark:text-warning"
-                          >
+                          <span className="mt-1 inline-block rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text dark:bg-warning/15 dark:text-warning">
                             Sellado {selladoLabel} · Pendiente
-                          </button>
+                          </span>
                         )
                       )}
                     </div>
@@ -475,15 +419,13 @@ function handleOpenSellado(enrollment) {
                       {isPackage &&
                         Number(enrollment.remaining_amount) > 0 &&
                         !isComp && (
-                        <button
-                          onClick={() => handleOpenPayment(enrollment)}
-                          disabled={actionLoading}
-                          className="flex items-center gap-1 rounded-lg bg-primary px-2.5 py-2 text-xs font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
-                          title="Cobrar sesiones"
+                        <span
+                          className="flex items-center gap-1 rounded-lg bg-warning-bg px-2.5 py-2 text-xs font-medium text-warning-text dark:bg-warning/15 dark:text-warning"
+                          title="Adeuda sesiones"
                         >
                           <Check size={14} />
-                          Cobrar {money(enrollment.remaining_amount)}
-                        </button>
+                          Adeuda {money(enrollment.remaining_amount)}
+                        </span>
                       )}
 
                       <button
@@ -566,136 +508,6 @@ function handleOpenSellado(enrollment) {
         onConfirm={handleConfirmUnenroll}
       />
 
-      {/* PAYMENT MODAL */}
-      {payTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-sm rounded-3xl border border-border/10 bg-surface-modal p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-text-primary">
-                {payConcept === "sellado" ? "Cobrar sellado" : "Cobrar sesiones"}
-              </h2>
-              <button
-                onClick={() => setPayTarget(null)}
-                className="text-text-secondary transition hover:text-text-primary"
-                aria-label="Cerrar"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <p className="text-sm text-text-secondary">
-              {payTarget.member.first_name} {payTarget.member.last_name} ·{" "}
-              {payTarget.activity_name || payTarget.schedule?.activity || "Actividad"}
-            </p>
-
-            <MemberIdentity
-              member={payTarget.member}
-              showAvatar={false}
-              showName={false}
-              className="mt-2"
-            />
-
-            <div className="mt-3 rounded-xl border border-border bg-surface-input p-3 text-sm">
-              {payConcept === "sellado" ? (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Sellado</span>
-                    <span className="text-text-primary">
-                      {money(payTarget.sellado_amount)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex justify-between">
-                    <span className="text-text-secondary">Coseguro por sesión</span>
-                    <span className="text-text-primary">
-                      {money(payTarget.session_price)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex justify-between font-semibold">
-                    <span className="text-text-secondary">Estado</span>
-                    <span className="text-warning bg-transparent dark:text-warning">
-                      Pendiente
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Precio por sesión</span>
-                    <span className="text-text-primary">
-                      {money(payTarget.session_price)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex justify-between">
-                    <span className="text-text-secondary">Total del paquete</span>
-                    <span className="text-text-primary">{money(payTarget.total_amount)}</span>
-                  </div>
-                  <div className="mt-1 flex justify-between">
-                    <span className="text-text-secondary">Pagado</span>
-                    <span className="text-success-text dark:text-success">
-                      {money(payTarget.amount_paid)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex justify-between font-semibold">
-                    <span className="text-text-secondary">Pendiente</span>
-                    <span className="text-danger-text dark:text-danger">
-                      {money(payTarget.remaining_amount)}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <label
-              htmlFor="pay-method"
-              className="mt-4 mb-1 block text-xs font-medium text-text-primary"
-            >
-              Método de pago
-            </label>
-            <select
-              id="pay-method"
-              value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-sm text-text-primary outline-none focus:ring-2 focus:ring-focus-ring"
-            >
-              <option value="cash">Efectivo</option>
-              <option value="transfer">Transferencia</option>
-              <option value="card">Tarjeta</option>
-            </select>
-
-            <label
-              htmlFor="pay-amount"
-              className="mt-4 mb-1 block text-xs font-medium text-text-primary"
-            >
-              Monto a cobrar $
-            </label>
-            <input
-              id="pay-amount"
-              type="number"
-              min="1"
-              step="100"
-              value={payAmount}
-              onChange={(e) => setPayAmount(e.target.value)}
-              className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-sm text-text-primary outline-none focus:ring-2 focus:ring-focus-ring"
-            />
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setPayTarget(null)}
-                className="rounded-xl border border-border bg-surface-input px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-surface-hover"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmPayment}
-                disabled={actionLoading}
-                className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-60"
-              >
-                {actionLoading ? "Registrando..." : "Confirmar pago"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

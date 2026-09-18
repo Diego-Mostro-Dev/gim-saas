@@ -6,6 +6,9 @@ const INITIAL_FORM = {
   notes: "",
   member: "",
   subscription: "",
+  enrollment: "",
+  personal_training_assignment: "",
+  concept: "",
 };
 
 export function usePaymentForm() {
@@ -45,7 +48,12 @@ export function usePaymentForm() {
       notes: payment.notes || "",
       member: payment.member,
       subscription:
-        payment.subscription,
+        payment.subscription || "",
+      enrollment:
+        payment.enrollment || "",
+      personal_training_assignment:
+        payment.personal_training_assignment || "",
+      concept: payment.concept || "",
     });
 
     setShowForm(true);

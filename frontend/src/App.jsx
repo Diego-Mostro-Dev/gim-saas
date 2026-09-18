@@ -30,6 +30,7 @@ import MemberPayments from "./pages/member/MemberPayments";
 import MemberAttachments from "./pages/member/MemberAttachments";
 import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
+import MemberData from "./pages/member/MemberData";
 import MemberPersonalTraining from "./pages/MemberPersonalTraining";
 import TrainerAgenda from "./pages/TrainerAgenda";
 import PublicRoutine from "./pages/PublicRoutine";
@@ -92,6 +93,7 @@ function App() {
         <Route path="recoveries" element={<MemberRecoveries />} />
         <Route path="attachments" element={<MemberAttachments />} />
         <Route path="activities" element={<MemberActivities />} />
+        <Route path="data" element={<MemberData />} />
         <Route path="personal-training" element={<MemberPersonalTraining />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>

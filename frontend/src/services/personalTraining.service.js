@@ -103,24 +103,6 @@ export async function recordPersonalTrainingPayment(id, amount, opts = {}) {
   });
 }
 
-export async function payPersonalTrainingSellado(id, amount, opts = {}) {
-  return apiFetch(`/api/personal-training/assignments/${id}/pay_sellado/`, {
-    method: "POST",
-    body: JSON.stringify({
-      amount: amount ?? "",
-      payment_method: opts.payment_method || "cash",
-      notes: opts.notes || "",
-    }),
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-export async function togglePersonalTrainingSellado(id) {
-  return apiFetch(`/api/personal-training/assignments/${id}/toggle_sellado/`, {
-    method: "POST",
-  });
-}
-
 export async function getPersonalTrainingChangeRequests(params = {}) {
   const query = new URLSearchParams();
   if (params.status) query.set("status", params.status);

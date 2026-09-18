@@ -2,7 +2,6 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -15,7 +14,6 @@ from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
 from gyms.features import require_activities
 from members.models import Member
-from payments.models import Payment
 
 from .enrollment_service import EnrollmentError, EnrollmentService
 from .models import Activity, ActivitySchedule, Enrollment
@@ -342,13 +340,6 @@ class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.G
         return Response(self.get_serializer(enrollment).data)
 
     @action(detail=True, methods=["post"])
-    def toggle_sellado(self, request, pk=None):
-        enrollment = self.get_object()
-        enrollment.sellado_paid = not enrollment.sellado_paid
-        enrollment.save(update_fields=["sellado_paid"])
-        return Response(self.get_serializer(enrollment).data)
-
-    @action(detail=True, methods=["post"])
     def record_payment(self, request, pk=None):
         enrollment = self.get_object()
         amount = request.data.get("amount")
@@ -368,66 +359,4 @@ class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.G
             )
         return Response(self.get_serializer(enrollment).data)
 
-    @action(detail=True, methods=["post"])
-    def pay_sellado(self, request, pk=None):
-        enrollment = self.get_object()
 
-        if enrollment.member.is_comp:
-            return Response(
-                {"detail": "Socio con pase de cortesía: no se le cobra por las sesiones."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if enrollment.sellado_amount is None:
-            return Response(
-                {"detail": "Este paquete no tiene sellado configurado."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if enrollment.sellado_paid:
-            return Response(
-                {"detail": "El sellado ya fue cobrado."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        raw_amount = request.data.get("amount")
-        if raw_amount in (None, ""):
-            raw_amount = enrollment.sellado_amount
-
-        try:
-            amount = Decimal(str(raw_amount))
-        except (InvalidOperation, ValueError):
-            return Response(
-                {"detail": "El monto del sellado debe ser un valor válido."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if amount <= 0:
-            return Response(
-                {"detail": "El monto del sellado debe ser mayor a cero."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        payment_method = request.data.get("payment_method", "cash")
-        notes = request.data.get("notes", "")
-
-        with transaction.atomic():
-            locked = Enrollment.objects.select_for_update().get(pk=enrollment.pk)
-            locked.sellado_paid = True
-            locked.save(update_fields=["sellado_paid"])
-
-            Payment.objects.create(
-                gym=locked.gym,
-                member=locked.member,
-                enrollment=locked,
-                concept="sellado",
-                amount=amount,
-                payment_method=payment_method,
-                notes=notes,
-                member_name=(
-                    f"{locked.member.first_name} {locked.member.last_name}"
-                ),
-                plan_name=f"{locked.schedule.activity.name} · Sellado",
-            )
-
-        return Response(self.get_serializer(locked).data)
