@@ -25,6 +25,7 @@ export function useMembers() {
       setMembers(cached);
       setLoading(false);
       setError(null);
+      void backgroundRefresh();
       return cached;
     }
     try {
@@ -38,6 +39,18 @@ export function useMembers() {
       setError(err.message || "Error al cargar miembros");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function backgroundRefresh() {
+    setRefreshing(true);
+    try {
+      const data = await getMembers();
+      setMembers(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
     }
   }
 
