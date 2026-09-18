@@ -724,7 +724,7 @@ function AssignmentCard({ assignment, onChanged }) {
                 );
               }}
               disabled={busy}
-              className="rounded-lg bg-danger-bg px-2.5 py-1.5 text-xs font-medium text-danger-text transition hover:bg-danger/10 disabled:opacity-50 dark:text-danger"
+              className="rounded-lg bg-danger-bg px-2.5 py-1.5 text-xs font-medium text-danger-text transition hover:bg-danger/10 disabled:opacity-50 dark:bg-danger/15 dark:text-danger dark:hover:bg-danger/30"
             >
               Desvincular
             </button>
@@ -762,7 +762,7 @@ function AssignmentCard({ assignment, onChanged }) {
               )
             }
             disabled={busy}
-            className="rounded-lg bg-danger-bg px-3 py-1.5 text-xs font-medium text-danger-text transition hover:bg-danger/10 disabled:opacity-50 dark:text-danger"
+            className="rounded-lg bg-danger-bg px-3 py-1.5 text-xs font-medium text-danger-text transition hover:bg-danger/10 disabled:opacity-50 dark:bg-danger/15 dark:text-danger dark:hover:bg-danger/30"
           >
             Quitar sesión
           </button>
@@ -1511,7 +1511,7 @@ function ChangeRequestsPanel() {
                       <button
                         onClick={() => handleReview(request.id, true)}
                         disabled={busyId === request.id}
-                        className="rounded-lg bg-success-bg px-2.5 py-1.5 text-xs font-medium text-success-text transition hover:bg-success/10 disabled:opacity-50 dark:text-success"
+                        className="rounded-lg bg-success-bg px-2.5 py-1.5 text-xs font-medium text-success-text transition hover:bg-success/10 disabled:opacity-50 dark:bg-success/15 dark:text-success dark:hover:bg-success/30"
                       >
                         <span className="flex items-center gap-1">
                           <Check size={13} /> Aprobar
@@ -1520,7 +1520,7 @@ function ChangeRequestsPanel() {
                       <button
                         onClick={() => handleReview(request.id, false)}
                         disabled={busyId === request.id}
-                        className="rounded-lg bg-danger-bg px-2.5 py-1.5 text-xs font-medium text-danger-text transition hover:bg-danger/10 disabled:opacity-50 dark:text-danger"
+                        className="rounded-lg bg-danger-bg px-2.5 py-1.5 text-xs font-medium text-danger-text transition hover:bg-danger/10 disabled:opacity-50 dark:bg-danger/15 dark:text-danger dark:hover:bg-danger/30"
                       >
                         <span className="flex items-center gap-1">
                           <X size={13} /> Rechazar
