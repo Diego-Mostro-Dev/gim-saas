@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from subscriptions.models import MembershipPlan
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
-from subscriptions.services import member_discount_percent
+from subscriptions.services import discounted_amount, member_discount_percent
 from plans.services import public_plan_name
 from members.eligibility import MemberEligibility
 from gyms.models import Discount
@@ -271,10 +271,10 @@ class MemberSerializer(serializers.ModelSerializer):
             return False
 
         pending_sellados = any(
-            e.sellado_amount is not None and not e.sellado_paid
+            e.active and e.sellado_amount is not None and not e.sellado_paid
             for e in obj.activity_enrollments.all()
         ) or any(
-            a.sellado_amount is not None and not a.sellado_paid
+            a.active and a.sellado_amount is not None and not a.sellado_paid
             for a in obj.personal_training_assignments.all()
         )
         if pending_sellados:
@@ -286,10 +286,21 @@ class MemberSerializer(serializers.ModelSerializer):
         latest_sub = None
 
         for package in obj.activity_enrollments.all():
+            if package.modality != "package" or package.session_price is None:
+                continue
             remaining = package.remaining_amount
-            if remaining and remaining > 0 and package.session_price is not None:
+            if remaining and remaining > 0:
                 has_debt = True
                 break
+
+        if not has_debt:
+            for package in obj.personal_training_assignments.all():
+                if package.modality != "package" or package.session_price is None:
+                    continue
+                remaining = package.remaining_amount
+                if remaining and remaining > 0:
+                    has_debt = True
+                    break
 
         if not has_debt:
             for sub in obj.subscription_set.all():
@@ -307,6 +318,12 @@ class MemberSerializer(serializers.ModelSerializer):
                 if has_debt:
                     continue
 
+                # Mirrors calculate_subscription_total, which is the single
+                # source of truth for the billed total, so a discount makes
+                # the member look settled exactly like recover_member() (via
+                # member_total_outstanding_debt) sees it. The member's own
+                # discount is applied instead of subscription.member to stay
+                # query-free in the list view (discount is selected_related).
                 items = list(sub.items.all())
                 total = sum(
                     item.price_snapshot
@@ -319,6 +336,7 @@ class MemberSerializer(serializers.ModelSerializer):
                 if not has_plan_item and sub.plan is not None:
                     total += sub.plan.price
 
+                total = discounted_amount(total, member_discount_percent(obj))
                 paid = sum(p.amount for p in sub.payments.all())
 
                 if total - paid > 0:
