@@ -55,7 +55,7 @@ const STATUS_LABELS = {
   cancelled_by_staff: "Cancelada",
 };
 
-function PersonalTrainingSettings({ embedded = false }) {
+function PersonalTrainingSettings() {
   const [activeTab, setActiveTab] = useState("services");
 
   return (
