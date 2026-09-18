@@ -377,6 +377,12 @@ def count_schedule_changes_used_this_month(member):
     Counts permanent changes (pending/approved/executed) plus swaps
     (pending/approved), both by their request date. Mirrors the combined
     monthly limit enforced across swap and permanent validations.
+
+    Perf note (justified, do NOT collapse): the two COUNTs hit different
+    tables (ScheduleChangeRequest / ScheduleSwapRequest), so they cannot
+    merge into a single aggregate. Each is backed by an existing
+    (member, status) index and runs exactly once per portal request
+    (routines/views.py portal summary), so there is no N+1 nor duplication.
     """
     month_start = timezone.localdate().replace(day=1)
     start_dt = timezone.make_aware(
