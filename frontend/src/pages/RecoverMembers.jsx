@@ -61,8 +61,16 @@ function RecoverMembers() {
   const pendingPaymentRef = useRef(null);
 
   const [debtorMemberIds, setDebtorMemberIds] = useState(new Set());
+  const [recoveredMemberIds, setRecoveredMemberIds] = useState(new Set());
 
   const requestIdRef = useRef(0);
+
+  function isMemberRecoverable(member) {
+    return (
+      Boolean(member?.is_recoverable) &&
+      !recoveredMemberIds.has(Number(member.id))
+    );
+  }
 
   async function refreshDebtors() {
     try {
@@ -103,13 +111,13 @@ function RecoverMembers() {
   const debtCount = members.filter((m) =>
     debtorMemberIds.has(Number(m.id)),
   ).length;
-  const recoverableCount = members.filter(
-    (m) => Boolean(m.is_recoverable),
+  const recoverableCount = members.filter((m) =>
+    isMemberRecoverable(m),
   ).length;
 
   const visibleMembers = filteredMembers.filter((member) => {
     if (filter === "debt") return debtorMemberIds.has(Number(member.id));
-    if (filter === "recoverable") return Boolean(member.is_recoverable);
+    if (filter === "recoverable") return isMemberRecoverable(member);
     return true;
   });
 
@@ -278,6 +286,12 @@ function RecoverMembers() {
         setSelectedMember(freshSelected);
       }
 
+      setRecoveredMemberIds((prev) => {
+        const next = new Set(prev);
+        next.add(Number(selectedMember.id));
+        return next;
+      });
+
       await fetchDebt(selectedMember.id);
       await refreshDebtors();
     } catch (err) {
@@ -365,7 +379,7 @@ function RecoverMembers() {
           visibleMembers.map((member) => {
             const isSelected = selectedMember?.id === member.id;
             const hasDebt = debtorMemberIds.has(Number(member.id));
-            const isRecoverable = Boolean(member.is_recoverable);
+            const isRecoverable = isMemberRecoverable(member);
 
             return (
               <button
@@ -692,7 +706,7 @@ function RecoverMembers() {
                     El socio no posee deuda pendiente
                   </p>
 
-                  {selectedMember.is_recoverable ? (
+                  {isMemberRecoverable(selectedMember) ? (
                     <button
                       type="button"
                       onClick={handleRecoverMember}
