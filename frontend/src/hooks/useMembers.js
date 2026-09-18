@@ -54,9 +54,15 @@ export function useMembers() {
     }
   }
 
+  // Carga inicial deliberada con caché (fetch-on-mount): patrón usado en toda la
+  // codebase (useSubscriptions, useActivities, useAttendanceStatus, usePlans...).
+  // Incluir loadMembers en deps causaría refetch en cada render y re-levantar loading
+  // en el mismo effect viola set-state-in-effect; se deshabilita consistentemente.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     loadMembers();
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   async function createNewMember(data) {
     const newMember = await createMember(data);
