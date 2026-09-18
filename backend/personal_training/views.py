@@ -166,6 +166,7 @@ class PersonalTrainingAssignmentViewSet(
             member,
             trainer_profile.user,
             exclude=exclude,
+            duration_minutes=service.duration_minutes,
         )
         result["duration_minutes"] = service.duration_minutes
         return Response(result)

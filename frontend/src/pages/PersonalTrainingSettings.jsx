@@ -1018,6 +1018,7 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
 
   const isPackage = form.modality === "package";
   const dayIv = dayIntervals(freeData, form.day);
+  const sessionDuration = freeData?.duration_minutes || 60;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1207,7 +1208,7 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                         value={form.start_time}
                         onChange={(e) => {
                           const nextStart = e.target.value;
-                          const ends = endHoursFor(dayIv, nextStart);
+                          const ends = endHoursFor(dayIv, nextStart, sessionDuration);
                           if (ends.includes(form.end_time)) {
                             setForm({ ...form, start_time: nextStart });
                           } else {
@@ -1222,7 +1223,7 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                       >
                         {form.end_time &&
                         dayIv.length > 0 ? (
-                          startHoursFor(dayIv)
+                          startHoursFor(dayIv, sessionDuration)
                             .filter((h) => h < form.end_time)
                             .map((h) => (
                               <option key={h} value={h}>
@@ -1248,7 +1249,7 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                         className={inputClass}
                       >
                         {form.start_time && dayIv.length > 0 ? (
-                          endHoursFor(dayIv, form.start_time).map((h) => (
+                          endHoursFor(dayIv, form.start_time, sessionDuration).map((h) => (
                             <option key={h} value={h}>
                               {h}
                             </option>

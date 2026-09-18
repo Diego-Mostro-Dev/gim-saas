@@ -7,7 +7,7 @@ from subscriptions.domain import SubscriptionDomain
 from .models import DAY_CHOICES, PersonalTrainingAssignment
 
 
-def available_slots(gym, member, trainer, exclude=None):
+def available_slots(gym, member, trainer, exclude=None, duration_minutes=None):
     """Franjas recurrentes libres por día para un PT (socio + trainer).
 
     Args:
@@ -16,6 +16,8 @@ def available_slots(gym, member, trainer, exclude=None):
         trainer: The auth.User instance acting as trainer.
         exclude: Optional PersonalTrainingAssignment to exclude (the slot
             being rescheduled is not treated as occupied).
+        duration_minutes: Optional service duration; intervals shorter than
+            this are dropped so the service always fits.
 
     Returns:
         dict: {
@@ -31,6 +33,14 @@ def available_slots(gym, member, trainer, exclude=None):
             days[day] = []
             closed_days.append(day)
         else:
+            if duration_minutes:
+                intervals = [
+                    (start, end)
+                    for start, end in intervals
+                    if (end.hour * 60 + end.minute)
+                    - (start.hour * 60 + start.minute)
+                    >= duration_minutes
+                ]
             days[day] = [
                 {
                     "start_time": start.strftime("%H:%M"),

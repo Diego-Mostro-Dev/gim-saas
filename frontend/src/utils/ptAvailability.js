@@ -13,6 +13,8 @@ export function addMinutes(hhmm, minutes) {
   return fmtMinutes(toMinutes(hhmm) + minutes);
 }
 
+export const DEFAULT_DURATION = 60;
+
 export function isFree(intervals, start, end) {
   if (!intervals || !intervals.length || !start || !end) return false;
   const s = toMinutes(start);
@@ -20,18 +22,18 @@ export function isFree(intervals, start, end) {
   return intervals.some((iv) => s >= toMinutes(iv.start_time) && e <= toMinutes(iv.end_time));
 }
 
-export function startHoursFor(intervals) {
+export function startHoursFor(intervals, duration = DEFAULT_DURATION) {
   if (!intervals || !intervals.length) return [];
   return intervals.flatMap((iv) => {
     const start = toMinutes(iv.start_time);
     const end = toMinutes(iv.end_time);
     const out = [];
-    for (let h = start; h + 60 <= end; h += 60) out.push(fmtMinutes(h));
+    for (let h = start; h + duration <= end; h += 60) out.push(fmtMinutes(h));
     return out;
   });
 }
 
-export function endHoursFor(intervals, start) {
+export function endHoursFor(intervals, start, duration = DEFAULT_DURATION) {
   if (!intervals || !intervals.length || !start) return [];
   const s = toMinutes(start);
   return intervals.flatMap((iv) => {
@@ -39,18 +41,19 @@ export function endHoursFor(intervals, start) {
     const endIv = toMinutes(iv.end_time);
     if (s < startIv || s >= endIv) return [];
     const out = [];
-    for (let e = s + 60; e <= endIv; e += 60) out.push(fmtMinutes(e));
+    const e = s + duration;
+    if (e <= endIv) out.push(fmtMinutes(e));
     return out;
   });
 }
 
-export function firstFreeStart(intervals) {
-  const options = startHoursFor(intervals);
+export function firstFreeStart(intervals, duration = DEFAULT_DURATION) {
+  const options = startHoursFor(intervals, duration);
   return options[0] || "";
 }
 
-export function firstFreeEnd(intervals, start) {
-  const options = endHoursFor(intervals, start);
+export function firstFreeEnd(intervals, start, duration = DEFAULT_DURATION) {
+  const options = endHoursFor(intervals, start, duration);
   return options[0] || "";
 }
 
@@ -61,8 +64,9 @@ export function dayIntervals(freeData, day) {
 
 export function reconcileSlot(freeData, day, start, end) {
   const intervals = dayIntervals(freeData, day);
+  const duration = freeData?.duration_minutes || DEFAULT_DURATION;
   if (isFree(intervals, start, end)) return { start, end };
-  const nextStart = firstFreeStart(intervals);
-  const nextEnd = nextStart ? firstFreeEnd(intervals, nextStart) : "";
+  const nextStart = firstFreeStart(intervals, duration);
+  const nextEnd = nextStart ? firstFreeEnd(intervals, nextStart, duration) : "";
   return { start: nextStart, end: nextEnd };
 }

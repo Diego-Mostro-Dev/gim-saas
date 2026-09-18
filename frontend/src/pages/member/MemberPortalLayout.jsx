@@ -354,7 +354,9 @@ function MemberPortalLayoutContent({
     (renewalSkipped ||
       hasDebt ||
       blockedReason === "blocked" ||
-      blockedReason === "initial_pending");
+      blockedReason === "initial_pending" ||
+      blockedReason === "no_subscription" ||
+      blockedReason === "inactive");
 
   const routeFeatureMap = {
     [`/routine/${token}/activities`]: "activities",

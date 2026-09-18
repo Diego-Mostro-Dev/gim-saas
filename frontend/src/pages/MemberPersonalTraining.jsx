@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   CalendarDays,
@@ -54,6 +54,7 @@ function MemberPersonalTraining() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
+  const slotsFetchSeq = useRef(0);
 
   async function load(force = false) {
     if (force) setLoading(true);
@@ -78,10 +79,12 @@ function MemberPersonalTraining() {
       requested_start_time: String(assignment.start_time).slice(0, 5),
       requested_end_time: String(assignment.end_time).slice(0, 5),
     });
+    const seq = ++slotsFetchSeq.current;
     setFreeData(null);
     setSlotsLoading(true);
     getPublicPersonalTrainingAvailableSlots(token, assignment.id)
       .then((res) => {
+        if (seq !== slotsFetchSeq.current) return;
         setFreeData(res);
         setRequest((r) => {
           const fixed = reconcileSlot(
@@ -104,10 +107,13 @@ function MemberPersonalTraining() {
         });
       })
       .catch((err) => {
+        if (seq !== slotsFetchSeq.current) return;
         toast.error(err.message || "Error al cargar horarios disponibles");
         setFreeData({ days: {}, closed_days: [] });
       })
-      .finally(() => setSlotsLoading(false));
+      .finally(() => {
+        if (seq === slotsFetchSeq.current) setSlotsLoading(false);
+      });
   }
 
   function dayUnavailable(day) {
@@ -180,6 +186,7 @@ function MemberPersonalTraining() {
     (r) => r.status === "pending",
   );
   const dayIv = dayIntervals(freeData, request.requested_day);
+  const sessionDuration = freeData?.duration_minutes || 60;
 
   return (
     <div className="space-y-4">
@@ -505,7 +512,7 @@ function MemberPersonalTraining() {
                         value={request.requested_start_time}
                         onChange={(e) => {
                           const nextStart = e.target.value;
-                          const ends = endHoursFor(dayIv, nextStart);
+                          const ends = endHoursFor(dayIv, nextStart, sessionDuration);
                           if (ends.includes(request.requested_end_time)) {
                             setRequest({
                               ...request,
@@ -522,7 +529,7 @@ function MemberPersonalTraining() {
                         className={inputClass}
                       >
                         {request.requested_end_time && dayIv.length > 0 ? (
-                          startHoursFor(dayIv)
+                          startHoursFor(dayIv, sessionDuration)
                             .filter((h) => h < request.requested_end_time)
                             .map((h) => (
                               <option key={h} value={h}>
@@ -554,6 +561,7 @@ function MemberPersonalTraining() {
                           endHoursFor(
                             dayIv,
                             request.requested_start_time,
+                            sessionDuration,
                           ).map((h) => (
                             <option key={h} value={h}>
                               {h}

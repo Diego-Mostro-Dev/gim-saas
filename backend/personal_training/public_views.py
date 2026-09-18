@@ -90,6 +90,7 @@ class PublicMemberAvailableSlotsView(APIView):
             member,
             assignment.trainer,
             exclude=assignment,
+            duration_minutes=assignment.service.duration_minutes,
         )
         result["assignment_id"] = assignment.id
         result["duration_minutes"] = assignment.service.duration_minutes
