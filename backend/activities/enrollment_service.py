@@ -141,9 +141,10 @@ class EnrollmentService:
     ):
         """Register an amount paid against a package enrollment.
 
-        Accumulates the amount into enrollment.amount_paid and records a
-        Payment with concept="coseguro". Total paid cannot exceed the
-        package total (session_price * total sessions).
+        Records a Payment with concept="coseguro". The Payment rows are the
+        only source of truth: Enrollment.amount_paid is synced from them.
+        Total paid cannot exceed the package total (session_price * total
+        sessions).
 
         Args:
             enrollment: The package Enrollment.
@@ -155,6 +156,10 @@ class EnrollmentService:
             The updated Enrollment.
         """
         from payments.models import Payment
+        from payments.services import (
+            enrollment_sessions_paid,
+            sync_enrollment_paid,
+        )
 
         if enrollment.modality != "package":
             raise EnrollmentError(
@@ -184,18 +189,23 @@ class EnrollmentService:
                 "El monto cobrado debe ser mayor a cero."
             )
 
-        total = enrollment.total_amount
-        if enrollment.amount_paid + amount > total:
-            remaining = total - enrollment.amount_paid
-            raise EnrollmentError(
-                f"El monto supera el saldo pendiente. "
-                f"Falta cobrar ${remaining}."
-            )
-
         with transaction.atomic():
             locked = Enrollment.objects.select_for_update().get(pk=enrollment.pk)
-            locked.amount_paid += amount
-            locked.save(update_fields=["amount_paid"])
+
+            total = locked.total_amount
+            if total is None:
+                raise EnrollmentError(
+                    "Este paquete no tiene coseguro definido. "
+                    "No se pueden cobrar sesiones."
+                )
+
+            paid = enrollment_sessions_paid(locked)
+            if paid + amount > total:
+                remaining = total - paid
+                raise EnrollmentError(
+                    f"El monto supera el saldo pendiente. "
+                    f"Falta cobrar ${remaining}."
+                )
 
             Payment.objects.create(
                 gym=locked.gym,
@@ -210,6 +220,8 @@ class EnrollmentService:
                 ),
                 plan_name=f"{locked.schedule.activity.name} · Sesiones",
             )
+
+            sync_enrollment_paid(locked)
 
         locked.refresh_from_db()
         return locked

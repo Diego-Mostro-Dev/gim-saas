@@ -1,6 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatHumanDate } from "../../utils/date.utils";
 import { formatCurrency } from "../../utils/currency.utils";
+import { getMemberOutstanding } from "../../services/subscriptions.service";
+
+const today = new Date();
+
+const isActiveNow = (subscription) =>
+  new Date(subscription.start_date) <= today &&
+  new Date(subscription.end_date) >= today;
 
 function PaymentForm({
   formData,
@@ -9,62 +16,265 @@ function PaymentForm({
   isSubmitting,
   editingPayment,
   members,
-  subscriptions,
 }) {
-  const today = new Date();
+  const [outstanding, setOutstanding] = useState(null);
 
-  const isActiveNow = (subscription) =>
-    new Date(subscription.start_date) <= today &&
-    new Date(subscription.end_date) >= today;
+  const [outstandingMember, setOutstandingMember] =
+    useState("");
 
-  const dateMillis = (value) => {
-    const time = new Date(value).getTime();
-    return Number.isNaN(time) ? 0 : time;
-  };
+  const [outstandingError, setOutstandingError] =
+    useState(null);
 
-  const filteredSubscriptions = subscriptions
-    .filter(
-      (subscription) =>
-        String(subscription.member) === String(formData.member) &&
-        Number(subscription.remaining) > 0,
-    )
-    .slice()
-    .sort((a, b) => {
-      const aActive = isActiveNow(a);
-      const bActive = isActiveNow(b);
+  useEffect(() => {
+    if (!formData.member) return undefined;
 
-      if (aActive !== bActive) return bActive ? 1 : -1;
+    let cancelled = false;
 
-      const endDiff = dateMillis(b.end_date) - dateMillis(a.end_date);
+    getMemberOutstanding(formData.member)
+      .then((data) => {
+        if (cancelled) return;
 
-      if (endDiff !== 0) return endDiff;
+        setOutstanding(data);
 
-      return String(b.id).localeCompare(String(a.id));
-    });
+        setOutstandingMember(String(formData.member));
 
-  const selectedSubscription = filteredSubscriptions.find(
-    (subscription) =>
-      String(subscription.id) === String(formData.subscription),
+        setOutstandingError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+
+        console.error(err);
+
+        setOutstandingError(
+          err.message || "No se pudieron cargar los saldos",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.member]);
+
+  const outstandingFresh =
+    Boolean(formData.member) &&
+    outstandingMember === String(formData.member);
+
+  const loadingOutstanding =
+    Boolean(formData.member) &&
+    !outstandingFresh &&
+    !outstandingError;
+
+  const listSource = outstandingFresh ? outstanding : null;
+
+  const pendingItems = useMemo(() => [
+    ...(listSource?.subscriptions || []).map((subscription) => {
+      const active = isActiveNow(subscription);
+
+      const expired = new Date(subscription.end_date) < today;
+
+      return {
+        key: `sub:${subscription.id}`,
+        group: "Suscripción",
+        mark: expired
+          ? "[VENCIDA] "
+          : active
+            ? "[ACTUAL] "
+            : "",
+        label: [
+          subscription.plan_name,
+          `${formatHumanDate(subscription.start_date)} → ${formatHumanDate(subscription.end_date)}`,
+          subscription.total != null
+            ? `Total ${formatCurrency(subscription.total)}`
+            : null,
+          Number(subscription.paid_amount) > 0
+            ? `Pagado ${formatCurrency(subscription.paid_amount)}`
+            : null,
+          `Restan ${formatCurrency(subscription.remaining)}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        remaining: Number(subscription.remaining),
+        apply: () => ({
+          subscription: String(subscription.id),
+          enrollment: "",
+          personal_training_assignment: "",
+          concept: "subscription",
+        }),
+      };
+    }),
+    ...(listSource?.packages || [])
+      .filter((pkg) => pkg.enrollment_id != null)
+      .map((pkg) => ({
+        key: `enr:${pkg.enrollment_id}`,
+        group: "Clases",
+        mark: "",
+        label: [
+          pkg.name,
+          `${pkg.sessions_total} sesiones`,
+          Number(pkg.paid_amount) > 0
+            ? `Pagado ${formatCurrency(pkg.paid_amount)}`
+            : null,
+          `Restan ${formatCurrency(pkg.remaining)}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        remaining: Number(pkg.remaining),
+        apply: () => ({
+          subscription: "",
+          enrollment: String(pkg.enrollment_id),
+          personal_training_assignment: "",
+          concept: "coseguro",
+        }),
+      })),
+    ...(listSource?.packages || [])
+      .filter((pkg) => pkg.assignment_id != null)
+      .map((pkg) => ({
+        key: `asg:${pkg.assignment_id}`,
+        group: "PT",
+        mark: "",
+        label: [
+          pkg.name,
+          `${pkg.sessions_total} sesiones`,
+          Number(pkg.paid_amount) > 0
+            ? `Pagado ${formatCurrency(pkg.paid_amount)}`
+            : null,
+          `Restan ${formatCurrency(pkg.remaining)}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        remaining: Number(pkg.remaining),
+        apply: () => ({
+          subscription: "",
+          enrollment: "",
+          personal_training_assignment: String(pkg.assignment_id),
+          concept: "personal_training",
+        }),
+      })),
+    ...(listSource?.sellados || []).map((sellado) => {
+      const isEnrollment = sellado.target_type === "enrollment";
+
+      const targetId = isEnrollment
+        ? sellado.enrollment_id
+        : sellado.assignment_id;
+
+      return {
+        key: `${isEnrollment ? "enr" : "asg"}-sellado:${targetId}`,
+        group: "Sellado",
+        mark: "",
+        label: [
+          sellado.name,
+          `Sellado ${formatCurrency(sellado.amount)}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        remaining: Number(sellado.amount),
+        prefillAmount: String(sellado.amount),
+        apply: () => ({
+          subscription: "",
+          enrollment: isEnrollment ? String(targetId) : "",
+          personal_training_assignment: isEnrollment ? "" : String(targetId),
+          concept: "sellado",
+        }),
+      };
+    }),
+  ], [listSource]);
+
+  function currentKey(form = formData) {
+    if (form.subscription) return `sub:${form.subscription}`;
+
+    if (form.enrollment) {
+      return `${form.concept === "sellado" ? "enr-sellado" : "enr"}:${form.enrollment}`;
+    }
+
+    if (form.personal_training_assignment) {
+      return `${form.concept === "sellado" ? "asg-sellado" : "asg"}:${form.personal_training_assignment}`;
+    }
+
+    return "";
+  }
+
+  const selectedKey = currentKey();
+
+  const syntheticItems = [];
+
+  if (editingPayment && selectedKey) {
+    const exists = pendingItems.some(
+      (item) => item.key === selectedKey,
+    );
+
+    if (!exists) {
+      syntheticItems.push({
+        key: selectedKey,
+        group:
+          editingPayment.concept === "sellado" ? "Sellado" : "No vigente",
+        mark: "",
+        label: [
+          editingPayment.plan_name || "Pago registrado",
+          "Elemento ya saldado o no vigente",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        remaining:
+          editingPayment.amount != null
+            ? Number(editingPayment.amount)
+            : 0,
+        apply: () => ({
+          subscription: formData.subscription,
+          enrollment: formData.enrollment,
+          personal_training_assignment: formData.personal_training_assignment,
+          concept: formData.concept,
+        }),
+      });
+    }
+  }
+
+  const items = [...pendingItems, ...syntheticItems];
+
+  const selectedItem = items.find(
+    (item) => item.key === selectedKey,
   );
 
-  const remaining = selectedSubscription
-    ? Number(selectedSubscription.remaining)
-    : null;
+  const remaining = selectedItem ? selectedItem.remaining : null;
+
+  const isSellado = selectedItem
+    ? selectedItem.group === "Sellado"
+    : false;
 
   useEffect(() => {
     if (editingPayment) return;
 
-    if (
-      formData.member &&
-      filteredSubscriptions.length === 1 &&
-      String(filteredSubscriptions[0].id) !== formData.subscription
-    ) {
-      setFormData({
-        ...formData,
-        subscription: String(filteredSubscriptions[0].id),
-      });
-    }
-  }, [formData.member, filteredSubscriptions]);
+    if (!formData.member || !outstandingFresh) return;
+
+    if (pendingItems.length !== 1) return;
+
+    const only = pendingItems[0];
+
+    if (`${only.key}` === selectedKey) return;
+
+    const patch = only.apply();
+
+    patch.amount =
+      only.prefillAmount != null ? only.prefillAmount : "";
+
+    setFormData((prev) => ({ ...prev, ...patch }));
+  }, [
+    formData.member,
+    outstandingFresh,
+    pendingItems,
+    selectedKey,
+    editingPayment,
+    setFormData,
+  ]);
+
+  const targetOptionsText = !formData.member
+    ? "Primero seleccioná un miembro"
+    : loadingOutstanding
+      ? "Cargando..."
+      : outstandingError
+        ? "Error al cargar los saldos"
+        : items.length === 0
+          ? "Sin saldos pendientes"
+          : "Seleccionar a cobrar";
 
   return (
     <form
@@ -77,13 +287,24 @@ function PaymentForm({
 
       <select
         value={formData.member}
-        onChange={(e) =>
+        onChange={(e) => {
+          const memberId = e.target.value;
+
           setFormData({
             ...formData,
-            member: e.target.value,
+            member: memberId,
             subscription: "",
-          })
-        }
+            enrollment: "",
+            personal_training_assignment: "",
+            concept: "",
+          });
+
+          setOutstanding(null);
+
+          setOutstandingMember("");
+
+          setOutstandingError(null);
+        }}
         className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
         required
       >
@@ -109,85 +330,54 @@ function PaymentForm({
         })}
       </select>
 
-      {(!formData.member || filteredSubscriptions.length !== 1) && (
-        <select
-          value={formData.subscription}
-          onChange={(e) =>
+      <select
+        value={selectedKey}
+        onChange={(e) => {
+          const item = items.find(
+            (candidate) => candidate.key === e.target.value,
+          );
+
+          if (item) {
+            const patch = item.apply();
+
+            patch.amount =
+              item.prefillAmount != null ? item.prefillAmount : "";
+
+            setFormData((prev) => ({ ...prev, ...patch }));
+          } else {
             setFormData({
               ...formData,
-              subscription: e.target.value,
-            })
+              subscription: "",
+              enrollment: "",
+              personal_training_assignment: "",
+              concept: "",
+            });
           }
-          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
-          required
-          disabled={!formData.member}
-        >
-          <option value="">
-            {!formData.member
-              ? "Primero seleccioná un miembro"
-              : filteredSubscriptions.length === 0
-                ? "Sin suscripciones con saldo pendiente"
-                : "Seleccionar suscripción"}
+        }}
+        className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+        required
+        disabled={!formData.member || loadingOutstanding}
+      >
+        <option value="">{targetOptionsText}</option>
+
+        {items.map((item) => (
+          <option key={item.key} value={item.key}>
+            {item.mark}[{item.group}] {item.label}
           </option>
+        ))}
+      </select>
 
-          {filteredSubscriptions.map((subscription) => {
-            const expired = new Date(subscription.end_date) < today;
-            const isCurrent =
-              filteredSubscriptions.length > 1 && isActiveNow(subscription);
-            const label = [
-              subscription.plan_name,
-              `${formatHumanDate(subscription.start_date)} → ${formatHumanDate(subscription.end_date)}`,
-              subscription.total != null
-                ? `Total ${formatCurrency(subscription.total)}`
-                : null,
-              Number(subscription.paid_amount) > 0
-                ? `Pagado ${formatCurrency(subscription.paid_amount)}`
-                : null,
-              subscription.remaining != null
-                ? `Restan ${formatCurrency(subscription.remaining)}`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" · ");
-
-            return (
-              <option key={subscription.id} value={subscription.id}>
-                {isCurrent ? "[ACTUAL] " : ""}
-                {expired ? "[VENCIDA] " : ""}
-                {label}
-              </option>
-            );
-          })}
-        </select>
-      )}
-
-      {filteredSubscriptions.length > 1 && (
+      {isSellado && (
         <p className="text-xs text-text-secondary">
-          La suscripción actual aparece primero; las anteriores con saldo
-          pendiente también quedan seleccionables.
+          El sellado es por este monto exacto.
         </p>
       )}
 
-      {filteredSubscriptions.length > 0 && (
-        <div className="rounded-xl border border-warning/30 bg-warning-bg dark:bg-warning/15 px-4 py-3 text-sm text-warning-text dark:text-warning">
-          <p className="mb-2 font-medium">Saldo pendiente:</p>
-          <ul className="space-y-1">
-            {filteredSubscriptions.map((sub) => (
-              <li key={sub.id} className="flex flex-wrap items-center justify-between gap-2">
-                <span className="min-w-0">
-                  {sub.plan_name}
-                  {isActiveNow(sub) && (
-                    <span className="ml-1 text-xs opacity-70">(actual)</span>
-                  )}
-                </span>
-                <span className="text-xs text-text-secondary">
-                  vence {formatHumanDate(sub.end_date)} — restan{" "}
-                  {formatCurrency(sub.remaining)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {syntheticItems.length > 0 && (
+        <p className="text-xs text-text-secondary">
+          El elemento cobrado ya no está pendiente: el monto queda limitado a
+          lo ya registrado.
+        </p>
       )}
 
       <input

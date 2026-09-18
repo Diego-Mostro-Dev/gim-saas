@@ -33,6 +33,8 @@ from .services import (
     get_last_day_of_month,
     gym_activity_package_debt,
     gym_outstanding_subscriptions,
+    gym_personal_training_package_debt,
+    gym_sellado_debt,
     member_total_outstanding_debt,
     recover_member,
 )
@@ -154,6 +156,36 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
                 "total": str(pkg["total"]),
                 "paid_amount": str(pkg["paid_amount"]),
                 "remaining": str(pkg["remaining"]),
+            })
+
+        pt_packages = gym_personal_training_package_debt(gym)
+        for pkg in pt_packages:
+            member = pkg["member"]
+            data.append({
+                "subscription_id": None,
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "plan_name": f"{pkg['name']} · paquete de sesiones",
+                "payment_status": "pending",
+                "items": [],
+                "total": str(pkg["total"]),
+                "paid_amount": str(pkg["paid_amount"]),
+                "remaining": str(pkg["remaining"]),
+            })
+
+        sellados = gym_sellado_debt(gym)
+        for sellado in sellados:
+            member = sellado["member"]
+            data.append({
+                "subscription_id": None,
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "plan_name": f"Sellado · {sellado['name']}",
+                "payment_status": "pending",
+                "items": [],
+                "total": str(sellado["amount"]),
+                "paid_amount": "0.00",
+                "remaining": str(sellado["amount"]),
             })
 
         if page is not None:

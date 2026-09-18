@@ -30,6 +30,19 @@ class PaymentAdmin(admin.ModelAdmin):
 
     readonly_fields = ("paid_at",)
 
+    # Payments drive the denormalized mirrors (subscription.paid,
+    # enrollment/assignment amount_paid, sellado_paid). Writing them from the
+    # admin would bypass PaymentSerializer's validation and reconciliation, so
+    # the admin is view-only and payments are managed through the app.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
 

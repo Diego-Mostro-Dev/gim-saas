@@ -608,6 +608,33 @@ class PublicRoutineView(APIView):
                 "remaining": str(pkg["remaining"]),
             }
             for pkg in outstanding_debt["packages"]
+            if pkg["type"] == "activity_package"
+        ] + [
+            {
+                "type": "personal_training_package",
+                "assignment_id": pkg["assignment"].id,
+                "name": pkg["name"],
+                "sessions_total": pkg["sessions_total"],
+                "session_price": str(pkg["session_price"]),
+                "total": str(pkg["total"]),
+                "paid_amount": str(pkg["paid_amount"]),
+                "remaining": str(pkg["remaining"]),
+            }
+            for pkg in outstanding_debt["packages"]
+            if pkg["type"] == "personal_training_package"
+        ] + [
+            {
+                "type": "sellado",
+                "enrollment_id": s["enrollment"].id if s["enrollment"] else None,
+                "assignment_id": s["assignment"].id if s["assignment"] else None,
+                "name": s["name"],
+                "total": str(s["amount"]),
+                "paid_amount": "0.00",
+                "remaining": str(s["amount"]),
+                "sessions_total": None,
+                "session_price": None,
+            }
+            for s in outstanding_debt["sellados"]
         ]
 
         combined_total = outstanding_debt["total"]

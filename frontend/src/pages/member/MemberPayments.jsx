@@ -20,6 +20,28 @@ function MemberPayments() {
           : null,
       };
     }
+    if (item.type === "personal_training_package") {
+      return {
+        key: `pt-${item.assignment_id}`,
+        title: item.name,
+        remaining: `$${Number(item.remaining).toLocaleString("es-AR")}`,
+        total: `$${Number(item.total).toLocaleString("es-AR")}`,
+        period: `${item.sessions_total} sesiones`,
+        unit: item.session_price != null
+          ? `$${Number(item.session_price).toLocaleString("es-AR")}/sesión`
+          : null,
+      };
+    }
+    if (item.type === "sellado") {
+      return {
+        key: `sellado-${item.enrollment_id || item.assignment_id}`,
+        title: `Sellado · ${item.name}`,
+        remaining: `$${Number(item.remaining).toLocaleString("es-AR")}`,
+        total: `$${Number(item.total).toLocaleString("es-AR")}`,
+        period: "Matrícula",
+        unit: null,
+      };
+    }
     return {
       key: `sub-${item.subscription_id}`,
       title: item.plan,

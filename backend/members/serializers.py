@@ -270,6 +270,16 @@ class MemberSerializer(serializers.ModelSerializer):
         if obj.is_comp:
             return False
 
+        pending_sellados = any(
+            e.sellado_amount is not None and not e.sellado_paid
+            for e in obj.activity_enrollments.all()
+        ) or any(
+            a.sellado_amount is not None and not a.sellado_paid
+            for a in obj.personal_training_assignments.all()
+        )
+        if pending_sellados:
+            return False
+
         has_debt = False
         has_current = False
         has_future = False

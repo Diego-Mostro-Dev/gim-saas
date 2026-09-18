@@ -143,6 +143,7 @@ class PersonalTrainingAssignmentSerializer(serializers.ModelSerializer):
     last_session_date = serializers.SerializerMethodField()
     total_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
+    is_comp = serializers.BooleanField(source="member.is_comp", read_only=True)
 
     class Meta:
         model = PersonalTrainingAssignment
@@ -152,6 +153,7 @@ class PersonalTrainingAssignmentSerializer(serializers.ModelSerializer):
             "member",
             "member_id",
             "member_address",
+            "is_comp",
             "trainer_id",
             "trainer_name",
             "trainer_gender",

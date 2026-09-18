@@ -28,12 +28,10 @@ import {
   getPersonalTrainingChangeRequests,
   getPersonalTrainingServices,
   reactivatePersonalTrainingService,
-  recordPersonalTrainingPayment,
   recordPersonalTrainingSession,
   removePersonalTrainingSession,
   renewPersonalTrainingPackage,
   rejectPersonalTrainingChangeRequest,
-  togglePersonalTrainingSellado,
   unassignPersonalTraining,
   updatePersonalTrainingService,
 } from "../services/personalTraining.service";
@@ -553,23 +551,10 @@ function AssignmentCard({ assignment, onChanged }) {
     new Date().toISOString().slice(0, 10),
   );
   const [action, setAction] = useState(null);
-  const [amount, setAmount] = useState("");
   const [additional, setAdditional] = useState("5");
   const [busy, setBusy] = useState(false);
 
   const isPackage = assignment.modality === "package";
-
-  function defaultPaymentAmount() {
-    if (isPackage) {
-      return assignment.remaining_amount ?? "";
-    }
-    return assignment.monthly_price ?? "";
-  }
-
-  function openPayment() {
-    setAmount(defaultPaymentAmount());
-    setAction("payment");
-  }
 
   async function run(fn, label, successMsg) {
     if (busy) return;
@@ -717,28 +702,13 @@ function AssignmentCard({ assignment, onChanged }) {
               Renovar
             </button>
           )}
-          <button
-            onClick={openPayment}
-            disabled={busy}
-            className="rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-surface-hover disabled:opacity-50"
-          >
-            Cobrar
-          </button>
-          {assignment.sellado_amount > 0 && (
+          {isPackage && !assignment.is_comp && (
             <button
-              onClick={() =>
-                run(
-                  () => togglePersonalTrainingSellado(assignment.id),
-                  "cambiar el sellado",
-                  assignment.sellado_paid
-                    ? "Sellado desmarcado"
-                    : "Sellado marcado como pagado",
-                )
-              }
+              onClick={() => setAction("renew")}
               disabled={busy}
               className="rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-surface-hover disabled:opacity-50"
             >
-              Sellado
+              Renovar
             </button>
           )}
           {assignment.active && (
@@ -840,44 +810,6 @@ function AssignmentCard({ assignment, onChanged }) {
         </div>
       )}
 
-      {action === "payment" && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-surface-input p-3">
-          <span className="text-xs font-medium text-text-primary">Cobrar</span>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-24 rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-xs text-text-primary outline-none"
-            placeholder="Monto"
-          />
-          <button
-            onClick={() =>
-              run(
-                () =>
-                  recordPersonalTrainingPayment(
-                    assignment.id,
-                    Number(amount),
-                  ),
-                "registrar el pago",
-                "Pago registrado",
-              )
-            }
-            disabled={busy || amount === "" || Number(amount) <= 0}
-            className="rounded-lg bg-success-bg px-3 py-1.5 text-xs font-medium text-success-text transition hover:bg-success/10 disabled:opacity-50 dark:text-success"
-          >
-            Confirmar
-          </button>
-          <button
-            onClick={() => setAction(null)}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition hover:bg-surface-hover"
-          >
-            Cancelar
-          </button>
-        </div>
-      )}
-
       {(Number(assignment.remaining_amount) > 0 ||
         (assignment.sellado_amount > 0 && !assignment.sellado_paid)) && (
         <p className="mt-2 text-[11px] text-text-secondary">
@@ -945,6 +877,13 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
 
   function pickMember(member) {
     setSelectedMember(member);
+    setForm(function (prev) {
+      if (member.insurance_sellado_amount == null) return prev;
+      return {
+        ...prev,
+        sellado_amount: String(member.insurance_sellado_amount),
+      };
+    });
     setStep("details");
   }
 

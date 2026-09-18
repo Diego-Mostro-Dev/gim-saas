@@ -21,7 +21,9 @@ function PendingPayments({ pendingPayments = [] }) {
           </div>
         ) : (
           pendingPayments.map((item) => {
-            const isPackage = item.type === "activity_package";
+            const isPackage =
+              item.type === "activity_package" ||
+              item.type === "personal_training_package";
             const onOpen = () => {
               if (isPackage) {
                 navigate("/recover-members");
