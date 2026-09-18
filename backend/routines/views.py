@@ -412,27 +412,13 @@ class PublicWorkoutProgressView(APIView):
 
 
 def _member_block_reason(member):
-    """Replicate MemberEligibility.can_operate failure reasons for the portal.
+    """Return the portal-facing block reason for *member*, or None.
 
-    Returns None when the member can operate, or one of:
-    - "inactive": Member.active is False.
-    - "no_subscription": no subscription covers today.
-    - "blocked" | "initial_pending": the current subscription payment status.
+    Delegates to :meth:`MemberEligibility.block_reason`, the single source
+    of truth for member block reasons. The portal must never re-implement
+    this logic itself, otherwise it drifts from ``can_operate``.
     """
-    if not member.active:
-        return "inactive"
-
-    if member.is_comp:
-        return None
-
-    current = SubscriptionDomain.get_current_subscription(member)
-    if not current:
-        return "no_subscription"
-
-    status = get_subscription_payment_status(current)
-    if status in ("blocked", "initial_pending"):
-        return status
-    return None
+    return MemberEligibility.block_reason(member)
 
 
 class PublicRoutineView(APIView):

@@ -43,20 +43,38 @@ class MemberEligibility:
         This is the single function that should guard every member-facing
         write operation (check-in, enrollment, schedule/plan changes, etc.).
         """
+        return MemberEligibility.block_reason(member) is None
+
+    @staticmethod
+    def block_reason(member):
+        """Return a machine-readable reason the member is currently blocked, or None.
+
+        This is the **single source of truth** for member blocking: both the
+        boolean gate (:meth:`can_operate`) and the human-facing portal block
+        reason are derived from it, so they can never drift apart.
+
+        Returns one of:
+        - ``"inactive"`` — Member.active is False.
+        - ``"no_subscription"`` — no subscription covers today.
+        - ``"blocked"`` | ``"initial_pending"`` — current subscription payment status.
+        - ``None`` when the member can operate.
+        """
         if not member.active:
-            return False
+            return "inactive"
 
         if member.is_comp:
-            return True
+            return None
 
         from subscriptions.domain import SubscriptionDomain
 
         subscription = SubscriptionDomain.get_current_subscription(member)
         if not subscription:
-            return False
+            return "no_subscription"
 
         status = SubscriptionDomain.get_payment_status(subscription)
-        return status not in ("blocked", "initial_pending")
+        if status in ("blocked", "initial_pending"):
+            return status
+        return None
 
     # -- subscription date-range check --------------------------------------
 
