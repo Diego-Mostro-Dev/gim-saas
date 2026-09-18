@@ -237,11 +237,12 @@ function PublicRoutine() {
 
           <div className="mt-3 flex items-center justify-between gap-3">
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-text-primary">
+              <span className="text-xl font-bold text-text-primary">
                 {scheduleChangesUsed}
               </span>
-              <span className="text-sm font-medium text-text-secondary">
-                / {scheduleChangesMax}
+              <span className="text-xl font-bold text-text-secondary">/</span>
+              <span className="text-xl font-bold text-text-primary">
+                {scheduleChangesMax}
               </span>
             </div>
 
@@ -255,6 +256,21 @@ function PublicRoutine() {
                 Alcanzaste el límite de este mes
               </p>
             )}
+          </div>
+
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-input">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                scheduleChangesRemaining <= 0
+                  ? "bg-danger"
+                  : scheduleChangesRemaining <= Math.max(1, Math.ceil(scheduleChangesMax / 2))
+                    ? "bg-warning"
+                    : "bg-success"
+              }`}
+              style={{
+                width: `${Math.min(100, Math.round((scheduleChangesUsed / scheduleChangesMax) * 100))}%`,
+              }}
+            />
           </div>
         </div>
       )}
