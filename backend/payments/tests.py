@@ -74,7 +74,10 @@ class PaymentDebtTests(BaseAPITest):
         self.sub.refresh_from_db()
         self.assertTrue(self.sub.paid)
 
-        resp = self.client.delete(f"/api/payments/{pay['id']}/")
+        resp = self.client.delete(
+            f"/api/payments/{pay['id']}/",
+            HTTP_ACCEPT="application/json",
+        )
 
         self.assertEqual(resp.status_code, 204)
         self.sub.refresh_from_db()

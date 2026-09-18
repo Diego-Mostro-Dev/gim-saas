@@ -122,6 +122,7 @@ class PaymentViewSet(GymModelViewSet):
         subscription = instance.subscription
         enrollment = instance.enrollment
         assignment = instance.personal_training_assignment
+        concept = instance.concept
 
         with transaction.atomic():
             instance.delete()
@@ -135,7 +136,7 @@ class PaymentViewSet(GymModelViewSet):
                 sync_subscription_paid(sub)
 
             if enrollment is not None:
-                if instance.concept != "sellado":
+                if concept != "sellado":
                     sync_enrollment_paid(enrollment)
                 elif enrollment.sellado_paid:
                     # Recomputed only while the flag reads paid, so the
@@ -146,7 +147,7 @@ class PaymentViewSet(GymModelViewSet):
                     )
 
             if assignment is not None:
-                if instance.concept != "sellado":
+                if concept != "sellado":
                     sync_assignment_paid(assignment)
                 elif assignment.sellado_paid:
                     set_sellado_paid(

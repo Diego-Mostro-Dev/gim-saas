@@ -47,6 +47,9 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         return member
 
     def validate_subscription(self, subscription):
+        if subscription is None:
+            return subscription
+
         gym = self.context["request"].user.profile.gym
 
         if subscription.gym_id != gym.id:
