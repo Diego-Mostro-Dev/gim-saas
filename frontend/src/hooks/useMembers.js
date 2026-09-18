@@ -17,12 +17,15 @@ export function useMembers() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  async function loadMembers() {
-    if (isCacheFresh(CACHE_KEY, TTL)) {
-      setMembers(getCached(CACHE_KEY));
+  async function loadMembers(force = false) {
+    if (force) {
+      clearCached(CACHE_KEY);
+    } else if (isCacheFresh(CACHE_KEY, TTL)) {
+      const cached = getCached(CACHE_KEY);
+      setMembers(cached);
       setLoading(false);
       setError(null);
-      return;
+      return cached;
     }
     try {
       setLoading(true);
@@ -30,6 +33,7 @@ export function useMembers() {
 
       const data = await getMembers();
       setMembers(data);
+      return data;
     } catch (err) {
       setError(err.message || "Error al cargar miembros");
     } finally {

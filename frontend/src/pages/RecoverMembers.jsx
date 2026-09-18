@@ -40,7 +40,7 @@ function selladoKey(sellado) {
 }
 
 function RecoverMembers() {
-  const { members, loading, error } = useMembers();
+  const { members, loading, error, reload } = useMembers();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all"); // "all" | "debt" | "recoverable"
@@ -265,6 +265,19 @@ function RecoverMembers() {
     try {
       await reopenSubscription(selectedMember.id);
       toast.success("Socio recuperado correctamente");
+
+      const freshMembers = (await reload(true)) ?? [];
+
+      const freshSelected = selectedMember
+        ? freshMembers.find(
+            (m) => Number(m.id) === Number(selectedMember.id),
+          )
+        : null;
+
+      if (freshSelected) {
+        setSelectedMember(freshSelected);
+      }
+
       await fetchDebt(selectedMember.id);
       await refreshDebtors();
     } catch (err) {
@@ -679,14 +692,20 @@ function RecoverMembers() {
                     El socio no posee deuda pendiente
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={handleRecoverMember}
-                    disabled={reopening}
-                    className="w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-60"
-                  >
-                    {reopening ? "Recuperando..." : "Recuperar socio"}
-                  </button>
+                  {selectedMember.is_recoverable ? (
+                    <button
+                      type="button"
+                      onClick={handleRecoverMember}
+                      disabled={reopening}
+                      className="w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-60"
+                    >
+                      {reopening ? "Recuperando..." : "Recuperar socio"}
+                    </button>
+                  ) : (
+                    <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-600">
+                      El socio está al día y no requiere recuperación
+                    </p>
+                  )}
                 </div>
               )}
             </div>
