@@ -207,7 +207,7 @@ class PersonalTrainingAssignmentSerializer(serializers.ModelSerializer):
         return profile.whatsapp or None if profile else None
 
     def get_trainer_email(self, obj):
-        return obj.trainer.user.email or None if obj.trainer else None
+        return obj.trainer.email or None if obj.trainer else None
 
     def get_service_name(self, obj):
         return obj.service.name
