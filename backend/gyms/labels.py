@@ -102,9 +102,6 @@ DEFAULT_LABELS = {
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del gimnasio.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que el gimnasio no abre. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
-    "staff.settings.auto_deduct_missed_sessions.title": "Sesiones no asistidas",
-    "staff.settings.auto_deduct_missed_sessions.toggle": "Descontar sesiones del paquete no asistidas",
-    "staff.settings.auto_deduct_missed_sessions.hint": "Cuando está activo, la tarea automática descuenta del paquete las sesiones de las clases (ej. kinesiología) y del entrenamiento personal a las que la persona no asistió, a partir del día siguiente a la clase. Si el staff le da una recuperación de esa clase, el descuento de la falta cubierta se anula. No afecta la facturación: solo resta sesiones del paquete si no se asistió.",
 }
 
 SINKRO_LABELS = {
@@ -195,9 +192,6 @@ SINKRO_LABELS = {
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del entrenamiento.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que no hay entrenamiento. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
-    "staff.settings.auto_deduct_missed_sessions.title": "Sesiones no asistidas",
-    "staff.settings.auto_deduct_missed_sessions.toggle": "Descontar sesiones del paquete no asistidas",
-    "staff.settings.auto_deduct_missed_sessions.hint": "Cuando está activo, la tarea automática descuenta del paquete las sesiones de las clases extra y del entrenamiento personal a las que la persona no asistió, a partir del día siguiente a la clase. Si el staff le da una recuperación de esa clase, el descuento de la falta cubierta se anula. No afecta la facturación: solo resta sesiones del paquete si no se asistió.",
 }
 
 

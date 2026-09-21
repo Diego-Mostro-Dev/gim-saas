@@ -84,7 +84,6 @@ function buildFormDataFromGym(gym) {
     max_session_recoveries_per_month: normalizeGymValue(
       gym.max_session_recoveries_per_month ?? "",
     ),
-    auto_deduct_missed_sessions: gym.auto_deduct_missed_sessions ?? false,
     qr_attendance_message: gym.qr_attendance_message || "",
     qr_registration_message: gym.qr_registration_message || "",
     seo_title: gym.seo_title || "",
@@ -118,7 +117,6 @@ function Settings() {
     schedule_change_notice_days: "",
     allow_session_recovery: false,
     max_session_recoveries_per_month: "",
-    auto_deduct_missed_sessions: false,
     qr_attendance_message: "",
     qr_registration_message: "",
     seo_title: "",
@@ -704,10 +702,6 @@ function Settings() {
           formData.max_session_recoveries_per_month,
         );
       }
-      data.append(
-        "auto_deduct_missed_sessions",
-        formData.auto_deduct_missed_sessions,
-      );
 
       data.append("qr_attendance_message", formData.qr_attendance_message);
       data.append(
@@ -1194,42 +1188,6 @@ function Settings() {
             y horario puntual y vence ese día si el socio no la usa en su franja
             horaria. No consume la sesión del paquete ni la cuota semanal de gym.
           </p>
-        </div>
-
-        <div className="mb-8 rounded-xl border border-border p-4">
-          <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary">
-            {txt(gym, "staff.settings.auto_deduct_missed_sessions.title")}
-          </h3>
-
-          <p className="mb-4 text-xs text-text-secondary">
-            {txt(gym, "staff.settings.auto_deduct_missed_sessions.hint")}
-          </p>
-
-          <div className="mb-4 flex items-center justify-between">
-            <label className="text-sm text-text-primary">
-              {txt(gym, "staff.settings.auto_deduct_missed_sessions.toggle")}
-            </label>
-            <button
-              type="button"
-              onClick={() =>
-                setFormData({
-                  ...formData,
-                  auto_deduct_missed_sessions: !formData.auto_deduct_missed_sessions,
-                })
-              }
-              className={`relative h-6 w-11 rounded-full transition ${
-                formData.auto_deduct_missed_sessions ? "bg-primary" : "bg-border"
-              }`}
-            >
-              <span
-                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                  formData.auto_deduct_missed_sessions
-                    ? "translate-x-5"
-                    : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
         </div>
 
         </>

@@ -112,18 +112,6 @@ class Gym(models.Model):
         verbose_name="Máximo de recuperaciones por mes",
     )
 
-    # --- Deducción automática de sesiones no asistidas ---
-    auto_deduct_missed_sessions = models.BooleanField(
-        default=False,
-        verbose_name="Descontar sesiones no asistidas",
-        help_text=(
-            "La tarea programada descuenta 1 sesión de los paquetes de clase o "
-            "de entrenamiento personal cuando la persona no asiste a la fecha "
-            "de su clase, a partir del día siguiente. Si el staff otorga una "
-            "recuperación por esa falta, el descuento se anula."
-        ),
-    )
-
     features = models.JSONField(default=dict, blank=True, verbose_name="Características")
 
     # --- SEO (opcional, configurable por el owner del gimnasio) ---
