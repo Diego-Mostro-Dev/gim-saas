@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { txt } from "../../utils/labels";
 
-import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User } from "lucide-react";
+import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User, UserCheck } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import { useGymTitle } from "../../hooks/useGymTitle";
@@ -385,7 +385,7 @@ function MemberPortalLayoutContent({
   ];
 
   const personalTrainingTab = [
-    { path: `/routine/${token}/personal-training`, label: "Entrenamiento", icon: Dumbbell },
+    { path: `/routine/${token}/personal-training`, label: "Entrenamiento", icon: UserCheck },
   ];
 
   const attachmentsTab = [

@@ -11,6 +11,7 @@ import {
   BarChart3,
   Activity,
   RotateCcw,
+  UserCheck,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -128,7 +129,7 @@ function BottomNav() {
             `${baseClass} ${isActive ? activeClass : inactiveClass}`
           }
         >
-          <Dumbbell size={20} />
+          <UserCheck size={20} />
 
           <span className="text-xs">Entrenam.</span>
         </NavLink>
