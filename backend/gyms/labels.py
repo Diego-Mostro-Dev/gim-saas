@@ -69,6 +69,7 @@ DEFAULT_LABELS = {
     "checkin.closed_today": "El gimnasio está cerrado hoy.",
     "features.activities_disabled": "Actividades no está habilitado para este gimnasio.",
     "features.pt_disabled": "Entrenamiento personal no está habilitado para este gimnasio.",
+    "features.community_disabled": "Comunidad de descuentos no está habilitada para este gimnasio.",
     "errors.plan_changes_not_allowed": "El gimnasio no permite cambios de plan.",
     "errors.plan_not_in_gym": "El plan no pertenece a este gimnasio.",
     "errors.member_not_in_gym": "El socio no pertenece a este gimnasio.",
@@ -100,6 +101,7 @@ DEFAULT_LABELS = {
     "errors.owner_only_settings": "Solo el dueño puede modificar la configuración.",
     "errors.owner_only_closed_dates": "Solo el dueño puede gestionar las fechas cerradas.",
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
+    "errors.owner_only_community": "Solo el dueño puede gestionar los locales adheridos.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del gimnasio.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que el gimnasio no abre. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
 }
@@ -159,6 +161,7 @@ SINKRO_LABELS = {
     "checkin.closed_today": "Hoy no hay entrenamiento.",
     "features.activities_disabled": "Actividades no está habilitado para este entrenamiento.",
     "features.pt_disabled": "Entrenamiento personal no está habilitado para este entrenamiento.",
+    "features.community_disabled": "Comunidad de descuentos no está habilitada para este entrenamiento.",
     "errors.plan_changes_not_allowed": "El entrenamiento no permite cambios de plan.",
     "errors.plan_not_in_gym": "El plan no pertenece a este entrenamiento.",
     "errors.member_not_in_gym": "El socio no pertenece a este entrenamiento.",
@@ -190,6 +193,7 @@ SINKRO_LABELS = {
     "errors.owner_only_settings": "Solo el dueño puede modificar la configuración.",
     "errors.owner_only_closed_dates": "Solo el dueño puede gestionar las fechas cerradas.",
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
+    "errors.owner_only_community": "Solo el dueño puede gestionar los locales adheridos.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del entrenamiento.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que no hay entrenamiento. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
 }

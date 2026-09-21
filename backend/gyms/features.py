@@ -19,6 +19,7 @@ class FeatureDisabled(PermissionDenied):
 
 FEATURE_ACTIVITIES = "activities"
 FEATURE_PERSONAL_TRAINING = "personal_training"
+FEATURE_COMMUNITY = "community"
 
 
 # Catálogo de features conocidas. El panel admin lo consume para renderizar
@@ -39,6 +40,15 @@ FEATURE_CATALOG = [
         "description": (
             "Entrenamiento personal con trainers, horarios fijos "
             "y pago por sesión o mensual."
+        ),
+        "default": False,
+    },
+    {
+        "key": FEATURE_COMMUNITY,
+        "label": "Comunidad",
+        "description": (
+            "Programa de descuentos con locales adheridos: el socio muestra "
+            "su tarjeta de comunidad (QR) y accede a beneficios."
         ),
         "default": False,
     },
@@ -72,4 +82,17 @@ def require_personal_training(gym):
         raise FeatureDisabled(
             msg(gym, "features.pt_disabled"),
             FEATURE_PERSONAL_TRAINING,
+        )
+
+
+def community_enabled(gym):
+    """Return True when the community add-on is enabled for the gym."""
+    return bool(gym.features.get(FEATURE_COMMUNITY, False))
+
+
+def require_community(gym):
+    if not community_enabled(gym):
+        raise FeatureDisabled(
+            msg(gym, "features.community_disabled"),
+            FEATURE_COMMUNITY,
         )

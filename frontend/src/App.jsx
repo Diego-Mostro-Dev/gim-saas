@@ -32,6 +32,8 @@ import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
 import MemberData from "./pages/member/MemberData";
 import MemberPersonalTraining from "./pages/MemberPersonalTraining";
+import MemberCommunity from "./pages/member/MemberCommunity";
+import CommunityPublicPage from "./pages/member/CommunityPublicPage";
 import TrainerAgenda from "./pages/TrainerAgenda";
 import PublicRoutine from "./pages/PublicRoutine";
 import Checkin from "./pages/Checkin";
@@ -96,8 +98,10 @@ function App() {
         <Route path="activities" element={<MemberActivities />} />
         <Route path="data" element={<MemberData />} />
         <Route path="personal-training" element={<MemberPersonalTraining />} />
+        <Route path="comunidad" element={<MemberCommunity />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>
+      <Route path="/comunidad/:token" element={<CommunityPublicPage />} />
       <Route path="/checkin/:gymCode" element={<Checkin />} />
       <Route path="/onboarding/:gymCode" element={<GymSetup />} />
 

@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     "routines",
     "activities",
     "personal_training",
+    "community",
     "admins",
 ]
 

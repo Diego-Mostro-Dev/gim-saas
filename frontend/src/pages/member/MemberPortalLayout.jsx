@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { txt } from "../../utils/labels";
 
-import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User, UserCheck } from "lucide-react";
+import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User, UserCheck, Store } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import { useGymTitle } from "../../hooks/useGymTitle";
@@ -331,6 +331,7 @@ function MemberPortalLayoutContent({
   const isActivityOnly = member.entry_mode === "ACTIVITY_ONLY";
   const activitiesEnabled = useFeature("activities");
   const personalTrainingEnabled = useFeature("personal_training");
+  const communityEnabled = useFeature("community");
   const { features } = useContext(FeatureContext);
   const paymentStatus = routine?.subscription?.payment_status;
   const access = routine?.access;
@@ -360,10 +361,33 @@ function MemberPortalLayoutContent({
     () => ({
       [`/routine/${token}/activities`]: "activities",
       [`/routine/${token}/personal-training`]: "personal_training",
+      [`/routine/${token}/comunidad`]: "community",
     }),
     [token],
   );
   const homeRoute = `/routine/${token}`;
+  const communityPath = `/routine/${token}/comunidad`;
+
+  const tabBarRef = useRef(null);
+  const [tabsOverflow, setTabsOverflow] = useState(false);
+
+  // Si los botones no entran en la barra (pantallas chicas), el botón de
+  // Comunidad se muestra al lado de "Mis datos" en el encabezado en su lugar
+  // en vez de dentro de la barra. Una vez detectado el desborde queda fijo.
+  useLayoutEffect(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    if (el.scrollWidth > el.clientWidth + 1) {
+      setTabsOverflow(true);
+    }
+  }, [
+    token,
+    isActivityOnly,
+    gym.allow_session_recovery,
+    activitiesEnabled,
+    personalTrainingEnabled,
+    communityEnabled,
+  ]);
 
   // Redirige al inicio si la sección actual tiene la feature deshabilitada.
   useEffect(() => {
@@ -389,6 +413,10 @@ function MemberPortalLayoutContent({
     { path: `/routine/${token}/personal-training`, label: "Entrenamiento", icon: UserCheck },
   ];
 
+  const communityTab = [
+    { path: communityPath, label: "Comunidad", icon: Store },
+  ];
+
   const attachmentsTab = [
     { path: `/routine/${token}/attachments`, label: "Adjuntos", icon: Paperclip },
   ];
@@ -404,6 +432,7 @@ function MemberPortalLayoutContent({
         ...recoveriesTab,
         ...activitiesTab,
         ...personalTrainingTab,
+        ...communityTab,
         ...attachmentsTab,
       ]
     : [
@@ -413,6 +442,7 @@ function MemberPortalLayoutContent({
         ...recoveriesTab,
         ...activitiesTab,
         ...personalTrainingTab,
+        ...communityTab,
         ...attachmentsTab,
         { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
       ];
@@ -420,9 +450,12 @@ function MemberPortalLayoutContent({
   const tabs = activitiesEnabled
     ? allTabs
     : allTabs.filter((t) => t.path !== `/routine/${token}/activities`);
-  const visibleTabs = personalTrainingEnabled
+  const tabsNoPt = personalTrainingEnabled
     ? tabs
     : tabs.filter((t) => t.path !== `/routine/${token}/personal-training`);
+  const visibleTabs = communityEnabled
+    ? tabsNoPt
+    : tabsNoPt.filter((t) => t.path !== communityPath);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -495,6 +528,17 @@ function MemberPortalLayoutContent({
                   <User size={16} />
                   Mis datos
                 </button>
+
+                {communityEnabled && tabsOverflow && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(communityPath)}
+                    className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+                  >
+                    <Store size={16} />
+                    Comunidad
+                  </button>
+                )}
               </div>
 
               {preview && (
@@ -557,8 +601,12 @@ function MemberPortalLayoutContent({
 
         <div className="px-4 mb-6">
           <div className="relative">
-            <div className="flex snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth rounded-xl border border-border bg-surface-elevated p-1">
+            <div
+              ref={tabBarRef}
+              className="flex snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth rounded-xl border border-border bg-surface-elevated p-1"
+            >
               {visibleTabs.map((tab) => {
+                if (tabsOverflow && tab.path === communityPath) return null;
                 const active = location.pathname === tab.path;
                 const Icon = tab.icon;
                 return (
