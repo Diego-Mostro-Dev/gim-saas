@@ -76,10 +76,7 @@ function buildHtml(data) {
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+  <body></body>
 </html>`;
 }
 
@@ -91,10 +88,7 @@ function buildFallbackHtml() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gimnasio</title>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+  <body></body>
 </html>`;
 }
 

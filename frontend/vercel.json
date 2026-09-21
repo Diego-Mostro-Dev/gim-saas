@@ -18,6 +18,13 @@
   "rewrites": [
     {
       "source": "/register/:gymCode",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([Bb]ot|[Cc]rawler|[Cc]rawl|[Ss]pider|[Ss]lurp|[Ss]crape|[Ss]craper|[Pp]review|[Ii]nspection[Tt]ool|facebookexternalhit|[Yy]andex[Bb]ot|[Ll]inked[Ii]n[Bb]ot|[Dd]uck[Dd]uck[Bb]ot|[Dd]ot[Bb]ot|[Ss]emrush[Bb]ot|[Aa]hrefs[Bb]ot|[Tt]elegram[Bb]ot|[Tt]witter[Bb]ot|headless|[Pp]interest/0).*"
+        }
+      ],
       "destination": "/api/seo/register/:gymCode"
     },
     {
