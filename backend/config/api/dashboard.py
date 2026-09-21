@@ -18,6 +18,10 @@ from subscriptions.services import (
     gym_personal_training_package_debt,
 )
 from attendance.models import Attendance
+from personal_training.models import (
+    PersonalTrainingAssignment,
+    PersonalTrainingSessionRecord,
+)
 from routines.models import RoutineAssignment
 
 
@@ -265,6 +269,35 @@ class DashboardSummaryView(APIView):
             for i in range(7)
         ]
 
+        # -------------------------
+        # Personal Training attendance (current week)
+        # -------------------------
+        pt_week = PersonalTrainingSessionRecord.objects.filter(
+            gym=gym,
+            date__gte=monday,
+            date__lte=monday + timedelta(days=6),
+        ).aggregate(
+            week_attended=Count(
+                "id", filter=Q(source__in=["auto", "manual"])
+            ),
+            week_no_show=Count("id", filter=Q(source="no_show")),
+        )
+
+        pt_attended = pt_week["week_attended"]
+        pt_no_show = pt_week["week_no_show"]
+        pt_decided = pt_attended + pt_no_show
+
+        personal_training_attendance = {
+            "week_attended": pt_attended,
+            "week_no_show": pt_no_show,
+            "attendance_rate": (
+                round((pt_attended / pt_decided) * 100) if pt_decided else 0
+            ),
+            "active_assignments": PersonalTrainingAssignment.objects.filter(
+                gym=gym, active=True
+            ).count(),
+        }
+
         active_outstanding = [
             item
             for item in outstanding
@@ -298,4 +331,5 @@ class DashboardSummaryView(APIView):
             "recentActivity": recent_activity_data,
             "pendingPayments": pending_payments_data,
             "weeklyAttendance": weekly_attendance,
+            "personalTrainingAttendance": personal_training_attendance,
         })

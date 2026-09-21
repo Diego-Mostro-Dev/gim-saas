@@ -41,6 +41,7 @@ import ScheduleChangeRequests from "./pages/ScheduleChangeRequests";
 import ScheduleSwapRequests from "./pages/ScheduleSwapRequests";
 import PlanChangeRequests from "./pages/PlanChangeRequests";
 import AttendanceAnalytics from "./pages/AttendanceAnalytics";
+import PersonalTrainingAttendance from "./pages/PersonalTrainingAttendance";
 import Activities from "./pages/Activities";
 import ActivitySchedules from "./pages/ActivitySchedules";
 import ScheduleEnrollments from "./pages/ScheduleEnrollments";
@@ -127,6 +128,7 @@ function App() {
         <Route path="/schedule-swap-requests" element={<ProfessorRoute><ScheduleSwapRequests /></ProfessorRoute>} />
         <Route path="/plan-change-requests" element={<ProfessorRoute><PlanChangeRequests /></ProfessorRoute>} />
         <Route path="/attendance-analytics" element={<ProfessorRoute><AttendanceAnalytics /></ProfessorRoute>} />
+        <Route path="/personal-training-attendance" element={<ProfessorRoute><ProtectedFeature feature="personal_training"><PersonalTrainingAttendance /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities" element={<ProfessorRoute><ProtectedFeature feature="activities"><Activities /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities/:activityId/schedules" element={<ProfessorRoute><ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProfessorRoute><ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature></ProfessorRoute>} />

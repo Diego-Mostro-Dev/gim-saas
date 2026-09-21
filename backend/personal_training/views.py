@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Max, Q
@@ -8,10 +8,13 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
 from gyms.features import require_personal_training
+from gyms.models import GymClosedDate
+from members.identity import member_identity
 from members.models import Member
 from profiles.models import UserProfile
 
@@ -22,6 +25,7 @@ from .models import (
     PersonalTrainingAssignment,
     PersonalTrainingChangeRequest,
     PersonalTrainingService,
+    PersonalTrainingSessionRecord,
 )
 from .serializers import (
     PersonalTrainingAssignmentSerializer,
@@ -351,3 +355,221 @@ class PersonalTrainingChangeRequestViewSet(
                 status=e.status_code,
             )
         return Response(self.get_serializer(change_request).data)
+
+
+DAY_INDEX = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+}
+
+
+class PersonalTrainingAttendanceView(APIView):
+    """Métricas y desglose de asistencia del Personal Training.
+
+    Para un rango de fechas devuelve el resumen de asistencia (sesiones
+    programadas, asistidas, no asistidas, pendientes y tasa) y, agrupadas
+    por trainer, las asignaciones activas con la información del socio, el
+    horario y el estado de cada fecha esperada.
+
+    Solo las asignaciones de modalidad "paquete" tienen seguimiento de
+    asistencia (``PersonalTrainingSessionRecord``): los horarios mensuales
+    se listan en el desglose con ``attendance: null`` (sin seguimiento).
+    """
+
+    def get(self, request):
+        gym = request.user.profile.gym
+        require_personal_training(gym)
+
+        today = timezone.localdate()
+
+        start_date = self._parse_date(
+            request.query_params.get("start_date"), "start_date"
+        )
+        if isinstance(start_date, Response):
+            return start_date
+        end_date = self._parse_date(
+            request.query_params.get("end_date"), "end_date"
+        )
+        if isinstance(end_date, Response):
+            return end_date
+
+        if start_date > end_date:
+            return Response(
+                {"detail": "start_date no puede ser posterior a end_date."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if end_date > today:
+            end_date = today
+
+        closed = set(
+            GymClosedDate.objects.filter(
+                gym=gym, date__gte=start_date, date__lte=end_date
+            ).values_list("date", flat=True)
+        )
+
+        assignments = (
+            PersonalTrainingAssignment.objects.filter(
+                gym=gym, active=True
+            )
+            .select_related(
+                "member",
+                "member__insurance",
+                "trainer",
+                "trainer__profile",
+                "service",
+            )
+            .annotate(used_sessions_count=Count("session_records"))
+            .order_by("trainer__first_name", "trainer__username", "day", "start_time")
+        )
+
+        trainer_id = request.query_params.get("trainer_id")
+        if trainer_id:
+            assignments = assignments.filter(trainer_id=trainer_id)
+
+        records = self._load_records(
+            list(assignments.values_list("id", flat=True)),
+            start_date,
+            end_date,
+        )
+
+        trainers = {}
+        total_scheduled = 0
+        attended = 0
+        no_show = 0
+        pending = 0
+
+        for assignment in assignments:
+            profile = getattr(assignment.trainer, "profile", None)
+            trainer = trainers.setdefault(
+                assignment.trainer_id,
+                {
+                    "trainer_id": assignment.trainer_id,
+                    "name": assignment.trainer_name,
+                    "username": assignment.trainer.username,
+                    "phone": profile.phone if profile else None,
+                    "whatsapp": profile.whatsapp if profile else None,
+                    "email": assignment.trainer.email,
+                    "assignments": [],
+                },
+            )
+
+            if assignment.modality == "package":
+                dates = self._expected_dates(
+                    assignment, start_date, end_date, closed
+                )
+                exhausted = (
+                    assignment.package_total_sessions is not None
+                    and assignment.used_sessions_count
+                    >= assignment.package_total_sessions
+                )
+                if exhausted:
+                    dates = [
+                        d
+                        for d in dates
+                        if (assignment.id, d) in records
+                    ]
+                attendance = []
+                for d in dates:
+                    status_ = records.get((assignment.id, d), "missing")
+                    attendance.append({"date": d.isoformat(), "status": status_})
+                    total_scheduled += 1
+                    if status_ == "attended":
+                        attended += 1
+                    elif status_ == "no_show":
+                        no_show += 1
+                    else:
+                        pending += 1
+            else:
+                attendance = None
+
+            trainer["assignments"].append(
+                {
+                    "assignment_id": assignment.id,
+                    "service_name": assignment.service.name,
+                    "modality": assignment.modality,
+                    "day": assignment.day,
+                    "start_time": assignment.start_time.strftime("%H:%M"),
+                    "end_time": assignment.end_time.strftime("%H:%M"),
+                    "sessions_total": assignment.package_total_sessions or 0,
+                    "sessions_used": assignment.used_sessions_count,
+                    "member": self._member_payload(assignment),
+                    "attendance": attendance,
+                }
+            )
+
+        decided = attended + no_show
+        attendance_rate = round((attended / decided) * 100) if decided else 0
+
+        return Response(
+            {
+                "summary": {
+                    "total_scheduled": total_scheduled,
+                    "attended": attended,
+                    "no_show": no_show,
+                    "pending": pending,
+                    "attendance_rate": attendance_rate,
+                    "active_assignments": assignments.count(),
+                    "active_trainers": len(trainers),
+                },
+                "trainers": sorted(
+                    trainers.values(),
+                    key=lambda t: (t["name"] or t["username"]).lower(),
+                ),
+            }
+        )
+
+    @staticmethod
+    def _parse_date(value, name):
+        if not value:
+            return Response(
+                {"detail": f"El parámetro {name} es requerido (AAAA-MM-DD)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return Response(
+                {"detail": f"El parámetro {name} tiene un formato inválido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @staticmethod
+    def _load_records(assignment_ids, start_date, end_date):
+        records = {}
+        for assignment_id, d, source in (
+            PersonalTrainingSessionRecord.objects.filter(
+                assignment_id__in=assignment_ids,
+                date__gte=start_date,
+                date__lte=end_date,
+            ).values_list("assignment_id", "date", "source")
+        ):
+            records[(assignment_id, d)] = (
+                "attended" if source != "no_show" else "no_show"
+            )
+        return records
+
+    @staticmethod
+    def _expected_dates(assignment, start_date, end_date, closed):
+        start = max(start_date, assignment.created_at.date())
+        day_index = DAY_INDEX[assignment.day]
+        dates = []
+        d = start
+        while d <= end_date:
+            if d.weekday() == day_index and d not in closed:
+                dates.append(d)
+            d += timedelta(days=1)
+        return dates
+
+    @staticmethod
+    def _member_payload(assignment):
+        member = assignment.member
+        return {
+            "member_id": member.id,
+            "name": f"{member.first_name} {member.last_name}".strip(),
+            "identity": member_identity(member),
+        }
