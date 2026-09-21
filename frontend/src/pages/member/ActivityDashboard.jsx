@@ -1,5 +1,5 @@
 import { useOutletContext, useNavigate } from "react-router-dom";
-import { CalendarClock, Sparkles, CreditCard } from "lucide-react";
+import { Sparkles, CreditCard } from "lucide-react";
 import { formatHumanDate } from "../../utils/date.utils";
 import { useMemberActivities } from "../../hooks/useMemberActivities";
 import { DAY_NAMES } from "../../constants/days";
@@ -154,8 +154,8 @@ function ActivityDashboard() {
                   key={enrollment.id}
                   className="flex items-center justify-between rounded-lg bg-surface-input px-4 py-3"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium text-text-primary">
                       {enrollment.activity_name}
                     </p>
                     <p className="text-xs text-text-secondary">
@@ -199,9 +199,9 @@ function ActivityDashboard() {
 
         {routine.subscription && (
           <div className="mb-3 rounded-lg bg-surface-input border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text-secondary">Plan</span>
-              <span className="text-sm font-medium text-text-primary">
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 text-sm text-text-secondary">Plan</span>
+              <span className="min-w-0 break-words text-right text-sm font-medium text-text-primary">
                 {routine.subscription.plan}
               </span>
             </div>
@@ -220,12 +220,12 @@ function ActivityDashboard() {
                 {routine.subscription.items
                   .filter((i) => i.item_type === "activity")
                   .map((item) => (
-                    <div key={item.id} className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-sm text-text-primary">
-                        <span className="text-success-text dark:text-success">✓</span>
-                        {item.name}
+                    <div key={item.id} className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-primary">
+                        <span className="shrink-0 text-success-text dark:text-success">✓</span>
+                        <span className="break-words">{item.name}</span>
                       </span>
-                      <span className="text-sm text-text-secondary">
+                      <span className="shrink-0 text-sm text-text-secondary">
                         ${Number(item.price).toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -261,9 +261,9 @@ function ActivityDashboard() {
             </div>
 
             {last_payment.plan_name && (
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-text-secondary">Concepto</span>
-                <span className="text-text-primary">{last_payment.plan_name}</span>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="shrink-0 text-text-secondary">Concepto</span>
+                <span className="min-w-0 break-words text-right text-text-primary">{last_payment.plan_name}</span>
               </div>
             )}
           </div>

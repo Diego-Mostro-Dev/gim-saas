@@ -400,7 +400,6 @@ function MemberPortalLayoutContent({
   const allTabs = isActivityOnly
     ? [
         { path: `/routine/${token}`, label: "Inicio", icon: Home },
-        { path: `/routine/${token}/data`, label: "Mis datos", icon: User },
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
         ...activitiesTab,
@@ -409,7 +408,6 @@ function MemberPortalLayoutContent({
       ]
     : [
         { path: `/routine/${token}`, label: "Inicio", icon: Home },
-        { path: `/routine/${token}/data`, label: "Mis datos", icon: User },
         { path: `/routine/${token}/workout`, label: "Rutina", icon: Dumbbell },
         { path: `/routine/${token}/payments`, label: "Pagos", icon: CreditCard },
         ...recoveriesTab,
@@ -445,11 +443,11 @@ function MemberPortalLayoutContent({
                 </div>
               )}
 
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-text-primary">
+              <div className="min-w-0 flex-1">
+                <h1 className="break-words text-xl font-bold text-text-primary sm:text-2xl">
                   {member.first_name} {member.last_name}
                 </h1>
-                <p className="text-text-secondary">
+                <p className="break-words text-text-secondary">
                   {isActivityOnly ? "Miembro de" : "Socio de"} {gym.name}
                 </p>
               </div>
@@ -472,21 +470,32 @@ function MemberPortalLayoutContent({
                 }}
                 className="hidden"
               />
-              {isOperativeBlocked ? (
-                <span
-                  className="inline-block cursor-not-allowed rounded-xl bg-surface-input px-4 py-2 text-sm font-medium text-text-secondary opacity-60"
-                  title="No disponible por falta de pago"
+              <div className="flex flex-wrap items-center gap-2">
+                {isOperativeBlocked ? (
+                  <span
+                    className="inline-block cursor-not-allowed rounded-xl bg-surface-input px-4 py-2 text-sm font-medium text-text-secondary opacity-60"
+                    title="No disponible por falta de pago"
+                  >
+                    {member.photo ? "Cambiar foto" : "Subir foto"}
+                  </span>
+                ) : (
+                  <label
+                    htmlFor="photo-upload"
+                    className="inline-block cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
+                  >
+                    {member.photo ? "Cambiar foto" : "Subir foto"}
+                  </label>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => navigate(`/routine/${token}/data`)}
+                  className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
                 >
-                  {member.photo ? "Cambiar foto" : "Subir foto"}
-                </span>
-              ) : (
-                <label
-                  htmlFor="photo-upload"
-                  className="inline-block cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
-                >
-                  {member.photo ? "Cambiar foto" : "Subir foto"}
-                </label>
-              )}
+                  <User size={16} />
+                  Mis datos
+                </button>
+              </div>
 
               {preview && (
                 <div className="mt-4">
@@ -547,26 +556,29 @@ function MemberPortalLayoutContent({
         )}
 
         <div className="px-4 mb-6">
-          <div className="flex rounded-xl bg-surface-elevated border border-border p-1">
-            {visibleTabs.map((tab) => {
-              const active = location.pathname === tab.path;
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.path}
-                  onClick={() => navigate(tab.path)}
-                  title={tab.label}
-                  className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium transition flex items-center justify-center gap-1.5 sm:gap-2 sm:px-4 ${
-                    active
-                      ? "bg-primary text-white shadow-sm"
-                      : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="sr-only">{tab.label}</span>
-                </button>
-              );
-            })}
+          <div className="relative">
+            <div className="flex snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth rounded-xl border border-border bg-surface-elevated p-1">
+              {visibleTabs.map((tab) => {
+                const active = location.pathname === tab.path;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.path}
+                    onClick={() => navigate(tab.path)}
+                    title={tab.label}
+                    className={`flex shrink-0 snap-center items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      active
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    <Icon size={18} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl bg-gradient-to-l from-surface-elevated to-transparent" />
           </div>
         </div>
 

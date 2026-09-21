@@ -21,9 +21,11 @@ function RestTimer({ seconds, onFinish, autoStart }) {
   useEffect(() => {
     if (!running) return;
     if (remaining <= 0) {
-      setRunning(false);
-      if (onFinish) onFinish();
-      return;
+      const id = setTimeout(function () {
+        setRunning(false);
+        if (onFinish) onFinish();
+      }, 0);
+      return function () { clearTimeout(id); };
     }
     const id = setTimeout(function () {
       setRemaining(function (r) { return r - 1; });
@@ -70,7 +72,7 @@ function MemberWorkout() {
   const { routine, token, isOperativeBlocked } = useOutletContext();
 
   const [progress, setProgress] = useState({});
-  const [loaded, setLoaded] = useState(false);
+  const [, setLoaded] = useState(false);
   const [expandedCompleted, setExpandedCompleted] = useState({});
   const [processing, setProcessing] = useState({});
 
@@ -285,7 +287,7 @@ function MemberWorkout() {
               </span>
               <h3
                 className={
-                  "text-lg font-semibold " + (
+                  "break-words text-lg font-semibold " + (
                     complete
                       ? "text-text-secondary line-through"
                       : "text-text-primary"
@@ -470,7 +472,7 @@ function MemberWorkout() {
         )}
       </div>
 
-      <h2 className="mb-3 text-2xl font-bold text-text-primary">
+      <h2 className="mb-3 break-words text-2xl font-bold text-text-primary">
         {routineName}
       </h2>
 
