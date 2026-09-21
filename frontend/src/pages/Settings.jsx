@@ -15,6 +15,7 @@ import {
   CalendarOff,
   Search,
   Shield,
+  Store,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import { useGym } from "../hooks/useGym";
 import { txt } from "../utils/labels";
 import useAuthStore from "../store/auth.store";
 import Staff from "./Staff";
+import CommunityPanel from "./CommunityPanel";
 import {
   updateGym,
   getClosedDates,
@@ -174,7 +176,7 @@ function Settings() {
 
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get("tab");
-    return ["info", "pagos", "planes", "obras-sociales", "staff", "cierres", "qr", "seo"].includes(tab)
+    return ["info", "pagos", "planes", "obras-sociales", "staff", "cierres", "qr", "comunidad", "seo"].includes(tab)
       ? tab
       : "info";
   });
@@ -248,6 +250,7 @@ function Settings() {
     { id: "staff", label: "Staff", icon: Shield },
     { id: "cierres", label: "Fechas cerradas", icon: CalendarOff },
     { id: "qr", label: "QR", icon: QrCode },
+    { id: "comunidad", label: "Comunidad", icon: Store },
     { id: "seo", label: "SEO", icon: Search },
   ];
 
@@ -817,6 +820,8 @@ function Settings() {
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
       {activeTab === "staff" ? (
         <Staff embedded />
+      ) : activeTab === "comunidad" ? (
+        <CommunityPanel />
       ) : (
       <form
         onSubmit={handleSubmit}
