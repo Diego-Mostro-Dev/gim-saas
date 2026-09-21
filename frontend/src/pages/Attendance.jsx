@@ -1,18 +1,40 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import AttendanceStatus from "../components/attendance/AttendanceStatus";
 import WeeklyOccupancy from "../components/attendance/WeeklyOccupancy";
 
 import { useWeeklyAttendance } from "../hooks/useWeeklyAttendance";
 import { useClosedDates } from "../hooks/useClosedDates";
 import { useGym } from "../hooks/useGym";
+import { useFeature } from "../hooks/useFeature";
 import { txt } from "../utils/labels";
 import ClosedDatesNotice from "../components/members/ClosedDatesNotice";
+import PersonalTrainingAttendance from "./PersonalTrainingAttendance";
+import { CalendarDays, Dumbbell } from "lucide-react";
 
 function Attendance() {
   const { gym } = useGym();
+  const personalTrainingEnabled = useFeature("personal_training");
   const { weeklyAttendance, openDays, closedDates, loading, error, reload, date, setDate } = useWeeklyAttendance();
   const { closedDates: allClosedDates } = useClosedDates();
   const lastLoadedAt = useRef(0);
+
+  const [activeTab, setActiveTab] = useState(() =>
+    sessionStorage.getItem("attendance_tab") === "pt"
+      ? "pt"
+      : "planilla",
+  );
+
+  function switchTab(tab) {
+    setActiveTab(tab);
+    sessionStorage.setItem("attendance_tab", tab);
+  }
+
+  const tabs = [
+    { id: "planilla", label: "Planilla", icon: CalendarDays },
+    ...(personalTrainingEnabled
+      ? [{ id: "pt", label: "Entrenamiento", icon: Dumbbell }]
+      : []),
+  ];
 
   useEffect(() => {
     function refreshIfVisible() {
@@ -58,22 +80,47 @@ function Attendance() {
         </div>
       )}
 
-      <div className="mb-8">
-        <ClosedDatesNotice gym={gym} closedDates={allClosedDates} excludeToday compact bannerDaysAhead={7} maxDaysAhead={7} dropdown />
-      </div>
+      {tabs.length > 1 && (
+        <div className="mb-6 flex items-center gap-1 rounded-xl border border-border bg-surface-elevated p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => switchTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                activeTab === tab.id
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:bg-surface-input hover:text-text-primary"
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Registro de asistencia */}
-      <div className="mb-6">
-        <AttendanceStatus gym={gym} openDays={openDays} closedDates={closedDates} />
-      </div>
+      {activeTab === "planilla" && (
+        <>
+          <div className="mb-8">
+            <ClosedDatesNotice gym={gym} closedDates={allClosedDates} excludeToday compact bannerDaysAhead={7} maxDaysAhead={7} dropdown />
+          </div>
 
-      {/* Vista semanal */}
-      <WeeklyOccupancy
-        gym={gym}
-        weeklyAttendance={weeklyAttendance}
-        date={date}
-        onDateChange={setDate}
-      />
+          {/* Registro de asistencia */}
+          <div className="mb-6">
+            <AttendanceStatus gym={gym} openDays={openDays} closedDates={closedDates} />
+          </div>
+
+          {/* Vista semanal */}
+          <WeeklyOccupancy
+            gym={gym}
+            weeklyAttendance={weeklyAttendance}
+            date={date}
+            onDateChange={setDate}
+          />
+        </>
+      )}
+
+      {activeTab === "pt" && <PersonalTrainingAttendance embedded />}
     </div>
   );
 }

@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     PersonalTrainingAssignmentViewSet,
+    PersonalTrainingAttendanceView,
     PersonalTrainingChangeRequestViewSet,
     PersonalTrainingServiceViewSet,
     TrainerViewSet,
@@ -30,6 +31,11 @@ router.register(
 )
 
 urlpatterns = [
+    path(
+        "attendance/",
+        PersonalTrainingAttendanceView.as_view(),
+        name="pt-attendance",
+    ),
     path(
         "public/<str:token>/",
         PublicMemberPersonalTrainingView.as_view(),

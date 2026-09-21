@@ -1,4 +1,5 @@
 import { apiFetch } from "./api";
+import { setCached } from "../utils/cache";
 
 export async function getPersonalTrainingServices() {
   return apiFetch("/api/personal-training/services/");
@@ -130,6 +131,22 @@ export async function cancelPersonalTrainingChangeRequest(id) {
   return apiFetch(`/api/personal-training/change-requests/${id}/cancel/`, {
     method: "POST",
   });
+}
+
+export async function getPersonalTrainingAttendance(params = {}) {
+  const query = new URLSearchParams();
+  if (params.start_date) query.set("start_date", params.start_date);
+  if (params.end_date) query.set("end_date", params.end_date);
+  if (params.trainer_id) query.set("trainer_id", params.trainer_id);
+  const qs = query.toString();
+  const data = await apiFetch(
+    `/api/personal-training/attendance/${qs ? `?${qs}` : ""}`,
+  );
+  setCached(
+    `personal-training-attendance-${params.start_date}-${params.end_date}`,
+    data,
+  );
+  return data;
 }
 
 export async function getPublicPersonalTraining(token) {
