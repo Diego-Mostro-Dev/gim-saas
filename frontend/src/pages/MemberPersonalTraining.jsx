@@ -4,7 +4,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
-  Dumbbell,
+  UserCheck,
   Mail,
   MessageCircle,
   Phone,
@@ -68,9 +68,14 @@ function MemberPersonalTraining() {
     }
   }
 
+  // Carga inicial deliberada (fetch-on-mount): patrón usado en toda la codebase
+  // (useMembers, useSubscriptions, useActivities...). Incluir load() en deps
+  // causaría refetch en cada render; se deshabilita consistentemente.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     load();
   }, [token]);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   function pickAssignment(assignment) {
     setEditingAssignment(assignment);
@@ -192,7 +197,7 @@ function MemberPersonalTraining() {
     <div className="space-y-4">
       <div className="flex items-center gap-3 rounded-xl bg-surface-input px-4 py-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
-          <Dumbbell size={20} />
+          <UserCheck size={20} />
         </div>
         <div className="min-w-0">
           <h2 className="font-semibold text-text-primary">
