@@ -31,6 +31,7 @@ ASSIGNMENT_MODALITY_CHOICES = [
 SESSION_SOURCE_CHOICES = [
     ("auto", "Automática"),
     ("manual", "Manual"),
+    ("no_show", "No asistió"),
 ]
 
 TRAINER_GENDER_CHOICES = [
@@ -196,6 +197,12 @@ class PersonalTrainingAssignment(models.Model):
     active = models.BooleanField(default=True, verbose_name="Activo")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado")
+    no_show_scan_until = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Descuento de no asistencia procesado hasta",
+        help_text="Fecha hasta la cual ya se evaluaron las no asistencias de este paquete.",
+    )
 
     class Meta:
         verbose_name = "Asignación de entrenamiento personal"

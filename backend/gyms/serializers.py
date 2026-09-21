@@ -59,6 +59,7 @@ class GymSerializer(serializers.ModelSerializer):
             "max_schedule_changes_per_month",
             "allow_session_recovery",
             "max_session_recoveries_per_month",
+            "auto_deduct_missed_sessions",
             "features",
             "onboarding_code",
             "onboarding_url",

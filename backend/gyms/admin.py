@@ -87,6 +87,12 @@ class GymAdmin(admin.ModelAdmin):
             },
         ),
         (
+            "Sesiones no asistidas",
+            {
+                "fields": ("auto_deduct_missed_sessions",),
+            },
+        ),
+        (
             "Características",
             {
                 "fields": ("activities", "personal_training"),
