@@ -32,6 +32,7 @@ from django.utils import timezone
 from .models import Attendance, AttendanceSchedule, ScheduleSlot, SessionRecovery
 from .utils import compute_effective_occupancy, has_effective_capacity
 from activities.models import ActivitySchedule, Enrollment
+from activities.no_show_service import cancel_recovered_no_show
 from activities.session_service import SessionService, SessionError
 from gyms.labels import msg
 from gyms.models import GymClosedDate
@@ -470,6 +471,13 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
         expires_at=target_date,
         note=note,
     )
+
+    if kind == "activity":
+        # "Falta + recuperación" cuesta 1 sesión: se anula la falta
+        # no_show más reciente de esa actividad (el recupero descontará 1
+        # cuando se use).
+        cancel_recovered_no_show(member, activity)
+
     return recovery
 
 

@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
 from attendance.utils import compute_effective_occupancy
+from activities.no_show_service import deduct_missed_sessions
 from .domain import ScheduleDomain, SubscriptionConflictError, SubscriptionDomain
 
 from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSchedule
@@ -1290,6 +1291,9 @@ def run_scheduled_tasks(force=False):
         result = None
         try:
             result = auto_renew_subscriptions()
+            no_show = deduct_missed_sessions()
+            if isinstance(result, dict) and isinstance(no_show, dict):
+                result = {**result, "no_show": no_show}
         except Exception as exc:  # pragma: no cover - defensivo
             status = "error"
             error = f"{type(exc).__name__}: {exc}"

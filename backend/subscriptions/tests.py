@@ -25,6 +25,7 @@ class ScheduledTaskRunnerTests(TestCase):
         self.assertIsNotNone(run.last_run)
         self.assertEqual(run.last_status, "ok")
         self.assertIsNotNone(run.last_result)
+        self.assertIn("no_show", run.last_result)
 
     def test_maybe_run_respects_interval(self):
         run_scheduled_tasks(force=True)

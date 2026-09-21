@@ -1,9 +1,18 @@
-from datetime import date
+from datetime import date, time, timedelta
+from decimal import Decimal
 from unittest import mock
 
 from core.testing import BaseAPITest
 
+from activities.models import (
+    Activity,
+    ActivitySchedule,
+    ActivitySessionRecord,
+    Enrollment,
+)
 from attendance.models import Attendance
+from attendance.recovery_service import grant_scheduled
+from plans.models import Service
 
 # A fixed Monday: 2030-01-07 (Jan 1 2030 is a Tuesday). Check-in resolves the
 # member's recurring slot by weekday, so the test must not depend on the day
@@ -100,3 +109,66 @@ class PublicCheckinAccessTests(BaseAPITest):
 
         self.assertEqual(resp.status_code, 403)
         self.assertIn("Acceso suspendido", resp.data["message"])
+
+
+class RecoveryCancelsNoShowTests(BaseAPITest):
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.gym.allow_session_recovery = True
+        self.gym.save(update_fields=["allow_session_recovery"])
+        self.plan = self.create_plan(self.gym)
+        self.member = self.create_member(self.gym)
+        self.sub = self.open_month_subscription(
+            self.member, self.plan,
+            start_date=date(2000, 1, 1),
+            end_date=date(2100, 12, 31),
+        )
+        self.settle_subscription(self.sub)
+
+        self.target_date = date.today() + timedelta(days=1)
+        self.activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Kinesio",
+            billing_mode="sessions",
+        )
+        self.schedule = ActivitySchedule.objects.create(
+            activity=self.activity,
+            day=self.weekday_name(self.target_date),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+        self.enrollment = Enrollment.objects.create(
+            gym=self.gym,
+            member=self.member,
+            schedule=self.schedule,
+            modality="package",
+            package_total_sessions=10,
+            session_price=Decimal("2500.00"),
+            amount_paid=Decimal("25000.00"),
+        )
+
+    def test_grant_activity_recovery_cancels_pending_no_show(self):
+        ActivitySessionRecord.objects.create(
+            gym=self.gym,
+            member=self.member,
+            enrollment=self.enrollment,
+            schedule=self.schedule,
+            date=date.today() - timedelta(days=7),
+            source="no_show",
+        )
+
+        grant_scheduled(
+            self.gym,
+            self.member,
+            kind="activity",
+            activity=self.activity,
+            target_date=self.target_date,
+            schedule=self.schedule,
+        )
+
+        self.assertEqual(
+            ActivitySessionRecord.objects.filter(source="no_show").count(), 0
+        )
+        self.assertEqual(self.enrollment.session_records.count(), 0)

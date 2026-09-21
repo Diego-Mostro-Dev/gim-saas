@@ -30,6 +30,7 @@ SESSION_SOURCE_CHOICES = [
     ("auto", "Automática"),
     ("manual", "Manual"),
     ("recovery", "Recuperación"),
+    ("no_show", "No asistió"),
 ]
 
 
@@ -204,6 +205,12 @@ class Enrollment(models.Model):
 
     active = models.BooleanField(default=True, verbose_name="Activo")
     enrolled_at = models.DateTimeField(auto_now_add=True, verbose_name="Inscripto")
+    no_show_scan_until = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Descuento de no asistencia procesado hasta",
+        help_text="Fecha hasta la cual ya se evaluaron las no asistencias de este paquete.",
+    )
 
     class Meta:
         verbose_name = "Inscripción"
