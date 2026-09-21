@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from members.models import Member
+from gyms.labels import msg
 from gyms.models import GymClosedDate
 from .models import (
     Attendance,
@@ -111,7 +112,7 @@ class PublicCheckinView(APIView):
             return Response(
                 {
                     "success": False,
-                    "message": "El gimnasio está cerrado hoy.",
+                    "message": msg(gym, "checkin.closed_today"),
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )

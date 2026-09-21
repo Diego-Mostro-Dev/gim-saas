@@ -18,9 +18,7 @@ const DEFAULT_LABELS = {
   "staff.activity_schedules.disabled": "Las actividades no están habilitadas para este gimnasio.",
   "staff.staff.title": "Usuarios que pueden acceder al panel del gimnasio.",
   "staff.settings.basic_info": "Información básica del gimnasio.",
-  "staff.settings.closed_dates_desc":
-    "Feriados o días puntuales en los que el gimnasio no abre. En esas fechas el registro de asistencia se deshabilita.",
-  "staff.settings.closed_days_hint": "gimnasio cerrado ese día.",
+  "staff.settings.closed_days_hint": "que el gimnasio está cerrado ese día.",
   "portal.contact": "Contacto del gimnasio",
   "portal.plan_changes_blocked": "El gimnasio no permite cambios de plan",
   "portal.initial_payment_pending":
@@ -49,6 +47,74 @@ const DEFAULT_LABELS = {
   "install.banner_icon": "(verás el ícono del gimnasio).",
   "recovery.kind.training": "Gimnasio",
   "recovery.kind.activity": "Clase (actividad)",
+  "staff.settings.google_seo":
+    "Estos datos se usan para que tu gimnasio aparezca en Google al compartir tu link de registro. Completalos para mejorar tu posicionamiento local.",
+  "staff.settings.email_placeholder": "Ej: info@gimnasio.com",
+  "staff.settings.seo_title_placeholder":
+    "Ej: Gimnasio Atlas | Musculación y CrossFit en Rosario",
+  "staff.settings.seo_description_placeholder":
+    "Ej: Sumate al mejor gimnasio de Rosario. Musculación, crossfit y clases guiadas con profesores certificados.",
+  "staff.settings.keywords_placeholder": "Ej: gimnasio, musculación, crossfit, rosario",
+  "staff.pt.clients_assignment":
+    "Cuando el gimnasio te asigne clientes de entrenamiento personal, aparecerán acá.",
+  "member.attachments.hint":
+    "Mandale al gimnasio la orden de sesiones, el comprobante de pago o cualquier estudio que necesitemos ver (ej. electrocardiograma para natación).",
+  "portal.pt_no_schedule": "Cuando el gimnasio te asigne un horario, aparecerá acá.",
+  "portal.pt_pending_approval": "Esperando aprobación del gimnasio",
+  "portal.pt_request_review":
+    "El gimnasio revisará tu solicitud y confirmará el nuevo horario.",
+  "portal.gym_closed_short": " · gym cerrado",
+  "checkin.closed_today": "El gimnasio está cerrado hoy.",
+  "features.activities_disabled": "Actividades no está habilitado para este gimnasio.",
+  "features.pt_disabled":
+    "Entrenamiento personal no está habilitado para este gimnasio.",
+  "errors.plan_changes_not_allowed": "El gimnasio no permite cambios de plan.",
+  "errors.plan_not_in_gym": "El plan no pertenece a este gimnasio.",
+  "errors.member_not_in_gym": "El socio no pertenece a este gimnasio.",
+  "errors.activity_not_in_gym": "La actividad no pertenece a este gimnasio.",
+  "errors.gym_closed_date": "El gimnasio está cerrado esa fecha.",
+  "errors.gym_closed_date_swap":
+    "El gimnasio está cerrado esa fecha. Elegí otro día de intercambio.",
+  "errors.recovery_disabled":
+    "El gimnasio no tiene habilitada la recuperación de clases.",
+  "errors.slot_unavailable":
+    "El horario seleccionado no está disponible: sin cupo, gimnasio cerrado o colisiona con una clase del socio.",
+  "errors.swap_not_in_gym": "El intercambio no pertenece a este gimnasio.",
+  "errors.schedule_not_in_gym": "El horario no pertenece a este gimnasio.",
+  "errors.current_schedule_not_in_gym":
+    "El horario actual no pertenece a este gimnasio.",
+  "errors.requested_slot_not_in_gym":
+    "El horario solicitado no pertenece a este gimnasio.",
+  "errors.origin_schedule_not_in_gym":
+    "El horario de origen no pertenece a este gimnasio.",
+  "errors.destination_slot_not_in_gym":
+    "El horario de destino no pertenece a este gimnasio.",
+  "errors.perm_change_not_allowed":
+    "El gimnasio no permite cambios permanentes de horario.",
+  "errors.activity_schedule_not_same_gym":
+    "El horario no pertenece al mismo gimnasio que la inscripción.",
+  "errors.service_not_in_gym": "El servicio no pertenece a este gimnasio.",
+  "errors.service_not_same_gym":
+    "El servicio debe pertenecer al mismo gimnasio que el plan.",
+  "errors.offer_not_in_gym": "La oferta no pertenece a este gimnasio.",
+  "errors.trainer_not_in_gym":
+    "El/la entrenador/a no pertenece a este gimnasio.",
+  "errors.fixed_schedule_overlap":
+    "El socio tiene un horario fijo del gimnasio que se superpone con el horario de esta actividad.",
+  "errors.pt_fixed_schedule_overlap":
+    "El socio tiene un horario fijo del gimnasio que se superpone con el horario del entrenamiento personal.",
+  "errors.gym_schedule_overlap_detailed":
+    "El horario del gimnasio {day} {time} se superpone con la actividad {activity} ({schedule}).",
+  "errors.routine_template_not_in_gym":
+    "La plantilla no pertenece a este gimnasio.",
+  "errors.exercise_not_in_gym": "El ejercicio no pertenece a este gimnasio.",
+  "errors.subscription_not_in_gym":
+    "La suscripción no pertenece a este gimnasio.",
+  "errors.enrollment_not_in_gym": "La inscripción no pertenece a este gimnasio.",
+  "errors.pt_assignment_not_in_gym":
+    "La asignación no pertenece a este gimnasio.",
+  "staff.settings.closed_dates_desc":
+    "Feriados o días puntuales en los que el gimnasio no abre. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
 };
 
 function interpolate(text, vars = {}) {

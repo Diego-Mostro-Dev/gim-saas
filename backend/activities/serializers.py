@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from gyms.labels import msg
 from members.identity import member_identity
 from members.models import Member
 from plans.models import Service as PlanService
@@ -242,7 +243,7 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
         if schedule.activity.service.gym_id != gym.id:
             raise serializers.ValidationError(
-                "El horario no pertenece al mismo gimnasio que la inscripción."
+                msg(gym, "errors.activity_schedule_not_same_gym")
             )
         return schedule
 

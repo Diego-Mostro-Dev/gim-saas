@@ -5,6 +5,7 @@ from django.db.models import Sum
 
 from rest_framework import serializers
 
+from gyms.labels import msg
 from plans.services import public_plan_name
 
 from members.identity import MemberIdentityMixin
@@ -41,7 +42,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
         if member.gym_id != gym.id:
             raise serializers.ValidationError(
-                "El miembro no pertenece a este gimnasio."
+                msg(gym, "errors.member_not_in_gym")
             )
 
         return member
@@ -54,7 +55,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
         if subscription.gym_id != gym.id:
             raise serializers.ValidationError(
-                "La suscripción no pertenece a este gimnasio."
+                msg(gym, "errors.subscription_not_in_gym")
             )
 
         return subscription
@@ -67,7 +68,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
         if enrollment.gym_id != gym.id:
             raise serializers.ValidationError(
-                "La inscripción no pertenece a este gimnasio."
+                msg(gym, "errors.enrollment_not_in_gym")
             )
 
         return enrollment
@@ -80,7 +81,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
         if assignment.gym_id != gym.id:
             raise serializers.ValidationError(
-                "La asignación no pertenece a este gimnasio."
+                msg(gym, "errors.pt_assignment_not_in_gym")
             )
 
         return assignment

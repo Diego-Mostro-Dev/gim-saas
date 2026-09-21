@@ -28,6 +28,7 @@ import {
   reconcileSlot,
   startHoursFor,
 } from "../utils/ptAvailability";
+import txt from "../utils/labels";
 
 const STATUS_LABELS = {
   pending: "Pendiente de aprobación",
@@ -41,7 +42,7 @@ const inputClass =
   "w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring";
 
 function MemberPersonalTraining() {
-  const { token, isOperativeBlocked } = useOutletContext();
+  const { token, gym, isOperativeBlocked } = useOutletContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editingAssignment, setEditingAssignment] = useState(null);
@@ -223,7 +224,7 @@ function MemberPersonalTraining() {
             Aún no tenés entrenamiento personal asignado.
           </p>
           <p className="mt-1 text-xs text-text-secondary">
-            Cuando el gimnasio te asigne un horario, aparecerá acá.
+            {txt(gym, "portal.pt_no_schedule")}
           </p>
         </div>
       ) : (
@@ -388,7 +389,7 @@ function MemberPersonalTraining() {
                   {String(req.requested_end_time).slice(0, 5)}
                 </p>
                 <p className="mt-0.5 text-xs text-text-secondary">
-                  Esperando aprobación del gimnasio
+                  {txt(gym, "portal.pt_pending_approval")}
                 </p>
               </div>
               <button
@@ -457,7 +458,7 @@ function MemberPersonalTraining() {
             </div>
 
             <p className="mt-2 text-xs text-text-secondary">
-              El gimnasio revisará tu solicitud y confirmará el nuevo horario.
+              {txt(gym, "portal.pt_request_review")}
             </p>
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
@@ -501,7 +502,7 @@ function MemberPersonalTraining() {
                           {DAY_NAMES[day]}
                           {dayUnavailable(day)
                             ? freeData?.closed_days?.includes(day)
-                              ? " · gym cerrado"
+                              ? txt(gym, "portal.gym_closed_short")
                               : " · sin horarios libres"
                             : ""}
                         </option>

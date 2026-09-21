@@ -1,5 +1,7 @@
 from django.core.exceptions import PermissionDenied
 
+from .labels import msg
+
 
 class FeatureDisabled(PermissionDenied):
     """Raised when a gym has not enabled a required feature.
@@ -55,7 +57,7 @@ def activities_enabled(gym):
 def require_activities(gym):
     if not activities_enabled(gym):
         raise FeatureDisabled(
-            "Actividades no está habilitado para este gimnasio.",
+            msg(gym, "features.activities_disabled"),
             FEATURE_ACTIVITIES,
         )
 
@@ -68,6 +70,6 @@ def personal_training_enabled(gym):
 def require_personal_training(gym):
     if not personal_training_enabled(gym):
         raise FeatureDisabled(
-            "Entrenamiento personal no está habilitado para este gimnasio.",
+            msg(gym, "features.pt_disabled"),
             FEATURE_PERSONAL_TRAINING,
         )

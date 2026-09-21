@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from attendance.models import AttendanceSchedule
 
+from gyms.labels import msg
 from members.identity import MemberIdentityMixin
 from plans.services import public_plan_name, public_plan_name_from_snapshot
 
@@ -353,13 +354,13 @@ class PlanChangeRequestSerializer(MemberIdentityMixin, serializers.ModelSerializ
         member = attrs.get("member")
         if member and member.gym != gym:
             raise serializers.ValidationError({
-                "member": "El socio no pertenece a este gimnasio."
+                "member": msg(gym, "errors.member_not_in_gym")
             })
 
         requested_plan = attrs.get("requested_plan")
         if requested_plan and requested_plan.gym != gym:
             raise serializers.ValidationError({
-                "requested_plan": "El plan no pertenece a este gimnasio."
+                "requested_plan": msg(gym, "errors.plan_not_in_gym")
             })
 
         target_schedules = self.initial_data.get("target_schedules_snapshot", [])
@@ -534,7 +535,7 @@ class PublicPlanChangeRequestSerializer(serializers.ModelSerializer):
         requested_plan = attrs.get("requested_plan")
         if requested_plan and requested_plan.gym != gym:
             raise serializers.ValidationError({
-                "requested_plan": "El plan no pertenece a este gimnasio."
+                "requested_plan": msg(gym, "errors.plan_not_in_gym")
             })
 
         target_schedules = self.initial_data.get("target_schedules_snapshot", [])

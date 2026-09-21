@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useGym } from "../hooks/useGym";
+import { txt } from "../utils/labels";
 import useAuthStore from "../store/auth.store";
 import Staff from "./Staff";
 import {
@@ -755,7 +756,7 @@ function Settings() {
 
       <h1 className="mb-2 text-3xl font-bold text-text-primary">Configuración</h1>
 
-      <p className="mb-4 text-text-secondary">Información básica del gimnasio.</p>
+      <p className="mb-4 text-text-secondary">{txt(gym, "staff.settings.basic_info")}</p>
 
       <div
         role="tablist"
@@ -963,7 +964,7 @@ function Settings() {
                 email: e.target.value,
               })
             }
-            placeholder="Ej: info@gimnasio.com"
+            placeholder={txt(gym, "staff.settings.email_placeholder")}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
@@ -1473,9 +1474,7 @@ function Settings() {
         </h3>
 
         <p className="mb-4 text-xs text-text-secondary">
-          Estos datos se usan para que tu gimnasio aparezca en Google al
-          compartir tu link de registro. Completalos para mejorar tu
-          posicionamiento local.
+          {txt(gym, "staff.settings.google_seo")}
         </p>
 
         <div className="mb-6 rounded-xl border border-border bg-white px-4 py-3">
@@ -1528,7 +1527,7 @@ function Settings() {
             onChange={(e) =>
               setFormData({ ...formData, seo_title: e.target.value })
             }
-            placeholder="Ej: Gimnasio Atlas | Musculación y CrossFit en Rosario"
+            placeholder={txt(gym, "staff.settings.seo_title_placeholder")}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
@@ -1544,7 +1543,7 @@ function Settings() {
             onChange={(e) =>
               setFormData({ ...formData, seo_description: e.target.value })
             }
-            placeholder="Ej: Sumate al mejor gimnasio de Rosario. Musculación, crossfit y clases guiadas con profesores certificados."
+            placeholder={txt(gym, "staff.settings.seo_description_placeholder")}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
           <p className="mt-1 text-xs text-text-secondary">
@@ -1562,7 +1561,7 @@ function Settings() {
             onChange={(e) =>
               setFormData({ ...formData, seo_keywords: e.target.value })
             }
-            placeholder="Ej: gimnasio, musculación, crossfit, rosario"
+            placeholder={txt(gym, "staff.settings.keywords_placeholder")}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
         </div>
@@ -1621,9 +1620,7 @@ function Settings() {
         </h3>
 
         <p className="mb-4 text-xs text-text-secondary">
-          Feriados o días puntuales en los que el gimnasio no abre. En esas fechas
-          los socios no podrán registrar asistencia ni pedir intercambios, y el
-          panel no mostrará actividad.
+          {txt(gym, "staff.settings.closed_dates_desc")}
         </p>
 
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface-input p-3">
@@ -1693,8 +1690,8 @@ function Settings() {
           <p className="text-sm text-text-secondary">Cargando...</p>
         ) : closedDates.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface-input px-4 py-3 text-sm text-text-secondary">
-            No hay fechas cerradas. Cuando las agregues, los socios verán el
-            gimnasio cerrado ese día.
+            No hay fechas cerradas. Cuando las agregues, los socios verán{" "}
+            {txt(gym, "staff.settings.closed_days_hint")}
           </div>
         ) : (
           <ul className="space-y-2">

@@ -16,7 +16,7 @@ from core.mixins import GymQuerysetMixin
 from members.models import Member
 from profiles.models import UserProfile
 from .holidays import HolidaysAPIError, fetch_argentina_holidays
-from .labels import get_gym_labels
+from .labels import get_gym_labels, msg
 from .models import Discount, Gym, GymClosedDate
 from .serializers import DiscountSerializer, GymSerializer, GymClosedDateSerializer
 
@@ -154,7 +154,7 @@ class GymMeView(APIView):
 
         if request.user.profile.role != request.user.profile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede modificar la configuración"
+                msg(gym, "errors.owner_only_settings")
             )
 
         serializer = GymSerializer(
@@ -190,7 +190,10 @@ class GymClosedDateListCreateView(APIView):
     def require_owner(self, request):
         if request.user.profile.role != UserProfile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede gestionar las fechas cerradas"
+                msg(
+                    request.user.profile.gym,
+                    "errors.owner_only_closed_dates",
+                )
             )
 
     def get(self, request):
@@ -221,7 +224,10 @@ class GymClosedDateDetailView(APIView):
     def delete(self, request, closed_date_id):
         if request.user.profile.role != UserProfile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede gestionar las fechas cerradas"
+                msg(
+                    request.user.profile.gym,
+                    "errors.owner_only_closed_dates",
+                )
             )
 
         profile = getattr(request.user, "profile", None)
@@ -250,7 +256,10 @@ class GymClosedDateHolidaysView(APIView):
     def post(self, request):
         if request.user.profile.role != UserProfile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede gestionar las fechas cerradas"
+                msg(
+                    request.user.profile.gym,
+                    "errors.owner_only_closed_dates",
+                )
             )
 
         profile = getattr(request.user, "profile", None)
@@ -327,7 +336,7 @@ class GymStaffView(APIView):
     def require_owner(self, request):
         if request.user.profile.role != UserProfile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede gestionar el staff"
+                msg(request.user.profile.gym, "errors.owner_only_staff")
             )
 
     def get(self, request):
@@ -441,7 +450,7 @@ class GymStaffDetailView(APIView):
     def delete(self, request, user_id):
         if request.user.profile.role != UserProfile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede gestionar el staff"
+                msg(request.user.profile.gym, "errors.owner_only_staff")
             )
 
         gym = self.get_gym(request)
@@ -452,7 +461,9 @@ class GymStaffDetailView(APIView):
         profile = get_object_or_404(UserProfile, user_id=user_id, gym=gym)
 
         if profile.role == UserProfile.ROLE_OWNER:
-            raise PermissionDenied("No se puede eliminar al dueño del gimnasio")
+            raise PermissionDenied(
+                msg(gym, "errors.cannot_remove_owner")
+            )
 
         profile.user.delete()
 
@@ -461,7 +472,7 @@ class GymStaffDetailView(APIView):
     def patch(self, request, user_id):
         if request.user.profile.role != UserProfile.ROLE_OWNER:
             raise PermissionDenied(
-                "Solo el dueño del gimnasio puede gestionar el staff"
+                msg(request.user.profile.gym, "errors.owner_only_staff")
             )
 
         gym = self.get_gym(request)

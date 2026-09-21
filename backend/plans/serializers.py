@@ -1,4 +1,7 @@
 from rest_framework import serializers
+
+from gyms.labels import msg
+
 from .models import MembershipPlan, Service
 
 
@@ -47,8 +50,7 @@ class MembershipPlanSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {
                         "service": (
-                            "El servicio debe pertenecer al mismo gimnasio "
-                            "que el plan."
+                            msg(gym, "errors.service_not_same_gym")
                         )
                     }
                 )

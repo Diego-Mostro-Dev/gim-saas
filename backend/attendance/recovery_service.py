@@ -33,6 +33,7 @@ from .models import Attendance, AttendanceSchedule, ScheduleSlot, SessionRecover
 from .utils import compute_effective_occupancy, has_effective_capacity
 from activities.models import ActivitySchedule, Enrollment
 from activities.session_service import SessionService, SessionError
+from gyms.labels import msg
 from gyms.models import GymClosedDate
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
@@ -162,7 +163,7 @@ def _validate_plan_date(gym, member, target_date):
         raise RecoveryError("La fecha programada no puede ser anterior a hoy.")
 
     if GymClosedDate.objects.filter(gym=gym, date=target_date).exists():
-        raise RecoveryError("El gimnasio está cerrado esa fecha.")
+        raise RecoveryError(msg(gym, "errors.gym_closed_date"))
 
     if Attendance.objects.filter(
         member=member,
@@ -189,7 +190,7 @@ def eligible_options(gym, member, kind, activity, target_date):
         raise RecoveryError("Tipo de recuperación inválido.")
 
     if member.gym_id not in (gym.pk, None):
-        raise RecoveryError("El socio no pertenece a este gimnasio.")
+        raise RecoveryError(msg(gym, "errors.member_not_in_gym"))
 
     if kind == "activity":
         if activity is None:
@@ -197,7 +198,7 @@ def eligible_options(gym, member, kind, activity, target_date):
                 "Para recuperar una clase es necesario indicar la actividad."
             )
         if activity.service.gym_id != gym.pk:
-            raise RecoveryError("La actividad no pertenece a este gimnasio.")
+            raise RecoveryError(msg(gym, "errors.activity_not_in_gym"))
 
     _validate_plan_date(gym, member, target_date)
     day = DAY_BY_WEEKDAY[target_date.weekday()]
@@ -398,9 +399,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
     ese día, vence (estado efectivo ``expired``).
     """
     if not gym.allow_session_recovery:
-        raise RecoveryError(
-            "El gimnasio no tiene habilitada la recuperación de clases."
-        )
+        raise RecoveryError(msg(gym, "errors.recovery_disabled"))
 
     if target_date is None:
         raise RecoveryError(
@@ -411,7 +410,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
         raise RecoveryError("Tipo de recuperación inválido.")
 
     if member.gym_id not in (gym.pk, None):
-        raise RecoveryError("El socio no pertenece a este gimnasio.")
+        raise RecoveryError(msg(gym, "errors.member_not_in_gym"))
 
     if kind == "activity":
         if activity is None:
@@ -419,7 +418,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
                 "Para recuperar una clase es necesario indicar la actividad."
             )
         if activity.service.gym_id != gym.pk:
-            raise RecoveryError("La actividad no pertenece a este gimnasio.")
+            raise RecoveryError(msg(gym, "errors.activity_not_in_gym"))
 
     today = timezone.localdate()
     month_start = today.replace(day=1)
@@ -442,10 +441,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
                 "Debes elegir el horario de entrenamiento para la recuperación."
             )
         if not any(o["slot_id"] == slot.id for o in options):
-            raise RecoveryError(
-                "El horario seleccionado no está disponible: sin cupo, "
-                "gimnasio cerrado o colisiona con una clase del socio."
-            )
+            raise RecoveryError(msg(gym, "errors.slot_unavailable"))
     else:
         if schedule is None:
             raise RecoveryError(
