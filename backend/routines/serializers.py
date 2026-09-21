@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from gyms.labels import msg
+
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -41,12 +43,12 @@ class RoutineAssignmentSerializer(serializers.ModelSerializer):
 
         if member is not None and member.gym != gym:
             raise serializers.ValidationError({
-                "member": "El socio no pertenece a este gimnasio."
+                "member": msg(gym, "errors.member_not_in_gym")
             })
 
         if routine_template is not None and routine_template.gym != gym:
             raise serializers.ValidationError({
-                "routine_template": "La plantilla no pertenece a este gimnasio."
+                "routine_template": msg(gym, "errors.routine_template_not_in_gym")
             })
 
         return attrs
@@ -80,12 +82,12 @@ class RoutineExerciseSerializer(serializers.ModelSerializer):
 
         if routine_template is not None and routine_template.gym != gym:
             raise serializers.ValidationError({
-                "routine_template": "La plantilla no pertenece a este gimnasio."
+                "routine_template": msg(gym, "errors.routine_template_not_in_gym")
             })
 
         if exercise is not None and exercise.gym != gym:
             raise serializers.ValidationError({
-                "exercise": "El ejercicio no pertenece a este gimnasio."
+                "exercise": msg(gym, "errors.exercise_not_in_gym")
             })
 
         return attrs

@@ -1,6 +1,7 @@
 from django.db.models import Count
 from rest_framework import serializers
 
+from gyms.labels import msg
 from members.identity import member_identity
 from members.models import Member
 from plans.models import Service as PlanService
@@ -83,7 +84,7 @@ class PersonalTrainingServiceSerializer(serializers.ModelSerializer):
             service = validated_data["service"]
             if service.gym_id != gym.id:
                 raise serializers.ValidationError(
-                    {"service": "El servicio no pertenece a este gimnasio."}
+                    {"service": msg(gym, "errors.service_not_in_gym")}
                 )
         for key, value in validated_data.items():
             setattr(instance, key, value)

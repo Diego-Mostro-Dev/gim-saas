@@ -22,6 +22,7 @@ from .utils import (
 
 from members.eligibility import MemberEligibility
 from members.identity import MemberIdentityMixin
+from gyms.labels import msg
 from gyms.models import GymClosedDate
 from subscriptions.domain import SubscriptionDomain
 
@@ -225,7 +226,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
         if swap_request:
             if swap_request.gym != gym:
                 raise serializers.ValidationError({
-                    "swap_request": "El intercambio no pertenece a este gimnasio."
+                    "swap_request": msg(gym, "errors.swap_not_in_gym")
                 })
 
             if swap_request.status != "approved":
@@ -257,7 +258,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
             if schedule.gym != gym:
                 raise serializers.ValidationError({
-                    "schedule": "El horario no pertenece a este gimnasio."
+                    "schedule": msg(gym, "errors.schedule_not_in_gym")
                 })
 
             already_registered = Attendance.objects.filter(
@@ -430,7 +431,7 @@ class ScheduleChangeRequestSerializer(
     def validate_gym_allows_changes(self, gym):
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
-                "El gimnasio no permite cambios permanentes de horario."
+                msg(gym, "errors.perm_change_not_allowed")
             )
     def validate_current_schedule(self, value):
         if not value.active:
@@ -449,12 +450,12 @@ class ScheduleChangeRequestSerializer(
         if current_schedule and requested_slot:
             if current_schedule.gym != gym:
                 raise serializers.ValidationError({
-                    "current_schedule": "El horario actual no pertenece a este gimnasio."
+                    "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
                 })
 
             if requested_slot.gym != gym:
                 raise serializers.ValidationError({
-                    "requested_slot": "El horario solicitado no pertenece a este gimnasio."
+                    "requested_slot": msg(gym, "errors.requested_slot_not_in_gym")
                 })
 
             if current_schedule.slot_id == requested_slot.id:
@@ -616,7 +617,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
     def validate_gym_allows_changes(self, gym):
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
-                "El gimnasio no permite cambios permanentes de horario."
+                msg(gym, "errors.perm_change_not_allowed")
             )
 
     def validate_current_schedule(self, value):
@@ -657,12 +658,12 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         if current_schedule and requested_slot:
             if current_schedule.gym != gym:
                 raise serializers.ValidationError({
-                    "current_schedule": "El horario actual no pertenece a este gimnasio."
+                    "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
                 })
 
             if requested_slot.gym != gym:
                 raise serializers.ValidationError({
-                    "requested_slot": "El horario solicitado no pertenece a este gimnasio."
+                    "requested_slot": msg(gym, "errors.requested_slot_not_in_gym")
                 })
 
             if current_schedule.slot_id == requested_slot.id:
@@ -807,18 +808,18 @@ class ScheduleSwapRequestSerializer(
 
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
-                "El gimnasio no permite cambios permanentes de horario."
+                msg(gym, "errors.perm_change_not_allowed")
             )
 
         if origin_schedule and destination_slot and swap_date:
             if origin_schedule.gym != gym:
                 raise serializers.ValidationError({
-                    "origin_schedule": "El horario de origen no pertenece a este gimnasio."
+                    "origin_schedule": msg(gym, "errors.origin_schedule_not_in_gym")
                 })
 
             if destination_slot.gym != gym:
                 raise serializers.ValidationError({
-                    "destination_slot": "El horario de destino no pertenece a este gimnasio."
+                    "destination_slot": msg(gym, "errors.destination_slot_not_in_gym")
                 })
 
             if origin_schedule.slot_id == destination_slot.id:
@@ -852,7 +853,7 @@ class ScheduleSwapRequestSerializer(
 
             if GymClosedDate.objects.filter(gym=gym, date=swap_date).exists():
                 raise serializers.ValidationError(
-                    "El gimnasio está cerrado esa fecha. Elegí otro día de intercambio."
+                    msg(gym, "errors.gym_closed_date_swap")
                 )
 
             if swap_date <= timezone.localdate():
@@ -1029,18 +1030,18 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
 
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
-                "El gimnasio no permite cambios permanentes de horario."
+                msg(gym, "errors.perm_change_not_allowed")
             )
 
         if origin_schedule and destination_slot and swap_date:
             if origin_schedule.gym != gym:
                 raise serializers.ValidationError({
-                    "origin_schedule": "El horario de origen no pertenece a este gimnasio."
+                    "origin_schedule": msg(gym, "errors.origin_schedule_not_in_gym")
                 })
 
             if destination_slot.gym != gym:
                 raise serializers.ValidationError({
-                    "destination_slot": "El horario de destino no pertenece a este gimnasio."
+                    "destination_slot": msg(gym, "errors.destination_slot_not_in_gym")
                 })
 
             if origin_schedule.slot_id == destination_slot.id:
@@ -1074,7 +1075,7 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
 
             if GymClosedDate.objects.filter(gym=gym, date=swap_date).exists():
                 raise serializers.ValidationError(
-                    "El gimnasio está cerrado esa fecha. Elegí otro día de intercambio."
+                    msg(gym, "errors.gym_closed_date_swap")
                 )
 
             if swap_date <= timezone.localdate():

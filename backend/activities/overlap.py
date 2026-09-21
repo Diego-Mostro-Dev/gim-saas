@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from attendance.models import AttendanceSchedule
+from gyms.labels import msg
 from personal_training.models import PersonalTrainingAssignment
 from subscriptions.domain import SubscriptionDomain
 from .models import Enrollment
@@ -32,10 +33,8 @@ def _check_gym_schedule_overlap(active_gym_schedules, target_schedule):
             gym_start, gym_end,
             target_schedule.start_time, target_schedule.end_time,
         ):
-            raise ValueError(
-                "El miembro tiene un horario fijo del gimnasio que se superpone "
-                "con el horario de esta actividad."
-            )
+            gym = target_schedule.activity.service.gym
+            raise ValueError(msg(gym, "errors.fixed_schedule_overlap"))
 
 
 def _check_activity_overlap(member, target_schedule):
@@ -123,10 +122,17 @@ def validate_gym_activity_overlap(gym_slots, activity_schedules):
                 gym_start, gym_end,
                 schedule.start_time, schedule.end_time,
             ):
+                gym = gym_slots[0].gym
                 raise ValueError(
-                    f"El horario de gimnasio {slot.get_day_display()} {gym_start:%H:%M} se superpone "
-                    f"con la actividad {schedule.activity.name} "
-                    f"({schedule.start_time:%H:%M}–{schedule.end_time:%H:%M})."
+                    msg(gym, "errors.gym_schedule_overlap_detailed").format(
+                        day=slot.get_day_display(),
+                        time=f"{gym_start:%H:%M}",
+                        activity=schedule.activity.name,
+                        schedule=(
+                            f"{schedule.start_time:%H:%M}–"
+                            f"{schedule.end_time:%H:%M}"
+                        ),
+                    )
                 )
 
 

@@ -9,9 +9,10 @@ import {
   ATTACHMENT_CATEGORIES,
 } from "../../services/attachments.service";
 import { formatHumanDate } from "../../utils/date.utils";
+import txt from "../../utils/labels";
 
 function MemberAttachments() {
-  const { token } = useOutletContext();
+  const { token, gym } = useOutletContext();
 
   const [attachments, setAttachments] = useState([]);
   const [status, setStatus] = useState("idle");
@@ -126,9 +127,7 @@ function MemberAttachments() {
         </div>
 
         <p className="mt-1 text-xs text-text-secondary">
-          Mandale al gimnasio la orden de sesiones, el comprobante de pago o
-          cualquier estudio que necesitemos ver (ej. electrocardiograma para
-          natación).
+          {txt(gym, "member.attachments.hint")}
         </p>
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">

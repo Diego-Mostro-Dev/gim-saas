@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 
 import { DAY_NAMES, DAY_ORDER } from "../constants/days";
 import { formatCurrency } from "../utils/currency.utils";
+import { txt } from "../utils/labels";
+import { useGym } from "../hooks/useGym";
 import useAuthStore from "../store/auth.store";
 import {
   getPersonalTrainingAssignments,
@@ -14,6 +16,7 @@ import {
 function TrainerAgenda() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.role);
+  const { gym } = useGym();
   const [assignments, setAssignments] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,8 +103,7 @@ function TrainerAgenda() {
             Todavía no tenés clientes asignados.
           </p>
           <p className="mt-1 text-xs text-text-secondary">
-            Cuando el gimnasio te asigne clientes de entrenamiento personal,
-            aparecerán acá.
+            {txt(gym, "staff.pt.clients_assignment")}
           </p>
         </div>
       ) : (

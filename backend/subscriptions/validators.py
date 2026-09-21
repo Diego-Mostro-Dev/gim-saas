@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from attendance.models import ScheduleSlot
+from gyms.labels import msg
 
 from .domain import SubscriptionDomain
 
@@ -36,7 +37,7 @@ class PlanChangeRequestValidator:
     def _validate_plan_changes_allowed(self):
         if not self.gym.allow_plan_changes:
             raise serializers.ValidationError(
-                "El gimnasio no permite cambios de plan."
+                msg(self.gym, "errors.plan_changes_not_allowed")
             )
 
     def _validate_not_base_plan(self):
@@ -54,7 +55,7 @@ class PlanChangeRequestValidator:
     def _validate_same_gym(self):
         if self.requested_plan.gym != self.gym:
             raise serializers.ValidationError({
-                "requested_plan": "El plan no pertenece a este gimnasio."
+                "requested_plan": msg(self.gym, "errors.plan_not_in_gym")
             })
 
     def _validate_different_plan(self):

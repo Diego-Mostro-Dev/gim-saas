@@ -1,3 +1,5 @@
+from gyms.labels import msg
+
 from .models import Activity
 
 
@@ -5,7 +7,7 @@ class ActivityService:
     @staticmethod
     def create_activity(gym, service, validated_data):
         if service.gym_id != gym.id:
-            raise ValueError("El servicio no pertenece a este gimnasio.")
+            raise ValueError(msg(gym, "errors.service_not_in_gym"))
         _validate_name_unique(gym, validated_data.get("name"), exclude_id=None)
         return Activity.objects.create(service=service, **validated_data)
 
@@ -17,7 +19,7 @@ class ActivityService:
         if "service" in validated_data:
             service = validated_data["service"]
             if service.gym_id != gym.id:
-                raise ValueError("El servicio no pertenece a este gimnasio.")
+                raise ValueError(msg(gym, "errors.service_not_in_gym"))
         for key, value in validated_data.items():
             setattr(activity, key, value)
         activity.save(update_fields=validated_data.keys())

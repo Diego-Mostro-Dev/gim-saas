@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 
 from gyms.features import personal_training_enabled
+from gyms.labels import msg
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
@@ -26,15 +27,13 @@ class AssignmentService:
         gym = gym or SubscriptionDomain.resolve_gym(member)
 
         if not personal_training_enabled(gym):
-            raise AssignmentError(
-                "El entrenamiento personal no está habilitado para este gimnasio."
-            )
+            raise AssignmentError(msg(gym, "features.pt_disabled"))
 
         if service.gym_id != gym.id or service.service.gym_id != gym.id:
-            raise AssignmentError("La oferta no pertenece a este gimnasio.")
+            raise AssignmentError(msg(gym, "errors.offer_not_in_gym"))
 
         if trainer.profile.gym_id != gym.id:
-            raise AssignmentError("El/la entrenador/a no pertenece a este gimnasio.")
+            raise AssignmentError(msg(gym, "errors.trainer_not_in_gym"))
 
         if trainer.profile.role != UserProfile.ROLE_TRAINER:
             raise AssignmentError("El usuario seleccionado no es entrenador/a.")

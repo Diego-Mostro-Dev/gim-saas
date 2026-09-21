@@ -11,6 +11,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework import status
 
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest, SessionRecovery, DAY_CHOICES
+from gyms.labels import msg
 from gyms.models import GymClosedDate
 from gyms.features import activities_enabled
 from activities.models import ActivitySchedule, Enrollment
@@ -996,7 +997,7 @@ class SessionRecoveryListCreateView(APIView):
         if kind == "activity":
             if not activities_enabled(gym):
                 return Response(
-                    {"detail": "El gimnasio no tiene actividades habilitadas."},
+                    {"detail": msg(gym, "features.activities_disabled")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             from activities.models import Activity
