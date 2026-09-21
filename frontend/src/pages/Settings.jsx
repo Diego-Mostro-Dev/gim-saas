@@ -101,6 +101,7 @@ function Settings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { gym } = useGym();
+  const communityEnabled = Boolean(gym?.features?.community);
   const role = useAuthStore((state) => state.role);
   const queryClient = useQueryClient();
 
@@ -250,7 +251,7 @@ function Settings() {
     { id: "staff", label: "Staff", icon: Shield },
     { id: "cierres", label: "Fechas cerradas", icon: CalendarOff },
     { id: "qr", label: "QR", icon: QrCode },
-    { id: "comunidad", label: "Comunidad", icon: Store },
+    ...(communityEnabled ? [{ id: "comunidad", label: "Comunidad", icon: Store }] : []),
     { id: "seo", label: "SEO", icon: Search },
   ];
 
@@ -291,6 +292,10 @@ function Settings() {
     loadInsurances();
     loadDiscounts();
   }, []);
+
+  if (!communityEnabled && activeTab === "comunidad") {
+    setActiveTab("info");
+  }
 
   async function loadClosedDates() {
     try {
@@ -820,7 +825,7 @@ function Settings() {
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
       {activeTab === "staff" ? (
         <Staff embedded />
-      ) : activeTab === "comunidad" ? (
+      ) : activeTab === "comunidad" && communityEnabled ? (
         <CommunityPanel />
       ) : (
       <form
