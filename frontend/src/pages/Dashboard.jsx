@@ -1,5 +1,4 @@
 import StatsCards from "../components/dashboard/StatsCards";
-import PersonalTrainingCard from "../components/dashboard/PersonalTrainingCard";
 import QuickActions from "../components/dashboard/QuickActions";
 import WeeklyChart from "../components/dashboard/WeeklyChart";
 import UpcomingExpirations from "../components/dashboard/UpcomingExpirations";
@@ -29,7 +28,6 @@ function Dashboard() {
       )}
       <ClosedDatesNotice gym={gym} closedDates={closedDates} compact />
       <StatsCards data={dashboardData} />
-      <PersonalTrainingCard data={dashboardData} />
       <QuickActions />
       <WeeklyChart data={dashboardData?.weeklyAttendance || []} />
       <UpcomingExpirations

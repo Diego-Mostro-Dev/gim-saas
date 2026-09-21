@@ -190,7 +190,7 @@ function TrainerSection({ trainer }) {
   );
 }
 
-function PersonalTrainingAttendance() {
+function PersonalTrainingAttendance({ embedded = false }) {
   const [startDate, setStartDate] = useState(() => {
     const stored = sessionStorage.getItem("pt_analytics_start");
     if (stored) return stored;
@@ -245,13 +245,21 @@ function PersonalTrainingAttendance() {
   const hasPending = (summary?.pending ?? 0) > 0;
 
   return (
-    <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Asistencia del Personal Training</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Sesiones por trainer, socio y horario
-        </p>
-      </div>
+    <div
+      className={
+        embedded
+          ? ""
+          : "min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary"
+      }
+    >
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Asistencia del Personal Training</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Sesiones por trainer, socio y horario
+          </p>
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div>
