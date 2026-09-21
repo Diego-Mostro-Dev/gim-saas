@@ -29,7 +29,6 @@ function getNextTraining(schedules, approvedSwaps, closedDates) {
   ];
 
   const now = new Date();
-  const today = now.getDay();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
   const closedSet = new Set(closedDates || []);
@@ -229,9 +228,11 @@ function GymDashboard() {
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-text-secondary">Plan</span>
-                <span className="text-text-primary">{subscription.plan}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-text-secondary">Plan</span>
+                <span className="min-w-0 break-words text-right text-text-primary">
+                  {subscription.plan}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
@@ -267,12 +268,12 @@ function GymDashboard() {
                   {subscription.items
                     .filter((i) => i.item_type === "activity")
                     .map((item) => (
-                      <div key={item.id} className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-sm text-text-primary">
-                          <span className="text-success-text dark:text-success">✓</span>
-                          {item.name}
+                      <div key={item.id} className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-primary">
+                          <span className="shrink-0 text-success-text dark:text-success">✓</span>
+                          <span className="break-words">{item.name}</span>
                         </span>
-                        <span className="text-sm text-text-secondary">
+                        <span className="shrink-0 text-sm text-text-secondary">
                           ${Number(item.price).toLocaleString("es-AR")}
                         </span>
                       </div>
@@ -407,9 +408,9 @@ function GymDashboard() {
               </p>
             </div>
             <div className="space-y-2 text-sm text-text-primary">
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Plan solicitado</span>
-                <span>{pendingRequest.plan_name}</span>
+              <div className="flex justify-between gap-2">
+                <span className="shrink-0 text-text-secondary">Plan solicitado</span>
+                <span className="min-w-0 break-words text-right">{pendingRequest.plan_name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Fecha</span>
@@ -475,9 +476,11 @@ function GymDashboard() {
               </p>
             </div>
             <div className="space-y-2 text-sm text-text-primary">
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Nuevo plan</span>
-                <span className="font-medium">{approvedFutureRequest.plan_name}</span>
+              <div className="flex justify-between gap-2">
+                <span className="shrink-0 text-text-secondary">Nuevo plan</span>
+                <span className="min-w-0 break-words text-right font-medium">
+                  {approvedFutureRequest.plan_name}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Activación</span>
@@ -646,9 +649,9 @@ function GymDashboard() {
             )}
 
             {last_payment.plan_name && (
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-text-secondary">Plan</span>
-                <span className="text-text-primary">
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="shrink-0 text-text-secondary">Plan</span>
+                <span className="min-w-0 break-words text-right text-text-primary">
                   {last_payment.plan_name}
                 </span>
               </div>
