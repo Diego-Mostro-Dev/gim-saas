@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { txt } from "../../utils/labels";
 
@@ -281,7 +281,6 @@ function MemberPortalLayout() {
         token={token}
         location={location}
         navigate={navigate}
-        photoFile={photoFile}
         preview={preview}
         uploadingPhoto={uploadingPhoto}
         setPhotoFile={setPhotoFile}
@@ -309,7 +308,6 @@ function MemberPortalLayoutContent({
   token,
   location,
   navigate,
-  photoFile,
   preview,
   uploadingPhoto,
   setPhotoFile,
@@ -358,19 +356,16 @@ function MemberPortalLayoutContent({
       blockedReason === "no_subscription" ||
       blockedReason === "inactive");
 
-  const routeFeatureMap = {
-    [`/routine/${token}/activities`]: "activities",
-    [`/routine/${token}/personal-training`]: "personal_training",
-  };
+  const routeFeatureMap = useMemo(
+    () => ({
+      [`/routine/${token}/activities`]: "activities",
+      [`/routine/${token}/personal-training`]: "personal_training",
+    }),
+    [token],
+  );
   const homeRoute = `/routine/${token}`;
 
-  // Pre-render guard: prevent flash of disabled feature content
-  const featureKey = routeFeatureMap[location.pathname];
-  if (featureKey && Object.keys(features).length > 0 && features[featureKey] === false) {
-    navigate(homeRoute, { replace: true });
-    return null;
-  }
-
+  // Redirige al inicio si la sección actual tiene la feature deshabilitada.
   useEffect(() => {
     const featureName = routeFeatureMap[location.pathname];
     if (!featureName) return;
@@ -378,7 +373,13 @@ function MemberPortalLayoutContent({
     if (features[featureName] === false) {
       navigate(homeRoute, { replace: true });
     }
-  }, [location.pathname, features, navigate]);
+  }, [location.pathname, features, navigate, routeFeatureMap, homeRoute]);
+
+  // Pre-render guard: evita el flash de contenido de features deshabilitadas
+  const featureKey = routeFeatureMap[location.pathname];
+  if (featureKey && Object.keys(features).length > 0 && features[featureKey] === false) {
+    return null;
+  }
 
   const activitiesTab = [
     { path: `/routine/${token}/activities`, label: "Actividades", icon: Sparkles },

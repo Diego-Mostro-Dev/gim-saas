@@ -68,9 +68,14 @@ function MemberPersonalTraining() {
     }
   }
 
+  // Carga inicial deliberada (fetch-on-mount): patrón usado en toda la codebase
+  // (useMembers, useSubscriptions, useActivities...). Incluir load() en deps
+  // causaría refetch en cada render; se deshabilita consistentemente.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     load();
   }, [token]);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   function pickAssignment(assignment) {
     setEditingAssignment(assignment);
