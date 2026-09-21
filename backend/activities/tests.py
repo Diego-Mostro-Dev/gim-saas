@@ -34,8 +34,6 @@ class NoShowActivityTests(BaseAPITest):
 
     def setUp(self):
         self.gym = self.create_gym()
-        self.gym.auto_deduct_missed_sessions = True
-        self.gym.save(update_fields=["auto_deduct_missed_sessions"])
         self.member = self.create_member(self.gym)
 
     def _create_enrollment(self, *, total=10, day="monday", enrolled_at=date(2030, 1, 7)):
@@ -168,8 +166,6 @@ class NoShowPersonalTrainingTests(BaseAPITest):
 
     def setUp(self):
         self.gym = self.create_gym()
-        self.gym.auto_deduct_missed_sessions = True
-        self.gym.save(update_fields=["auto_deduct_missed_sessions"])
         self.member = self.create_member(self.gym)
         self.trainer = self.create_user(self.gym, username="trainer", role="staff")
 

@@ -1,11 +1,10 @@
 """Deducción automática de sesiones de paquete no asistidas.
 
 La tarea programada recorre los paquetes de actividades y de entrenamiento
-personal de cada gym con la feature ``auto_deduct_missed_sessions`` activa y,
-para cada fecha de clase pasada (nunca hoy) sin registro de sesión, crea un
-``*SessionRecord`` con ``source="no_show"``. Así una falta consume 1 sesión
-del paquete aunque nunca se haya escaneado el QR ni el staff haya registrado
-la asistencia.
+personal de todos los gyms activos y, para cada fecha de clase pasada (nunca
+hoy) sin registro de sesión, crea un ``*SessionRecord`` con
+``source="no_show"``. Así una falta consume 1 sesión del paquete aunque nunca
+se haya escaneado el QR ni el staff haya registrado la asistencia.
 
 Reglas:
 - Solo fechas estrictamente anteriores a hoy (la clase de hoy nunca se
@@ -233,7 +232,7 @@ def deduct_missed_pt_assignments(gym):
 
 
 def deduct_missed_sessions():
-    """Recorre los gyms con la feature activa y descuenta las no asistencias."""
+    """Recorre todos los gyms activos y descuenta las no asistencias."""
     total = {
         "enrollments": 0,
         "enrollment_records_created": 0,
@@ -241,9 +240,7 @@ def deduct_missed_sessions():
         "assignment_records_created": 0,
     }
 
-    for gym in Gym.objects.filter(
-        auto_deduct_missed_sessions=True, active=True
-    ):
+    for gym in Gym.objects.filter(active=True):
         activity = deduct_missed_activity_enrollments(gym)
         pt = deduct_missed_pt_assignments(gym)
         total["enrollments"] += activity["enrollments"]
