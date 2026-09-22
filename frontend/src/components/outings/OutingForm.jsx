@@ -1,3 +1,5 @@
+import RouteDrawMap from "./RouteDrawMap";
+
 function OutingForm({
   formData,
   setFormData,
@@ -118,6 +120,23 @@ function OutingForm({
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none transition focus:ring-2 focus:ring-focus-ring"
           />
         </div>
+      </div>
+
+      <div>
+        <span className="mb-1 block text-sm font-medium text-text-primary">
+          Recorrido en el mapa
+        </span>
+        <p className="mb-2 text-xs text-text-secondary">
+          Marcá el recorrido de la salida haciendo clic sobre el mapa. La
+          distancia se calcula automáticamente y queda visible para los socios.
+        </p>
+        <RouteDrawMap
+          value={formData.route_polyline || []}
+          onChange={(polyline) => setFormData({ ...formData, route_polyline: polyline })}
+        />
+        {errors?.route_polyline && (
+          <p className="mt-1 text-sm text-danger-text">{errors.route_polyline}</p>
+        )}
       </div>
 
       <div>

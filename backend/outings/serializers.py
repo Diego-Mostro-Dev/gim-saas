@@ -56,6 +56,8 @@ class OutingSerializer(serializers.ModelSerializer):
             "trainer",
             "trainer_name",
             "meeting_place",
+            "route_polyline",
+            "route_distance_km",
             "duration_minutes",
             "monthly_price",
             "billing_mode",
@@ -67,10 +69,31 @@ class OutingSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "trainer_name",
+            "route_distance_km",
             "created_at",
             "updated_at",
         ]
         validators = []
+
+    def validate_route_polyline(self, value):
+        if value is None or value == []:
+            return value
+        if not isinstance(value, list) or len(value) < 2:
+            raise serializers.ValidationError(
+                "El recorrido debe tener al menos 2 puntos."
+            )
+        for point in value:
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise serializers.ValidationError(
+                    "Cada punto debe ser una coordenada [latitud, longitud]."
+                )
+            lat, lng = point
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                raise serializers.ValidationError(
+                    "Coordenadas fuera de rango. Latitud debe estar entre -90 y 90, "
+                    "longitud entre -180 y 180."
+                )
+        return value
 
     def get_enrolled_count(self, obj):
         return getattr(obj, "enrolled_count", 0)
@@ -275,6 +298,8 @@ class PublicOutingEnrollmentSerializer(serializers.ModelSerializer):
     outing_id = serializers.SerializerMethodField()
     outing = serializers.SerializerMethodField()
     meeting_place = serializers.SerializerMethodField()
+    route_polyline = serializers.SerializerMethodField()
+    route_distance_km = serializers.SerializerMethodField()
     duration_minutes = serializers.SerializerMethodField()
     day = serializers.SerializerMethodField()
     start_time = serializers.SerializerMethodField()
@@ -294,6 +319,8 @@ class PublicOutingEnrollmentSerializer(serializers.ModelSerializer):
             "outing_id",
             "outing",
             "meeting_place",
+            "route_polyline",
+            "route_distance_km",
             "duration_minutes",
             "day",
             "start_time",
@@ -318,6 +345,12 @@ class PublicOutingEnrollmentSerializer(serializers.ModelSerializer):
 
     def get_meeting_place(self, obj):
         return obj.schedule.outing.meeting_place or None
+
+    def get_route_polyline(self, obj):
+        return obj.schedule.outing.route_polyline or None
+
+    def get_route_distance_km(self, obj):
+        return obj.schedule.outing.route_distance_km or None
 
     def get_duration_minutes(self, obj):
         return obj.schedule.outing.duration_minutes

@@ -1,4 +1,4 @@
-import { Pencil, Clock, Power, ToggleLeft, Users, CalendarDays, MapPin, Hourglass, GraduationCap } from "lucide-react";
+import { Pencil, Clock, Power, ToggleLeft, Users, CalendarDays, MapPin, Hourglass, GraduationCap, Route } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const AVATAR_COLORS = [
@@ -110,6 +110,12 @@ function OutingPanel({
           <p className="inline-flex items-center gap-1.5">
             <Hourglass size={15} className="text-primary" />
             {outing.duration_minutes} min
+          </p>
+        )}
+        {outing.route_distance_km && (
+          <p className="inline-flex items-center gap-1.5">
+            <Route size={15} className="text-primary" />
+            ~{Number(outing.route_distance_km).toLocaleString("es-AR")} km
           </p>
         )}
       </div>
