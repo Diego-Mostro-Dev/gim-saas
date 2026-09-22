@@ -3,22 +3,11 @@ import { usePWAUpdate } from "../hooks/usePWAUpdate";
 export default function UpdateBanner() {
   const {
     updateAvailable,
-    offlineReady,
     isUpdating,
     currentBuildId,
     applyUpdate,
     dismissUpdate,
   } = usePWAUpdate();
-
-  if (offlineReady && !updateAvailable) {
-    return (
-      <div className="fixed bottom-4 right-4 left-4 z-[100] flex max-w-sm flex-col items-start gap-2 rounded-xl border border-border/10 bg-surface-elevated px-4 py-3 shadow-lg backdrop-blur-xl sm:left-auto sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-xs text-success">
-          App lista para uso offline
-        </span>
-      </div>
-    );
-  }
 
   if (!updateAvailable) return null;
 

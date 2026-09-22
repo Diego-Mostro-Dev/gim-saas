@@ -3,7 +3,6 @@ import usePWAStore from "../store/pwa.store";
 
 export function usePWAUpdate() {
   const updateAvailable = usePWAStore((s) => s.updateAvailable);
-  const offlineReady = usePWAStore((s) => s.offlineReady);
   const isUpdating = usePWAStore((s) => s._isUpdating);
   const previousBuildId = usePWAStore((s) => s.previousBuildId);
   const currentBuildId = usePWAStore((s) => s.currentBuildId);
@@ -13,7 +12,6 @@ export function usePWAUpdate() {
 
   return {
     updateAvailable,
-    offlineReady,
     isUpdating,
     currentBuildId,
     previousBuildId,

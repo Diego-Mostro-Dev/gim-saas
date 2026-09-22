@@ -18,7 +18,6 @@ function persistBuildId(id) {
 
 const usePWAStore = create((set, get) => ({
   updateAvailable: false,
-  offlineReady: false,
   _isUpdating: false,
   currentBuildId: __BUILD_ID__,
   previousBuildId: getStoredBuildId(),
@@ -35,8 +34,7 @@ const usePWAStore = create((set, get) => ({
   setInstalled: () =>
     set({ canInstall: false, installEvent: null, installed: true }),
   notifyUpdateAvailable: () => set({ updateAvailable: true }),
-  notifyOfflineReady: () => set({ offlineReady: true }),
-  dismissUpdate: () => set({ updateAvailable: false, offlineReady: false }),
+  dismissUpdate: () => set({ updateAvailable: false }),
 
   forceUpdate: () => {
     const state = get();
