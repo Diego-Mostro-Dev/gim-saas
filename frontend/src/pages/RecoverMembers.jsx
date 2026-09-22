@@ -12,6 +12,7 @@ import {
 } from "../services/subscriptions.service";
 import { createPayment, getPayments } from "../services/payments.service";
 import { recordEnrollmentPayment } from "../services/scheduleEnrollments.service";
+import { recordOutingPayment } from "../services/outingsEnrollments.service";
 import { recordPersonalTrainingPayment } from "../services/personalTraining.service";
 import { formatCurrency } from "../utils/currency.utils";
 import { findRecentCashPayment } from "../utils/paymentAlerts";
@@ -28,9 +29,13 @@ function formatPeriod(dateStr) {
 }
 
 function packageKey(pkg) {
-  return pkg.type === "personal_training_package"
-    ? `pt-${pkg.assignment_id}`
-    : `act-${pkg.enrollment_id}`;
+  if (pkg.type === "personal_training_package") {
+    return `pt-${pkg.assignment_id}`;
+  }
+  if (pkg.type === "outing_package") {
+    return `outing-${pkg.outing_enrollment_id}`;
+  }
+  return `act-${pkg.enrollment_id}`;
 }
 
 function selladoKey(sellado) {
@@ -220,6 +225,11 @@ function RecoverMembers() {
       if (pkg.type === "personal_training_package") {
         await recordPersonalTrainingPayment(
           pkg.assignment_id,
+          paymentAmounts[`pkg-${pkgKey}`],
+        );
+      } else if (pkg.type === "outing_package") {
+        await recordOutingPayment(
+          pkg.outing_enrollment_id,
           paymentAmounts[`pkg-${pkgKey}`],
         );
       } else {
@@ -565,6 +575,11 @@ function RecoverMembers() {
                         {pkg.type === "personal_training_package" && (
                           <span className="ml-2 text-xs font-normal text-blue-500">
                             Personal trainer
+                          </span>
+                        )}
+                        {pkg.type === "outing_package" && (
+                          <span className="ml-2 text-xs font-normal text-blue-500">
+                            Salidas/Running
                           </span>
                         )}
                         {pkg.sessions_total && (

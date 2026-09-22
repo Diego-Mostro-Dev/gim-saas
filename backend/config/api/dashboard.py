@@ -15,6 +15,7 @@ from subscriptions.services import (
     get_subscription_payment_status,
     gym_activity_package_debt,
     gym_outstanding_subscriptions,
+    gym_outing_package_debt,
     gym_personal_training_package_debt,
 )
 from attendance.models import Attendance
@@ -230,6 +231,25 @@ class DashboardSummaryView(APIView):
                 ),
                 "plan_name": (
                     f"{assignment.service.name} · "
+                    f"paquete de sesiones"
+                ),
+                "remaining": float(entry["remaining"]),
+                "end_date": None,
+            })
+        for entry in gym_outing_package_debt(gym):
+            outing_enrollment = entry["outing_enrollment"]
+            member = entry["member"]
+            package_rows.append({
+                "id": outing_enrollment.id,
+                "type": "outing_package",
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "member_photo": (
+                    member.photo.url
+                    if member.photo else None
+                ),
+                "plan_name": (
+                    f"{outing_enrollment.schedule.outing.name} · "
                     f"paquete de sesiones"
                 ),
                 "remaining": float(entry["remaining"]),

@@ -21,6 +21,7 @@ from .services import (
     set_sellado_paid,
     sync_assignment_paid,
     sync_enrollment_paid,
+    sync_outing_paid,
 )
 
 
@@ -29,6 +30,7 @@ CONCEPT_LABELS = {
     "sellado": "Sellado",
     "coseguro": "Coseguro por sesiones",
     "personal_training": "Entrenamiento personal",
+    "outing": "Salida por sesiones",
 }
 
 METHOD_LABELS = {
@@ -117,11 +119,13 @@ class PaymentViewSet(GymModelViewSet):
 
     def perform_destroy(self, instance):
         from activities.models import Enrollment
+        from outings.models import OutingEnrollment
         from personal_training.models import PersonalTrainingAssignment
 
         subscription = instance.subscription
         enrollment = instance.enrollment
         assignment = instance.personal_training_assignment
+        outing_enrollment = instance.outing_enrollment
         concept = instance.concept
 
         with transaction.atomic():
@@ -145,6 +149,9 @@ class PaymentViewSet(GymModelViewSet):
                         enrollment,
                         sellado_paid_exists(enrollment=enrollment),
                     )
+
+            if outing_enrollment is not None:
+                sync_outing_paid(outing_enrollment)
 
             if assignment is not None:
                 if concept != "sellado":
