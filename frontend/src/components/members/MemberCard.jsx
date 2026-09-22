@@ -124,6 +124,29 @@ function MemberCard({
         </div>
       )}
 
+      {member.outing_enrollments?.some((e) => e.active !== false) && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          <span className="w-full text-[10px] font-medium uppercase tracking-wide text-text-secondary">
+            Running grupal
+          </span>
+          {member.outing_enrollments
+            .filter((e) => e.active !== false)
+            .map((outing) => {
+              const t = outing.start_time
+                ? String(outing.start_time).slice(0, 5)
+                : "";
+              return (
+                <span
+                  key={outing.id}
+                  className="rounded-md bg-warning-bg px-2 py-1 text-xs text-warning-text dark:bg-warning/15 dark:text-warning"
+                >
+                  {outing.outing} · {dayLabels[outing.day]} {t}
+                </span>
+              );
+            })}
+        </div>
+      )}
+
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <button
           onClick={() => onViewPayments(member)}

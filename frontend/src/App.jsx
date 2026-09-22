@@ -47,6 +47,9 @@ import PersonalTrainingAttendance from "./pages/PersonalTrainingAttendance";
 import Activities from "./pages/Activities";
 import ActivitySchedules from "./pages/ActivitySchedules";
 import ScheduleEnrollments from "./pages/ScheduleEnrollments";
+import Outings from "./pages/Outings";
+import OutingSchedules from "./pages/OutingSchedules";
+import OutingEnrollments from "./pages/OutingEnrollments";
 import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
@@ -136,6 +139,9 @@ function App() {
         <Route path="/activities" element={<ProfessorRoute><ProtectedFeature feature="activities"><Activities /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities/:activityId/schedules" element={<ProfessorRoute><ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProfessorRoute><ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/outings" element={<ProfessorRoute><ProtectedFeature feature="salidas"><Outings /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/outings/:outingId/schedules" element={<ProfessorRoute><ProtectedFeature feature="salidas"><OutingSchedules /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/outings/schedules/:scheduleId/enrollments" element={<ProfessorRoute><ProtectedFeature feature="salidas"><OutingEnrollments /></ProtectedFeature></ProfessorRoute>} />
       </Route>
 
       {/* admin central (solo superuser) */}

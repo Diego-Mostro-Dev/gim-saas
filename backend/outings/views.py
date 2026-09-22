@@ -14,6 +14,7 @@ from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
 from gyms.features import require_outings
 from members.models import Member
+from profiles.models import UserProfile
 
 from .enrollment_service import OutingEnrollmentError, OutingEnrollmentService
 from .models import Outing, OutingEnrollment, OutingSchedule
@@ -78,6 +79,25 @@ class OutingViewSet(OutingsGuardMixin, GymModelViewSet):
 
         serializer = self.get_serializer(outing)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"])
+    def trainers(self, request):
+        gym = self.get_gym()
+        trainers = (
+            UserProfile.objects.filter(gym=gym, role=UserProfile.ROLE_TRAINER)
+            .select_related("user")
+            .order_by("user__first_name", "user__username")
+        )
+        return Response(
+            [
+                {
+                    "id": t.id,
+                    "name": t.user.get_full_name() or t.user.username,
+                    "username": t.user.username,
+                }
+                for t in trainers
+            ]
+        )
 
 
 class OutingScheduleViewSet(OutingsGuardMixin, viewsets.ModelViewSet):
