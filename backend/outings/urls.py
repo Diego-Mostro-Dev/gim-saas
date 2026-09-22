@@ -4,22 +4,37 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     OutingEnrollmentActionViewSet,
+    OutingEnrollmentRequestViewSet,
     OutingScheduleViewSet,
     OutingViewSet,
     ScheduleOutingEnrollmentViewSet,
 )
-from .public_views import PublicMemberOutingsView
+from .public_views import (
+    PublicMemberOutingsView,
+    PublicOutingEnrollmentRequestView,
+)
 
 
 router = DefaultRouter()
 router.register(r"outings", OutingViewSet, basename="outings")
 router.register(r"enrollments", OutingEnrollmentActionViewSet, basename="outing-enrollment")
+router.register(r"requests", OutingEnrollmentRequestViewSet, basename="outing-enrollment-request")
 
 urlpatterns = [
     path(
         "public/<str:token>/",
         PublicMemberOutingsView.as_view(),
         name="outing-member-public-list",
+    ),
+    path(
+        "public/<str:token>/requests/",
+        PublicOutingEnrollmentRequestView.as_view(),
+        name="outing-member-request-create",
+    ),
+    path(
+        "public/<str:token>/requests/<int:request_id>/",
+        PublicOutingEnrollmentRequestView.as_view(),
+        name="outing-member-request-cancel",
     ),
     path(
         "<int:outing_id>/schedules/",

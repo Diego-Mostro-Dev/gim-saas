@@ -17,12 +17,22 @@ from gyms.features import require_outings
 from members.models import Member
 from profiles.models import UserProfile
 
+from .enrollment_request_service import (
+    OutingEnrollmentRequestError,
+    OutingEnrollmentRequestService,
+)
 from .enrollment_service import OutingEnrollmentError, OutingEnrollmentService
-from .models import Outing, OutingEnrollment, OutingSchedule
+from .models import (
+    Outing,
+    OutingEnrollment,
+    OutingEnrollmentRequest,
+    OutingSchedule,
+)
 from .serializers import (
     OutingEnrollmentSerializer,
     OutingScheduleSerializer,
     OutingSerializer,
+    StaffOutingEnrollmentRequestSerializer,
 )
 from .session_service import SessionError, SessionService
 
@@ -268,6 +278,80 @@ class ScheduleOutingEnrollmentViewSet(
 
         serializer = self.get_serializer(enrollment)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class OutingEnrollmentRequestViewSet(
+    OutingsGuardMixin, GymQuerysetMixin, viewsets.ModelViewSet
+):
+    queryset = OutingEnrollmentRequest.objects.all()
+    serializer_class = StaffOutingEnrollmentRequestSerializer
+    ordering = ["-requested_at"]
+
+    def get_queryset(self):
+        qs = OutingEnrollmentRequest.objects.filter(
+            gym=self.get_gym()
+        ).select_related(
+            "member",
+            "schedule__outing__trainer",
+            "enrollment",
+            "reviewed_by",
+        )
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        request_type = self.request.query_params.get("request_type")
+        if request_type:
+            qs = qs.filter(request_type=request_type)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        enrollment_request = self.get_object()
+        admin_notes = request.data.get("admin_notes", "")
+        try:
+            enrollment_request = OutingEnrollmentRequestService.approve_request(
+                enrollment_request,
+                reviewer=request.user,
+                admin_notes=admin_notes,
+            )
+        except OutingEnrollmentRequestError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+        return Response(self.get_serializer(enrollment_request).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        enrollment_request = self.get_object()
+        admin_notes = request.data.get("admin_notes", "")
+        try:
+            enrollment_request = OutingEnrollmentRequestService.reject_request(
+                enrollment_request,
+                reviewer=request.user,
+                admin_notes=admin_notes,
+            )
+        except OutingEnrollmentRequestError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+        return Response(self.get_serializer(enrollment_request).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        enrollment_request = self.get_object()
+        try:
+            enrollment_request = OutingEnrollmentRequestService.cancel_request(
+                enrollment_request,
+                cancelled_by="cancelled_by_staff",
+            )
+        except OutingEnrollmentRequestError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+        return Response(self.get_serializer(enrollment_request).data)
 
 
 class OutingEnrollmentActionViewSet(

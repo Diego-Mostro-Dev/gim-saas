@@ -115,6 +115,7 @@ export function useOutings() {
     outings,
     loading,
     error,
+    loadOutings,
     handleCreateOuting,
     handleUpdateOuting,
     handleToggleActive,

@@ -7,7 +7,12 @@ from members.models import Member
 from plans.models import Service as PlanService
 from profiles.models import UserProfile
 
-from .models import Outing, OutingEnrollment, OutingSchedule
+from .models import (
+    Outing,
+    OutingEnrollment,
+    OutingEnrollmentRequest,
+    OutingSchedule,
+)
 
 
 class MemberBasicSerializer(serializers.ModelSerializer):
@@ -357,3 +362,103 @@ class PublicOutingEnrollmentSerializer(serializers.ModelSerializer):
             return False
         total = obj.package_total_sessions
         return total is not None and obj.used_sessions >= total
+
+
+class PublicOutingEnrollmentRequestSerializer(serializers.ModelSerializer):
+    outing_name = serializers.SerializerMethodField()
+    day = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    end_time = serializers.SerializerMethodField()
+    trainer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OutingEnrollmentRequest
+        fields = [
+            "id",
+            "request_type",
+            "outing_name",
+            "day",
+            "start_time",
+            "end_time",
+            "trainer_name",
+            "status",
+            "requested_at",
+            "admin_notes",
+        ]
+        read_only_fields = fields
+
+    def get_outing_name(self, obj):
+        if obj.schedule is None:
+            return ""
+        return obj.schedule.outing.name
+
+    def get_day(self, obj):
+        return obj.schedule.day if obj.schedule else None
+
+    def get_start_time(self, obj):
+        return obj.schedule.start_time if obj.schedule else None
+
+    def get_end_time(self, obj):
+        return obj.schedule.end_time if obj.schedule else None
+
+    def get_trainer_name(self, obj):
+        trainer = obj.schedule.outing.trainer if obj.schedule else None
+        if trainer is None:
+            return None
+        return trainer.get_full_name() or trainer.username
+
+
+class StaffOutingEnrollmentRequestSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    member_identity = serializers.SerializerMethodField()
+    outing_name = serializers.SerializerMethodField()
+    day = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    end_time = serializers.SerializerMethodField()
+    trainer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OutingEnrollmentRequest
+        fields = [
+            "id",
+            "request_type",
+            "member_name",
+            "member_identity",
+            "outing_name",
+            "day",
+            "start_time",
+            "end_time",
+            "trainer_name",
+            "status",
+            "requested_at",
+            "reviewed_at",
+            "admin_notes",
+        ]
+        read_only_fields = fields
+
+    def get_member_name(self, obj):
+        name = f"{obj.member.first_name} {obj.member.last_name}".strip()
+        return name or obj.member.document_number or "Socio"
+
+    def get_member_identity(self, obj):
+        return member_identity(obj.member)
+
+    def get_outing_name(self, obj):
+        if obj.schedule is None:
+            return ""
+        return obj.schedule.outing.name
+
+    def get_day(self, obj):
+        return obj.schedule.day if obj.schedule else None
+
+    def get_start_time(self, obj):
+        return obj.schedule.start_time if obj.schedule else None
+
+    def get_end_time(self, obj):
+        return obj.schedule.end_time if obj.schedule else None
+
+    def get_trainer_name(self, obj):
+        trainer = obj.schedule.outing.trainer if obj.schedule else None
+        if trainer is None:
+            return None
+        return trainer.get_full_name() or trainer.username

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import OutingPanel from "../components/outings/OutingPanel";
 import OutingForm from "../components/outings/OutingForm";
+import OutingEnrollmentRequests from "../components/outings/OutingEnrollmentRequests";
 
 import { useOutings } from "../hooks/useOutings";
 import { useGym } from "../hooks/useGym";
@@ -20,6 +21,7 @@ function Outings() {
     outings,
     loading,
     error,
+    loadOutings,
     handleCreateOuting,
     handleUpdateOuting,
     handleToggleActive,
@@ -315,6 +317,9 @@ function Outings() {
           {showForm ? "Cerrar" : "Nueva"}
         </button>
       </div>
+
+      {/* SOLICITUDES DE SOCIOS */}
+      <OutingEnrollmentRequests onChanged={loadOutings} />
 
       {/* FORM */}
       {showForm && (

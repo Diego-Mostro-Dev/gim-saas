@@ -307,3 +307,110 @@ class OutingSessionRecord(models.Model):
 
     def __str__(self):
         return f"{self.member} - {self.schedule} - {self.date}"
+
+
+ENROLLMENT_REQUEST_TYPE_CHOICES = [
+    ("enroll", "Inscripción"),
+    ("unenroll", "Baja"),
+]
+
+ENROLLMENT_REQUEST_STATUS_CHOICES = [
+    ("pending", "Pendiente"),
+    ("approved", "Aprobado"),
+    ("rejected", "Rechazado"),
+    ("cancelled_by_member", "Cancelado por el socio"),
+    ("cancelled_by_staff", "Cancelado por el staff"),
+]
+
+
+class OutingEnrollmentRequest(models.Model):
+    """Solicitud del socio para inscribirse o darse de baja de una salida.
+
+    El socio la crea desde su portal; el staff la aprueba o rechaza desde
+    el módulo de Salidas. Al aprobar se crea o cancela la inscripción.
+    """
+
+    gym = models.ForeignKey(
+        Gym,
+        on_delete=models.CASCADE,
+        related_name="outing_enrollment_requests",
+        verbose_name="Gimnasio",
+    )
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="outing_enrollment_requests",
+        verbose_name="Miembro",
+    )
+    request_type = models.CharField(
+        max_length=20,
+        choices=ENROLLMENT_REQUEST_TYPE_CHOICES,
+        verbose_name="Tipo",
+    )
+    outing = models.ForeignKey(
+        Outing,
+        on_delete=models.PROTECT,
+        related_name="enrollment_requests",
+        null=True,
+        verbose_name="Salida",
+    )
+    schedule = models.ForeignKey(
+        OutingSchedule,
+        on_delete=models.PROTECT,
+        related_name="enrollment_requests",
+        null=True,
+        verbose_name="Horario",
+    )
+    enrollment = models.ForeignKey(
+        OutingEnrollment,
+        on_delete=models.PROTECT,
+        related_name="enrollment_requests",
+        null=True,
+        blank=True,
+        verbose_name="Inscripción",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=ENROLLMENT_REQUEST_STATUS_CHOICES,
+        default="pending",
+        verbose_name="Estado",
+    )
+    requested_at = models.DateTimeField(
+        auto_now_add=True, verbose_name="Fecha de solicitud"
+    )
+    reviewed_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Fecha de revisión"
+    )
+    reviewed_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Revisado por",
+    )
+    admin_notes = models.TextField(
+        blank=True, verbose_name="Notas del administrador"
+    )
+
+    class Meta:
+        verbose_name = "Solicitud de salida grupal"
+        verbose_name_plural = "Solicitudes de salidas grupales"
+        ordering = ["-requested_at"]
+        indexes = [
+            models.Index(fields=["gym", "status"]),
+            models.Index(fields=["member", "status"]),
+        ]
+        constraints = [
+            UniqueConstraint(
+                fields=["member", "request_type"],
+                condition=Q(status="pending"),
+                name="unique_pending_outing_enrollment_request",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.member} - {self.get_request_type_display()} "
+            f"{self.schedule or self.enrollment} ({self.status})"
+        )
