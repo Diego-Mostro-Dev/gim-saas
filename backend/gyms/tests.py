@@ -7,6 +7,11 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
+from gyms.features import (
+    FeatureDisabled,
+    outings_enabled,
+    require_outings,
+)
 from gyms.holidays import fetch_argentina_holidays
 from gyms.models import Gym, GymClosedDate
 from profiles.models import UserProfile
@@ -293,3 +298,23 @@ class GymClosedDateHolidaysTests(BaseAPITest):
             holidays_2027 = fetch_argentina_holidays(2027)
         self.assertIn((date(2026, 4, 2), "Jueves Santo"), holidays_2026)
         self.assertIn((date(2027, 3, 25), "Jueves Santo"), holidays_2027)
+
+
+class OutingsFeatureFlagTests(BaseAPITest):
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+
+    def test_outings_disabled_by_default(self):
+        self.assertFalse(outings_enabled(self.gym))
+
+    def test_require_outings_raises_when_disabled(self):
+        with self.assertRaises(FeatureDisabled):
+            require_outings(self.gym)
+
+    def test_require_outings_passes_when_enabled(self):
+        self.gym.features["salidas"] = True
+        self.gym.save()
+        self.assertTrue(outings_enabled(self.gym))
+        require_outings(self.gym)

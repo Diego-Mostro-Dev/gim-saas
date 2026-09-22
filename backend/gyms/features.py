@@ -20,6 +20,7 @@ class FeatureDisabled(PermissionDenied):
 FEATURE_ACTIVITIES = "activities"
 FEATURE_PERSONAL_TRAINING = "personal_training"
 FEATURE_COMMUNITY = "community"
+FEATURE_OUTINGS = "salidas"
 
 
 # Catálogo de features conocidas. El panel admin lo consume para renderizar
@@ -49,6 +50,15 @@ FEATURE_CATALOG = [
         "description": (
             "Programa de descuentos con locales adheridos: el socio muestra "
             "su tarjeta de comunidad (QR) y accede a beneficios."
+        ),
+        "default": False,
+    },
+    {
+        "key": FEATURE_OUTINGS,
+        "label": "Running grupal",
+        "description": (
+            "Salidas grupales de running con horarios, punto de encuentro "
+            "y cobro mensual."
         ),
         "default": False,
     },
@@ -95,4 +105,17 @@ def require_community(gym):
         raise FeatureDisabled(
             msg(gym, "features.community_disabled"),
             FEATURE_COMMUNITY,
+        )
+
+
+def outings_enabled(gym):
+    """Return True when the running-grupo add-on is enabled for the gym."""
+    return bool(gym.features.get(FEATURE_OUTINGS, False))
+
+
+def require_outings(gym):
+    if not outings_enabled(gym):
+        raise FeatureDisabled(
+            msg(gym, "features.salidas_disabled"),
+            FEATURE_OUTINGS,
         )
