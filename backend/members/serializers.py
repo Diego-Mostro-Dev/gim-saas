@@ -603,7 +603,7 @@ class MemberSerializer(serializers.ModelSerializer):
         if enrollments is None:
             return []
         result = []
-        for e in enrollments:
+        for e in enrollments.all():
             schedule = e.schedule
             outing = schedule.outing
             result.append(
