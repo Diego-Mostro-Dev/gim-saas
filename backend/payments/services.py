@@ -33,6 +33,16 @@ def assignment_sessions_paid(assignment, exclude_pk=None):
     )
 
 
+def outing_sessions_paid(enrollment, exclude_pk=None):
+    """Paid amount for an outing package from its session payments."""
+    return _paid_total(
+        Payment.objects.filter(
+            outing_enrollment=enrollment
+        ).exclude(concept="sellado"),
+        exclude_pk,
+    )
+
+
 def sellado_paid_exists(enrollment=None, assignment=None):
     """True if at least one sellado Payment exists for the given target."""
     if enrollment is not None:
@@ -64,6 +74,16 @@ def sync_assignment_paid(assignment, exclude_pk=None):
         pk=assignment.pk
     )
     locked.amount_paid = assignment_sessions_paid(locked, exclude_pk)
+    locked.save(update_fields=["amount_paid"])
+    return locked
+
+
+def sync_outing_paid(enrollment, exclude_pk=None):
+    """Recompute OutingEnrollment amount_paid from its session payments."""
+    from outings.models import OutingEnrollment
+
+    locked = OutingEnrollment.objects.select_for_update().get(pk=enrollment.pk)
+    locked.amount_paid = outing_sessions_paid(locked, exclude_pk)
     locked.save(update_fields=["amount_paid"])
     return locked
 

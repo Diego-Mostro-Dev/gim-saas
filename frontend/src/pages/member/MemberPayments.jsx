@@ -20,6 +20,18 @@ function MemberPayments() {
           : null,
       };
     }
+    if (item.type === "outing_package") {
+      return {
+        key: `outing-${item.enrollment_id}`,
+        title: item.name,
+        remaining: `$${Number(item.remaining).toLocaleString("es-AR")}`,
+        total: `$${Number(item.total).toLocaleString("es-AR")}`,
+        period: `${item.sessions_total} sesiones`,
+        unit: item.session_price != null
+          ? `$${Number(item.session_price).toLocaleString("es-AR")}/sesión`
+          : null,
+      };
+    }
     if (item.type === "personal_training_package") {
       return {
         key: `pt-${item.assignment_id}`,

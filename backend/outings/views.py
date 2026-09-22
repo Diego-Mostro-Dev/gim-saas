@@ -452,6 +452,8 @@ class OutingEnrollmentActionViewSet(
             enrollment = OutingEnrollmentService.record_package_payment(
                 enrollment,
                 amount,
+                payment_method=request.data.get("payment_method") or "cash",
+                notes=request.data.get("notes") or "",
             )
         except OutingEnrollmentError as e:
             return Response(

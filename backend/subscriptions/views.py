@@ -34,6 +34,7 @@ from .services import (
     get_last_day_of_month,
     gym_activity_package_debt,
     gym_outstanding_subscriptions,
+    gym_outing_package_debt,
     gym_personal_training_package_debt,
     gym_sellado_debt,
     member_total_outstanding_debt,
@@ -161,6 +162,21 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
 
         pt_packages = gym_personal_training_package_debt(gym)
         for pkg in pt_packages:
+            member = pkg["member"]
+            data.append({
+                "subscription_id": None,
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "plan_name": f"{pkg['name']} · paquete de sesiones",
+                "payment_status": "pending",
+                "items": [],
+                "total": str(pkg["total"]),
+                "paid_amount": str(pkg["paid_amount"]),
+                "remaining": str(pkg["remaining"]),
+            })
+
+        outing_packages = gym_outing_package_debt(gym)
+        for pkg in outing_packages:
             member = pkg["member"]
             data.append({
                 "subscription_id": None,

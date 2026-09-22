@@ -207,6 +207,7 @@ class PackageDebtSerializer(serializers.Serializer):
     type = serializers.CharField()
     enrollment_id = serializers.IntegerField(source="enrollment.id", allow_null=True, default=None)
     assignment_id = serializers.IntegerField(source="assignment.id", allow_null=True, default=None)
+    outing_enrollment_id = serializers.IntegerField(source="outing_enrollment.id", allow_null=True, default=None)
     name = serializers.CharField()
     sessions_total = serializers.IntegerField()
     session_price = serializers.DecimalField(max_digits=10, decimal_places=2)

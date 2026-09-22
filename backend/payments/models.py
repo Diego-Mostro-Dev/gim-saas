@@ -18,6 +18,7 @@ class Payment(models.Model):
         ("sellado", "Sellado"),
         ("coseguro", "Coseguro por sesiones"),
         ("personal_training", "Entrenamiento personal"),
+        ("outing", "Salida por sesiones"),
     ]
 
     gym = models.ForeignKey(
@@ -52,6 +53,15 @@ class Payment(models.Model):
         blank=True,
         related_name="payments",
         verbose_name="Asignación de entrenamiento personal",
+    )
+
+    outing_enrollment = models.ForeignKey(
+        "outings.OutingEnrollment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payments",
+        verbose_name="Inscripción a salida",
     )
 
     concept = models.CharField(

@@ -399,6 +399,43 @@ def gym_personal_training_package_debt(gym):
     return _pt_package_debt_entries(pending_assignments, include_member=True)
 
 
+def member_outing_package_debt(member):
+    """Return unpaid per-session outing packages for a single member.
+
+    Mirrors member_activity_package_debt for outing enrollments in package
+    modality, which accumulate independently of the subscription payment
+    system in OutingEnrollment.amount_paid.
+    """
+    from outings.models import OutingEnrollment
+
+    pending_enrollments = (
+        OutingEnrollment.objects.filter(
+            member=member,
+            active=True,
+            modality="package",
+            session_price__isnull=False,
+        )
+        .select_related("schedule__outing")
+    )
+    return _outing_package_debt_entries(pending_enrollments)
+
+
+def gym_outing_package_debt(gym):
+    """Gym-wide version of member_outing_package_debt."""
+    from outings.models import OutingEnrollment
+
+    pending_enrollments = (
+        OutingEnrollment.objects.filter(
+            gym=gym,
+            active=True,
+            modality="package",
+            session_price__isnull=False,
+        )
+        .select_related("member", "schedule__outing")
+    )
+    return _outing_package_debt_entries(pending_enrollments, include_member=True)
+
+
 def _package_debt_entries(queryset, include_member=False):
     """Map pending package enrollments into debt entry dicts."""
     entries = []
@@ -445,6 +482,31 @@ def _pt_package_debt_entries(queryset, include_member=False):
         }
         if include_member:
             entry["member"] = a.member
+        entries.append(entry)
+    return entries
+
+
+def _outing_package_debt_entries(queryset, include_member=False):
+    """Map pending outing package enrollments into debt entry dicts."""
+    entries = []
+    for e in queryset:
+        if getattr(e.member, "is_comp", False):
+            continue
+        remaining = e.remaining_amount
+        if remaining is None or remaining <= 0:
+            continue
+        entry = {
+            "type": "outing_package",
+            "outing_enrollment": e,
+            "name": e.schedule.outing.name,
+            "sessions_total": e.package_total_sessions,
+            "session_price": e.session_price,
+            "total": e.total_amount or Decimal("0"),
+            "paid_amount": e.amount_paid or Decimal("0"),
+            "remaining": remaining,
+        }
+        if include_member:
+            entry["member"] = e.member
         entries.append(entry)
     return entries
 
@@ -583,6 +645,7 @@ def member_total_outstanding_debt(member):
     # count as outstanding debt so the member is flagged as a debtor.
     packages = member_activity_package_debt(member)
     packages += member_personal_training_package_debt(member)
+    packages += member_outing_package_debt(member)
 
     package_total = sum(
         (pkg["remaining"] for pkg in packages),

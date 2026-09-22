@@ -154,15 +154,48 @@ class OutingEnrollmentService:
         return enrollment
 
     @staticmethod
-    def record_package_payment(enrollment, amount):
-        """Register a cash co-pay toward a package enrollment.
+    def record_package_payment(
+        enrollment,
+        amount,
+        payment_method="cash",
+        notes="",
+    ):
+        """Register an amount paid against an outing package enrollment.
 
-        Outing package co-pays are tracked on the enrollment itself (there
-        are no dedicated Payment rows for outings).
+        Records a Payment with concept="outing". The Payment rows are the
+        only source of truth: OutingEnrollment.amount_paid is synced from
+        them. Total paid cannot exceed the package total (session_price *
+        total sessions).
+
+        Args:
+            enrollment: The package OutingEnrollment.
+            amount: The Decimal amount being collected.
+            payment_method: Payment method ("cash", "transfer", "card").
+            notes: Optional note stored on the Payment record.
+
+        Returns:
+            The updated OutingEnrollment.
         """
+        from payments.models import Payment
+        from payments.services import (
+            outing_sessions_paid,
+            sync_outing_paid,
+        )
+
         if enrollment.modality != "package":
             raise OutingEnrollmentError(
                 "La inscripción no es de modalidad paquete."
+            )
+
+        if enrollment.member.is_comp:
+            raise OutingEnrollmentError(
+                "Socio con pase de cortesía: no se le cobra por las sesiones."
+            )
+
+        if enrollment.total_amount is None:
+            raise OutingEnrollmentError(
+                "Este paquete no tiene costo por sesión definido. "
+                "No se pueden cobrar sesiones."
             )
 
         try:
@@ -178,9 +211,40 @@ class OutingEnrollmentService:
             enrollment = OutingEnrollment.objects.select_for_update().get(
                 pk=enrollment.pk
             )
-            enrollment.amount_paid += amount
-            enrollment.save(update_fields=["amount_paid"])
 
+            total = enrollment.total_amount
+            if total is None:
+                raise OutingEnrollmentError(
+                    "Este paquete no tiene costo por sesión definido. "
+                    "No se pueden cobrar sesiones."
+                )
+
+            paid = outing_sessions_paid(enrollment)
+            if paid + amount > total:
+                remaining = total - paid
+                raise OutingEnrollmentError(
+                    f"El monto supera el saldo pendiente. "
+                    f"Falta cobrar ${remaining}."
+                )
+
+            Payment.objects.create(
+                gym=enrollment.gym,
+                member=enrollment.member,
+                outing_enrollment=enrollment,
+                concept="outing",
+                amount=amount,
+                payment_method=payment_method,
+                notes=notes,
+                member_name=(
+                    f"{enrollment.member.first_name} "
+                    f"{enrollment.member.last_name}"
+                ),
+                plan_name=f"{enrollment.schedule.outing.name} · Sesiones",
+            )
+
+            sync_outing_paid(enrollment)
+
+        enrollment.refresh_from_db()
         return enrollment
 
 

@@ -19,10 +19,12 @@ from .models import Payment
 from .services import (
     assignment_sessions_paid,
     enrollment_sessions_paid,
+    outing_sessions_paid,
     sellado_paid_exists,
     set_sellado_paid,
     sync_assignment_paid,
     sync_enrollment_paid,
+    sync_outing_paid,
 )
 
 
@@ -85,6 +87,19 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             )
 
         return assignment
+
+    def validate_outing_enrollment(self, enrollment):
+        if enrollment is None:
+            return enrollment
+
+        gym = self.context["request"].user.profile.gym
+
+        if enrollment.gym_id != gym.id:
+            raise serializers.ValidationError(
+                msg(gym, "errors.outing_enrollment_not_in_gym")
+            )
+
+        return enrollment
 
     def _paid_total_excluding(self, subscription, exclude_pk=None):
         return (
@@ -193,6 +208,10 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             "personal_training_assignment",
             getattr(self.instance, "personal_training_assignment", None),
         )
+        outing_enrollment = attrs.get(
+            "outing_enrollment",
+            getattr(self.instance, "outing_enrollment", None),
+        )
         concept = attrs.get(
             "concept",
             getattr(self.instance, "concept", None),
@@ -200,11 +219,19 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
         # A payment always charges exactly one thing.
         if sum(
-            1 for t in (subscription, enrollment, assignment) if t is not None
+            1
+            for t in (
+                subscription,
+                enrollment,
+                assignment,
+                outing_enrollment,
+            )
+            if t is not None
         ) != 1:
             raise serializers.ValidationError(
                 "Un pago debe estar asociado a una suscripción, una "
-                "inscripción o una asignación de entrenamiento personal."
+                "inscripción, una asignación de entrenamiento personal o "
+                "una inscripción a salida."
             )
 
         # The concept must match the charged target.
@@ -219,6 +246,10 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         if concept == "personal_training" and assignment is None:
             raise serializers.ValidationError(
                 "El concepto Entrenamiento personal requiere una asignación."
+            )
+        if concept == "outing" and outing_enrollment is None:
+            raise serializers.ValidationError(
+                "El concepto Salida por sesiones requiere una inscripción a salida."
             )
         if concept == "sellado" and enrollment is None and assignment is None:
             raise serializers.ValidationError(
@@ -258,8 +289,19 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
                 }
             )
 
+        if (
+            member is not None
+            and outing_enrollment is not None
+            and member.pk != outing_enrollment.member.pk
+        ):
+            raise serializers.ValidationError(
+                {
+                    "member": "El miembro no coincide con la inscripción a salida."
+                }
+            )
+
         # Courtesy-pass members are never charged for sessions or sellado.
-        target = enrollment or assignment
+        target = enrollment or assignment or outing_enrollment
         if target is not None and target.member.is_comp:
             raise serializers.ValidationError(
                 "Socio con pase de cortesía: no se le cobra por sesiones ni sellado."
@@ -292,6 +334,17 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
                 self._validate_package_amount(assignment, amount, paid_total)
             elif concept == "sellado":
                 self._validate_sellado(assignment, amount)
+        elif outing_enrollment is not None:
+            if concept == "outing":
+                paid_total = outing_sessions_paid(
+                    outing_enrollment,
+                    getattr(self.instance, "pk", None),
+                )
+                self._validate_package_amount(
+                    outing_enrollment,
+                    amount,
+                    paid_total,
+                )
 
         return attrs
 
@@ -315,6 +368,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         subscription,
         enrollment,
         assignment,
+        outing_enrollment,
         concept,
     ):
         if subscription is not None:
@@ -332,6 +386,15 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             suffix = "Sellado" if concept == "sellado" else "Sesiones"
             validated_data["plan_name"] = (
                 f"{enrollment.schedule.activity.name} · {suffix}"
+            )
+        elif outing_enrollment is not None:
+            validated_data["member"] = outing_enrollment.member
+            validated_data["member_name"] = (
+                f"{outing_enrollment.member.first_name} "
+                f"{outing_enrollment.member.last_name}"
+            )
+            validated_data["plan_name"] = (
+                f"{outing_enrollment.schedule.outing.name} · Sesiones"
             )
         elif assignment is not None:
             validated_data["member"] = assignment.member
@@ -352,6 +415,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         subscription,
         enrollment,
         assignment,
+        outing_enrollment,
         concept,
     ):
         if subscription is not None:
@@ -378,6 +442,21 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
                     self._validate_sellado(locked, amount)
             return
 
+        if outing_enrollment is not None:
+            from outings.models import OutingEnrollment
+
+            locked = OutingEnrollment.objects.select_for_update().get(
+                pk=outing_enrollment.pk
+            )
+            amount = validated_data.get("amount")
+            if amount is not None and concept == "outing":
+                paid_total = outing_sessions_paid(
+                    locked,
+                    getattr(self.instance, "pk", None),
+                )
+                self._validate_package_amount(locked, amount, paid_total)
+            return
+
         if assignment is not None:
             from personal_training.models import PersonalTrainingAssignment
 
@@ -402,17 +481,20 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         old_sub_id=None,
         old_enr_id=None,
         old_asg_id=None,
+        old_outing_enr_id=None,
         old_concept=None,
     ):
-        """Bring subscription/enrollment/assignment totals and the sellado
-        flag back in sync with the stored Payment rows."""
+        """Bring subscription/enrollment/assignment/outing totals and the
+        sellado flag back in sync with the stored Payment rows."""
         from activities.models import Enrollment
+        from outings.models import OutingEnrollment
         from personal_training.models import PersonalTrainingAssignment
 
         new_concept = payment.concept
         new_sub_id = payment.subscription_id
         new_enr_id = payment.enrollment_id
         new_asg_id = payment.personal_training_assignment_id
+        new_outing_enr_id = payment.outing_enrollment_id
 
         for sid in {old_sub_id, new_sub_id}:
             if sid:
@@ -428,6 +510,12 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             if assignment_id:
                 sync_assignment_paid(
                     PersonalTrainingAssignment.objects.get(pk=assignment_id)
+                )
+
+        for outing_enrollment_id in {old_outing_enr_id, new_outing_enr_id}:
+            if outing_enrollment_id:
+                sync_outing_paid(
+                    OutingEnrollment.objects.get(pk=outing_enrollment_id)
                 )
 
         # A sellado payment marks its target as paid.
@@ -475,6 +563,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         subscription = validated_data.get("subscription")
         enrollment = validated_data.get("enrollment")
         assignment = validated_data.get("personal_training_assignment")
+        outing_enrollment = validated_data.get("outing_enrollment")
         concept = validated_data.get("concept", "subscription")
 
         validated_data = self._apply_snapshots(
@@ -482,6 +571,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             subscription,
             enrollment,
             assignment,
+            outing_enrollment,
             concept,
         )
 
@@ -491,6 +581,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
                 subscription,
                 enrollment,
                 assignment,
+                outing_enrollment,
                 concept,
             )
             payment = super().create(validated_data)
@@ -502,6 +593,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         old_sub_id = instance.subscription_id
         old_enr_id = instance.enrollment_id
         old_asg_id = instance.personal_training_assignment_id
+        old_outing_enr_id = instance.outing_enrollment_id
         old_concept = instance.concept
 
         subscription = validated_data.get("subscription", instance.subscription)
@@ -510,6 +602,10 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             "personal_training_assignment",
             instance.personal_training_assignment,
         )
+        outing_enrollment = validated_data.get(
+            "outing_enrollment",
+            instance.outing_enrollment,
+        )
         concept = validated_data.get("concept", instance.concept)
 
         validated_data = self._apply_snapshots(
@@ -517,6 +613,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             subscription,
             enrollment,
             assignment,
+            outing_enrollment,
             concept,
         )
 
@@ -526,6 +623,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
                 subscription,
                 enrollment,
                 assignment,
+                outing_enrollment,
                 concept,
             )
             payment = super().update(instance, validated_data)
@@ -534,6 +632,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
                 old_sub_id=old_sub_id,
                 old_enr_id=old_enr_id,
                 old_asg_id=old_asg_id,
+                old_outing_enr_id=old_outing_enr_id,
                 old_concept=old_concept,
             )
 

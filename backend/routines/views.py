@@ -662,6 +662,19 @@ class PublicRoutineView(APIView):
             if pkg["type"] == "personal_training_package"
         ] + [
             {
+                "type": "outing_package",
+                "enrollment_id": pkg["outing_enrollment"].id,
+                "name": pkg["name"],
+                "sessions_total": pkg["sessions_total"],
+                "session_price": str(pkg["session_price"]),
+                "total": str(pkg["total"]),
+                "paid_amount": str(pkg["paid_amount"]),
+                "remaining": str(pkg["remaining"]),
+            }
+            for pkg in outstanding_debt["packages"]
+            if pkg["type"] == "outing_package"
+        ] + [
+            {
                 "type": "sellado",
                 "enrollment_id": s["enrollment"].id if s["enrollment"] else None,
                 "assignment_id": s["assignment"].id if s["assignment"] else None,
