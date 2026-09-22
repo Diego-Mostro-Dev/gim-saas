@@ -38,9 +38,6 @@ useAuthStore.getState().hydrate().then(() => {
       usePWAStore.getState().setUpdateSW(() => updateSW(true));
       usePWAStore.getState().notifyUpdateAvailable();
     },
-    onOfflineReady() {
-      usePWAStore.getState().notifyOfflineReady();
-    },
     onRegistered(registration) {
       console.log(
         `[PWA] SW registrado | v${__APP_VERSION__} build:${__BUILD_ID__}`,
