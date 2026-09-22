@@ -9,6 +9,7 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  Route,
   UserMinus,
   UserPlus,
   X,
@@ -16,6 +17,7 @@ import {
 import toast from "react-hot-toast";
 
 import { DAY_NAMES } from "../../constants/days";
+import OutingRouteMap from "../../components/outings/OutingRouteMap";
 import {
   cancelPublicOutingEnrollmentRequest,
   createPublicOutingEnrollmentRequest,
@@ -190,6 +192,17 @@ function MemberOutings() {
                         {outing.meeting_place}
                       </p>
                     )}
+                    {outing.route_distance_km && (
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-secondary">
+                        <Route size={12} className="text-primary" />
+                        Recorrido ~
+                        {Number(outing.route_distance_km).toLocaleString(
+                          "es-AR",
+                          { maximumFractionDigits: 2 },
+                        )}{" "}
+                        km
+                      </p>
+                    )}
                     {(outing.trainer_whatsapp ||
                       outing.trainer_phone ||
                       outing.trainer_email) && (
@@ -281,6 +294,13 @@ function MemberOutings() {
                     </span>
                   )}
                 </div>
+
+                {Array.isArray(outing.route_polyline) &&
+                  outing.route_polyline.length >= 2 && (
+                    <div className="mt-3">
+                      <OutingRouteMap polyline={outing.route_polyline} />
+                    </div>
+                  )}
 
                 <div className="mt-3 flex items-center gap-2">
                   <button

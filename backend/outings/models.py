@@ -1,3 +1,5 @@
+import math
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -65,6 +67,20 @@ class Outing(models.Model):
         verbose_name="Punto de encuentro",
         help_text="Lugar donde arranca la salida.",
     )
+    route_polyline = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name="Recorrido",
+        help_text="Puntos del recorrido como [[lat, lng], ...] en orden. Se dibuja sobre el mapa.",
+    )
+    route_distance_km = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Distancia del recorrido (km)",
+        help_text="Se calcula automáticamente desde el recorrido (fórmula haversine).",
+    )
     duration_minutes = models.PositiveIntegerField(
         default=60,
         verbose_name="Duración (minutos)",
@@ -96,7 +112,28 @@ class Outing(models.Model):
         unique_together = ("gym", "name")
         ordering = ["name"]
 
+    def compute_route_distance_km(self):
+        """Calcula la longitud del recorrido (ramales haversine) en km."""
+        pts = self.route_polyline or []
+        if not isinstance(pts, list) or len(pts) < 2:
+            return None
+        total = 0.0
+        for i in range(1, len(pts)):
+            try:
+                lat1, lng1 = float(pts[i - 1][0]), float(pts[i - 1][1])
+                lat2, lng2 = float(pts[i][0]), float(pts[i][1])
+            except (TypeError, ValueError, IndexError):
+                return None
+            R = 6371.0
+            phi1, phi2 = math.radians(lat1), math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlamb = math.radians(lng2 - lng1)
+            a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlamb / 2) ** 2
+            total += R * 2 * math.asin(math.sqrt(a))
+        return round(total, 2)
+
     def save(self, *args, **kwargs):
+        self.route_distance_km = self.compute_route_distance_km()
         creating = self.pk is None
         if creating:
             super().save(*args, **kwargs)
