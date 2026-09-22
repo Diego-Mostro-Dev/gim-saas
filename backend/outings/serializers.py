@@ -1,8 +1,11 @@
 from rest_framework import serializers
 
+from django.contrib.auth import get_user_model
+
 from members.identity import member_identity
 from members.models import Member
 from plans.models import Service as PlanService
+from profiles.models import UserProfile
 
 from .models import Outing, OutingEnrollment, OutingSchedule
 
@@ -79,8 +82,11 @@ class OutingSerializer(serializers.ModelSerializer):
         fields = super().get_fields()
         request = self.context.get("request")
         if request and hasattr(request.user, "profile"):
-            fields["service"].queryset = PlanService.objects.filter(
-                gym=request.user.profile.gym
+            gym = request.user.profile.gym
+            fields["service"].queryset = PlanService.objects.filter(gym=gym)
+            fields["trainer"].queryset = get_user_model().objects.filter(
+                profile__gym=gym,
+                profile__role=UserProfile.ROLE_TRAINER,
             )
         return fields
 

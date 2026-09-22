@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
@@ -83,17 +84,21 @@ class OutingViewSet(OutingsGuardMixin, GymModelViewSet):
     @action(detail=False, methods=["get"])
     def trainers(self, request):
         gym = self.get_gym()
+        User = get_user_model()
         trainers = (
-            UserProfile.objects.filter(gym=gym, role=UserProfile.ROLE_TRAINER)
-            .select_related("user")
-            .order_by("user__first_name", "user__username")
+            User.objects.filter(
+                profile__gym=gym,
+                profile__role=UserProfile.ROLE_TRAINER,
+            )
+            .select_related("profile")
+            .order_by("first_name", "username")
         )
         return Response(
             [
                 {
                     "id": t.id,
-                    "name": t.user.get_full_name() or t.user.username,
-                    "username": t.user.username,
+                    "name": t.get_full_name() or t.username,
+                    "username": t.username,
                 }
                 for t in trainers
             ]
