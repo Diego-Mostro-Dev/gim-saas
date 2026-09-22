@@ -213,7 +213,7 @@ function WeeklyOccupancy({ gym, weeklyAttendance, date, onDateChange }) {
                   const pct = capacity ? Math.round((occupancy / capacity) * 100) : null;
                   const isClass = Boolean(first?.is_class);
                   const headerLabel = isClass
-                    ? `${first.class_name} · ${first.start_time} - ${first.end_time}`
+                    ? `${first.is_outing ? "Salida · " : ""}${first.class_name} · ${first.start_time} - ${first.end_time}`
                     : start || "Sin horario";
 
                   return (

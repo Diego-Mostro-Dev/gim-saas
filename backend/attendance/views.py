@@ -13,7 +13,7 @@ from rest_framework import status
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, ScheduleChangeRequest, ScheduleSwapRequest, SessionRecovery, DAY_CHOICES
 from gyms.labels import msg
 from gyms.models import GymClosedDate
-from gyms.features import activities_enabled
+from gyms.features import activities_enabled, outings_enabled
 from activities.models import ActivitySchedule, Enrollment
 from .utils import (
     SCHEDULE_SLOT_WEEKDAY_ORDER,
@@ -94,6 +94,64 @@ def _build_class_items_by_day(gym, days):
     return by_day
 
 
+def _build_outing_items_by_day(gym, days):
+    """Members enrolled in active outing schedules for the given days, as
+    attendance-list items keyed by day and grouped by outing (time range).
+
+    Uses a distinct negative ID range (-(2·10**9 + enrollment.id)) so outing
+    items never collide with activity enrollments (-enrollment.id) or
+    attendance swaps (-swap.id)."""
+    if not outings_enabled(gym):
+        return {}
+
+    from outings.models import OutingEnrollment, OutingSchedule
+
+    by_day = {}
+    schedules = OutingSchedule.objects.filter(
+        outing__service__gym=gym,
+        day__in=days,
+        active=True,
+        outing__active=True,
+    ).select_related("outing").prefetch_related(
+        Prefetch(
+            "enrollments",
+            queryset=OutingEnrollment.objects.filter(
+                gym=gym, active=True
+            ).select_related("member"),
+        )
+    )
+
+    for schedule in schedules:
+        enrolled = list(schedule.enrollments.all())
+        cap = schedule.capacity
+        occ = len(enrolled)
+        available = max(0, cap - occ) if cap is not None else None
+
+        day_items = by_day.setdefault(schedule.day, [])
+
+        for enrollment in enrolled:
+            member = enrollment.member
+            day_items.append({
+                "id": -(2 * 10**9 + enrollment.id),
+                "is_class": True,
+                "is_outing": True,
+                "class_name": schedule.outing.name,
+                "group_key": f"outing:{schedule.id}",
+                "day": schedule.day,
+                "hour": None,
+                "start_time": schedule.start_time.strftime("%H:%M"),
+                "end_time": schedule.end_time.strftime("%H:%M"),
+                "member": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "capacity": cap,
+                "occupancy": occ,
+                "available": available,
+                "service_name": member_service_label(member),
+            })
+
+    return by_day
+
+
 def _build_class_items_for_status(gym, day, selected_time):
     """Enrolled members of classes that cover the selected time on `day`,
     as read-only checklist items (`is_class: True`)."""
@@ -129,6 +187,57 @@ def _build_class_items_for_status(gym, day, selected_time):
                 "is_swap": False,
                 "is_class": True,
                 "class_name": schedule.activity.name,
+                "start_time": schedule.start_time.strftime("%H:%M"),
+                "end_time": schedule.end_time.strftime("%H:%M"),
+                "origin_day": None,
+                "origin_hour": None,
+                "destination_day": None,
+                "destination_hour": None,
+            })
+
+    return items
+
+
+def _build_outing_items_for_status(gym, day, selected_time):
+    """Enrolled members of running outings that cover the selected time on
+    `day`, as read-only checklist items (`is_class: True`, `is_outing:
+    True`). Uses a distinct negative schedule_id range (-(2·10**9 + id)) so
+    outing items never collide with activity classes (-(10**9 + id))."""
+    if not outings_enabled(gym) or selected_time is None:
+        return []
+
+    from outings.models import OutingEnrollment, OutingSchedule
+
+    items = []
+    schedules = OutingSchedule.objects.filter(
+        outing__service__gym=gym,
+        day=day,
+        active=True,
+        outing__active=True,
+        start_time__lte=selected_time,
+        end_time__gt=selected_time,
+    ).select_related("outing").prefetch_related(
+        Prefetch(
+            "enrollments",
+            queryset=OutingEnrollment.objects.filter(
+                gym=gym, active=True
+            ).select_related("member"),
+        )
+    )
+
+    for schedule in schedules:
+        for enrollment in schedule.enrollments.all():
+            member = enrollment.member
+            items.append({
+                "schedule_id": -(2 * 10**9 + schedule.id),
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "service_name": member_service_label(member),
+                "attended": False,
+                "is_swap": False,
+                "is_class": True,
+                "is_outing": True,
+                "class_name": schedule.outing.name,
                 "start_time": schedule.start_time.strftime("%H:%M"),
                 "end_time": schedule.end_time.strftime("%H:%M"),
                 "origin_day": None,
@@ -197,6 +306,7 @@ class WeeklyScheduleView(APIView):
             schedules_by_day[schedule.slot.day].append(schedule)
 
         class_items_by_day = _build_class_items_by_day(gym, days)
+        outing_items_by_day = _build_outing_items_by_day(gym, days)
 
         for day in days:
             schedules = schedules_by_day[day]
@@ -256,6 +366,7 @@ class WeeklyScheduleView(APIView):
                         item.update(occ)
 
             data.extend(class_items_by_day.get(day, []))
+            data.extend(outing_items_by_day.get(day, []))
 
             result[day] = data
 
@@ -536,6 +647,12 @@ def attendance_status(request):
         selected_time = None
 
     for item in _build_class_items_for_status(gym, day, selected_time):
+        if item["member_id"] in existing_member_ids:
+            continue
+        existing_member_ids.add(item["member_id"])
+        result.append(item)
+
+    for item in _build_outing_items_for_status(gym, day, selected_time):
         if item["member_id"] in existing_member_ids:
             continue
         existing_member_ids.add(item["member_id"])
