@@ -111,6 +111,7 @@ class MemberEligibility:
             Q(item_type="plan", plan__service=service)
             | Q(item_type="activity", activity__service=service)
             | Q(item_type="personal_training", personal_training__service=service)
+            | Q(item_type="outing", outing__service=service)
         ).exists()
 
     # -- subscription data access -------------------------------------------

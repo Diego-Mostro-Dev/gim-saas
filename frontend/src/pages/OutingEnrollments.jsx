@@ -1,0 +1,502 @@
+import { useState } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, Search, UserPlus, Check, RefreshCcw, Minus, Plus, X } from "lucide-react";
+import toast from "react-hot-toast";
+
+import ConfirmModal from "../components/ui/ConfirmModal";
+import EnrollOutingMemberModal from "../components/outings/EnrollOutingMemberModal";
+import MemberIdentity from "../components/common/MemberIdentity";
+import { DAY_NAMES } from "../constants/days";
+import { useOutingEnrollments } from "../hooks/useOutingEnrollments";
+import { recordOutingSession, removeOutingSession, renewOutingEnrollment } from "../services/outingsEnrollments.service";
+
+function money(n) {
+  if (n == null) return null;
+  const num = Number(n);
+  if (Number.isNaN(num)) return null;
+  return `$${num.toLocaleString("es-AR")}`;
+}
+
+function formatTime(timeStr) {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":");
+  return `${h.padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
+}
+
+function OutingEnrollments() {
+  const { scheduleId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const scheduleState = location.state?.schedule;
+  const outingId = scheduleState?.outing;
+
+  const {
+    enrollments,
+    loading,
+    error,
+    outing,
+    outingName,
+    handleUnenroll,
+    reload,
+  } = useOutingEnrollments(scheduleId, outingId);
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [showUnenrollModal, setShowUnenrollModal] = useState(false);
+  const [memberToUnenroll, setMemberToUnenroll] = useState(null);
+
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+
+  const [renewId, setRenewId] = useState(null);
+  const [renewCount, setRenewCount] = useState("10");
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const dayLabel = scheduleState
+    ? DAY_NAMES[scheduleState.day] || scheduleState.day
+    : "";
+
+  const timeRange = scheduleState
+    ? `${formatTime(scheduleState.start_time)} - ${formatTime(scheduleState.end_time)}`
+    : "";
+
+  const capacity = scheduleState?.capacity;
+
+  const activeEnrollments = enrollments.filter((e) => e.active !== false);
+  const enrolledCount = activeEnrollments.length;
+
+  const monthlyCount = activeEnrollments.filter(
+    (e) => e.modality !== "package"
+  ).length;
+  const packageCount = activeEnrollments.filter(
+    (e) => e.modality === "package"
+  ).length;
+  const exhaustedCount = activeEnrollments.filter((e) => e.exhausted).length;
+
+  const filteredEnrollments = activeEnrollments.filter((e) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const m = e.member || {};
+    const haystack = [
+      `${m.first_name} ${m.last_name}`,
+      m.phone,
+      m.document_number,
+      m.insurance_name,
+      m.affiliate_number,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(term);
+  });
+
+  function handleOpenUnenrollModal(memberId) {
+    setMemberToUnenroll(memberId);
+    setShowUnenrollModal(true);
+  }
+
+  async function handleConfirmUnenroll() {
+    try {
+      await handleUnenroll(memberToUnenroll);
+      toast.success("Miembro desinscripto");
+      setShowUnenrollModal(false);
+      setMemberToUnenroll(null);
+    } catch (err) {
+      toast.error(err.message || "Error al desinscribir");
+    }
+  }
+
+  async function runAction(action, successMsg) {
+    if (actionLoading) return;
+    setActionLoading(true);
+    try {
+      await action();
+      toast.success(successMsg);
+      reload();
+    } catch (err) {
+      toast.error(err.message || "Error al ejecutar la acción");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleAddSession(enrollment) {
+    await runAction(() => recordOutingSession(enrollment.id), "Sesión sumada");
+  }
+
+  async function handleRemoveSession(enrollment) {
+    if (!enrollment.last_session_date) {
+      toast.error("No hay sesiones registradas para quitar");
+      return;
+    }
+    await runAction(
+      () => removeOutingSession(enrollment.id, enrollment.last_session_date),
+      "Sesión quitada"
+    );
+  }
+
+  async function handleRenew(enrollment) {
+    const amount = parseInt(renewCount, 10);
+    if (!amount || amount <= 0) {
+      toast.error("Ingresá una cantidad de sesiones válida");
+      return;
+    }
+    await runAction(
+      () => renewOutingEnrollment(enrollment.id, amount),
+      "Paquete renovado correctamente"
+    );
+    setRenewId(null);
+    setRenewCount("10");
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
+        Cargando inscriptos...
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
+      {/* HEADER */}
+      <div className="mb-4 flex items-center gap-3">
+        <button
+          onClick={() => navigate(`/outings/${outingId}/schedules`)}
+          className="rounded-lg bg-surface-elevated p-2 text-text-secondary transition hover:bg-surface-hover"
+          aria-label="Volver a horarios"
+        >
+          <ArrowLeft size={20} />
+        </button>
+
+        <h1 className="text-2xl font-bold">Inscriptos</h1>
+      </div>
+
+      {/* SCHEDULE INFO */}
+      <div className="mb-4 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs text-text-secondary">Salida</p>
+            <p className="text-sm font-medium text-text-primary">
+              {outingName || `Salida #${outingId}`}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-text-secondary">Horario</p>
+            <p className="text-sm font-medium text-text-primary">
+              {dayLabel}
+              {dayLabel && timeRange ? " · " : ""}
+              {timeRange}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-text-secondary">Cupo</p>
+            <p className="text-sm font-medium text-text-primary">
+              {capacity != null
+                ? `${enrolledCount} / ${capacity}`
+                : enrolledCount}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-text-secondary">Disponibles</p>
+            <p
+              className={`text-sm font-medium ${
+                capacity != null && capacity - enrolledCount < Math.max(1, Math.round(capacity * 0.2))
+                  ? "text-warning-text"
+                  : "text-text-primary"
+              }`}
+            >
+              {capacity != null ? capacity - enrolledCount : "—"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
+          <span className="rounded-full bg-surface-input px-3 py-1 font-medium text-text-secondary">
+            {monthlyCount} {monthlyCount === 1 ? "mensual" : "mensuales"}
+          </span>
+          <span className="rounded-full bg-surface-input px-3 py-1 font-medium text-text-secondary">
+            {packageCount} {packageCount === 1 ? "paquete" : "paquetes"}
+          </span>
+          {exhaustedCount > 0 && (
+            <span className="rounded-full bg-danger-bg px-3 py-1 font-medium text-danger-text dark:bg-danger/15 dark:text-danger">
+              {exhaustedCount} {exhaustedCount === 1 ? "agotado" : "agotados"}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ERROR */}
+      {error && (
+        <div className="mb-4 rounded-xl border border-danger/20 bg-danger-bg p-4 text-sm text-danger-text dark:bg-danger/10 dark:text-danger">
+          {error}
+        </div>
+      )}
+
+      {/* SEARCH + ENROLL BUTTON */}
+      <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-3">
+        <Search size={18} className="text-text-secondary" />
+
+        <input
+          type="text"
+          placeholder="Buscar por nombre, DNI, teléfono u obra social..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
+        />
+
+        <button
+          onClick={() => setShowEnrollModal(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600"
+          aria-label="Inscribir miembro"
+        >
+          <UserPlus size={14} />
+          <span className="hidden sm:inline">Inscribir</span>
+        </button>
+      </div>
+
+      {/* LIST */}
+      <div className="space-y-2">
+        {filteredEnrollments.length === 0 ? (
+          <div className="rounded-xl border border-border bg-surface-elevated p-8 text-center shadow-sm">
+            <p className="text-sm text-text-primary">
+              {searchTerm
+                ? "No se encontraron miembros."
+                : "No hay miembros inscriptos todavía."}
+            </p>
+
+            {!searchTerm && (
+              <button
+                onClick={() => setShowEnrollModal(true)}
+                className="mt-4 rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                <UserPlus size={16} className="mr-1.5 inline" />
+                Inscribir miembro
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredEnrollments.map((enrollment) => {
+            const initial = (
+              enrollment.member.first_name?.[0] || ""
+            ).toUpperCase();
+
+            const isPackage = enrollment.modality === "package";
+            const isComp = Boolean(enrollment.member?.is_comp);
+            const noCharge =
+              isPackage &&
+              (isComp ||
+                (enrollment.session_price != null &&
+                  Number(enrollment.session_price) === 0));
+
+            return (
+              <div
+                key={enrollment.id}
+                className={`rounded-xl border border-border bg-surface-elevated p-4 shadow-sm ${
+                  isPackage && enrollment.exhausted
+                    ? "border-danger/40"
+                    : ""
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-bg text-sm font-bold text-info-text dark:bg-info/15 dark:text-info">
+                    {initial}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-text-primary">
+                      {enrollment.member.first_name}{" "}
+                      {enrollment.member.last_name}
+                    </p>
+
+                    <MemberIdentity
+                      member={enrollment.member}
+                      showAvatar={false}
+                      showName={false}
+                      className="mt-1"
+                    />
+
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {isPackage ? (
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                            enrollment.exhausted
+                              ? "bg-danger-bg text-danger-text dark:bg-danger/15 dark:text-danger"
+                              : "bg-success-bg text-success-text dark:bg-success/15 dark:text-success"
+                          }`}
+                        >
+                          {enrollment.exhausted
+                            ? "Sesiones agotadas"
+                            : `Sesiones ${enrollment.sessions_used}/${enrollment.sessions_total}`}
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-info-bg px-2 py-0.5 text-xs font-medium text-info-text dark:bg-info/15 dark:text-info">
+                          Mensual
+                        </span>
+                      )}
+
+                      {isPackage && enrollment.session_price != null && !noCharge && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-md bg-muted-bg px-2 py-0.5 text-xs font-medium text-text-primary">
+                            Precio {money(enrollment.session_price)}/sesión
+                          </span>
+                          {enrollment.total_amount != null && (
+                            <span className="rounded-md bg-muted-bg px-2 py-0.5 text-xs font-medium text-text-primary">
+                              Total {money(enrollment.total_amount)}
+                            </span>
+                          )}
+                          {Number(enrollment.remaining_amount) > 0 && (
+                            <span className="rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text dark:bg-warning/15 dark:text-warning">
+                              Adeuda {money(enrollment.remaining_amount)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {noCharge && (
+                        <span className="mt-1 inline-block rounded-md bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text dark:bg-success/15 dark:text-success">
+                          Sin cargo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    {isPackage && (
+                      <>
+                        <button
+                          onClick={() => handleAddSession(enrollment)}
+                          disabled={actionLoading}
+                          className="flex items-center gap-1 rounded-lg bg-success-bg px-2.5 py-2 text-xs font-medium text-success-text transition hover:brightness-95 disabled:opacity-50 dark:bg-success/15 dark:text-success"
+                          title="Sumar sesión asistida"
+                        >
+                          <Plus size={14} />
+                          <span className="hidden sm:inline">1</span>
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setRenewId((id) =>
+                              id === enrollment.id ? null : enrollment.id
+                            )
+                          }
+                          disabled={actionLoading}
+                          className="flex items-center gap-1 rounded-lg bg-info-bg px-2.5 py-2 text-xs font-medium text-info-text transition hover:bg-info/20 disabled:opacity-50 dark:bg-info/15 dark:text-info"
+                          title="Renovar paquete"
+                        >
+                          <RefreshCcw size={14} />
+                          <span className="hidden sm:inline">Renovar</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleRemoveSession(enrollment)}
+                          disabled={actionLoading}
+                          className="flex items-center gap-1 rounded-lg bg-muted-bg px-2.5 py-2 text-xs font-medium text-muted-text transition hover:bg-surface-input disabled:opacity-50"
+                          title="Quitar última sesión (corrección)"
+                        >
+                          <Minus size={14} />
+                          <span className="hidden sm:inline">1</span>
+                        </button>
+                      </>
+                    )}
+
+                      {isPackage &&
+                        Number(enrollment.remaining_amount) > 0 &&
+                        !isComp && (
+                        <span
+                          className="flex items-center gap-1 rounded-lg bg-warning-bg px-2.5 py-2 text-xs font-medium text-warning-text dark:bg-warning/15 dark:text-warning"
+                          title="Adeuda sesiones"
+                        >
+                          <Check size={14} />
+                          Adeuda {money(enrollment.remaining_amount)}
+                        </span>
+                      )}
+
+                      <button
+                        onClick={() =>
+                          handleOpenUnenrollModal(enrollment.member.id)
+                        }
+                      className="shrink-0 rounded-lg bg-danger-bg px-3 py-2 text-xs font-medium text-danger-text transition hover:bg-danger-bg dark:bg-danger/15 dark:text-danger"
+                      aria-label="Desinscribir miembro"
+                    >
+                      Desinscribir
+                    </button>
+                  </div>
+                </div>
+
+                {isPackage && renewId === enrollment.id && (
+                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-surface-input px-3 py-2">
+                    <label
+                      htmlFor="renew-count"
+                      className="text-xs font-medium text-text-primary"
+                    >
+                      Agregar
+                    </label>
+                    <input
+                      id="renew-count"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={renewCount}
+                      onChange={(e) => setRenewCount(e.target.value)}
+                      className="w-20 rounded-lg border border-border bg-surface-input px-3 py-1.5 text-sm text-text-primary outline-none focus:ring-2 focus:ring-focus-ring"
+                    />
+                    <span className="text-xs text-text-secondary">sesiones</span>
+
+                    <button
+                      onClick={() => handleRenew(enrollment)}
+                      disabled={actionLoading}
+                      className="ml-auto flex items-center gap-1 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:opacity-60"
+                    >
+                      <Check size={14} />
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => setRenewId(null)}
+                      disabled={actionLoading}
+                      className="rounded-lg p-1.5 text-text-secondary transition hover:bg-surface-hover"
+                      aria-label="Cancelar renovación"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ENROLL MEMBER MODAL */}
+      {showEnrollModal && (
+        <EnrollOutingMemberModal
+          scheduleId={scheduleId}
+          enrollments={enrollments}
+          outing={outing}
+          onClose={() => setShowEnrollModal(false)}
+          onSuccess={reload}
+        />
+      )}
+
+      {/* CONFIRM UNENROLL MODAL */}
+      <ConfirmModal
+        isOpen={showUnenrollModal}
+        title="Desinscribir miembro"
+        message="El miembro será removido de este horario."
+        confirmText="Desinscribir"
+        cancelText="Cancelar"
+        onClose={() => {
+          setShowUnenrollModal(false);
+          setMemberToUnenroll(null);
+        }}
+        onConfirm={handleConfirmUnenroll}
+      />
+
+    </div>
+  );
+}
+
+export default OutingEnrollments;

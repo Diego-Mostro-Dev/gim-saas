@@ -50,6 +50,11 @@ class SubscriptionItemSerializer(serializers.ModelSerializer):
         read_only=True,
         default=None,
     )
+    outing_name = serializers.CharField(
+        source="outing.name",
+        read_only=True,
+        default=None,
+    )
     name_snapshot = serializers.SerializerMethodField()
 
     class Meta:
@@ -60,6 +65,8 @@ class SubscriptionItemSerializer(serializers.ModelSerializer):
             "plan",
             "activity",
             "activity_name",
+            "outing",
+            "outing_name",
             "name_snapshot",
             "status",
             "price_snapshot",

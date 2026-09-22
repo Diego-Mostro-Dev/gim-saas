@@ -111,6 +111,7 @@ class MemberSerializer(serializers.ModelSerializer):
     discount_name = serializers.SerializerMethodField()
     discount_percent = serializers.SerializerMethodField()
     pending_attachments_count = serializers.SerializerMethodField()
+    outing_enrollments = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -149,6 +150,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "member_created_at",
             "is_recoverable",
             "pending_attachments_count",
+            "outing_enrollments",
         ]
 
         read_only_fields = ["gym", "active"]
@@ -594,6 +596,34 @@ class MemberSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
 
         return instance
+
+    def get_outing_enrollments(self, obj):
+        """Inscripciones a salidas grupales activas, para la ficha del socio."""
+        enrollments = getattr(obj, "outing_enrollments", None)
+        if enrollments is None:
+            return []
+        result = []
+        for e in enrollments.all():
+            schedule = e.schedule
+            outing = schedule.outing
+            result.append(
+                {
+                    "id": e.id,
+                    "outing_id": outing.id,
+                    "outing": outing.name,
+                    "schedule_id": schedule.id,
+                    "day": schedule.day,
+                    "start_time": schedule.start_time.strftime("%H:%M"),
+                    "end_time": schedule.end_time.strftime("%H:%M"),
+                    "modality": e.modality,
+                    "sessions_used": e.used_sessions,
+                    "sessions_total": e.package_total_sessions
+                    if e.modality == "package"
+                    else 0,
+                    "active": e.active,
+                }
+            )
+        return result
 
     def _resolve_plan_for_comp_off(self, member):
         """Return the paid plan to apply when the courtesy pass is removed.

@@ -206,8 +206,9 @@ class SubscriptionDomain:
                             update_fields=["plan", "price_snapshot", "name_snapshot"]
                         )
 
-                    # Restore monthly billing for active activities
-                    # (their snapshots were zeroed while comp was active).
+                    # Restore monthly billing for active activities and
+                    # outings (their snapshots were zeroed while comp was
+                    # active).
                     for item in SubscriptionItem.objects.filter(
                         subscription=current,
                         item_type="activity",
@@ -215,6 +216,15 @@ class SubscriptionDomain:
                     ).select_related("activity"):
                         if item.activity is not None:
                             item.price_snapshot = item.activity.monthly_price
+                            item.save(update_fields=["price_snapshot"])
+
+                    for item in SubscriptionItem.objects.filter(
+                        subscription=current,
+                        item_type="outing",
+                        status="active",
+                    ).select_related("outing"):
+                        if item.outing is not None:
+                            item.price_snapshot = item.outing.monthly_price
                             item.save(update_fields=["price_snapshot"])
 
                 return current

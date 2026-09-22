@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     "activities",
     "personal_training",
     "community",
+    "outings",
     "admins",
 ]
 

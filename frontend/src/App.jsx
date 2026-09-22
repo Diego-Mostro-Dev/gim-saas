@@ -32,6 +32,7 @@ import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
 import MemberData from "./pages/member/MemberData";
 import MemberPersonalTraining from "./pages/MemberPersonalTraining";
+import MemberOutings from "./pages/member/MemberOutings";
 import MemberCommunity from "./pages/member/MemberCommunity";
 import CommunityPublicPage from "./pages/member/CommunityPublicPage";
 import TrainerAgenda from "./pages/TrainerAgenda";
@@ -47,6 +48,9 @@ import PersonalTrainingAttendance from "./pages/PersonalTrainingAttendance";
 import Activities from "./pages/Activities";
 import ActivitySchedules from "./pages/ActivitySchedules";
 import ScheduleEnrollments from "./pages/ScheduleEnrollments";
+import Outings from "./pages/Outings";
+import OutingSchedules from "./pages/OutingSchedules";
+import OutingEnrollments from "./pages/OutingEnrollments";
 import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
@@ -98,6 +102,7 @@ function App() {
         <Route path="activities" element={<MemberActivities />} />
         <Route path="data" element={<MemberData />} />
         <Route path="personal-training" element={<MemberPersonalTraining />} />
+        <Route path="salidas" element={<MemberOutings />} />
         <Route path="comunidad" element={<MemberCommunity />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>
@@ -136,6 +141,9 @@ function App() {
         <Route path="/activities" element={<ProfessorRoute><ProtectedFeature feature="activities"><Activities /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities/:activityId/schedules" element={<ProfessorRoute><ProtectedFeature feature="activities"><ActivitySchedules /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/activities/schedules/:scheduleId/enrollments" element={<ProfessorRoute><ProtectedFeature feature="activities"><ScheduleEnrollments /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/outings" element={<ProfessorRoute><ProtectedFeature feature="salidas"><Outings /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/outings/:outingId/schedules" element={<ProfessorRoute><ProtectedFeature feature="salidas"><OutingSchedules /></ProtectedFeature></ProfessorRoute>} />
+        <Route path="/outings/schedules/:scheduleId/enrollments" element={<ProfessorRoute><ProtectedFeature feature="salidas"><OutingEnrollments /></ProtectedFeature></ProfessorRoute>} />
       </Route>
 
       {/* admin central (solo superuser) */}

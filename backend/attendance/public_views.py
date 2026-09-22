@@ -73,6 +73,31 @@ def _count_sessions_if_in_window(member, gym, now_dt, today):
             SessionService.record_auto(enrollment, today)
 
 
+def _count_outing_sessions_if_in_window(member, gym, now_dt, today):
+    """Auto-count a package outing session when the check-in happens within
+    the outing's time window. Failures are silently ignored."""
+    from outings.models import OutingEnrollment
+    from outings.session_service import SessionService
+
+    day = DAY_BY_WEEKDAY[today.weekday()]
+    now_time = now_dt.time()
+
+    enrollments = OutingEnrollment.objects.filter(
+        gym=gym,
+        member=member,
+        active=True,
+        modality="package",
+        schedule__day=day,
+        schedule__active=True,
+        schedule__outing__active=True,
+    ).select_related("schedule")
+
+    for enrollment in enrollments:
+        schedule = enrollment.schedule
+        if schedule.start_time <= now_time <= schedule.end_time:
+            SessionService.record_auto(enrollment, today)
+
+
 class PublicCheckinView(APIView):
     permission_classes = []
     throttle_classes = [PublicAttendanceRateThrottle]
@@ -227,6 +252,9 @@ class PublicCheckinView(APIView):
             _count_sessions_if_in_window(
                 member, gym, timezone.localtime(), today
             )
+            _count_outing_sessions_if_in_window(
+                member, gym, timezone.localtime(), today
+            )
 
             return Response(
                 {
@@ -298,6 +326,9 @@ class PublicCheckinView(APIView):
         )
 
         _count_sessions_if_in_window(member, gym, timezone.localtime(), today)
+        _count_outing_sessions_if_in_window(
+            member, gym, timezone.localtime(), today
+        )
 
         return Response(
             {

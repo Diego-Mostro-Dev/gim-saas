@@ -102,6 +102,42 @@ def _copy_personal_training_items(from_subscription, to_subscription):
         )
 
 
+def _copy_outing_items(from_subscription, to_subscription):
+    """Copy active outing items from one subscription to another.
+
+    Mirrors _copy_activity_items: when the gym's running-grupo add-on
+    is disabled, outing items are not copied so the service stops being
+    billed in renewals. Re-enabling the add-on restores billing in later
+    renewals.
+    """
+    from gyms.features import outings_enabled
+
+    if not outings_enabled(to_subscription.gym):
+        return
+
+    previous_items = SubscriptionItem.objects.filter(
+        subscription=from_subscription,
+        item_type="outing",
+        status="active",
+    ).select_related("outing")
+
+    for prev_item in previous_items:
+        outing = prev_item.outing
+        if outing is None or not outing.active:
+            continue
+        SubscriptionItem.objects.create(
+            subscription=to_subscription,
+            item_type="outing",
+            plan=None,
+            outing=outing,
+            status="active",
+            name_snapshot=outing.name,
+            price_snapshot=outing.monthly_price,
+            start_date=to_subscription.start_date,
+            end_date=to_subscription.end_date,
+        )
+
+
 def ensure_subscription_items(subscription, previous_subscription=None):
     """Ensure all billing items exist for a subscription.
 
@@ -114,6 +150,7 @@ def ensure_subscription_items(subscription, previous_subscription=None):
     if previous_subscription is not None:
         _copy_activity_items(previous_subscription, subscription)
         _copy_personal_training_items(previous_subscription, subscription)
+        _copy_outing_items(previous_subscription, subscription)
 
 
 def calculate_subscription_total(subscription, apply_discount=True):
@@ -777,6 +814,7 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
         )
         _copy_activity_items(expired_sub, new_sub)
         _copy_personal_training_items(expired_sub, new_sub)
+        _copy_outing_items(expired_sub, new_sub)
 
         if approved_pcr is not None:
             apply_plan_change(approved_pcr)
@@ -875,6 +913,7 @@ def recover_member(member):
         )
         _copy_activity_items(latest_sub, new_sub)
         _copy_personal_training_items(latest_sub, new_sub)
+        _copy_outing_items(latest_sub, new_sub)
 
         if approved_pcr is not None:
             _finalize_plan_change(approved_pcr, new_sub)
@@ -1110,6 +1149,7 @@ def apply_plan_change(plan_change_request):
             if current_sub:
                 _copy_activity_items(current_sub, period_sub)
                 _copy_personal_training_items(current_sub, period_sub)
+                _copy_outing_items(current_sub, period_sub)
         else:
             if period_sub.plan != plan_change_request.requested_plan:
                 period_sub.plan = plan_change_request.requested_plan

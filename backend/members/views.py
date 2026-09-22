@@ -16,6 +16,7 @@ from activities.models import Activity, Enrollment
 from activities.overlap import validate_gym_activity_overlap
 from attendance.models import ScheduleSlot
 from core.viewsets import GymModelViewSet
+from outings.models import OutingEnrollment
 from personal_training.models import PersonalTrainingAssignment
 from gyms.features import require_activities
 from payments.models import Payment
@@ -65,6 +66,12 @@ class MemberViewSet(GymModelViewSet):
                     active=True,
                     modality="package",
                 ).select_related("service"),
+            ),
+            Prefetch(
+                "outing_enrollments",
+                queryset=OutingEnrollment.objects.filter(
+                    active=True,
+                ).select_related("schedule__outing"),
             ),
             "subscription_set__plan",
             "subscription_set__items",

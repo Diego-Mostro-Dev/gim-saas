@@ -16,6 +16,9 @@ const DEFAULT_LABELS = {
   "staff.activities.title": "Gestión de actividades extra del gimnasio",
   "staff.activities.disabled": "El módulo de actividades extra no está habilitado para este gimnasio.",
   "staff.activity_schedules.disabled": "Las actividades no están habilitadas para este gimnasio.",
+  "staff.salidas.title": "Gestión de salidas grupales de running del gimnasio",
+  "staff.salidas.disabled": "El módulo de salidas grupales no está habilitado para este gimnasio.",
+  "staff.salidas.schedules.disabled": "Las salidas grupales no están habilitadas para este gimnasio.",
   "staff.staff.title": "Usuarios que pueden acceder al panel del gimnasio.",
   "staff.settings.basic_info": "Información básica del gimnasio.",
   "staff.settings.closed_days_hint": "que el gimnasio está cerrado ese día.",
@@ -66,6 +69,7 @@ const DEFAULT_LABELS = {
   "portal.gym_closed_short": " · gym cerrado",
   "checkin.closed_today": "El gimnasio está cerrado hoy.",
   "features.activities_disabled": "Actividades no está habilitado para este gimnasio.",
+  "features.salidas_disabled": "Running grupal no está habilitado para este gimnasio.",
   "features.pt_disabled":
     "Entrenamiento personal no está habilitado para este gimnasio.",
   "errors.plan_changes_not_allowed": "El gimnasio no permite cambios de plan.",

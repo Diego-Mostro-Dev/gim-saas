@@ -181,6 +181,7 @@ class SubscriptionItem(models.Model):
         ("plan", "Plan de membresía"),
         ("activity", "Actividad"),
         ("personal_training", "Entrenamiento personal"),
+        ("outing", "Salida grupal"),
     ]
 
     subscription = models.ForeignKey(
@@ -220,6 +221,15 @@ class SubscriptionItem(models.Model):
         on_delete=models.PROTECT,
         related_name="subscription_items",
         verbose_name="Entrenamiento personal",
+        null=True,
+        blank=True,
+    )
+
+    outing = models.ForeignKey(
+        "outings.Outing",
+        on_delete=models.PROTECT,
+        related_name="subscription_items",
+        verbose_name="Salida grupal",
         null=True,
         blank=True,
     )
@@ -268,6 +278,11 @@ class SubscriptionItem(models.Model):
                 condition=Q(status="active", personal_training__isnull=False),
                 name="unique_active_pt_item_per_subscription",
             ),
+            models.UniqueConstraint(
+                fields=["subscription", "outing"],
+                condition=Q(status="active", outing__isnull=False),
+                name="unique_active_outing_item_per_subscription",
+            ),
             models.CheckConstraint(
                 condition=models.Q(end_date__gte=models.F("start_date")),
                 name="subscriptionitem_end_date_gte_start_date",
@@ -278,7 +293,9 @@ class SubscriptionItem(models.Model):
         label = self.name_snapshot or (
             self.plan.name if self.plan else (
                 self.activity.name if self.activity else (
-                    self.personal_training.name if self.personal_training else "—"
+                    self.personal_training.name if self.personal_training else (
+                        self.outing.name if self.outing else "—"
+                    )
                 )
             )
         )

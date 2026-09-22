@@ -28,6 +28,7 @@ from .serializers import (
 from .domain import SubscriptionConflictError, SubscriptionDomain
 from .services import (
     _copy_activity_items,
+    _copy_outing_items,
     calculate_effective_date,
     cancel_future_plan_change,
     get_last_day_of_month,
@@ -288,6 +289,7 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     )
                     if current_sub:
                         _copy_activity_items(current_sub, new_subscription)
+                        _copy_outing_items(current_sub, new_subscription)
 
                     self._synchronize_schedules(instance)
             elif new_status == "cancelled_by_staff" and instance.status == "approved":

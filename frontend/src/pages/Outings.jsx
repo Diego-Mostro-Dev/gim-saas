@@ -3,45 +3,52 @@ import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown, ChevronUp, RotateCcw, X, RotateCw, PlusCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
-import ActivityCard from "../components/activities/ActivityCard";
-import ActivityForm from "../components/activities/ActivityForm";
+import OutingPanel from "../components/outings/OutingPanel";
+import OutingForm from "../components/outings/OutingForm";
+import OutingEnrollmentRequests from "../components/outings/OutingEnrollmentRequests";
 
-import { useActivities } from "../hooks/useActivities";
+import { useOutings } from "../hooks/useOutings";
 import { useGym } from "../hooks/useGym";
 import { useFeature } from "../features/FeatureProvider";
-import { getInactiveActivities, reactivateActivity } from "../services/activities.service";
+import { getInactiveOutings, getOutingTrainers } from "../services/outings.service";
 import { txt } from "../utils/labels";
 
-function Activities() {
+function Outings() {
   const navigate = useNavigate();
   const { gym } = useGym();
   const salidasEnabled = useFeature("salidas");
   const {
-    activities,
+    outings,
     loading,
     error,
-    handleCreateActivity,
-    handleUpdateActivity,
+    loadOutings,
+    handleCreateOuting,
+    handleUpdateOuting,
     handleToggleActive,
-    handleSetActivity,
-  } = useActivities();
+    handleSetOuting,
+    handleReactivateOuting,
+  } = useOutings();
+
+  const [trainers, setTrainers] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
   const formRef = useRef(null);
   const cancelledRef = useRef(false);
-  const [editingActivity, setEditingActivity] = useState(null);
+  const [editingOuting, setEditingOuting] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    instructor_name: "",
+    trainer: null,
+    meeting_place: "",
+    duration_minutes: "",
     monthly_price: "",
     billing_mode: "monthly",
     active: true,
   });
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const [inactiveActivities, setInactiveActivities] = useState([]);
+  const [inactiveOutings, setInactiveOutings] = useState([]);
   const [inactiveLoading, setInactiveLoading] = useState(false);
   const [inactiveExpanded, setInactiveExpanded] = useState(false);
   const [hasLoadedInactive, setHasLoadedInactive] = useState(false);
@@ -51,23 +58,37 @@ function Activities() {
 
   const [pendingActivation, setPendingActivation] = useState(() => {
     try {
-      const stored = sessionStorage.getItem("pendingActivation");
+      const stored = sessionStorage.getItem("pendingOutingActivation");
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    getOutingTrainers()
+      .then((data) => {
+        if (!cancelled) setTrainers(data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setTrainers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function addPendingActivation(id) {
     const next = pendingActivation.includes(id) ? pendingActivation : [...pendingActivation, id];
     setPendingActivation(next);
-    sessionStorage.setItem("pendingActivation", JSON.stringify(next));
+    sessionStorage.setItem("pendingOutingActivation", JSON.stringify(next));
   }
 
   function removePendingActivation(id) {
     const next = pendingActivation.filter((pid) => pid !== id);
     setPendingActivation(next);
-    sessionStorage.setItem("pendingActivation", JSON.stringify(next));
+    sessionStorage.setItem("pendingOutingActivation", JSON.stringify(next));
   }
 
   useEffect(() => {
@@ -75,9 +96,9 @@ function Activities() {
     async function load() {
       setInactiveLoading(true);
       try {
-        const data = await getInactiveActivities();
+        const data = await getInactiveOutings();
         if (!cancelledRef.current) {
-          setInactiveActivities(data);
+          setInactiveOutings(data);
           setHasLoadedInactive(true);
         }
       } catch {
@@ -93,13 +114,13 @@ function Activities() {
   }, [inactiveExpanded]);
 
   useEffect(() => {
-    if (showForm && editingActivity && formRef.current) {
+    if (showForm && editingOuting && formRef.current) {
       formRef.current.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
     }
-  }, [showForm, editingActivity]);
+  }, [showForm, editingOuting]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -108,13 +129,18 @@ function Activities() {
     setIsSubmitting(true);
     setFieldErrors({});
 
+    const payload = {
+      ...formData,
+      duration_minutes: formData.duration_minutes === "" ? null : Number(formData.duration_minutes),
+    };
+
     try {
-      if (editingActivity) {
-        await handleUpdateActivity(editingActivity.id, formData);
-        toast.success("Actividad actualizada");
+      if (editingOuting) {
+        await handleUpdateOuting(editingOuting.id, payload);
+        toast.success("Salida actualizada");
       } else {
-        await handleCreateActivity(formData);
-        toast.success("Actividad creada");
+        await handleCreateOuting(payload);
+        toast.success("Salida creada");
       }
       handleCloseForm();
     } catch (err) {
@@ -125,7 +151,7 @@ function Activities() {
         }
         setFieldErrors(flat);
       } else {
-        toast.error(err.message || "Error al guardar la actividad");
+        toast.error(err.message || "Error al guardar la salida");
       }
     } finally {
       setIsSubmitting(false);
@@ -137,29 +163,29 @@ function Activities() {
       await handleToggleActive(id, active);
       if (active) {
         removePendingActivation(id);
-        setInactiveActivities((prev) => prev.filter((a) => a.id !== id));
+        setInactiveOutings((prev) => prev.filter((o) => o.id !== id));
       } else {
         removePendingActivation(id);
-        setInactiveActivities((prev) => {
-          if (prev.find((a) => a.id === id)) return prev;
-          const fromActive = activities.find((a) => a.id === id);
+        setInactiveOutings((prev) => {
+          if (prev.find((o) => o.id === id)) return prev;
+          const fromActive = outings.find((o) => o.id === id);
           return fromActive ? [{ ...fromActive, active: false }, ...prev] : prev;
         });
       }
-      toast.success(active ? "Actividad activada" : "Actividad desactivada");
+      toast.success(active ? "Salida activada" : "Salida desactivada");
     } catch (err) {
       toast.error(err.message || "Error al cambiar estado");
     }
   }
 
-  async function handleRestoreSchedules(activity) {
+  async function handleRestoreSchedules(outing) {
     setReactivating(true);
     try {
-      const updated = await reactivateActivity(activity.id);
-      handleSetActivity(updated);
-      removePendingActivation(activity.id);
-      setInactiveActivities((prev) => prev.filter((a) => a.id !== activity.id));
-      toast.success(`"${activity.name}" reactivada con sus horarios`);
+      const updated = await handleReactivateOuting(outing.id);
+      handleSetOuting(updated);
+      removePendingActivation(outing.id);
+      setInactiveOutings((prev) => prev.filter((o) => o.id !== outing.id));
+      toast.success(`"${outing.name}" reactivada con sus horarios`);
       setReactivateModal(null);
     } catch (err) {
       toast.error(err.message || "Error al reactivar");
@@ -168,21 +194,23 @@ function Activities() {
     }
   }
 
-  function handleCreateSchedulesRedirect(activity) {
-    addPendingActivation(activity.id);
+  function handleCreateSchedulesRedirect(outing) {
+    addPendingActivation(outing.id);
     setReactivateModal(null);
-    navigate(`/activities/${activity.id}/schedules`);
+    navigate(`/outings/${outing.id}/schedules`);
   }
 
-  function onEdit(activity) {
-    setEditingActivity(activity);
+  function onEdit(outing) {
+    setEditingOuting(outing);
     setFormData({
-      name: activity.name,
-      description: activity.description || "",
-      instructor_name: activity.instructor_name || "",
-      monthly_price: activity.monthly_price ?? "",
-      billing_mode: activity.billing_mode || "monthly",
-      active: activity.active,
+      name: outing.name,
+      description: outing.description || "",
+      trainer: outing.trainer ?? null,
+      meeting_place: outing.meeting_place || "",
+      duration_minutes: outing.duration_minutes ?? "",
+      monthly_price: outing.monthly_price ?? "",
+      billing_mode: outing.billing_mode || "monthly",
+      active: outing.active,
     });
     setFieldErrors({});
     setShowForm(true);
@@ -190,12 +218,14 @@ function Activities() {
 
   function handleCloseForm() {
     setShowForm(false);
-    setEditingActivity(null);
+    setEditingOuting(null);
     setFieldErrors({});
     setFormData({
       name: "",
       description: "",
-      instructor_name: "",
+      trainer: null,
+      meeting_place: "",
+      duration_minutes: "",
       monthly_price: "",
       billing_mode: "monthly",
       active: true,
@@ -205,7 +235,7 @@ function Activities() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface text-text-primary">
-        Cargando actividades...
+        Cargando salidas...
       </div>
     );
   }
@@ -218,16 +248,16 @@ function Activities() {
             Módulo desactivado
           </h1>
           <p className="text-text-secondary">
-            {txt(gym, "staff.activities.disabled")}
+            {txt(gym, "staff.salidas.disabled")}
           </p>
         </div>
       </div>
     );
   }
 
-  const visibleActivities = activities.filter((a) => a.active !== false);
-  const totalEnrolled = visibleActivities.reduce(
-    (sum, a) => sum + (a.enrolled_count ?? 0),
+  const visibleOutings = outings.filter((o) => o.active !== false);
+  const totalEnrolled = visibleOutings.reduce(
+    (sum, o) => sum + (o.enrolled_count ?? 0),
     0,
   );
 
@@ -244,7 +274,7 @@ function Activities() {
               key={tab.id}
               onClick={() => navigate(tab.id === "activities" ? "/activities" : "/outings")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
-                tab.id === "activities"
+                tab.id === "outings"
                   ? "bg-primary text-white"
                   : "text-text-secondary hover:bg-surface-input hover:text-text-primary"
               }`}
@@ -258,14 +288,14 @@ function Activities() {
       {/* HEADER */}
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Actividades</h1>
+          <h1 className="text-3xl font-bold">Running grupal</h1>
           <p className="mt-1 text-sm text-text-secondary">
-            {txt(gym, "staff.activities.title")}
+            {txt(gym, "staff.salidas.title")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-elevated px-3 py-1 font-medium text-text-secondary">
-              {visibleActivities.length}{" "}
-              {visibleActivities.length === 1 ? "actividad activa" : "actividades activas"}
+              {visibleOutings.length}{" "}
+              {visibleOutings.length === 1 ? "salida activa" : "salidas activas"}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-elevated px-3 py-1 font-medium text-text-secondary">
               {totalEnrolled} socios inscriptos
@@ -288,17 +318,21 @@ function Activities() {
         </button>
       </div>
 
+      {/* SOLICITUDES DE SOCIOS */}
+      <OutingEnrollmentRequests onChanged={loadOutings} />
+
       {/* FORM */}
       {showForm && (
         <div ref={formRef} className="mb-6">
-          <ActivityForm
+          <OutingForm
             formData={formData}
             setFormData={setFormData}
             onSubmit={onSubmit}
             onCancel={handleCloseForm}
             isSubmitting={isSubmitting}
-            editingActivity={editingActivity}
+            editingOuting={editingOuting}
             errors={fieldErrors}
+            trainers={trainers}
           />
         </div>
       )}
@@ -312,23 +346,23 @@ function Activities() {
 
       {/* LIST */}
       <div className="space-y-3">
-        {visibleActivities.length === 0 ? (
+        {visibleOutings.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center text-sm text-text-secondary shadow-sm">
             {showForm
-              ? "Completá el formulario para crear tu primera actividad."
-              : inactiveActivities.length > 0
-                ? "No hay actividades activas. Expandí la sección de inactivas para reactivar."
+              ? "Completá el formulario para crear tu primera salida."
+              : inactiveOutings.length > 0
+                ? "No hay salidas activas. Expandí la sección de inactivas para reactivar."
                 : inactiveLoading
-                  ? "Buscando actividades desactivadas..."
+                  ? "Buscando salidas desactivadas..."
                   : hasLoadedInactive
-                    ? "No hay actividades creadas. Presioná \"Nueva\" para comenzar."
+                    ? "No hay salidas creadas. Presioná \"Nueva\" para comenzar."
                     : (
                       <div>
                         <p className="mb-4 font-medium text-text-primary">
-                          No hay actividades activas actualmente.
+                          No hay salidas activas actualmente.
                         </p>
                         <p className="mb-4">
-                          Hay actividades desactivadas disponibles.
+                          Hay salidas desactivadas disponibles.
                         </p>
                         <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                           <button
@@ -336,17 +370,17 @@ function Activities() {
                             className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-hover"
                           >
                             <RotateCcw size={16} />
-                            Ver actividades desactivadas
+                            Ver salidas desactivadas
                           </button>
                         </div>
                       </div>
                     )}
           </div>
         ) : (
-          visibleActivities.map((activity) => (
-            <ActivityCard
-              key={activity.id}
-              activity={activity}
+          visibleOutings.map((outing) => (
+            <OutingPanel
+              key={outing.id}
+              outing={outing}
               onEdit={onEdit}
               onToggleActive={onToggleActive}
             />
@@ -354,15 +388,15 @@ function Activities() {
         )}
       </div>
 
-      {/* INACTIVE ACTIVITIES */}
+      {/* INACTIVE OUTINGS */}
       <div className="mt-8">
         <button
           onClick={() => setInactiveExpanded((v) => !v)}
           className="flex w-full items-center justify-between rounded-xl border border-border bg-surface-elevated px-4 py-3 text-left shadow-sm transition hover:bg-surface-hover"
         >
           <span className="text-sm font-semibold text-text-secondary">
-            Actividades inactivas
-            {hasLoadedInactive && ` (${inactiveActivities.length})`}
+            Salidas inactivas
+            {hasLoadedInactive && ` (${inactiveOutings.length})`}
           </span>
           {inactiveExpanded ? <ChevronUp size={18} className="text-text-secondary" /> : <ChevronDown size={18} className="text-text-secondary" />}
         </button>
@@ -371,34 +405,34 @@ function Activities() {
             <div className="mt-3 space-y-3">
               {inactiveLoading ? (
                 <p className="py-4 text-center text-sm text-text-secondary">Cargando...</p>
-              ) : inactiveActivities.length === 0 ? (
+              ) : inactiveOutings.length === 0 ? (
                 <p className="py-4 text-center text-sm text-text-secondary">
-                  No hay actividades desactivadas.
+                  No hay salidas desactivadas.
                 </p>
               ) : (
-                  inactiveActivities.map((activity) => (
+                  inactiveOutings.map((outing) => (
                   <div
-                    key={activity.id}
+                    key={outing.id}
                     className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate text-lg font-semibold text-text-primary">
-                          {activity.name}
+                          {outing.name}
                         </h3>
-                        {pendingActivation.includes(activity.id) && (
+                        {pendingActivation.includes(outing.id) && (
                           <p className="mt-1 text-xs font-medium text-warning-text dark:text-warning">
                             Reactivación pendiente: falta crear horarios
                           </p>
                         )}
-                        {activity.description && !pendingActivation.includes(activity.id) && (
+                        {outing.description && !pendingActivation.includes(outing.id) && (
                           <p className="mt-1 text-sm text-text-secondary line-clamp-2">
-                            {activity.description}
+                            {outing.description}
                           </p>
                         )}
                       </div>
                       <button
-                        onClick={() => setReactivateModal(activity)}
+                        onClick={() => setReactivateModal(outing)}
                         className="flex shrink-0 items-center gap-1.5 rounded-lg bg-success-bg px-3 py-2 text-xs font-medium text-success-text transition hover:brightness-90 dark:bg-success/15 dark:text-success"
                       >
                         <RotateCcw size={14} />
@@ -421,7 +455,7 @@ function Activities() {
           >
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-lg font-bold text-text-primary">
-                Reactivar actividad: {reactivateModal.name}
+                Reactivar salida: {reactivateModal.name}
               </h3>
               <button
                 onClick={() => !reactivating && setReactivateModal(null)}
@@ -433,7 +467,7 @@ function Activities() {
             </div>
 
             <p className="mb-5 text-sm text-text-secondary">
-              Esta actividad fue desactivada junto con sus horarios. Podés restaurarla o configurarla nuevamente.
+              Esta salida fue desactivada junto con sus horarios. Podés restaurarla o configurarla nuevamente.
             </p>
 
             <div className="space-y-3">
@@ -449,7 +483,7 @@ function Activities() {
                   <div>
                     <p className="font-medium text-text-primary">Restaurar horarios anteriores</p>
                     <p className="mt-0.5 text-sm text-text-secondary">
-                      Reactivar la actividad y restaurar todos los horarios que tenía.
+                      Reactivar la salida y restaurar todos los horarios que tenía.
                     </p>
                   </div>
                 </div>
@@ -466,7 +500,7 @@ function Activities() {
                   <div>
                     <p className="font-medium text-text-primary">Crear nuevos horarios</p>
                     <p className="mt-0.5 text-sm text-text-secondary">
-                      La actividad se activará automáticamente al crear el primer horario.
+                      La salida se activará automáticamente al crear el primer horario.
                     </p>
                   </div>
                 </div>
@@ -483,4 +517,4 @@ function Activities() {
   );
 }
 
-export default Activities;
+export default Outings;

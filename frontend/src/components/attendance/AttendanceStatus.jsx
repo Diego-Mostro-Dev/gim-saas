@@ -157,7 +157,8 @@ function AttendanceStatus({ gym, openDays = [], closedDates = [] }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="shrink-0 rounded-md bg-info-bg px-2 py-1 text-[11px] font-medium text-info-text dark:bg-info/15 dark:text-info">
-                    Clase · {member.class_name} · {member.start_time} - {member.end_time}
+                    {member.is_outing ? "Salida · " : "Clase · "}
+                    {member.class_name} · {member.start_time} - {member.end_time}
                   </span>
                 </div>
               </div>
