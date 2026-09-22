@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { txt } from "../../utils/labels";
 
-import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User, UserCheck, Store } from "lucide-react";
+import { Home, Dumbbell, CreditCard, Calendar, Sparkles, CalendarCheck, Paperclip, User, UserCheck, Store, Footprints } from "lucide-react";
 import { FeatureProvider, useFeature, FeatureContext } from "../../features/FeatureProvider";
 import { usePortalRefreshController } from "../../hooks/usePortalRefreshController";
 import { useGymTitle } from "../../hooks/useGymTitle";
@@ -332,6 +332,7 @@ function MemberPortalLayoutContent({
   const activitiesEnabled = useFeature("activities");
   const personalTrainingEnabled = useFeature("personal_training");
   const communityEnabled = useFeature("community");
+  const outingsEnabled = useFeature("salidas");
   const { features } = useContext(FeatureContext);
   const paymentStatus = routine?.subscription?.payment_status;
   const access = routine?.access;
@@ -362,6 +363,7 @@ function MemberPortalLayoutContent({
       [`/routine/${token}/activities`]: "activities",
       [`/routine/${token}/personal-training`]: "personal_training",
       [`/routine/${token}/comunidad`]: "community",
+      [`/routine/${token}/salidas`]: "salidas",
     }),
     [token],
   );
@@ -387,6 +389,7 @@ function MemberPortalLayoutContent({
     activitiesEnabled,
     personalTrainingEnabled,
     communityEnabled,
+    outingsEnabled,
   ]);
 
   // Redirige al inicio si la sección actual tiene la feature deshabilitada.
@@ -417,6 +420,10 @@ function MemberPortalLayoutContent({
     { path: communityPath, label: "Comunidad", icon: Store },
   ];
 
+  const outingsTab = [
+    { path: `/routine/${token}/salidas`, label: "Salidas", icon: Footprints },
+  ];
+
   const attachmentsTab = [
     { path: `/routine/${token}/attachments`, label: "Adjuntos", icon: Paperclip },
   ];
@@ -432,6 +439,7 @@ function MemberPortalLayoutContent({
         ...recoveriesTab,
         ...activitiesTab,
         ...personalTrainingTab,
+        ...outingsTab,
         ...communityTab,
         ...attachmentsTab,
       ]
@@ -442,6 +450,7 @@ function MemberPortalLayoutContent({
         ...recoveriesTab,
         ...activitiesTab,
         ...personalTrainingTab,
+        ...outingsTab,
         ...communityTab,
         ...attachmentsTab,
         { path: `/routine/${token}/schedules`, label: "Horarios", icon: Calendar },
@@ -453,9 +462,12 @@ function MemberPortalLayoutContent({
   const tabsNoPt = personalTrainingEnabled
     ? tabs
     : tabs.filter((t) => t.path !== `/routine/${token}/personal-training`);
-  const visibleTabs = communityEnabled
+  const tabsNoSalidas = outingsEnabled
     ? tabsNoPt
-    : tabsNoPt.filter((t) => t.path !== communityPath);
+    : tabsNoPt.filter((t) => t.path !== `/routine/${token}/salidas`);
+  const visibleTabs = communityEnabled
+    ? tabsNoSalidas
+    : tabsNoSalidas.filter((t) => t.path !== communityPath);
 
   return (
     <div className="min-h-screen bg-surface">

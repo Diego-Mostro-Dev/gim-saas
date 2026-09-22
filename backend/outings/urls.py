@@ -8,6 +8,7 @@ from .views import (
     OutingViewSet,
     ScheduleOutingEnrollmentViewSet,
 )
+from .public_views import PublicMemberOutingsView
 
 
 router = DefaultRouter()
@@ -15,6 +16,11 @@ router.register(r"outings", OutingViewSet, basename="outings")
 router.register(r"enrollments", OutingEnrollmentActionViewSet, basename="outing-enrollment")
 
 urlpatterns = [
+    path(
+        "public/<str:token>/",
+        PublicMemberOutingsView.as_view(),
+        name="outing-member-public-list",
+    ),
     path(
         "<int:outing_id>/schedules/",
         OutingScheduleViewSet.as_view({"get": "list", "post": "create"}),

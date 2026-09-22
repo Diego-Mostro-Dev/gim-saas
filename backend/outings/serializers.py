@@ -264,3 +264,96 @@ class OutingEnrollmentSerializer(serializers.ModelSerializer):
                 "El horario no pertenece a este gimnasio."
             )
         return schedule
+
+
+class PublicOutingEnrollmentSerializer(serializers.ModelSerializer):
+    outing_id = serializers.SerializerMethodField()
+    outing = serializers.SerializerMethodField()
+    meeting_place = serializers.SerializerMethodField()
+    duration_minutes = serializers.SerializerMethodField()
+    day = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    end_time = serializers.SerializerMethodField()
+    trainer_name = serializers.SerializerMethodField()
+    trainer_phone = serializers.SerializerMethodField()
+    trainer_whatsapp = serializers.SerializerMethodField()
+    trainer_email = serializers.SerializerMethodField()
+    sessions_total = serializers.SerializerMethodField()
+    sessions_used = serializers.SerializerMethodField()
+    exhausted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OutingEnrollment
+        fields = [
+            "id",
+            "outing_id",
+            "outing",
+            "meeting_place",
+            "duration_minutes",
+            "day",
+            "start_time",
+            "end_time",
+            "trainer_name",
+            "trainer_phone",
+            "trainer_whatsapp",
+            "trainer_email",
+            "modality",
+            "sessions_total",
+            "sessions_used",
+            "exhausted",
+            "active",
+        ]
+        read_only_fields = ["id", "modality", "active"]
+
+    def get_outing_id(self, obj):
+        return obj.schedule.outing_id
+
+    def get_outing(self, obj):
+        return obj.schedule.outing.name
+
+    def get_meeting_place(self, obj):
+        return obj.schedule.outing.meeting_place or None
+
+    def get_duration_minutes(self, obj):
+        return obj.schedule.outing.duration_minutes
+
+    def get_day(self, obj):
+        return obj.schedule.day
+
+    def get_start_time(self, obj):
+        return obj.schedule.start_time
+
+    def get_end_time(self, obj):
+        return obj.schedule.end_time
+
+    def get_trainer_name(self, obj):
+        trainer = obj.schedule.outing.trainer
+        if trainer is None:
+            return None
+        return trainer.get_full_name() or trainer.username
+
+    def get_trainer_phone(self, obj):
+        profile = getattr(obj.schedule.outing.trainer, "profile", None)
+        return profile.phone or None if profile else None
+
+    def get_trainer_whatsapp(self, obj):
+        profile = getattr(obj.schedule.outing.trainer, "profile", None)
+        return profile.whatsapp or None if profile else None
+
+    def get_trainer_email(self, obj):
+        trainer = obj.schedule.outing.trainer
+        return trainer.email or None if trainer else None
+
+    def get_sessions_total(self, obj):
+        if obj.modality != "package":
+            return 0
+        return obj.package_total_sessions or 0
+
+    def get_sessions_used(self, obj):
+        return obj.used_sessions
+
+    def get_exhausted(self, obj):
+        if obj.modality != "package":
+            return False
+        total = obj.package_total_sessions
+        return total is not None and obj.used_sessions >= total

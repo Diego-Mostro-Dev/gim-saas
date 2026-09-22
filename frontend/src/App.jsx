@@ -32,6 +32,7 @@ import MemberRecoveries from "./pages/member/MemberRecoveries";
 import MemberActivities from "./pages/MemberActivities";
 import MemberData from "./pages/member/MemberData";
 import MemberPersonalTraining from "./pages/MemberPersonalTraining";
+import MemberOutings from "./pages/member/MemberOutings";
 import MemberCommunity from "./pages/member/MemberCommunity";
 import CommunityPublicPage from "./pages/member/CommunityPublicPage";
 import TrainerAgenda from "./pages/TrainerAgenda";
@@ -101,6 +102,7 @@ function App() {
         <Route path="activities" element={<MemberActivities />} />
         <Route path="data" element={<MemberData />} />
         <Route path="personal-training" element={<MemberPersonalTraining />} />
+        <Route path="salidas" element={<MemberOutings />} />
         <Route path="comunidad" element={<MemberCommunity />} />
         <Route path="schedules" element={<PublicRoutine />} />
       </Route>
