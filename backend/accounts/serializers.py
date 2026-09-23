@@ -123,13 +123,10 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 matched = reset_token
                 break
 
-        if matched is None:
+        if matched is None or not matched.is_valid:
+            # Mismo mensaje para código inválido, usado o expirado: el cliente
+            # no debe poder distinguir estados (evita enumeración de cuentas).
             raise invalid
-
-        if not matched.is_valid:
-            raise serializers.ValidationError(
-                {"code": "El código expiró. Solicitá uno nuevo."}
-            )
 
         validate_password(attrs["new_password"], user=user)
 

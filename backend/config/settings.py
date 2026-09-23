@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 import dj_database_url
 import cloudinary
@@ -85,6 +86,27 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = int(
     os.getenv("PASSWORD_RESET_TOKEN_TTL_SECONDS", "3600")
 )
 
+# Cooldown por cuenta entre solicitudes de reseteo de contraseña (segundos).
+# Complementa el throttle por IP: evita email-bombing por cuenta.
+PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS = int(
+    os.getenv("PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS", "60")
+)
+
+# django-axes: bloqueo ante intentos fallidos de login
+# (protege el login API, el reseteo y /admin/ de fuerza bruta/credential stuffing).
+AXES_ENABLED = True
+AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+AXES_RESET_ON_SUCCESS = True
+# Bloqueo por IP o por cuenta: cubre fuerza bruta desde una sola IP y
+# credential stuffing distribuido sobre una misma cuenta.
+AXES_LOCKOUT_PARAMETERS = [["ip_address"], ["username"]]
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "axes.backends.AxesStandaloneBackend",
+]
+
 # Intervalo mínimo entre ejecuciones del mantenimiento (segundos).
 SCHEDULED_TASKS_INTERVAL_SECONDS = int(
     os.getenv("SCHEDULED_TASKS_INTERVAL_SECONDS", "21600")
@@ -112,6 +134,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "django_filters",
+    "axes",
     "members",
     "plans",
     "subscriptions",
@@ -147,6 +170,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "config.api.middleware.ScheduledTaskTriggerMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 
@@ -262,8 +286,12 @@ _db_config = dj_database_url.parse(
     os.getenv("DATABASE_URL"),
     conn_max_age=0,
     conn_health_checks=True,
-    sslmode="require",
 )
+
+# Forzar TLS solo cuando el backend es PostgreSQL (Neon/Render). No aplicar
+# sslmode al backend sqlite (pruebas/dev local) porque no lo soporta.
+if _db_config["ENGINE"].endswith("postgresql"):
+    _db_config.setdefault("OPTIONS", {})["sslmode"] = "require"
 
 # Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
 # Resolve the hostname once at startup and inject hostaddr so libpq skips

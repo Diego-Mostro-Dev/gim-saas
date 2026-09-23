@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.conf import settings
 
@@ -314,31 +315,45 @@ class PasswordResetRequestView(APIView):
         user = serializer.get_user()
 
         if user and user.email:
-            reset_token = PasswordResetToken.create_for_user(user)
-            code = generate_reset_code(reset_token)
+            # Cooldown por cuenta: limita la cantidad de emails de reseteo que
+            # un atacante puede disparar hacia una víctima (anti email-bombing).
+            # Complementa el throttle por IP de PasswordResetRequestRateThrottle.
+            cooldown_key = f"password-reset-cooldown:{user.id}"
+            if not cache.get(cooldown_key):
+                reset_token = PasswordResetToken.create_for_user(user)
+                code = generate_reset_code(reset_token)
 
-            gym_name = (
-                user.profile.gym.name
-                if getattr(user, "profile", None)
-                and user.profile.gym
-                else None
-            )
+                gym_name = (
+                    user.profile.gym.name
+                    if getattr(user, "profile", None)
+                    and user.profile.gym
+                    else None
+                )
 
-            from core.email import send_password_reset_email
+                from core.email import send_password_reset_email
 
-            # La URL NO lleva ningún secreto: el código de 6 dígitos viaja
-            # solo en el cuerpo del email, así que no queda en el historial
-            # del navegador ni en los logs del hosting.
-            reset_url = "{}/reset-password".format(
-                settings.FRONTEND_URL.rstrip("/"),
-            )
+                # La URL NO lleva ningún secreto: el código de 6 dígitos viaja
+                # solo en el cuerpo del email, así que no queda en el historial
+                # del navegador ni en los logs del hosting.
+                reset_url = "{}/reset-password".format(
+                    settings.FRONTEND_URL.rstrip("/"),
+                )
 
-            send_password_reset_email(
-                to_email=user.email,
-                reset_url=reset_url,
-                code=code,
-                gym_name=gym_name,
-            )
+                send_password_reset_email(
+                    to_email=user.email,
+                    reset_url=reset_url,
+                    code=code,
+                    gym_name=gym_name,
+                )
+
+                cache.set(
+                    cooldown_key, "1",
+                    timeout=getattr(
+                        settings,
+                        "PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS",
+                        60,
+                    ),
+                )
 
         return Response(
             {
