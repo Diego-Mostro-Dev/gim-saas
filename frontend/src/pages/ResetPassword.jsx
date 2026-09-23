@@ -1,39 +1,16 @@
 import { useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "../services/api";
 
 function ResetPassword() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
-
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-
-  if (!token) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-surface">
-        <div className="w-full max-w-sm rounded-xl bg-surface-elevated p-6 text-center">
-          <h1 className="mb-2 text-xl text-text-primary">
-            Enlace inválido
-          </h1>
-          <p className="mb-4 text-sm text-text-secondary">
-            No se encontró un enlace de restablecimiento válido. Solicitá uno
-            nuevo desde la pantalla de login.
-          </p>
-          <Link
-            to="/login"
-            className="block w-full rounded bg-primary p-3 text-white"
-          >
-            Volver al login
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   if (isSuccess) {
     return (
@@ -72,7 +49,11 @@ function ResetPassword() {
         method: "POST",
         skipAuth: true,
         suppressUnauthorized: true,
-        body: JSON.stringify({ token, new_password: newPassword }),
+        body: JSON.stringify({
+          email,
+          code: code.trim(),
+          new_password: newPassword,
+        }),
       });
 
       setIsSuccess(true);
@@ -91,11 +72,33 @@ function ResetPassword() {
         </h1>
 
         <p className="mb-4 text-sm text-text-secondary">
-          Ingresá tu nueva contraseña. Vas a tener que usarla para iniciar
-          sesión.
+          Ingresá tu email, el código que te enviamos por correo y tu nueva
+          contraseña. Pedí el código desde la pantalla de login.
         </p>
 
         <form onSubmit={handleSubmit}>
+          <input
+            type="email"
+            className="mb-3 w-full rounded bg-surface-input p-3 text-text-primary"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            className="mb-3 w-full rounded bg-surface-input p-3 text-center text-lg tracking-[0.5em] text-text-primary"
+            placeholder="000000"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            required
+          />
+
           <input
             type="password"
             className="mb-3 w-full rounded bg-surface-input p-3 text-text-primary"

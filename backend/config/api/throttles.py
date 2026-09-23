@@ -2,14 +2,17 @@ from rest_framework.throttling import AnonRateThrottle
 
 
 class LoginRateThrottle(AnonRateThrottle):
+    scope = "login"
     rate = "60/hour"
 
 
 class OnboardingCreateRateThrottle(AnonRateThrottle):
+    scope = "onboarding_create"
     rate = "5/hour"
 
 
 class OnboardingValidateRateThrottle(AnonRateThrottle):
+    scope = "onboarding_validate"
     rate = "30/hour"
 
 
@@ -19,6 +22,7 @@ class PublicAttendanceRateThrottle(AnonRateThrottle):
 
 
 class PublicMemberRateThrottle(AnonRateThrottle):
+    scope = "public_member"
     rate = "300/hour"
 
 

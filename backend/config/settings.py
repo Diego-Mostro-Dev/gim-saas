@@ -192,6 +192,10 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
+    # Cantidad de proxies entre el cliente y Django (Render usa 1). Con >0,
+    # DRF resuelve la IP real del cliente desde X-Forwarded-For en vez de usar
+    # la IP del proxy, que comparte el bucket de throttling entre todos.
+    "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0" if DEBUG else "1")),
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/hour",
         "user": "1000/hour",

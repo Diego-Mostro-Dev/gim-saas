@@ -10,7 +10,7 @@ from django.conf import settings
 
 from gyms.models import Gym
 from profiles.models import UserProfile
-from .models import PasswordResetToken
+from .models import PasswordResetToken, generate_reset_code
 from .serializers import (
     LoginSerializer,
     ChangePasswordSerializer,
@@ -315,6 +315,7 @@ class PasswordResetRequestView(APIView):
 
         if user and user.email:
             reset_token = PasswordResetToken.create_for_user(user)
+            code = generate_reset_code(reset_token)
 
             gym_name = (
                 user.profile.gym.name
@@ -325,14 +326,17 @@ class PasswordResetRequestView(APIView):
 
             from core.email import send_password_reset_email
 
-            reset_url = "{}/reset-password?token={}".format(
+            # La URL NO lleva ningún secreto: el código de 6 dígitos viaja
+            # solo en el cuerpo del email, así que no queda en el historial
+            # del navegador ni en los logs del hosting.
+            reset_url = "{}/reset-password".format(
                 settings.FRONTEND_URL.rstrip("/"),
-                reset_token.id,
             )
 
             send_password_reset_email(
                 to_email=user.email,
                 reset_url=reset_url,
+                code=code,
                 gym_name=gym_name,
             )
 
@@ -340,7 +344,7 @@ class PasswordResetRequestView(APIView):
             {
                 "detail": (
                     "Si el email está registrado, vas a recibir "
-                    "un enlace para restablecer tu contraseña."
+                    "un código para restablecer tu contraseña."
                 )
             },
             status=status.HTTP_200_OK,
@@ -349,11 +353,11 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetConfirmView(APIView):
     """
-    Aplica la nueva contraseña usando el token del email.
+    Aplica la nueva contraseña con el código recibido por email.
 
-    - Valida que el token sea válido (no usado, no expirado).
+    - Valida el código del usuario (pendiente, no usado, no expirado).
     - Cambia la contraseña.
-    - Invalida el token y todas las sesiones del usuario.
+    - Invalida el código y todas las sesiones del usuario.
     """
 
     permission_classes = [AllowAny]

@@ -12,10 +12,14 @@ El template usa estilos inline porque la mayoría de los clientes de email
 
 def build_password_reset_email(
     reset_url: str,
+    code: str,
     gym_name: str | None = None,
 ) -> tuple[str, str]:
     """
     Genera el asunto y cuerpo HTML para el email de restablecimiento de contraseña.
+
+    El secreto es el código de 6 dígitos: el botón lleva a la app sin ningún
+    parámetro en la URL.
 
     Retorna (subject, html_body).
     """
@@ -53,8 +57,22 @@ def build_password_reset_email(
               <p style="margin:0 0 16px 0;">Hola,</p>
               <p style="margin:0 0 24px 0;">
                 Recibimos un pedido para restablecer tu contraseña.
-                Hacé clic en el botón de abajo para crear una nueva:
+                Usá el código de abajo en la app para crear una nueva:
               </p>
+
+              <!-- Código -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td align="center" style="background-color:#f4f4f5; border-radius:8px; padding:20px 24px;">
+                    <p style="margin:0 0 6px 0; font-size:13px; color:#71717a; text-transform:uppercase; letter-spacing:1px;">
+                      Tu código
+                    </p>
+                    <p style="margin:0; font-size:32px; font-weight:700; letter-spacing:8px; color:#18181b; font-family:monospace, Courier New, monospace;">
+                      {code}
+                    </p>
+                  </td>
+                </tr>
+              </table>
 
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0">
@@ -62,7 +80,7 @@ def build_password_reset_email(
                   <td align="center" style="padding:0 0 24px 0;">
                     <a href="{reset_url}"
                        style="display:inline-block; background-color:#6366f1; color:#ffffff; text-decoration:none; font-size:15px; font-weight:600; padding:14px 32px; border-radius:8px;">
-                      Restablecer contraseña
+                      Ir a restablecer contraseña
                     </a>
                   </td>
                 </tr>
@@ -74,7 +92,8 @@ def build_password_reset_email(
               </p>
 
               <p style="margin:0; font-size:13px; color:#71717a;">
-                Este enlace expira en <strong>1 hora</strong>.
+                Este código expira en <strong>1 hora</strong> y solo puede
+                usarse una vez.
               </p>
             </td>
           </tr>
