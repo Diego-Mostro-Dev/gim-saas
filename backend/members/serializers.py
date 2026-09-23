@@ -658,7 +658,7 @@ class PublicMemberSerializer(MemberSerializer):
 
     class Meta(MemberSerializer.Meta):
         fields = MemberSerializer.Meta.fields + ["access_token"]
-        read_only_fields = ["gym", "access_token", "active"]
+        read_only_fields = ["gym", "access_token", "active", "is_comp"]
 
 
 class MemberPhotoSerializer(serializers.ModelSerializer):
