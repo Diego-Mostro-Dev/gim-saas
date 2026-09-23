@@ -336,6 +336,7 @@ function Outings() {
             editingOuting={editingOuting}
             errors={fieldErrors}
             trainers={trainers}
+            gym={gym}
           />
         </div>
       )}

@@ -9,6 +9,7 @@ function OutingForm({
   editingOuting,
   errors,
   trainers,
+  gym,
 }) {
   return (
     <form
@@ -133,6 +134,7 @@ function OutingForm({
         <RouteDrawMap
           value={formData.route_polyline || []}
           onChange={(polyline) => setFormData({ ...formData, route_polyline: polyline })}
+          gym={gym}
         />
         {errors?.route_polyline && (
           <p className="mt-1 text-sm text-danger-text">{errors.route_polyline}</p>
