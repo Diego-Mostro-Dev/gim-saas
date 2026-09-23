@@ -41,6 +41,7 @@ from .serializers import (
     ScheduleSwapRequestActionSerializer,
     SessionRecoverySerializer,
 )
+from config.api.params import parse_date, parse_int, parse_time, validate_choice
 
 
 def _build_class_items_by_day(gym, days):
@@ -267,7 +268,9 @@ class WeeklyScheduleView(APIView):
         target_date = None
         approved_swaps = None
         if target_date_str:
-            target_date = date.fromisoformat(target_date_str)
+            target_date, date_error = parse_date(target_date_str)
+            if date_error:
+                return date_error
             approved_swaps = list(
                 ScheduleSwapRequest.objects.filter(
                     gym=gym,
@@ -428,6 +431,13 @@ def members_by_schedule(request):
     day = request.GET.get("day")
     hour = request.GET.get("hour")
 
+    day, day_error = validate_choice(day, DAY_CHOICES, "day")
+    if day_error:
+        return day_error
+    _, hour_error = parse_time(hour)
+    if hour_error:
+        return hour_error
+
     schedules = AttendanceSchedule.objects.filter(
         gym=gym,
         slot__day=day,
@@ -447,7 +457,9 @@ def members_by_schedule(request):
 
     target_date_str = request.GET.get("date")
     if target_date_str:
-        target_date = date.fromisoformat(target_date_str)
+        target_date, date_error = parse_date(target_date_str)
+        if date_error:
+            return date_error
 
         swap_out_ids = set(
             ScheduleSwapRequest.objects.filter(
@@ -506,6 +518,13 @@ def attendance_status(request):
     day = request.GET.get("day")
     hour = request.GET.get("hour")
 
+    day, day_error = validate_choice(day, DAY_CHOICES, "day")
+    if day_error:
+        return day_error
+    _, hour_error = parse_time(hour)
+    if hour_error:
+        return hour_error
+
     schedules = list(AttendanceSchedule.objects.filter(
         gym=gym,
         slot__day=day,
@@ -521,7 +540,11 @@ def attendance_status(request):
     today = timezone.localdate()
 
     target_date_str = request.GET.get("date")
-    target_date = date.fromisoformat(target_date_str) if target_date_str else today
+    target_date = today
+    if target_date_str:
+        target_date, date_error = parse_date(target_date_str)
+        if date_error:
+            return date_error
 
     schedule_ids = [s.id for s in schedules]
 
@@ -895,8 +918,16 @@ def attendance_analytics(request):
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
 
-    end_date = date.fromisoformat(end_date_str) if end_date_str else today
-    start_date = date.fromisoformat(start_date_str) if start_date_str else end_date - timedelta(days=29)
+    end_date = today
+    start_date = end_date - timedelta(days=29)
+    if end_date_str:
+        end_date, date_error = parse_date(end_date_str)
+        if date_error:
+            return date_error
+    if start_date_str:
+        start_date, date_error = parse_date(start_date_str)
+        if date_error:
+            return date_error
 
     qs = Attendance.objects.filter(gym=gym, date__gte=start_date, date__lte=end_date)
 
@@ -1059,10 +1090,18 @@ class SessionRecoveryListCreateView(APIView):
 
         member_id = request.GET.get("member")
         if member_id:
+            member_id, member_error = parse_int(member_id, "member")
+            if member_error:
+                return member_error
             qs = qs.filter(member_id=member_id)
 
         status_query = request.GET.get("status")
         if status_query:
+            status_query, status_error = validate_choice(
+                status_query, SessionRecovery.STATUS_CHOICES, "status"
+            )
+            if status_error:
+                return status_error
             if status_query == "expired":
                 qs = qs.filter(status="scheduled", used_date__lt=timezone.localdate())
             else:

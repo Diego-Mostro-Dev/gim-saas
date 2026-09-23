@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 
 from core.mixins import GymQuerysetMixin
@@ -23,6 +24,8 @@ from .enrollment_request_service import (
 )
 from .enrollment_service import OutingEnrollmentError, OutingEnrollmentService
 from .models import (
+    ENROLLMENT_REQUEST_STATUS_CHOICES,
+    ENROLLMENT_REQUEST_TYPE_CHOICES,
     Outing,
     OutingEnrollment,
     OutingEnrollmentRequest,
@@ -35,6 +38,7 @@ from .serializers import (
     StaffOutingEnrollmentRequestSerializer,
 )
 from .session_service import SessionError, SessionService
+from config.api.params import as_error_detail, validate_choice
 
 
 class OutingsGuardMixin:
@@ -298,9 +302,23 @@ class OutingEnrollmentRequestViewSet(
         )
         status_filter = self.request.query_params.get("status")
         if status_filter:
+            status_filter, status_error = validate_choice(
+                status_filter,
+                ENROLLMENT_REQUEST_STATUS_CHOICES,
+                "status",
+            )
+            if status_error:
+                raise ParseError(as_error_detail(status_error))
             qs = qs.filter(status=status_filter)
         request_type = self.request.query_params.get("request_type")
         if request_type:
+            request_type, type_error = validate_choice(
+                request_type,
+                ENROLLMENT_REQUEST_TYPE_CHOICES,
+                "request_type",
+            )
+            if type_error:
+                raise ParseError(as_error_detail(type_error))
             qs = qs.filter(request_type=request_type)
         return qs
 

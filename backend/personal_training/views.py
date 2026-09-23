@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -33,6 +34,7 @@ from .serializers import (
     PersonalTrainingServiceSerializer,
     TrainerSerializer,
 )
+from config.api.params import as_error_detail, validate_choice
 from .session_service import SessionError, SessionService
 
 
@@ -296,6 +298,13 @@ class PersonalTrainingChangeRequestViewSet(
         ).select_related("member", "member__insurance", "assignment", "assignment__service", "assignment__trainer", "reviewed_by")
         status_filter = self.request.query_params.get("status")
         if status_filter:
+            status_filter, status_error = validate_choice(
+                status_filter,
+                PersonalTrainingChangeRequest.STATUS_CHOICES,
+                "status",
+            )
+            if status_error:
+                raise ParseError(as_error_detail(status_error))
             qs = qs.filter(status=status_filter)
         return qs
 

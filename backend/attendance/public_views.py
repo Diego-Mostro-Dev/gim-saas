@@ -30,6 +30,7 @@ from .serializers import (
     PublicScheduleSwapRequestSerializer,
     SessionRecoverySerializer,
 )
+from config.api.params import parse_date
 from config.api.throttles import PublicAttendanceRateThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
@@ -346,7 +347,11 @@ class PublicMemberSlotsView(APIView):
         member = get_object_or_404(Member, access_token=token)
         gym = SubscriptionDomain.resolve_gym(member)
         target_date_str = request.GET.get("date")
-        target_date = date.fromisoformat(target_date_str) if target_date_str else None
+        target_date = None
+        if target_date_str:
+            target_date, date_error = parse_date(target_date_str)
+            if date_error:
+                return date_error
 
         if target_date and GymClosedDate.objects.filter(
             gym=gym, date=target_date

@@ -7,6 +7,7 @@ from django.utils.timezone import now
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -83,6 +84,10 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         member_id = self.request.query_params.get("member")
         queryset = queryset.filter(gym=gym)
         if member_id:
+            try:
+                member_id = int(member_id)
+            except (TypeError, ValueError):
+                raise ParseError("El parámetro member no es válido.")
             queryset = queryset.filter(member_id=member_id)
         return queryset
 

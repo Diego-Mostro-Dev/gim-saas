@@ -4,6 +4,7 @@ from datetime import time
 
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
@@ -429,6 +430,10 @@ class MemberAttachmentViewSet(GymModelViewSet):
 
         member_id = self.request.query_params.get("member")
         if member_id:
+            try:
+                member_id = int(member_id)
+            except (TypeError, ValueError):
+                raise ParseError("El parámetro member no es válido.")
             queryset = queryset.filter(member_id=member_id)
 
         return queryset
