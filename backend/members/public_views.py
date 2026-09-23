@@ -160,6 +160,13 @@ class PublicRegisterView(APIView):
         member_data.pop("plan_id", None)
         member_data["entry_mode"] = entry_mode
 
+        # Privilegios que el socio no puede auto-asignarse en el registro.
+        # is_comp se fuerza en False y el descuento se ignora: solo el staff
+        # puede otorgarlos luego del alta (evita membresía de cortesía gratis).
+        member_data.pop("is_comp", None)
+        member_data.pop("discount_id", None)
+        member_data["is_comp"] = False
+
         if isinstance(raw_schedules, str):
             try:
                 raw_schedules = json.loads(raw_schedules)
