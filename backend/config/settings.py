@@ -262,6 +262,7 @@ _db_config = dj_database_url.parse(
     os.getenv("DATABASE_URL"),
     conn_max_age=0,
     conn_health_checks=True,
+    sslmode="require",
 )
 
 # Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
