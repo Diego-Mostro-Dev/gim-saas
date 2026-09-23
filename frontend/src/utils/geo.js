@@ -1,3 +1,28 @@
+export const ROSARIO_CENTER = [-32.9442, -60.6505];
+
+const geocodeCache = {};
+
+export async function geocodeGymAddress(gym) {
+  if (!gym) return null;
+  const query = [gym.seo_address, gym.seo_city].filter(Boolean).join(", ");
+  if (!query) return null;
+  if (geocodeCache[query]) return geocodeCache[query];
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    const results = await res.json();
+    const hit = Array.isArray(results) && results[0];
+    if (!hit) return null;
+    const center = [Number(hit.lat), Number(hit.lon)];
+    geocodeCache[query] = center;
+    return center;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
 export function haversineKm(points) {
   if (!Array.isArray(points) || points.length < 2) return 0;
   const R = 6371;

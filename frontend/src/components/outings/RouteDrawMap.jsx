@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -9,9 +9,7 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
-import { haversineKm } from "../../utils/geo";
-
-const DEFAULT_CENTER = [-34.6037, -58.3816];
+import { geocodeGymAddress, haversineKm, ROSARIO_CENTER } from "../../utils/geo";
 
 function FitRoute({ points }) {
   const map = useMap();
@@ -22,6 +20,15 @@ function FitRoute({ points }) {
   return null;
 }
 
+function GymFocus({ center, enabled }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!enabled) return;
+    map.panTo(center);
+  }, [map, center, enabled]);
+  return null;
+}
+
 function ClickHandler({ onAdd }) {
   useMapEvents({
     click: (e) => onAdd([e.latlng.lat, e.latlng.lng]),
@@ -29,10 +36,21 @@ function ClickHandler({ onAdd }) {
   return null;
 }
 
-function RouteDrawMap({ value, onChange }) {
+function RouteDrawMap({ value, onChange, gym }) {
   const points = useMemo(() => (Array.isArray(value) ? value : []), [value]);
   const lastAddRef = useRef(null);
   const distance = haversineKm(points);
+  const [center, setCenter] = useState(ROSARIO_CENTER);
+
+  useEffect(() => {
+    let active = true;
+    geocodeGymAddress(gym).then((coords) => {
+      if (active && coords) setCenter(coords);
+    });
+    return () => {
+      active = false;
+    };
+  }, [gym]);
 
   function handleAdd([lat, lng]) {
     const last = lastAddRef.current;
@@ -50,7 +68,7 @@ function RouteDrawMap({ value, onChange }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <MapContainer
-        center={DEFAULT_CENTER}
+        center={center}
         zoom={13}
         scrollWheelZoom
         style={{ height: "18rem", width: "100%" }}
@@ -60,6 +78,7 @@ function RouteDrawMap({ value, onChange }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
         <ClickHandler onAdd={handleAdd} />
+        <GymFocus center={center} enabled={points.length < 2} />
         {points.length > 0 && (
           <>
             <Polyline
