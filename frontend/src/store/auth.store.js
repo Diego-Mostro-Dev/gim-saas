@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { apiFetch } from "../services/api";
+import { apiFetch, clearSession, persistSession } from "../services/api";
 
 const useAuthStore = create((set, get) => ({
   token: localStorage.getItem("token") || null,
@@ -38,7 +38,7 @@ const useAuthStore = create((set, get) => ({
         initialized: true,
       });
     } catch {
-      localStorage.removeItem("token");
+      clearSession();
 
       set({
         token: null,
@@ -64,7 +64,7 @@ const useAuthStore = create((set, get) => ({
         }),
       });
 
-      localStorage.setItem("token", data.token);
+      persistSession(data.token, data.expires_in);
 
       try {
         const me = await apiFetch("/api/auth/me/");
@@ -80,7 +80,7 @@ const useAuthStore = create((set, get) => ({
           loading: false,
         });
       } catch {
-        localStorage.removeItem("token");
+        clearSession();
 
         set({
           token: null,
@@ -107,7 +107,7 @@ const useAuthStore = create((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem("token");
+    clearSession();
 
     set({
       token: null,

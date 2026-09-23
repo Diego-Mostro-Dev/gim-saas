@@ -2,6 +2,11 @@ export const API_URL = import.meta.env.VITE_API_URL;
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
+export const TOKEN_KEY = "token";
+export const TOKEN_EXPIRES_KEY = "token_expires_at";
+
+const AUTH_ENDPOINTS = ["/api/auth/login/", "/api/auth/refresh/"];
+
 export const NETWORK_ERROR_MESSAGE =
   "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";
 
@@ -80,7 +85,7 @@ export function extractApiErrorMessage(body) {
 }
 
 function buildAuthHeaders(options = {}) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem(TOKEN_KEY);
   const headers = { ...options.headers };
   const isFormData = options.body instanceof FormData;
   if (!isFormData) {
@@ -93,6 +98,64 @@ function buildAuthHeaders(options = {}) {
     headers.Authorization = `Token ${token}`;
   }
   return headers;
+}
+
+// Persiste un token nuevo de sesión junto con su expiración (epoch ms).
+export function persistSession(token, expiresIn) {
+  localStorage.setItem(TOKEN_KEY, token);
+  if (typeof expiresIn === "number" && expiresIn > 0) {
+    localStorage.setItem(TOKEN_EXPIRES_KEY, String(Date.now() + expiresIn * 1000));
+  } else {
+    localStorage.removeItem(TOKEN_EXPIRES_KEY);
+  }
+}
+
+// Limpia la sesión completa (token + expiración).
+export function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_EXPIRES_KEY);
+}
+
+function isAuthEndpoint(url) {
+  return AUTH_ENDPOINTS.some((endpoint) => url.includes(endpoint));
+}
+
+let refreshInFlight = null;
+
+// Rota el token vencido contra /api/auth/refresh/. Single-flight: si varias
+// requests fallan con 401 al mismo tiempo, solo se hace UN refresh y todas
+// comparten el resultado.
+async function refreshSessionToken() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return null;
+
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/refresh/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: "{}",
+      });
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      persistSession(data.token, data.expires_in);
+      return data.token;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 async function throwIfNotOk(res, options = {}) {
@@ -131,7 +194,7 @@ async function throwIfNotOk(res, options = {}) {
 async function request(
   url,
   fetchOptions,
-  { suppressUnauthorized = false, skipAuth = false } = {},
+  { suppressUnauthorized = false, skipAuth = false, retried = false } = {},
 ) {
   const headers = buildAuthHeaders({ ...fetchOptions, skipAuth });
   const { signal, cleanup } = buildTimeoutController(fetchOptions);
@@ -139,6 +202,32 @@ async function request(
   let res;
   try {
     res = await fetch(url, { ...fetchOptions, headers, signal });
+  } catch (err) {
+    cleanup();
+    throw asApiError(err);
+  }
+
+  // Ante un 401 por token vencido (y solo si la request llevaba auth y no es
+  // un endpoint de auth en sí), se rota el token y se reintenta UNA vez.
+  if (
+    res.status === 401 &&
+    !skipAuth &&
+    !suppressUnauthorized &&
+    !retried &&
+    !isAuthEndpoint(url)
+  ) {
+    const newToken = await refreshSessionToken();
+    if (newToken) {
+      cleanup();
+      return request(url, fetchOptions, {
+        suppressUnauthorized,
+        skipAuth,
+        retried: true,
+      });
+    }
+  }
+
+  try {
     await throwIfNotOk(res, { suppressUnauthorized });
   } catch (err) {
     throw asApiError(err);

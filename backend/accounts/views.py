@@ -18,6 +18,11 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     AdminPasswordResetSerializer,
 )
+from config.api.authentication import (
+    get_or_create_session_token,
+    token_expires_in_seconds,
+    RefreshTokenAuthentication,
+)
 from config.api.throttles import (
     LoginRateThrottle,
     OnboardingCreateRateThrottle,
@@ -40,16 +45,17 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
-        # Keep each session's token independent so logging in on another
-        # tab/device does not revoke the tokens of existing sessions. The
-        # multi-tenant gym is resolved from request.user, not the token, so
-        # concurrent tokens for the same user stay scoped to their own gym.
-        token, _ = Token.objects.get_or_create(user=user)
+        # Único token por usuario, igual que antes (el gym se resuelve desde
+        # request.user, no desde el token), pero con rotación al vencer: si el
+        # token existente ya expiró se emite uno nuevo. `expires_in` permite al
+        # frontend saber cuándo va a necesitar refrescar.
+        token = get_or_create_session_token(user)
 
         return Response(
             {
                 "token": token.key,
                 "username": user.username,
+                "expires_in": token_expires_in_seconds(),
                 "must_change_password": (
                     user.profile.must_change_password
                 ),
@@ -138,6 +144,40 @@ class ChangePasswordView(APIView):
             {
                 "success": True,
                 "token": new_token.key,
+                "expires_in": token_expires_in_seconds(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# -------------------------
+# REFRESH TOKEN
+# -------------------------
+class RefreshTokenView(APIView):
+    """
+    Rota el token de sesión por uno nuevo con expiración renovada.
+
+    Usa RefreshTokenAuthentication: admite un token vencido (pero existente)
+    para renovarlo sin obligar al usuario a volver a entrar. Al rotar se
+    invalida la clave anterior, lo que mantiene el modelo de un token por
+    usuario.
+    """
+
+    authentication_classes = [RefreshTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        old_token = request.auth
+        user = request.user
+
+        old_token.delete()
+        new_token = Token.objects.create(user=user)
+
+        return Response(
+            {
+                "token": new_token.key,
+                "username": user.username,
+                "expires_in": token_expires_in_seconds(),
             },
             status=status.HTTP_200_OK,
         )
@@ -233,7 +273,7 @@ class CreateGymOwnerView(APIView):
         profile.save()
 
         # 3. token automático
-        token, _ = Token.objects.get_or_create(user=user)
+        token = get_or_create_session_token(user)
 
         return Response(
             {
@@ -241,6 +281,7 @@ class CreateGymOwnerView(APIView):
                 "token": token.key,
                 "user": user.username,
                 "gym": gym.name,
+                "expires_in": token_expires_in_seconds(),
                 "must_change_password": (
                     profile.must_change_password
                 ),

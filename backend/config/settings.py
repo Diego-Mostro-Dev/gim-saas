@@ -62,6 +62,11 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
+# Tiempo de vida de los tokens de sesión (DRF Token), en horas. Default 7 días.
+# Al vencer el token es rechazado (401) y el cliente lo rota contra
+# /api/auth/refresh/ para no perder la sesión.
+TOKEN_EXPIRY_HOURS = int(os.getenv("TOKEN_EXPIRY_HOURS", "168"))
+
 # API key compartida para disparar tareas del sistema desde un cron externo
 SCHEDULED_TASKS_KEY = os.getenv("SCHEDULED_TASKS_KEY", "")
 
@@ -172,7 +177,7 @@ else:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "config.api.authentication.ExpiringTokenAuthentication",
     ],
 
     "DEFAULT_PERMISSION_CLASSES": [

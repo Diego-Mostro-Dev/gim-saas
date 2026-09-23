@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { apiFetch } from "../../services/api";
+import { apiFetch, persistSession } from "../../services/api";
 import useAuthStore from "../../store/auth.store";
 
 export default function GymSetup() {
@@ -62,7 +62,7 @@ export default function GymSetup() {
         },
       );
 
-      localStorage.setItem("token", data.token);
+      persistSession(data.token, data.expires_in);
 
       useAuthStore.setState({
         token: data.token,
