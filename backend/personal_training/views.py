@@ -148,7 +148,9 @@ class PersonalTrainingAssignmentViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        member = get_object_or_404(Member, id=member_id)
+        member = get_object_or_404(
+            Member, id=member_id, gym=self.get_gym()
+        )
         service = get_object_or_404(
             PersonalTrainingService, id=service_id, gym=self.get_gym()
         )
@@ -162,7 +164,9 @@ class PersonalTrainingAssignmentViewSet(
         exclude = None
         if assignment_id:
             exclude = get_object_or_404(
-                PersonalTrainingAssignment, id=assignment_id
+                PersonalTrainingAssignment,
+                id=assignment_id,
+                gym=self.get_gym(),
             )
 
         result = available_slots(

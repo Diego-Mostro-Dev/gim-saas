@@ -2,7 +2,10 @@ from datetime import date, time, timedelta
 from decimal import Decimal
 from unittest import mock
 
-from core.testing import BaseAPITest
+from django.utils import timezone
+
+from core.testing import BaseAPITest, WEEKDAY_NAMES
+from profiles.models import UserProfile
 
 from activities.models import (
     Activity,
@@ -10,7 +13,7 @@ from activities.models import (
     ActivitySessionRecord,
     Enrollment,
 )
-from attendance.models import Attendance
+from attendance.models import Attendance, AttendanceSchedule, ScheduleSlot
 from attendance.recovery_service import grant_scheduled
 from plans.models import Service
 
@@ -172,3 +175,236 @@ class RecoveryCancelsNoShowTests(BaseAPITest):
             ActivitySessionRecord.objects.filter(source="no_show").count(), 0
         )
         self.assertEqual(self.enrollment.session_records.count(), 0)
+
+
+class SessionRecoveryIdorTests(BaseAPITest):
+    """El staff no puede recuperar sesiones referenciando actividades o
+    clases de otro gimnasio."""
+
+    def setUp(self):
+        self.gym_a = self.create_gym("Gym A")
+        self.gym_a.features["activities"] = True
+        self.gym_a.allow_session_recovery = True
+        self.gym_a.save()
+        self.staff_a = self.create_user(
+            self.gym_a, username="staff-a", role=UserProfile.ROLE_STAFF
+        )
+        self.member_a = self.create_member(self.gym_a, first_name="Ana", last_name="A")
+
+        self.gym_b = self.create_gym("Gym B")
+        self.activity_b = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym_b),
+            name="Yoga",
+            billing_mode="sessions",
+        )
+        self.schedule_b = ActivitySchedule.objects.create(
+            activity=self.activity_b,
+            day=self.weekday_name(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+        self.client.force_authenticate(user=self.staff_a)
+
+    def test_recovery_rejects_activity_of_other_gym(self):
+        resp = self.client.post(
+            "/api/attendance/recoveries/",
+            {
+                "member": self.member_a.id,
+                "kind": "activity",
+                "activity": self.activity_b.id,
+                "schedule_id": self.schedule_b.id,
+                "date": (timezone.localdate() + timedelta(days=1)).isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data["detail"], "Actividad no encontrada.")
+
+    def test_recovery_rejects_schedule_of_other_gym(self):
+        activity_a = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym_a),
+            name="Kinesio",
+            billing_mode="sessions",
+        )
+        resp = self.client.post(
+            "/api/attendance/recoveries/",
+            {
+                "member": self.member_a.id,
+                "kind": "activity",
+                "activity": activity_a.id,
+                "schedule_id": self.schedule_b.id,
+                "date": (timezone.localdate() + timedelta(days=1)).isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data["detail"], "Clase no encontrada.")
+
+
+class ScheduleRequestIdorTests(BaseAPITest):
+    """IDOR cross-tenant: las solicitudes staff de cambio/intercambio no pueden
+    referenciar socios u horarios de otro gimnasio, ni al crear ni en PATCH."""
+
+    def setUp(self):
+        self.gym_a = self.create_gym("Gym A")
+        self.gym_a.schedule_change_notice_hours = 0
+        self.gym_a.max_schedule_changes_per_month = 100
+        self.gym_a.save(
+            update_fields=["schedule_change_notice_hours", "max_schedule_changes_per_month"]
+        )
+        self.staff_a = self.create_user(
+            self.gym_a, username="staff-a", role=UserProfile.ROLE_STAFF
+        )
+        self.member_a = self.create_member(self.gym_a, first_name="Ana", last_name="A")
+        self.member_a2 = self.create_member(self.gym_a, first_name="Ali", last_name="A")
+        self.slot_a = self.create_today_slot(self.gym_a)
+        self.other_slot_a = ScheduleSlot.objects.create(
+            gym=self.gym_a,
+            day=self.weekday_name(),
+            hour=time(11, 0),
+        )
+        self.schedule_a = self.create_attendance_schedule(
+            self.member_a, self.gym_a, self.slot_a
+        )
+
+        self.gym_b = self.create_gym("Gym B")
+        self.member_b = self.create_member(self.gym_b, first_name="Bea", last_name="B")
+        self.slot_b = self.create_today_slot(self.gym_b)
+        self.schedule_b = self.create_attendance_schedule(
+            self.member_b, self.gym_b, self.slot_b
+        )
+
+        self.client.force_authenticate(user=self.staff_a)
+
+    def _swap_destination(self):
+        """Horario de destino mañana; día y fecha coherentes para el swap."""
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        day = WEEKDAY_NAMES[tomorrow.weekday()]
+        slot = ScheduleSlot.objects.create(
+            gym=self.gym_a,
+            day=day,
+            hour=time(12, 0),
+        )
+        return slot, tomorrow
+
+    def test_change_valid_create(self):
+        resp = self.client.post(
+            "/api/attendance/schedule-change-requests/",
+            {
+                "member": self.member_a.id,
+                "current_schedule": self.schedule_a.id,
+                "requested_slot": self.other_slot_a.id,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_change_create_rejects_requested_slot_of_other_gym(self):
+        resp = self.client.post(
+            "/api/attendance/schedule-change-requests/",
+            {
+                "member": self.member_a.id,
+                "current_schedule": self.schedule_a.id,
+                "requested_slot": self.slot_b.id,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("requested_slot", resp.data)
+
+    def test_change_create_rejects_member_of_other_gym(self):
+        resp = self.client.post(
+            "/api/attendance/schedule-change-requests/",
+            {
+                "member": self.member_b.id,
+                "current_schedule": self.schedule_a.id,
+                "requested_slot": self.other_slot_a.id,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("member", resp.data)
+
+    def test_change_create_rejects_member_not_matching_schedule(self):
+        resp = self.client.post(
+            "/api/attendance/schedule-change-requests/",
+            {
+                "member": self.member_a2.id,
+                "current_schedule": self.schedule_a.id,
+                "requested_slot": self.other_slot_a.id,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_change_partial_patch_cannot_switch_slot_to_other_gym(self):
+        valid = self.client.post(
+            "/api/attendance/schedule-change-requests/",
+            {
+                "member": self.member_a.id,
+                "current_schedule": self.schedule_a.id,
+                "requested_slot": self.other_slot_a.id,
+            },
+            format="json",
+        )
+        self.assertEqual(valid.status_code, 201)
+
+        resp = self.client.patch(
+            f"/api/attendance/schedule-change-requests/{valid.data['id']}/",
+            {"requested_slot": self.slot_b.id},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("requested_slot", resp.data)
+
+    def test_swap_valid_create(self):
+        destination, swap_date = self._swap_destination()
+        resp = self.client.post(
+            "/api/attendance/schedule-swap-requests/",
+            {
+                "member": self.member_a.id,
+                "origin_schedule": self.schedule_a.id,
+                "destination_slot": destination.id,
+                "swap_date": swap_date,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_swap_create_rejects_destination_slot_of_other_gym(self):
+        resp = self.client.post(
+            "/api/attendance/schedule-swap-requests/",
+            {
+                "member": self.member_a.id,
+                "origin_schedule": self.schedule_a.id,
+                "destination_slot": self.slot_b.id,
+                "swap_date": timezone.localdate() + timedelta(days=1),
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("destination_slot", resp.data)
+
+    def test_swap_partial_patch_cannot_switch_destination_to_other_gym(self):
+        destination, swap_date = self._swap_destination()
+        valid = self.client.post(
+            "/api/attendance/schedule-swap-requests/",
+            {
+                "member": self.member_a.id,
+                "origin_schedule": self.schedule_a.id,
+                "destination_slot": destination.id,
+                "swap_date": swap_date,
+            },
+            format="json",
+        )
+        self.assertEqual(valid.status_code, 201)
+
+        resp = self.client.patch(
+            f"/api/attendance/schedule-swap-requests/{valid.data['id']}/",
+            {"destination_slot": self.slot_b.id},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("destination_slot", resp.data)

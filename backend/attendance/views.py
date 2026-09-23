@@ -1118,7 +1118,10 @@ class SessionRecoveryListCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             from activities.models import Activity
-            activity = Activity.objects.filter(pk=activity_id).first()
+            activity = Activity.objects.filter(
+                pk=activity_id,
+                service__gym=gym,
+            ).first()
             if activity is None:
                 return Response(
                     {"detail": "Actividad no encontrada."},
@@ -1150,6 +1153,7 @@ class SessionRecoveryListCreateView(APIView):
                 )
             schedule = ActivitySchedule.objects.filter(
                 activity_id=activity_id,
+                activity__service__gym=gym,
                 pk=schedule_id,
             ).first()
             if schedule is None:
@@ -1224,7 +1228,10 @@ class SessionRecoveryOptionsView(APIView):
         activity = None
         if kind == "activity":
             from activities.models import Activity
-            activity = Activity.objects.filter(pk=activity_id).first()
+            activity = Activity.objects.filter(
+                pk=activity_id,
+                service__gym=gym,
+            ).first()
             if activity is None:
                 return Response(
                     {"detail": "Actividad no encontrada."},

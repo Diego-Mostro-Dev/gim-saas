@@ -13,6 +13,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.mixins import GymQuerysetMixin
+from core.permissions import require_owner
 from members.models import Member
 from profiles.models import UserProfile
 from .holidays import HolidaysAPIError, fetch_argentina_holidays
@@ -152,10 +153,7 @@ class GymMeView(APIView):
     def patch(self, request):
         gym = self.get_gym(request)
 
-        if request.user.profile.role != request.user.profile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(gym, "errors.owner_only_settings")
-            )
+        require_owner(request, "errors.owner_only_settings")
 
         serializer = GymSerializer(
             gym,
@@ -187,15 +185,6 @@ class GymClosedDateListCreateView(APIView):
 
         return profile.gym
 
-    def require_owner(self, request):
-        if request.user.profile.role != UserProfile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(
-                    request.user.profile.gym,
-                    "errors.owner_only_closed_dates",
-                )
-            )
-
     def get(self, request):
         gym = self.get_gym(request)
 
@@ -206,7 +195,7 @@ class GymClosedDateListCreateView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
-        self.require_owner(request)
+        require_owner(request, "errors.owner_only_closed_dates")
         gym = self.get_gym(request)
 
         serializer = GymClosedDateSerializer(data=request.data)
@@ -222,13 +211,7 @@ class GymClosedDateDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, closed_date_id):
-        if request.user.profile.role != UserProfile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(
-                    request.user.profile.gym,
-                    "errors.owner_only_closed_dates",
-                )
-            )
+        require_owner(request, "errors.owner_only_closed_dates")
 
         profile = getattr(request.user, "profile", None)
         if not profile or not profile.gym:
@@ -254,13 +237,7 @@ class GymClosedDateHolidaysView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.profile.role != UserProfile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(
-                    request.user.profile.gym,
-                    "errors.owner_only_closed_dates",
-                )
-            )
+        require_owner(request, "errors.owner_only_closed_dates")
 
         profile = getattr(request.user, "profile", None)
         if not profile or not profile.gym:
@@ -333,12 +310,6 @@ class GymStaffView(APIView):
 
         return profile.gym
 
-    def require_owner(self, request):
-        if request.user.profile.role != UserProfile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(request.user.profile.gym, "errors.owner_only_staff")
-            )
-
     def get(self, request):
         gym = self.get_gym(request)
 
@@ -361,7 +332,7 @@ class GymStaffView(APIView):
         )
 
     def post(self, request):
-        self.require_owner(request)
+        require_owner(request, "errors.owner_only_staff")
         gym = self.get_gym(request)
 
         username = (request.data.get("username") or "").strip()
@@ -448,10 +419,7 @@ class GymStaffDetailView(APIView):
         return profile.gym
 
     def delete(self, request, user_id):
-        if request.user.profile.role != UserProfile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(request.user.profile.gym, "errors.owner_only_staff")
-            )
+        require_owner(request, "errors.owner_only_staff")
 
         gym = self.get_gym(request)
 
@@ -470,10 +438,7 @@ class GymStaffDetailView(APIView):
         return Response(status=204)
 
     def patch(self, request, user_id):
-        if request.user.profile.role != UserProfile.ROLE_OWNER:
-            raise PermissionDenied(
-                msg(request.user.profile.gym, "errors.owner_only_staff")
-            )
+        require_owner(request, "errors.owner_only_staff")
 
         gym = self.get_gym(request)
 

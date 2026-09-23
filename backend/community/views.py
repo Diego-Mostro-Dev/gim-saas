@@ -1,4 +1,3 @@
-from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 
 from rest_framework.permissions import IsAuthenticated
@@ -6,9 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.mixins import GymQuerysetMixin
+from core.permissions import require_owner
 from gyms.features import require_community
-from gyms.labels import msg
-from profiles.models import UserProfile
 
 from .models import CommunityBusiness
 from .serializers import CommunityBusinessSerializer
@@ -20,13 +18,6 @@ class CommunityGuardMixin:
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         require_community(self.get_gym())
-
-
-def require_owner(request):
-    if request.user.profile.role != UserProfile.ROLE_OWNER:
-        raise PermissionDenied(
-            msg(request.user.profile.gym, "errors.owner_only_community")
-        )
 
 
 class CommunityBusinessView(CommunityGuardMixin, GymQuerysetMixin, APIView):
@@ -41,7 +32,7 @@ class CommunityBusinessView(CommunityGuardMixin, GymQuerysetMixin, APIView):
         return Response(CommunityBusinessSerializer(businesses, many=True).data)
 
     def post(self, request):
-        require_owner(request)
+        require_owner(request, "errors.owner_only_community")
         gym = self.get_gym()
         serializer = CommunityBusinessSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -62,7 +53,7 @@ class CommunityBusinessDetailView(CommunityGuardMixin, GymQuerysetMixin, APIView
         )
 
     def patch(self, request, business_id):
-        require_owner(request)
+        require_owner(request, "errors.owner_only_community")
         business = self.get_object(request, business_id)
         serializer = CommunityBusinessSerializer(
             business,
@@ -74,7 +65,7 @@ class CommunityBusinessDetailView(CommunityGuardMixin, GymQuerysetMixin, APIView
         return Response(serializer.data)
 
     def delete(self, request, business_id):
-        require_owner(request)
+        require_owner(request, "errors.owner_only_community")
         business = self.get_object(request, business_id)
         business.delete()
         return Response(status=204)
