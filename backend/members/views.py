@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny
 
 from django.db import models
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.db.models import Prefetch
 
 from activities.models import Activity, Enrollment
@@ -29,7 +30,7 @@ from members.eligibility import MemberEligibility
 from plans.models import MembershipPlan
 from plans.services import public_plan_name_from_snapshot
 
-from .models import HealthInsurance, Member, MemberAttachment
+from .models import HealthInsurance, Member, MemberAttachment, resolve_public_portal_member
 from .serializers import (
     HealthInsuranceSerializer,
     MemberSerializer,
@@ -313,6 +314,10 @@ class PublicMemberDataView(APIView):
     """GET/PATCH de los datos del socio vía access_token.
 
     Permite al socio ver y editar su propia información en el portal.
+
+    Rotación de token (P1-1): al leer los datos, si el token es legacy o
+    venció su TTL se emite uno nuevo y se devuelve en la respuesta como
+    ``access_token`` para que el portal lo persista.
     """
 
     permission_classes = [AllowAny]
@@ -320,10 +325,19 @@ class PublicMemberDataView(APIView):
     throttle_classes = [PublicMemberRateThrottle]
 
     def _get_member(self, token):
-        return get_object_or_404(
-            Member,
-            access_token=token,
-        )
+        member = resolve_public_portal_member(token)
+        if member is None:
+            raise Http404("No Member matches the given query.")
+        # Rotación automática (P1-1): rota aunque el socio esté bloqueado por
+        # pago, así el portal siempre puede refrescar su URL vigente.
+        member._rotated_access_token = member.maybe_rotate_access_token()
+        return member
+
+    def _response_with_rotated_token(self, member, token, data):
+        new_token = member._rotated_access_token
+        if new_token and new_token != token:
+            data["access_token"] = new_token
+        return Response(data)
 
     def get(self, request, token):
         member = self._get_member(token)
@@ -334,8 +348,8 @@ class PublicMemberDataView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = PublicMemberDataSerializer(member)
-        return Response(serializer.data)
+        data = PublicMemberDataSerializer(member).data
+        return self._response_with_rotated_token(member, token, data)
 
     def patch(self, request, token):
         member = self._get_member(token)
@@ -358,7 +372,8 @@ class PublicMemberDataView(APIView):
 
         serializer.save()
 
-        return Response(serializer.data)
+        data = serializer.data
+        return self._response_with_rotated_token(member, token, data)
 
 
 class PublicMemberPhotoView(APIView):

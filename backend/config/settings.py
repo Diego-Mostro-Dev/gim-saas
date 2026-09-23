@@ -92,6 +92,13 @@ PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS = int(
     os.getenv("PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS", "60")
 )
 
+# TTL del token de acceso del portal del socio (días). Al vencerse, la lectura
+# de /public/<token>/data/ rota el token y devuelve el nuevo en la respuesta
+# (P1-1) para que el portal lo persista sin romper listas/URLs ya enviadas.
+MEMBER_ACCESS_TOKEN_TTL_DAYS = int(
+    os.getenv("MEMBER_ACCESS_TOKEN_TTL_DAYS", "30")
+)
+
 # django-axes: bloqueo ante intentos fallidos de login
 # (protege el login API, el reseteo y /admin/ de fuerza bruta/credential stuffing).
 AXES_ENABLED = True
@@ -244,6 +251,13 @@ REST_FRAMEWORK = {
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        # Redacta los access_token del portal del socio que viajan como
+        # segmento de URL en los requests/logs (P1-1).
+        "scrub_access_token": {
+            "()": "config.logging_filters.AccessTokenScrubFilter",
+        },
+    },
     "formatters": {
         "verbose": {
             "format": "[{asctime}] {levelname} {name} {message}",
@@ -254,6 +268,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
+            "filters": ["scrub_access_token"],
         },
     },
     "root": {
@@ -267,6 +282,16 @@ LOGGING = {
             "propagate": False,
         },
         "django.request": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "gunicorn.access": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "gunicorn.error": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,

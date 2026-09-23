@@ -9,8 +9,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import RoutineAssignment, WorkoutSet
 from gyms.labels import get_gym_labels
-from members.models import Member
+from members.models import Member, resolve_public_portal_member
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
@@ -426,10 +427,9 @@ class PublicRoutineView(APIView):
     throttle_classes = [PublicMemberRateThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(
-            Member,
-            access_token=token,
-        )
+        member = resolve_public_portal_member(token)
+        if member is None:
+            raise Http404("No Member matches the given query.")
 
         assignment = (
             RoutineAssignment.objects

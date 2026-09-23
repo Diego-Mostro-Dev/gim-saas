@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import {
@@ -7,12 +7,22 @@ import {
   updatePublicMemberData,
 } from "../../services/routines.service";
 
+// P1-1: si el backend rotó el token (vencido/legacy), la respuesta trae el
+// nuevo en "access_token". Se persiste y se navega al mismo tab con la URL
+// nueva para que todo el portal use el token vigente sin romper el flujo.
+function applyRotatedToken(nextToken, currentToken) {
+  if (!nextToken || nextToken === currentToken) return false;
+  localStorage.setItem("member_token", nextToken);
+  return true;
+}
+
 const inputClass =
   "w-full rounded-xl border border-border bg-surface-input px-3.5 py-2.5 text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 function MemberData() {
   const { routine, refreshRoutine, token } = useOutletContext();
   const { gym } = routine;
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     first_name: "",
@@ -37,6 +47,10 @@ function MemberData() {
       try {
         const data = await getPublicMemberData(token);
         if (cancelled) return;
+        if (applyRotatedToken(data.access_token, token)) {
+          navigate(`/routine/${data.access_token}/data`, { replace: true });
+          return;
+        }
         setForm({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
@@ -74,7 +88,12 @@ function MemberData() {
     e.preventDefault();
     setSaving(true);
     try {
-      await updatePublicMemberData(token, form);
+      const saved = await updatePublicMemberData(token, form);
+      if (saved?.access_token && saved.access_token !== token) {
+        localStorage.setItem("member_token", saved.access_token);
+        navigate(`/routine/${saved.access_token}/data`, { replace: true });
+        return;
+      }
       await refreshRoutine();
       toast.success("Datos actualizados correctamente");
     } catch (err) {
