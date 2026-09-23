@@ -30,7 +30,7 @@ from payments.models import Payment
 from plans.models import MembershipPlan
 from plans.services import display_plan_name, public_plan_name, public_plan_name_from_snapshot
 from subscriptions.domain import SubscriptionDomain
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -339,7 +339,7 @@ class BulkAssignRoutineView(APIView):
 
 class PublicWorkoutProgressView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -424,7 +424,7 @@ def _member_block_reason(member):
 
 class PublicRoutineView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = resolve_public_portal_member(token)

@@ -9,7 +9,7 @@ from gyms.models import Gym
 from members.models import Member
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 
 from .enrollment_service import EnrollmentError, EnrollmentService
 from .models import Activity, ActivitySchedule, Enrollment
@@ -18,7 +18,7 @@ from .serializers import PublicEnrollmentSerializer
 
 class PublicMemberEnrollmentsView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -129,7 +129,7 @@ class PublicGymActivitiesView(APIView):
 
 class PublicAvailableActivitiesView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -194,7 +194,7 @@ class PublicAvailableActivitiesView(APIView):
 
 class PublicMemberEnrollView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)

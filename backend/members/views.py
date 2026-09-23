@@ -25,6 +25,7 @@ from payments.models import Payment
 
 from attendance.models import AttendanceSchedule
 from config.api.throttles import (
+    MemberPortalTokenThrottle,
     PublicMemberRateThrottle,
 )
 from members.eligibility import MemberEligibility
@@ -323,7 +324,7 @@ class PublicMemberDataView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def _get_member(self, token):
         member = resolve_public_portal_member(token)
@@ -381,7 +382,7 @@ class PublicMemberPhotoView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def patch(self, request, token):
         member = get_object_or_404(

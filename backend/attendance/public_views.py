@@ -31,7 +31,10 @@ from .serializers import (
     SessionRecoverySerializer,
 )
 from config.api.params import parse_date
-from config.api.throttles import PublicAttendanceRateThrottle
+from config.api.throttles import (
+    MemberPortalTokenThrottle,
+    PublicAttendanceRateThrottle,
+)
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from .recovery_service import RecoveryError, _add_hour, use_recovery
@@ -101,7 +104,7 @@ def _count_outing_sessions_if_in_window(member, gym, now_dt, today):
 
 class PublicCheckinView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
         with transaction.atomic():
@@ -341,7 +344,7 @@ class PublicCheckinView(APIView):
 
 class PublicMemberSlotsView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -384,7 +387,7 @@ class PublicMemberSlotsView(APIView):
 
 class PublicScheduleChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -419,7 +422,7 @@ class PublicScheduleChangeRequestView(APIView):
 
 class PublicCancelScheduleChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
@@ -452,7 +455,7 @@ class PublicCancelScheduleChangeRequestView(APIView):
 
 class PublicScheduleSwapRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -487,7 +490,7 @@ class PublicScheduleSwapRequestView(APIView):
 
 class PublicCancelScheduleSwapRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
@@ -520,7 +523,7 @@ class PublicCancelScheduleSwapRequestView(APIView):
 
 class PublicSessionRecoveryView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle]
+    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)

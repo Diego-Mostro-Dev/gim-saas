@@ -21,8 +21,11 @@ from rest_framework.decorators import (
     api_view,
     authentication_classes,
     permission_classes,
+    throttle_classes,
 )
 from rest_framework.response import Response
+
+from config.api.throttles import SystemAdminRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +206,7 @@ def run_backup():
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([])
+@throttle_classes([SystemAdminRateThrottle])
 def backup_endpoint(request):
     """Dispara un backup bajo demanda (cron o manual) -> Cloudinary privado.
 

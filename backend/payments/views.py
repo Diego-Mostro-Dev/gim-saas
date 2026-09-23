@@ -11,6 +11,8 @@ from rest_framework.response import Response
 
 from core.viewsets import GymModelViewSet
 
+from config.api.throttles import UserHeavyRateThrottle
+
 from subscriptions.models import Subscription
 from subscriptions.services import sync_subscription_paid
 
@@ -45,6 +47,12 @@ class PaymentViewSet(GymModelViewSet):
         "member", "member__insurance"
     ).order_by("-paid_at")
     serializer_class = PaymentSerializer
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if self.action == "export":
+            throttles.append(UserHeavyRateThrottle())
+        return throttles
 
     @action(detail=False, methods=["get"])
     def export(self, request):

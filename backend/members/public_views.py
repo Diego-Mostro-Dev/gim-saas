@@ -16,7 +16,12 @@ from plans.models import MembershipPlan
 
 from .serializers import MemberSerializer, PublicMemberSerializer, PublicMemberAttachmentSerializer
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
-from config.api.throttles import PublicMemberRateThrottle, PublicRegisterRateThrottle
+from config.api.throttles import (
+    MemberPortalTokenThrottle,
+    MemberUploadThrottle,
+    PublicMemberRateThrottle,
+    PublicRegisterRateThrottle,
+)
 from .models import Member, MemberAttachment
 
 
@@ -270,7 +275,7 @@ class PublicMemberAttachmentListView(APIView):
 
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [MemberUploadThrottle]
 
     def _get_member(self, token):
         return get_object_or_404(
@@ -316,7 +321,7 @@ class PublicMemberAttachmentDetailView(APIView):
 
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def _get_attachment(self, token, attachment_id):
         return get_object_or_404(
