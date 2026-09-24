@@ -42,6 +42,14 @@ function appendText(doc, parent, className, text) {
   parent.appendChild(el);
 }
 
+function qrSvgToNode(doc, qrSvg) {
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(qrSvg, "image/svg+xml");
+  const svg = parsed.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== "svg") return null;
+  return doc.importNode(svg, true);
+}
+
 const STYLE_SHEET = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   @page { size: A4 portrait; margin: 0; }
