@@ -3,12 +3,13 @@ export function printQrA4({ gymName, message, qrSvg, footer }) {
   if (!win) return;
 
   const doc = win.document;
-  doc.open();
+  const root = ensureRoot(doc);
+
   doc.title = `${gymName || ""} - QR`;
 
   const style = doc.createElement("style");
   style.textContent = `${STYLE_SHEET}`;
-  doc.head.appendChild(style);
+  root.head.appendChild(style);
 
   const sheet = doc.createElement("div");
   sheet.className = "sheet";
@@ -19,20 +20,41 @@ export function printQrA4({ gymName, message, qrSvg, footer }) {
   qr.className = "qr";
   const svgContainer = qrSvgToNode(doc, qrSvg);
   if (svgContainer) {
-    const svg = svgContainer;
-    svg.setAttribute("width", "100%");
-    svg.style.width = "100%";
-    qr.appendChild(svg);
+    svgContainer.setAttribute("width", "100%");
+    svgContainer.style.width = "100%";
+    qr.appendChild(svgContainer);
   }
   sheet.appendChild(qr);
 
   if (message) appendText(doc, sheet, "message", message);
   if (footer) appendText(doc, sheet, "footer", footer);
 
-  doc.body.appendChild(sheet);
-  doc.close();
+  root.body.appendChild(sheet);
+
   win.focus();
   win.print();
+}
+
+function ensureRoot(doc) {
+  let root = doc.documentElement;
+  if (!root) {
+    root = doc.createElement("html");
+    doc.appendChild(root);
+  }
+
+  let head = root.querySelector("head");
+  if (!head) {
+    head = doc.createElement("head");
+    root.insertBefore(head, root.firstChild);
+  }
+
+  let body = root.querySelector("body");
+  if (!body) {
+    body = doc.createElement("body");
+    root.appendChild(body);
+  }
+
+  return { root, head, body };
 }
 
 function appendText(doc, parent, className, text) {
