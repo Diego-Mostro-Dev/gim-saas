@@ -41,6 +41,20 @@ METHOD_LABELS = {
     "card": "Tarjeta",
 }
 
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    if value is None:
+        return ""
+
+    text = str(value)
+
+    if text.startswith(CSV_FORMULA_PREFIXES):
+        return "'" + text
+
+    return text
+
 
 class PaymentViewSet(GymModelViewSet):
     queryset = Payment.objects.select_related(
@@ -109,18 +123,18 @@ class PaymentViewSet(GymModelViewSet):
         for payment in payments:
             writer.writerow([
                 payment.paid_at.strftime("%d/%m/%Y %H:%M"),
-                payment.member_name,
+                _csv_safe(payment.member_name),
                 CONCEPT_LABELS.get(
                     payment.concept,
                     payment.concept,
                 ),
-                payment.plan_name,
+                _csv_safe(payment.plan_name),
                 str(payment.amount).replace(".", ","),
                 METHOD_LABELS.get(
                     payment.payment_method,
                     payment.payment_method,
                 ),
-                payment.notes,
+                _csv_safe(payment.notes),
             ])
 
         return response

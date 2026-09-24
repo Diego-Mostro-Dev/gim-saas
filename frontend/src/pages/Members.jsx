@@ -644,7 +644,7 @@ function Members() {
         data.message,
       )}`;
 
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch {
       toast.error("El socio no tiene una rutina activa");
     }

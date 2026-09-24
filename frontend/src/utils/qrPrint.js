@@ -17,13 +17,13 @@ export function printQrA4({ gymName, message, qrSvg, footer }) {
 
   const qr = doc.createElement("div");
   qr.className = "qr";
-  qr.innerHTML = qrSvg.replace(/<svg[^>]*>/, (tag) => {
-    const sized = tag.replace(
-      /(<svg[^>]*?)(width="[^"]*")?([^>]*>)/,
-      "$1 width=\"100%\" $2 $3",
-    );
-    return sized;
-  });
+  const svgContainer = qrSvgToNode(doc, qrSvg);
+  if (svgContainer) {
+    const svg = svgContainer;
+    svg.setAttribute("width", "100%");
+    svg.style.width = "100%";
+    qr.appendChild(svg);
+  }
   sheet.appendChild(qr);
 
   if (message) appendText(doc, sheet, "message", message);

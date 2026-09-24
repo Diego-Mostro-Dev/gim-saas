@@ -9,6 +9,7 @@ from gyms.models import Gym
 from members.models import Member
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
+from config.api.params import as_error_detail, parse_int
 from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 
 from .enrollment_service import EnrollmentError, EnrollmentService
@@ -140,6 +141,13 @@ class PublicAvailableActivitiesView(APIView):
         day = request.query_params.get("day")
         start_time = request.query_params.get("start_time")
         end_time = request.query_params.get("end_time")
+
+        activity_id, activity_error = parse_int(
+            activity_id,
+            "activity_id",
+        )
+        if activity_error:
+            return activity_error
 
         activities = Activity.objects.filter(
             service__gym=gym,

@@ -34,7 +34,7 @@ from .serializers import (
     PersonalTrainingServiceSerializer,
     TrainerSerializer,
 )
-from config.api.params import as_error_detail, validate_choice
+from config.api.params import as_error_detail, parse_int, validate_choice
 from .session_service import SessionError, SessionService
 
 
@@ -119,10 +119,21 @@ class PersonalTrainingAssignmentViewSet(
                 qs = qs.filter(active=active)
             else:
                 qs = qs.filter(active=True)
-            trainer_id = self.request.query_params.get("trainer_id")
+            trainer_id, trainer_error = parse_int(
+                self.request.query_params.get("trainer_id"),
+                "trainer_id",
+            )
+            if trainer_error:
+                return trainer_error
             if trainer_id:
                 qs = qs.filter(trainer_id=trainer_id)
-            member_id = self.request.query_params.get("member_id")
+
+            member_id, member_error = parse_int(
+                self.request.query_params.get("member_id"),
+                "member_id",
+            )
+            if member_error:
+                return member_error
             if member_id:
                 qs = qs.filter(member_id=member_id)
         if self.action in ("retrieve", "update", "partial_update", "destroy"):

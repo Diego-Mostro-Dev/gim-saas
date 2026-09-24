@@ -1230,10 +1230,35 @@ class SessionRecoveryOptionsView(APIView):
 
     def get(self, request):
         gym = request.user.profile.gym
-        member_id = request.GET.get("member")
-        kind = request.GET.get("kind", "training")
-        activity_id = request.GET.get("activity")
-        date_str = request.GET.get("date")
+
+        member_id, member_error = parse_int(
+            request.GET.get("member"),
+            "member",
+        )
+        if member_error:
+            return member_error
+
+        kind, kind_error = validate_choice(
+            request.GET.get("kind", "training"),
+            [("training", "Entrenamiento"), ("activity", "Clase de actividad")],
+            "kind",
+        )
+        if kind_error:
+            return kind_error
+
+        activity_id, activity_error = parse_int(
+            request.GET.get("activity"),
+            "activity",
+        )
+        if activity_error:
+            return activity_error
+
+        date_str, date_error = parse_date(
+            request.GET.get("date"),
+            "date",
+        )
+        if date_error:
+            return date_error
 
         if not member_id:
             return Response(
