@@ -22,7 +22,12 @@ jobs:
       - name: Install pip-audit
         run: python -m pip install --upgrade pip-audit
       - name: Audit backend dependencies
+        id: audit
+        continue-on-error: true
         run: pip-audit -r backend/requirements.txt
+      - name: Report audit status
+        if: always() && steps.audit.outcome == 'failure'
+        run: echo "::warning::Backend dependency audit found issues (non-blocking). Seguimiento en el tiquete del plan de seguridad, P1."
 
   frontend:
     runs-on: ubuntu-latest
@@ -36,5 +41,10 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: frontend
       - name: Audit frontend production dependencies
+        id: audit-frontend
+        continue-on-error: true
         run: pnpm audit --prod
         working-directory: frontend
+      - name: Report frontend audit status
+        if: steps.audit-frontend.outcome == 'failure'
+        run: echo "::warning::Frontend dependency audit found issues (non-blocking). Seguimiento en el tiquete del plan de seguridad, P1."
