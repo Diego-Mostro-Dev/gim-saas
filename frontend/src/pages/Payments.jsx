@@ -93,7 +93,9 @@ function Payments() {
           : "",
         enrollment: "",
         personal_training_assignment: "",
-        concept: "",
+        concept: state.prefillSubscriptionId
+          ? "subscription"
+          : "",
         amount: "",
         payment_method: "cash",
         notes: "",
