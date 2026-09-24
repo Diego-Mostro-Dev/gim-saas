@@ -20,13 +20,19 @@ def _get_client():
     return resend
 
 
-def send_password_reset_email(to_email: str, reset_url: str, gym_name: str | None = None) -> bool:
+def send_password_reset_email(
+    to_email: str,
+    reset_url: str,
+    code: str,
+    gym_name: str | None = None,
+) -> bool:
     """
     Envía un email de restablecimiento de contraseña.
 
     Parámetros:
         to_email: Dirección del destinatario.
-        reset_url: URL completa con el token para restablecer.
+        reset_url: URL limpia de la app (sin ningún secreto en la query).
+        code: Código de 6 dígitos para completar el restablecimiento.
         gym_name: Nombre del gimnasio (opcional, para personalizar el asunto).
 
     Retorna True si el email fue enviado exitosamente, False en caso contrario.
@@ -44,6 +50,7 @@ def send_password_reset_email(to_email: str, reset_url: str, gym_name: str | Non
 
     subject, html_body = build_password_reset_email(
         reset_url=reset_url,
+        code=code,
         gym_name=gym_name,
     )
 

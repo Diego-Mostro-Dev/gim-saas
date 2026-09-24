@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 from members.models import Member
 
 from .models import PlanChangeRequest
@@ -17,7 +17,7 @@ from members.eligibility import MemberEligibility
 
 class PublicPlanChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -58,7 +58,7 @@ class PublicPlanChangeRequestView(APIView):
 
 class PublicCancelPlanChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
         member = get_object_or_404(Member, access_token=token)
@@ -106,7 +106,7 @@ class PublicCancelPlanChangeRequestView(APIView):
 
 class PublicCancelRenewalView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -142,7 +142,7 @@ class PublicCancelRenewalView(APIView):
 
 class PublicEnableRenewalView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)

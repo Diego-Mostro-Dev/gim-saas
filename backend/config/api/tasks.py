@@ -6,15 +6,18 @@ from rest_framework.decorators import (
     api_view,
     authentication_classes,
     permission_classes,
+    throttle_classes,
 )
 from rest_framework.response import Response
 
+from config.api.throttles import SystemAdminRateThrottle
 from subscriptions.services import run_scheduled_tasks
 
 
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([])
+@throttle_classes([SystemAdminRateThrottle])
 def scheduled_tasks_endpoint(request):
     """Dispara las tareas de mantenimiento (renovaciones + cambios de plan).
 

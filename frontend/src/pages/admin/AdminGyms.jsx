@@ -17,6 +17,20 @@ function copyText(text, label) {
     .catch(() => toast.error("No se pudo copiar"));
 }
 
+/** Solo permite enlaces http/https; devuelve null para schemes peligrosos (javascript:, data:, etc.). */
+function safeOnboardingHref(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.href;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export default function AdminGyms() {
   const navigate = useNavigate();
   const [gyms, setGyms] = useState(null);
@@ -150,6 +164,8 @@ export default function AdminGyms() {
             })
             .map(([key]) => key);
 
+          const safeOnboardingUrl = safeOnboardingHref(gym.onboarding_url);
+
           return (
             <div
               key={gym.id}
@@ -244,14 +260,16 @@ export default function AdminGyms() {
                   <Pencil size={14} />
                   Editar
                 </button>
-                <a
-                  href={gym.onboarding_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-text-primary hover:bg-surface-input"
-                >
-                  Abrir
-                </a>
+                {safeOnboardingUrl && (
+                  <a
+                    href={safeOnboardingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-text-primary hover:bg-surface-input"
+                  >
+                    Abrir
+                  </a>
+                )}
                 <span className="ml-auto text-text-secondary">
                   Creado {formatHumanDate(gym.created_at)}
                 </span>

@@ -16,7 +16,12 @@ from plans.models import MembershipPlan
 
 from .serializers import MemberSerializer, PublicMemberSerializer, PublicMemberAttachmentSerializer
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
-from config.api.throttles import PublicMemberRateThrottle, PublicRegisterRateThrottle
+from config.api.throttles import (
+    MemberPortalTokenThrottle,
+    MemberUploadThrottle,
+    PublicMemberRateThrottle,
+    PublicRegisterRateThrottle,
+)
 from .models import Member, MemberAttachment
 
 
@@ -160,6 +165,13 @@ class PublicRegisterView(APIView):
         member_data.pop("plan_id", None)
         member_data["entry_mode"] = entry_mode
 
+        # Privilegios que el socio no puede auto-asignarse en el registro.
+        # is_comp se fuerza en False y el descuento se ignora: solo el staff
+        # puede otorgarlos luego del alta (evita membresía de cortesía gratis).
+        member_data.pop("is_comp", None)
+        member_data.pop("discount_id", None)
+        member_data["is_comp"] = False
+
         if isinstance(raw_schedules, str):
             try:
                 raw_schedules = json.loads(raw_schedules)
@@ -263,7 +275,7 @@ class PublicMemberAttachmentListView(APIView):
 
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [MemberUploadThrottle]
 
     def _get_member(self, token):
         return get_object_or_404(
@@ -309,7 +321,7 @@ class PublicMemberAttachmentDetailView(APIView):
 
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def _get_attachment(self, token, attachment_id):
         return get_object_or_404(

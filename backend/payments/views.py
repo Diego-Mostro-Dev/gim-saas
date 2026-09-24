@@ -11,6 +11,8 @@ from rest_framework.response import Response
 
 from core.viewsets import GymModelViewSet
 
+from config.api.throttles import UserHeavyRateThrottle
+
 from subscriptions.models import Subscription
 from subscriptions.services import sync_subscription_paid
 
@@ -39,12 +41,32 @@ METHOD_LABELS = {
     "card": "Tarjeta",
 }
 
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    if value is None:
+        return ""
+
+    text = str(value)
+
+    if text.startswith(CSV_FORMULA_PREFIXES):
+        return "'" + text
+
+    return text
+
 
 class PaymentViewSet(GymModelViewSet):
     queryset = Payment.objects.select_related(
         "member", "member__insurance"
     ).order_by("-paid_at")
     serializer_class = PaymentSerializer
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if self.action == "export":
+            throttles.append(UserHeavyRateThrottle())
+        return throttles
 
     @action(detail=False, methods=["get"])
     def export(self, request):
@@ -101,18 +123,18 @@ class PaymentViewSet(GymModelViewSet):
         for payment in payments:
             writer.writerow([
                 payment.paid_at.strftime("%d/%m/%Y %H:%M"),
-                payment.member_name,
+                _csv_safe(payment.member_name),
                 CONCEPT_LABELS.get(
                     payment.concept,
                     payment.concept,
                 ),
-                payment.plan_name,
+                _csv_safe(payment.plan_name),
                 str(payment.amount).replace(".", ","),
                 METHOD_LABELS.get(
                     payment.payment_method,
                     payment.payment_method,
                 ),
-                payment.notes,
+                _csv_safe(payment.notes),
             ])
 
         return response

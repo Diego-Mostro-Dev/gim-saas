@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from gyms.features import require_outings
 from members.models import Member
 from subscriptions.domain import SubscriptionDomain
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 
 from .enrollment_request_service import (
     OutingEnrollmentRequestError,
@@ -24,7 +24,7 @@ class PublicMemberOutingsView(APIView):
     """Portal del socio: salidas activas, solicitudes y grupos disponibles."""
 
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -61,7 +61,7 @@ class PublicOutingEnrollmentRequestView(APIView):
     """Crear o cancelar solicitudes de inscripción/baja desde el portal."""
 
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)

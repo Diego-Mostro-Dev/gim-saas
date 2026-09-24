@@ -444,20 +444,35 @@ class ScheduleChangeRequestSerializer(
         gym = self.context["request"].user.profile.gym
         current_schedule = attrs.get("current_schedule")
         requested_slot = attrs.get("requested_slot")
+        member = attrs.get("member")
 
         self.validate_gym_allows_changes(gym)
 
+        if current_schedule is not None and current_schedule.gym != gym:
+            raise serializers.ValidationError({
+                "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
+            })
+
+        if requested_slot is not None and requested_slot.gym != gym:
+            raise serializers.ValidationError({
+                "requested_slot": msg(gym, "errors.requested_slot_not_in_gym")
+            })
+
+        if member is not None and member.gym != gym:
+            raise serializers.ValidationError({
+                "member": msg(gym, "errors.member_not_in_gym")
+            })
+
+        if (
+            member is not None
+            and current_schedule is not None
+            and member != current_schedule.member
+        ):
+            raise serializers.ValidationError(
+                "El socio no coincide con el horario actual."
+            )
+
         if current_schedule and requested_slot:
-            if current_schedule.gym != gym:
-                raise serializers.ValidationError({
-                    "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
-                })
-
-            if requested_slot.gym != gym:
-                raise serializers.ValidationError({
-                    "requested_slot": msg(gym, "errors.requested_slot_not_in_gym")
-                })
-
             if current_schedule.slot_id == requested_slot.id:
                 raise serializers.ValidationError(
                     "El horario solicitado es el mismo que el actual."
@@ -655,17 +670,22 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
                 f"Has alcanzado el límite de {gym.max_schedule_changes_per_month} cambios de horario este mes."
             )
 
+        if current_schedule is not None and current_schedule.gym != gym:
+            raise serializers.ValidationError({
+                "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
+            })
+
+        if requested_slot is not None and requested_slot.gym != gym:
+            raise serializers.ValidationError({
+                "requested_slot": msg(gym, "errors.requested_slot_not_in_gym")
+            })
+
+        if current_schedule is not None and current_schedule.member != member:
+            raise serializers.ValidationError(
+                "El horario actual no corresponde al socio."
+            )
+
         if current_schedule and requested_slot:
-            if current_schedule.gym != gym:
-                raise serializers.ValidationError({
-                    "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
-                })
-
-            if requested_slot.gym != gym:
-                raise serializers.ValidationError({
-                    "requested_slot": msg(gym, "errors.requested_slot_not_in_gym")
-                })
-
             if current_schedule.slot_id == requested_slot.id:
                 raise serializers.ValidationError(
                     "El horario solicitado es el mismo que el actual."
@@ -805,23 +825,38 @@ class ScheduleSwapRequestSerializer(
         origin_schedule = attrs.get("origin_schedule")
         destination_slot = attrs.get("destination_slot")
         swap_date = attrs.get("swap_date")
+        member = attrs.get("member")
 
         if not gym.allow_schedule_changes:
             raise serializers.ValidationError(
                 msg(gym, "errors.perm_change_not_allowed")
             )
 
+        if origin_schedule is not None and origin_schedule.gym != gym:
+            raise serializers.ValidationError({
+                "origin_schedule": msg(gym, "errors.origin_schedule_not_in_gym")
+            })
+
+        if destination_slot is not None and destination_slot.gym != gym:
+            raise serializers.ValidationError({
+                "destination_slot": msg(gym, "errors.destination_slot_not_in_gym")
+            })
+
+        if member is not None and member.gym != gym:
+            raise serializers.ValidationError({
+                "member": msg(gym, "errors.member_not_in_gym")
+            })
+
+        if (
+            member is not None
+            and origin_schedule is not None
+            and member != origin_schedule.member
+        ):
+            raise serializers.ValidationError(
+                "El socio no coincide con el horario de origen."
+            )
+
         if origin_schedule and destination_slot and swap_date:
-            if origin_schedule.gym != gym:
-                raise serializers.ValidationError({
-                    "origin_schedule": msg(gym, "errors.origin_schedule_not_in_gym")
-                })
-
-            if destination_slot.gym != gym:
-                raise serializers.ValidationError({
-                    "destination_slot": msg(gym, "errors.destination_slot_not_in_gym")
-                })
-
             if origin_schedule.slot_id == destination_slot.id:
                 raise serializers.ValidationError(
                     "El horario de destino es el mismo que el actual."
@@ -1033,17 +1068,22 @@ class PublicScheduleSwapRequestSerializer(serializers.ModelSerializer):
                 msg(gym, "errors.perm_change_not_allowed")
             )
 
+        if origin_schedule is not None and origin_schedule.gym != gym:
+            raise serializers.ValidationError({
+                "origin_schedule": msg(gym, "errors.origin_schedule_not_in_gym")
+            })
+
+        if destination_slot is not None and destination_slot.gym != gym:
+            raise serializers.ValidationError({
+                "destination_slot": msg(gym, "errors.destination_slot_not_in_gym")
+            })
+
+        if origin_schedule is not None and origin_schedule.member != member:
+            raise serializers.ValidationError(
+                "El horario de origen no corresponde al socio."
+            )
+
         if origin_schedule and destination_slot and swap_date:
-            if origin_schedule.gym != gym:
-                raise serializers.ValidationError({
-                    "origin_schedule": msg(gym, "errors.origin_schedule_not_in_gym")
-                })
-
-            if destination_slot.gym != gym:
-                raise serializers.ValidationError({
-                    "destination_slot": msg(gym, "errors.destination_slot_not_in_gym")
-                })
-
             if origin_schedule.slot_id == destination_slot.id:
                 raise serializers.ValidationError(
                     "El horario de destino es el mismo que el actual."

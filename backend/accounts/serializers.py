@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 
 from rest_framework import serializers
 
-from .models import PasswordResetToken
+from .models import PasswordResetToken, verify_reset_code
 
 
 class LoginSerializer(serializers.Serializer):
@@ -88,32 +88,49 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     """
-    Confirma el restablecimiento con el token recibido por email.
+    Confirma el restablecimiento con el email + código recibido por email.
 
-    Valida que el token exista, no haya sido usado y no esté expirado.
+    El código (6 dígitos, de uso único) llega solo por email y nunca viaja
+    en una URL, así que no queda en el historial ni en los logs del hosting.
+    Se valida en tiempo constante contra el token pendiente del usuario.
     """
 
-    token = serializers.UUIDField()
+    email = serializers.EmailField()
+    code = serializers.CharField(min_length=6, max_length=6)
     new_password = serializers.CharField(write_only=True)
 
+    def validate_code(self, value):
+        value = value.strip()
+        if not value.isdigit():
+            raise serializers.ValidationError("Código inválido.")
+        return value
+
     def validate(self, attrs):
+        invalid = serializers.ValidationError(
+            {"code": "El código no es válido o ya fue usado."}
+        )
+
         try:
-            reset_token = PasswordResetToken.objects.select_related(
-                "user"
-            ).get(id=attrs["token"])
-        except PasswordResetToken.DoesNotExist:
-            raise serializers.ValidationError(
-                {"token": "El enlace no es válido o ya fue usado."}
-            )
+            user = User.objects.get(email__iexact=attrs["email"])
+        except User.DoesNotExist:
+            raise invalid
 
-        if not reset_token.is_valid:
-            raise serializers.ValidationError(
-                {"token": "El enlace expiró. Solicitá uno nuevo."}
-            )
+        matched = None
+        for reset_token in PasswordResetToken.objects.filter(
+            user=user, used=False
+        ).order_by("-created_at"):
+            if verify_reset_code(reset_token, attrs["code"]):
+                matched = reset_token
+                break
 
-        validate_password(attrs["new_password"], user=reset_token.user)
+        if matched is None or not matched.is_valid:
+            # Mismo mensaje para código inválido, usado o expirado: el cliente
+            # no debe poder distinguir estados (evita enumeración de cuentas).
+            raise invalid
 
-        attrs["reset_token"] = reset_token
+        validate_password(attrs["new_password"], user=user)
+
+        attrs["reset_token"] = matched
         return attrs
 
     def save(self):

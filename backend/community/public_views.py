@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 from gyms.features import require_community
 from members.models import Member
 from subscriptions.domain import SubscriptionDomain
@@ -20,7 +20,7 @@ class PublicMemberCommunityView(APIView):
     """
 
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)

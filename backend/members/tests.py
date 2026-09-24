@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 
 from core.testing import BaseAPITest
 
+from gyms.models import Discount
 from members.models import Member
 from members.serializers import MemberSerializer
 from subscriptions.models import Subscription
@@ -226,3 +227,83 @@ class RecoveryEndpointTests(BaseAPITest):
 
         self.assertEqual(resp.status_code, 400)
         self.assertIn("futura", resp.data["detail"])
+
+
+class PublicRegisterSecurityTests(BaseAPITest):
+    """P0-1: el registro público no puede auto-otorgarse beneficios.
+
+    is_comp y descuentos son privilegios que solo el staff puede asignar
+    después del alta; el onboarding anónimo debe ignorarlos/forzarlos.
+    """
+
+    def _register_payload(self, gym, plan_id=None, **overrides):
+        payload = {
+            "first_name": "Luz",
+            "last_name": "Pérez",
+            "phone": f"11-{self._testMethodName}",
+            "services": ["gym"],
+            "schedules": [{"day": self.weekday_name(), "hour": "10:00"}],
+        }
+        if plan_id is not None:
+            payload["plan_id"] = plan_id
+        payload.update(overrides)
+        return payload
+
+    def test_anonymous_cannot_grant_comp_without_plan(self):
+        gym = self.create_gym()
+        self.create_today_slot(gym)
+
+        resp = self.client.post(
+            f"/api/public/register/{gym.onboarding_code}/",
+            self._register_payload(gym, is_comp=True),
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("plan", resp.data["plan_id"])
+
+    def test_anonymous_is_comp_forced_false_with_plan(self):
+        gym = self.create_gym()
+        self.create_today_slot(gym)
+        plan = self.create_plan(gym)
+
+        resp = self.client.post(
+            f"/api/public/register/{gym.onboarding_code}/",
+            self._register_payload(gym, plan_id=plan.id, is_comp=True),
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        self.assertFalse(resp.data["is_comp"])
+        member = Member.objects.get(phone=f"11-{self._testMethodName}")
+        self.assertFalse(member.is_comp)
+        self.assertTrue(member.active)
+        self.assertEqual(Subscription.objects.get(member=member).plan, plan)
+
+    def test_anonymous_discount_ignored(self):
+        gym = self.create_gym()
+        self.create_today_slot(gym)
+        plan = self.create_plan(gym)
+        discount = Discount.objects.create(
+            gym=gym,
+            name="Amigo",
+            discount_percent=50,
+        )
+        other_gym = self.create_gym(name="Otro Gym")
+        foreign_discount = Discount.objects.create(
+            gym=other_gym,
+            name="Ajeno",
+            discount_percent=10,
+        )
+
+        for discount_id in [discount.id, foreign_discount.id]:
+            resp = self.client.post(
+                f"/api/public/register/{gym.onboarding_code}/",
+                self._register_payload(
+                    gym, plan_id=plan.id, discount_id=discount_id,
+                ),
+                format="json",
+            )
+            self.assertEqual(resp.status_code, 201)
+            member = Member.objects.get(phone=f"11-{self._testMethodName}-{discount_id}")
+            self.assertIsNone(member.discount)

@@ -8,7 +8,7 @@ from gyms.features import require_personal_training
 from members.models import Member
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 
 from .availability import available_slots
 from .change_request_service import ChangeRequestError, ChangeRequestService
@@ -26,7 +26,7 @@ class PublicMemberPersonalTrainingView(APIView):
     """Portal del socio: sus asignaciones activas y solicitudes pendientes."""
 
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -58,7 +58,7 @@ class PublicMemberAvailableSlotsView(APIView):
     """Franjas libres para cambiar el horario de una asignación de PT."""
 
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -101,7 +101,7 @@ class PublicMemberChangeRequestView(APIView):
     """Crear o cancelar solicitudes de cambio desde el portal del socio."""
 
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
         member = get_object_or_404(Member, access_token=token)

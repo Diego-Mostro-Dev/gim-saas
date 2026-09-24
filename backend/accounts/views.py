@@ -5,18 +5,24 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.conf import settings
 
 from gyms.models import Gym
 from profiles.models import UserProfile
-from .models import PasswordResetToken
+from .models import PasswordResetToken, generate_reset_code
 from .serializers import (
     LoginSerializer,
     ChangePasswordSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
     AdminPasswordResetSerializer,
+)
+from config.api.authentication import (
+    get_or_create_session_token,
+    token_expires_in_seconds,
+    RefreshTokenAuthentication,
 )
 from config.api.throttles import (
     LoginRateThrottle,
@@ -40,16 +46,17 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
-        # Keep each session's token independent so logging in on another
-        # tab/device does not revoke the tokens of existing sessions. The
-        # multi-tenant gym is resolved from request.user, not the token, so
-        # concurrent tokens for the same user stay scoped to their own gym.
-        token, _ = Token.objects.get_or_create(user=user)
+        # Único token por usuario, igual que antes (el gym se resuelve desde
+        # request.user, no desde el token), pero con rotación al vencer: si el
+        # token existente ya expiró se emite uno nuevo. `expires_in` permite al
+        # frontend saber cuándo va a necesitar refrescar.
+        token = get_or_create_session_token(user)
 
         return Response(
             {
                 "token": token.key,
                 "username": user.username,
+                "expires_in": token_expires_in_seconds(),
                 "must_change_password": (
                     user.profile.must_change_password
                 ),
@@ -138,6 +145,40 @@ class ChangePasswordView(APIView):
             {
                 "success": True,
                 "token": new_token.key,
+                "expires_in": token_expires_in_seconds(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# -------------------------
+# REFRESH TOKEN
+# -------------------------
+class RefreshTokenView(APIView):
+    """
+    Rota el token de sesión por uno nuevo con expiración renovada.
+
+    Usa RefreshTokenAuthentication: admite un token vencido (pero existente)
+    para renovarlo sin obligar al usuario a volver a entrar. Al rotar se
+    invalida la clave anterior, lo que mantiene el modelo de un token por
+    usuario.
+    """
+
+    authentication_classes = [RefreshTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        old_token = request.auth
+        user = request.user
+
+        old_token.delete()
+        new_token = Token.objects.create(user=user)
+
+        return Response(
+            {
+                "token": new_token.key,
+                "username": user.username,
+                "expires_in": token_expires_in_seconds(),
             },
             status=status.HTTP_200_OK,
         )
@@ -233,7 +274,7 @@ class CreateGymOwnerView(APIView):
         profile.save()
 
         # 3. token automático
-        token, _ = Token.objects.get_or_create(user=user)
+        token = get_or_create_session_token(user)
 
         return Response(
             {
@@ -241,6 +282,7 @@ class CreateGymOwnerView(APIView):
                 "token": token.key,
                 "user": user.username,
                 "gym": gym.name,
+                "expires_in": token_expires_in_seconds(),
                 "must_change_password": (
                     profile.must_change_password
                 ),
@@ -273,33 +315,51 @@ class PasswordResetRequestView(APIView):
         user = serializer.get_user()
 
         if user and user.email:
-            reset_token = PasswordResetToken.create_for_user(user)
+            # Cooldown por cuenta: limita la cantidad de emails de reseteo que
+            # un atacante puede disparar hacia una víctima (anti email-bombing).
+            # Complementa el throttle por IP de PasswordResetRequestRateThrottle.
+            cooldown_key = f"password-reset-cooldown:{user.id}"
+            if not cache.get(cooldown_key):
+                reset_token = PasswordResetToken.create_for_user(user)
+                code = generate_reset_code(reset_token)
 
-            gym_name = (
-                user.profile.gym.name
-                if getattr(user, "profile", None)
-                and user.profile.gym
-                else None
-            )
+                gym_name = (
+                    user.profile.gym.name
+                    if getattr(user, "profile", None)
+                    and user.profile.gym
+                    else None
+                )
 
-            from core.email import send_password_reset_email
+                from core.email import send_password_reset_email
 
-            reset_url = "{}/reset-password?token={}".format(
-                settings.FRONTEND_URL.rstrip("/"),
-                reset_token.id,
-            )
+                # La URL NO lleva ningún secreto: el código de 6 dígitos viaja
+                # solo en el cuerpo del email, así que no queda en el historial
+                # del navegador ni en los logs del hosting.
+                reset_url = "{}/reset-password".format(
+                    settings.FRONTEND_URL.rstrip("/"),
+                )
 
-            send_password_reset_email(
-                to_email=user.email,
-                reset_url=reset_url,
-                gym_name=gym_name,
-            )
+                send_password_reset_email(
+                    to_email=user.email,
+                    reset_url=reset_url,
+                    code=code,
+                    gym_name=gym_name,
+                )
+
+                cache.set(
+                    cooldown_key, "1",
+                    timeout=getattr(
+                        settings,
+                        "PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS",
+                        60,
+                    ),
+                )
 
         return Response(
             {
                 "detail": (
                     "Si el email está registrado, vas a recibir "
-                    "un enlace para restablecer tu contraseña."
+                    "un código para restablecer tu contraseña."
                 )
             },
             status=status.HTTP_200_OK,
@@ -308,11 +368,11 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetConfirmView(APIView):
     """
-    Aplica la nueva contraseña usando el token del email.
+    Aplica la nueva contraseña con el código recibido por email.
 
-    - Valida que el token sea válido (no usado, no expirado).
+    - Valida el código del usuario (pendiente, no usado, no expirado).
     - Cambia la contraseña.
-    - Invalida el token y todas las sesiones del usuario.
+    - Invalida el código y todas las sesiones del usuario.
     """
 
     permission_classes = [AllowAny]

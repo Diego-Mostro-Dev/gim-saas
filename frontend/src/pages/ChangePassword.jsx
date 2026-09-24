@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import { apiFetch } from "../services/api";
+import { apiFetch, persistSession } from "../services/api";
 import useAuthStore from "../store/auth.store";
 
 function ChangePassword() {
@@ -31,13 +31,19 @@ function ChangePassword() {
     try {
       setIsSubmitting(true);
 
-      await apiFetch("/api/auth/change-password/", {
+      const data = await apiFetch("/api/auth/change-password/", {
         method: "POST",
         body: JSON.stringify({
           old_password: formData.old_password,
           new_password: formData.new_password,
         }),
       });
+
+      // El backend rota el token tras el cambio de contraseña; se persiste
+      // para no perder la sesión al continuar al dashboard.
+      if (data?.token) {
+        persistSession(data.token, data.expires_in);
+      }
 
       clearMustChangePassword();
 

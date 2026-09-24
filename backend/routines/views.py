@@ -9,8 +9,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import RoutineAssignment, WorkoutSet
 from gyms.labels import get_gym_labels
-from members.models import Member
+from members.models import Member, resolve_public_portal_member
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
@@ -29,7 +30,7 @@ from payments.models import Payment
 from plans.models import MembershipPlan
 from plans.services import display_plan_name, public_plan_name, public_plan_name_from_snapshot
 from subscriptions.domain import SubscriptionDomain
-from config.api.throttles import PublicMemberRateThrottle
+from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -338,7 +339,7 @@ class BulkAssignRoutineView(APIView):
 
 class PublicWorkoutProgressView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
         member = get_object_or_404(Member, access_token=token)
@@ -423,13 +424,12 @@ def _member_block_reason(member):
 
 class PublicRoutineView(APIView):
     permission_classes = []
-    throttle_classes = [PublicMemberRateThrottle]
+    throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(
-            Member,
-            access_token=token,
-        )
+        member = resolve_public_portal_member(token)
+        if member is None:
+            raise Http404("No Member matches the given query.")
 
         assignment = (
             RoutineAssignment.objects

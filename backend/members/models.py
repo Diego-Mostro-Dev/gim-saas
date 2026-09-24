@@ -1,11 +1,14 @@
 import logging
 import secrets
+from datetime import timedelta
 
 import cloudinary
 
 from django.db import models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+from django.utils import timezone
+from django.conf import settings
 from cloudinary.models import CloudinaryField
 
 # desde config.api.backup se usa el mismo patrón:
@@ -169,6 +172,29 @@ class Member(models.Model):
         verbose_name="Token de acceso",
     )
 
+    access_token_issued_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Token de acceso emitido el",
+        help_text=(
+            "Fecha de emisión del token de portal actual. Controla la "
+            "rotación automática (P1-1): al leer los datos del socio, un "
+            "token más viejo que MEMBER_ACCESS_TOKEN_TTL_DAYS se reemplaza "
+            "por uno nuevo y se devuelve en la respuesta."
+        ),
+    )
+
+    access_token_previous = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        verbose_name="Token de acceso anterior",
+        help_text=(
+            "Token de una generación anterior, aceptado brevemente para no "
+            "romper URLs/links ya impresos cuando el portal rota el token."
+        ),
+    )
+
     active = models.BooleanField(
         default=True,
         verbose_name="Activo",
@@ -216,11 +242,68 @@ class Member(models.Model):
             **kwargs,
         )
 
+    def _get_token_ttl(self):
+        return timedelta(
+            days=int(getattr(settings, "MEMBER_ACCESS_TOKEN_TTL_DAYS", 30))
+        )
+
+    def token_is_current(self, issued_at, now=None):
+        """True si el token (por su fecha de emisión) está dentro del TTL."""
+        now = now or timezone.now()
+        if issued_at is None:
+            return False
+        return now - issued_at < self._get_token_ttl()
+
+    def rotate_access_token(self, now=None):
+        """Emite un token nuevo y conserva el anterior una generación."""
+        now = now or timezone.now()
+        self.access_token_previous = self.access_token
+        self.access_token = secrets.token_urlsafe(32)
+        self.access_token_issued_at = now
+        self.save(update_fields=[
+            "access_token",
+            "access_token_previous",
+            "access_token_issued_at",
+        ])
+
+    def maybe_rotate_access_token(self, now=None):
+        """Rota si el token es legacy (sin fecha) o venció su TTL.
+
+        Devuelve el token vigente resultante (nuevo si rotó). No rotar de
+        nuevo si ya se rotó en esta request (guarda contra double-read).
+        """
+        now = now or timezone.now()
+        if self.token_is_current(self.access_token_issued_at, now=now):
+            return self.access_token
+
+        self.rotate_access_token(now=now)
+        return self.access_token
+
     def __str__(self):
         return (
             f"{self.first_name} "
             f"{self.last_name}"
         )
+
+
+def resolve_public_portal_member(token):
+    """Resuelve un socio por su token de portal, aceptando también el de la
+    generación anterior (para no romper URLs ya compartidas al rotar).
+
+    Fuente única para los endpoints del portal del socio. Los endpoints que
+    exigen el "token vigente" (adjuntos, foto, checkins) resuelven solo por
+    ``access_token`` y quedan invalidados al rotar.
+    """
+    if not token:
+        return None
+    return (
+        Member.objects
+        .filter(
+            models.Q(access_token=token) |
+            models.Q(access_token_previous=token)
+        )
+        .first()
+    )
 
 
 class MemberAttachment(models.Model):

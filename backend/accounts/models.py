@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import uuid
 
 from django.conf import settings
@@ -66,3 +68,25 @@ class PasswordResetToken(models.Model):
     def is_valid(self):
         """True si el token no fue usado y no expiró."""
         return not self.used and timezone.now() < self.expires_at
+
+
+def generate_reset_code(reset_token: PasswordResetToken) -> str:
+    """
+    Deriva un código de 6 dígitos a partir del token y un secreto del servidor.
+
+    El código se envía SOLO por email y nunca viaja en una URL, así que no
+    queda en el historial del navegador ni en los logs del hosting. No se
+    almacena en la base: se regenera desde el token al validar, por lo que un
+    leak de la DB no expone códigos vigentes.
+    """
+    message = str(reset_token.id).encode()
+    key = ((settings.SECRET_KEY or "") + ":password_reset_code").encode()
+    digest = hmac.new(key, message, hashlib.sha256).digest()
+    number = int.from_bytes(digest[:4], "big") % 1_000_000
+    return f"{number:06d}"
+
+
+def verify_reset_code(reset_token: PasswordResetToken, code: str) -> bool:
+    """Comparación en tiempo constante del código ingresado."""
+    expected = generate_reset_code(reset_token)
+    return hmac.compare_digest(expected, str(code))

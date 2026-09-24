@@ -11,7 +11,11 @@ from plans.services import public_plan_name
 from members.eligibility import MemberEligibility
 from gyms.models import Discount
 
-from .attachments import signed_attachment_url, upload_member_attachment
+from .attachments import (
+    _validate_image,
+    signed_attachment_url,
+    upload_member_attachment,
+)
 from .models import HealthInsurance, Member, MemberAttachment
 
 import json
@@ -658,7 +662,7 @@ class PublicMemberSerializer(MemberSerializer):
 
     class Meta(MemberSerializer.Meta):
         fields = MemberSerializer.Meta.fields + ["access_token"]
-        read_only_fields = ["gym", "access_token", "active"]
+        read_only_fields = ["gym", "access_token", "active", "is_comp"]
 
 
 class MemberPhotoSerializer(serializers.ModelSerializer):
@@ -666,6 +670,10 @@ class MemberPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
         fields = ["photo"]
+
+    def validate_photo(self, value):
+        _validate_image(value)
+        return value
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

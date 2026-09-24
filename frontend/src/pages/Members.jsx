@@ -120,7 +120,11 @@ function Members() {
       ];
     });
 
-    const escape = (value) => `"${String(value).replace(/"/g, '""')}"`;
+    const escape = (value) => {
+      const text = String(value);
+      const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
 
     const csv = [header, ...rows]
       .map((row) => row.map(escape).join(","))
@@ -640,7 +644,7 @@ function Members() {
         data.message,
       )}`;
 
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch {
       toast.error("El socio no tiene una rutina activa");
     }

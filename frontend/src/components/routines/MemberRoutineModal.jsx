@@ -20,7 +20,7 @@ function MemberRoutineModal({ open, onClose, routine }) {
         data.message,
       )}`;
 
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (error) {
       console.error(error);
 

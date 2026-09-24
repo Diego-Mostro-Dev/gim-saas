@@ -1,6 +1,7 @@
 import { LogOut, Settings, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useGym } from "../../hooks/useGym";
+import { clearSession } from "../../services/api";
 import useAuthStore from "../../store/auth.store";
 import ThemeToggle from "../ui/ThemeToggle";
 
@@ -10,7 +11,7 @@ function TopBar() {
   const isSuperuser = useAuthStore((state) => state.isSuperuser);
 
   function handleLogout() {
-    localStorage.removeItem("token");
+    clearSession();
     window.location.href = "/login";
   }
 

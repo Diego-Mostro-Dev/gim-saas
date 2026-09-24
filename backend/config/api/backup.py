@@ -13,14 +13,19 @@ import cloudinary
 import cloudinary.api
 import cloudinary.uploader
 import cloudinary.utils
+import dj_database_url
+import sentry_sdk
 from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import (
     api_view,
     authentication_classes,
     permission_classes,
+    throttle_classes,
 )
 from rest_framework.response import Response
+
+from config.api.throttles import SystemAdminRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,12 @@ def _dump_pg_dump(tmp_path):
     if not pg_dump or not database_url or not _is_postgres():
         return False
 
+    # La URI completa nunca va en argv (queda en el comando visible por ps).
+    # Se pasa la password solo por el entorno, el resto como flags.
+    parsed = dj_database_url.parse(database_url)
+    env = os.environ.copy()
+    env["PGPASSWORD"] = parsed.get("PASSWORD") or ""
+
     cmd = [
         pg_dump,
         "--no-owner",
@@ -56,12 +67,16 @@ def _dump_pg_dump(tmp_path):
         "--format=custom",
         "-f",
         "-",
-        database_url,
+        "--host", str(parsed.get("HOST") or "localhost"),
+        "--port", str(parsed.get("PORT") or "5432"),
+        "--username", str(parsed.get("USER") or ""),
+        "--dbname", str(parsed.get("NAME") or ""),
     ]
     proc = subprocess.run(
         cmd,
         stdout=open(tmp_path, "wb"),
         stderr=subprocess.PIPE,
+        env=env,
     )
     if proc.returncode != 0:
         logger.error(
@@ -191,6 +206,7 @@ def run_backup():
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([])
+@throttle_classes([SystemAdminRateThrottle])
 def backup_endpoint(request):
     """Dispara un backup bajo demanda (cron o manual) -> Cloudinary privado.
 
@@ -207,10 +223,11 @@ def backup_endpoint(request):
 
     try:
         result = run_backup()
-    except Exception as exc:
+    except Exception:
         logger.exception("Backup failed")
+        sentry_sdk.capture_exception()
         return Response(
-            {"detail": "Backup failed", "error": str(exc)},
+            {"detail": "Backup failed"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 

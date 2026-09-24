@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 import dj_database_url
 import cloudinary
@@ -62,6 +63,11 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
+# Tiempo de vida de los tokens de sesión (DRF Token), en horas. Default 7 días.
+# Al vencer el token es rechazado (401) y el cliente lo rota contra
+# /api/auth/refresh/ para no perder la sesión.
+TOKEN_EXPIRY_HOURS = int(os.getenv("TOKEN_EXPIRY_HOURS", "168"))
+
 # API key compartida para disparar tareas del sistema desde un cron externo
 SCHEDULED_TASKS_KEY = os.getenv("SCHEDULED_TASKS_KEY", "")
 
@@ -79,6 +85,34 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Gim-SaaS <onboarding@resen
 PASSWORD_RESET_TOKEN_TTL_SECONDS = int(
     os.getenv("PASSWORD_RESET_TOKEN_TTL_SECONDS", "3600")
 )
+
+# Cooldown por cuenta entre solicitudes de reseteo de contraseña (segundos).
+# Complementa el throttle por IP: evita email-bombing por cuenta.
+PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS = int(
+    os.getenv("PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS", "60")
+)
+
+# TTL del token de acceso del portal del socio (días). Al vencerse, la lectura
+# de /public/<token>/data/ rota el token y devuelve el nuevo en la respuesta
+# (P1-1) para que el portal lo persista sin romper listas/URLs ya enviadas.
+MEMBER_ACCESS_TOKEN_TTL_DAYS = int(
+    os.getenv("MEMBER_ACCESS_TOKEN_TTL_DAYS", "30")
+)
+
+# django-axes: bloqueo ante intentos fallidos de login
+# (protege el login API, el reseteo y /admin/ de fuerza bruta/credential stuffing).
+AXES_ENABLED = True
+AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+AXES_RESET_ON_SUCCESS = True
+# Bloqueo por IP o por cuenta: cubre fuerza bruta desde una sola IP y
+# credential stuffing distribuido sobre una misma cuenta.
+AXES_LOCKOUT_PARAMETERS = [["ip_address"], ["username"]]
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "axes.backends.AxesStandaloneBackend",
+]
 
 # Intervalo mínimo entre ejecuciones del mantenimiento (segundos).
 SCHEDULED_TASKS_INTERVAL_SECONDS = int(
@@ -107,6 +141,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "django_filters",
+    "axes",
     "members",
     "plans",
     "subscriptions",
@@ -142,6 +177,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "config.api.middleware.ScheduledTaskTriggerMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 
@@ -172,21 +208,21 @@ else:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "config.api.authentication.ExpiringTokenAuthentication",
     ],
 
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
 
-    "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend",
-    ],
-
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
+    # Cantidad de proxies entre el cliente y Django (Render usa 1). Con >0,
+    # DRF resuelve la IP real del cliente desde X-Forwarded-For en vez de usar
+    # la IP del proxy, que comparte el bucket de throttling entre todos.
+    "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0" if DEBUG else "1")),
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/hour",
         "user": "1000/hour",
@@ -211,6 +247,13 @@ REST_FRAMEWORK = {
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        # Redacta los access_token del portal del socio que viajan como
+        # segmento de URL en los requests/logs (P1-1).
+        "scrub_access_token": {
+            "()": "config.logging_filters.AccessTokenScrubFilter",
+        },
+    },
     "formatters": {
         "verbose": {
             "format": "[{asctime}] {levelname} {name} {message}",
@@ -221,6 +264,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
+            "filters": ["scrub_access_token"],
         },
     },
     "root": {
@@ -234,6 +278,16 @@ LOGGING = {
             "propagate": False,
         },
         "django.request": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "gunicorn.access": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "gunicorn.error": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
@@ -254,6 +308,11 @@ _db_config = dj_database_url.parse(
     conn_max_age=0,
     conn_health_checks=True,
 )
+
+# Forzar TLS solo cuando el backend es PostgreSQL (Neon/Render). No aplicar
+# sslmode al backend sqlite (pruebas/dev local) porque no lo soporta.
+if _db_config["ENGINE"].endswith("postgresql"):
+    _db_config.setdefault("OPTIONS", {})["sslmode"] = "require"
 
 # Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
 # Resolve the hostname once at startup and inject hostaddr so libpq skips

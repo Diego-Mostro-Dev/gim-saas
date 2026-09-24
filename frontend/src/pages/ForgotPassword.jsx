@@ -24,7 +24,7 @@ function ForgotPassword() {
 
       setIsSubmitted(true);
     } catch (error) {
-      toast.error(error.message || "No se pudo enviar el enlace");
+      toast.error(error.message || "No se pudo enviar el código");
     } finally {
       setIsSubmitting(false);
     }
@@ -40,8 +40,8 @@ function ForgotPassword() {
         {isSubmitted ? (
           <div>
             <p className="mb-4 text-sm leading-relaxed text-text-secondary">
-              Si el email está registrado, vas a recibir un enlace para
-              restablecer tu contraseña. Revisá también la carpeta de spam.
+              Si el email está registrado, vas a recibir un código por correo
+              para restablecer tu contraseña. Revisá también la carpeta de spam.
             </p>
 
             <Link
@@ -54,7 +54,7 @@ function ForgotPassword() {
         ) : (
           <>
             <p className="mb-4 text-sm text-text-secondary">
-              Ingresá el email de tu cuenta y te vamos a enviar un enlace para
+              Ingresá el email de tu cuenta y te vamos a enviar un código para
               restablecer tu contraseña.
             </p>
 
@@ -73,7 +73,7 @@ function ForgotPassword() {
                 disabled={isSubmitting}
                 className="w-full rounded bg-primary p-3 text-white disabled:opacity-50"
               >
-                {isSubmitting ? "Enviando..." : "Enviar enlace"}
+                {isSubmitting ? "Enviando..." : "Enviar código"}
               </button>
             </form>
 

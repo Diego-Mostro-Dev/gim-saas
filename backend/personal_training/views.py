@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -33,6 +34,7 @@ from .serializers import (
     PersonalTrainingServiceSerializer,
     TrainerSerializer,
 )
+from config.api.params import as_error_detail, parse_int, validate_choice
 from .session_service import SessionError, SessionService
 
 
@@ -117,10 +119,21 @@ class PersonalTrainingAssignmentViewSet(
                 qs = qs.filter(active=active)
             else:
                 qs = qs.filter(active=True)
-            trainer_id = self.request.query_params.get("trainer_id")
+            trainer_id, trainer_error = parse_int(
+                self.request.query_params.get("trainer_id"),
+                "trainer_id",
+            )
+            if trainer_error:
+                return trainer_error
             if trainer_id:
                 qs = qs.filter(trainer_id=trainer_id)
-            member_id = self.request.query_params.get("member_id")
+
+            member_id, member_error = parse_int(
+                self.request.query_params.get("member_id"),
+                "member_id",
+            )
+            if member_error:
+                return member_error
             if member_id:
                 qs = qs.filter(member_id=member_id)
         if self.action in ("retrieve", "update", "partial_update", "destroy"):
@@ -148,7 +161,9 @@ class PersonalTrainingAssignmentViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        member = get_object_or_404(Member, id=member_id)
+        member = get_object_or_404(
+            Member, id=member_id, gym=self.get_gym()
+        )
         service = get_object_or_404(
             PersonalTrainingService, id=service_id, gym=self.get_gym()
         )
@@ -162,7 +177,9 @@ class PersonalTrainingAssignmentViewSet(
         exclude = None
         if assignment_id:
             exclude = get_object_or_404(
-                PersonalTrainingAssignment, id=assignment_id
+                PersonalTrainingAssignment,
+                id=assignment_id,
+                gym=self.get_gym(),
             )
 
         result = available_slots(
@@ -292,6 +309,13 @@ class PersonalTrainingChangeRequestViewSet(
         ).select_related("member", "member__insurance", "assignment", "assignment__service", "assignment__trainer", "reviewed_by")
         status_filter = self.request.query_params.get("status")
         if status_filter:
+            status_filter, status_error = validate_choice(
+                status_filter,
+                PersonalTrainingChangeRequest.STATUS_CHOICES,
+                "status",
+            )
+            if status_error:
+                raise ParseError(as_error_detail(status_error))
             qs = qs.filter(status=status_filter)
         return qs
 
