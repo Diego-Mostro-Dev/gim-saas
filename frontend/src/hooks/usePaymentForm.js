@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 const INITIAL_FORM = {
   amount: "",
@@ -20,25 +20,25 @@ export function usePaymentForm() {
   const [formData, setFormData] =
     useState(INITIAL_FORM);
 
-  function resetForm() {
+  const resetForm = useCallback(() => {
     setFormData(INITIAL_FORM);
 
     setEditingPayment(null);
-  }
+  }, []);
 
-  function closeForm() {
+  const closeForm = useCallback(() => {
     setShowForm(false);
 
     resetForm();
-  }
+  }, [resetForm]);
 
-  function openCreateForm() {
+  const openCreateForm = useCallback(() => {
     resetForm();
 
     setShowForm(true);
-  }
+  }, [resetForm]);
 
-  function openEditForm(payment) {
+  const openEditForm = useCallback((payment) => {
     setEditingPayment(payment);
 
     setFormData({
@@ -57,7 +57,7 @@ export function usePaymentForm() {
     });
 
     setShowForm(true);
-  }
+  }, []);
 
   return {
     showForm,

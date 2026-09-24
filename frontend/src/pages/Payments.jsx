@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
@@ -23,6 +23,7 @@ import { exportPaymentsCsv } from "../services/payments.service";
 
 function Payments() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { gym } = useGym();
 
   const {
@@ -68,13 +69,21 @@ function Payments() {
 
   const formRef = useRef(null);
 
+  const prefillAppliedRef = useRef(false);
+
   const { totalAmount, totalPayments, cashPayments, transferPayments } =
     usePaymentStats(payments);
 
   useEffect(() => {
     const state = location.state;
 
-    if (!loading && state?.prefillMemberId) {
+    if (
+      !loading &&
+      !prefillAppliedRef.current &&
+      state?.prefillMemberId
+    ) {
+      prefillAppliedRef.current = true;
+
       openCreateForm();
 
       setFormData({
@@ -90,9 +99,9 @@ function Payments() {
         notes: "",
       });
 
-      window.history.replaceState({}, "");
+      navigate(".", { replace: true, state: null });
     }
-  }, [loading, location.state, openCreateForm, setFormData]);
+  }, [loading, location.state, navigate, openCreateForm, setFormData]);
 
   useEffect(() => {
     if (showForm && editingPayment && formRef.current) {
