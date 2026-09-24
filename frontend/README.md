@@ -5,9 +5,9 @@
 React frontend for the Gym SaaS platform.
 
 ## Tech Stack
-- React 18
+- React 19
 - Vite
-- React Router v6
+- React Router v7
 - Tailwind CSS
 - lucide-react
 - react-hot-toast
@@ -52,3 +52,11 @@ npm run build   # production build
 ```
 
 Environment: `VITE_API_URL` points to the Django backend.
+
+## Content-Security-Policy
+
+En desarrollo con Vite **no se aplica CSP**: el HMR usa `eval`/estilos inline e
+inyecta módulos, así que cualquier política estricta rompería el dev server.
+La CSP debe planificarse para producción (header en el CDN/proxy o
+`<meta http-equiv>` en `index.html`) contemplando: Cloudinary (img/cl),
+fuentes de Leaflet, los popups de `printQrA4` y las storage APIs de la app.
