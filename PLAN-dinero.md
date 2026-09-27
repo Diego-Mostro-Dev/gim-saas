@@ -5,18 +5,39 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **plan escrito, ejecución sin empezar.** La Fase 0 es el próximo paso.
+Estado: **Fase 0 cerrada. La Fase 1 es el próximo paso.**
+
+| Fase | Qué | Estado | Commit |
+|---|---|---|---|
+| 0 | Métricas del audit por período | **CERRADA** | `bf6b28a` |
+| 1 | #1: skip de renovación por período | pendiente | — |
+| 2 | #19: no renovar socios de gym inactivo | pendiente | — |
+| 3 | Lock de sesión, atómico por socio | pendiente | — |
+| 4 | #57: eliminar N+1 | pendiente | — |
+| 5 | Guards de escritura #2 y #48 | pendiente | — |
+| 6 | Tests focalizados | pendiente | — |
+
+Reglas para retomar:
 
 1. Leé las secciones 1 y 2 (contexto y decisiones). Son el porqué.
-2. Ejecutá las fases de la sección 3 en orden, una por vez.
-3. Después de cada fase, corré su criterio de verificación. Si no coincide, **frená** y reportá en vez de seguir.
-4. Un commit por fase, con los mensajes de la sección 4.
-5. Al final, la verificación global de la sección 5.
+2. **No rehagas la Fase 0.** Ya está commiteada. La auditoría corregida es la línea base y
+   no hay que volver a derivarla: sus números verificados están en la sección 3, Fase 0.
+3. Ejecutá las fases de la sección 3 **en orden**, una por vez. No arranques la Fase N+1
+   sin cerrar la N.
+4. Después de cada fase, corré su criterio de verificación. Si no coincide, **frená** y
+   reportá en vez de seguir.
+5. Un commit por fase, con los mensajes de la sección 4.
+6. Al final, la verificación global de la sección 5.
 
-Contexto ya verificado que **no hace falta volver a medir**: la auditoría contra staging y
-producción está hecha, con 0 escrituras. Los números de referencia están en la sección 1.2.
-No repitas esa auditoría como primer paso; corregí la métrica primero (Fase 0) y usala
-como línea base.
+Pendientes sueltos que **no** son parte de ninguna fase, para que no se pierdan:
+
+- La auditoría corregida se corrió sólo contra **staging**. Los conteos de referencia son
+  iguales en producción (los de la sección 1.2 son de producción), pero el conteo de queries
+  de 1.347 es sólo de staging. Correr contra producción en algún momento: es read-only.
+- Los tests de la sección 3, Fase 6, se escribieron sin ejecutar hasta la fecha. El usuario
+  pidió explícitamente no correr tests durante la Fase 0.
+- Los ítems históricos del socio 827 (Diego Salvado, julio y agosto, 25.000) **no** se tocan.
+  Sólo se reportan.
 
 ---
 
@@ -216,7 +237,20 @@ cd backend && .venv/bin/python manage.py test subscriptions
 
 ## 3. Fases
 
-### Fase 0 — Corregir la métrica del audit — **HECHA**
+### Fase 0 — Corregir la métrica del audit — ✅ CERRADA (`bf6b28a`)
+
+**No rehacer. Commit `bf6b28a` en `development`.**
+
+Cambios concretos que quedaron aplicados, para no volver a derivarlos:
+
+- `_collect_candidates` devuelve claves nuevas. `current_will_renew`, `wrongly_skipped`,
+  `live_loss`, `stale_backlog`, `uncovered`, `uncovered_live`, `uncovered_stale`,
+  `renew_active_gym`, `renew_inactive_gym`, `stale_active_gym`, `stale_inactive_gym`,
+  `inactive_gym_total`, `covered` (ahora es lista, antes era un int).
+- El corte entre "pérdida viva" y "rezago inerte" es `target_start >= today.replace(day=1)`.
+  No es un parámetro configurable: si cambia, hay que re-derivar los números.
+- Nueva función `_comp_closed_period_items(today)`.
+- `covered` pasó de int a lista de filas: si otra cosa lo consume, ojo con el tipo.
 
 **Archivo**: `backend/subscriptions/management/commands/audit_money_bugs.py`
 
@@ -254,7 +288,7 @@ esperadas (`13 + 44`). El valor correcto es **39**. Ver la sección 1.4.
 
 ---
 
-### Fase 1 — #1: skip por período
+### Fase 1 — #1: skip por período — ⬜ PENDIENTE (siguiente)
 
 **Archivos**: `backend/subscriptions/services.py` líneas 1038-1060 y 1260-1270
 
@@ -293,7 +327,7 @@ los guards previos— quedan juntos y contados en un solo lugar.
 
 ---
 
-### Fase 2 — #19: no renovar socios de gym inactivo
+### Fase 2 — #19: no renovar socios de gym inactivo — ⬜ PENDIENTE
 
 **Archivo**: `backend/subscriptions/services.py:1014`, dentro de `_collect_renewal_candidates`,
 después del guard de `member.active`:
@@ -320,7 +354,7 @@ No romper los contadores que ya devuelve `auto_renew_subscriptions` (`renewed`,
 
 ---
 
-### Fase 3 — Lock de sesión y fin del `atomic()` gigante
+### Fase 3 — Lock de sesión y fin del `atomic()` gigante — ⬜ PENDIENTE
 
 **Archivo**: `backend/subscriptions/services.py` (1314-1423) y
 `backend/subscriptions/management/commands/auto_renew_subscriptions.py:15`
@@ -357,7 +391,7 @@ renovaciones ya confirmadas en la base.
 
 ---
 
-### Fase 4 — #57: eliminar el N+1
+### Fase 4 — #57: eliminar el N+1 — ⬜ PENDIENTE
 
 **Archivos**: `backend/subscriptions/services.py:1014-1035` y
 `backend/plans/services.py:64-68`
@@ -384,7 +418,7 @@ de 50, **sin** cambio en los conteos de suscripciones ni de ítems de PT.
 
 ---
 
-### Fase 5 — Guards de escritura #2 y #48
+### Fase 5 — Guards de escritura #2 y #48 — ⬜ PENDIENTE
 
 **Archivos**: los puntos de escritura de suscripciones —
 `backend/subscriptions/services.py` (`create_next_subscription`, `recover_member`,
@@ -407,7 +441,7 @@ Diego Salvado no cambian.
 
 ---
 
-### Fase 6 — Tests focalizados
+### Fase 6 — Tests focalizados — ⬜ PENDIENTE
 
 **Archivo nuevo**: `backend/subscriptions/test_money_bugs.py`, sobre `BaseAPITest` de
 `backend/core/testing.py`.
