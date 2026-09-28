@@ -20,16 +20,27 @@ logger = logging.getLogger(__name__)
 
 
 def ensure_subscription_item(subscription):
+    price = _item_price(subscription, subscription.plan.price)
     SubscriptionItem.objects.create(
         subscription=subscription,
         item_type="plan",
         plan=subscription.plan,
         status="active",
         name_snapshot=subscription.plan.name,
-        price_snapshot=subscription.plan.price,
+        price_snapshot=price,
         start_date=subscription.start_date,
         end_date=subscription.end_date,
     )
+
+
+def _item_price(subscription, monthly_price):
+    """Precio de facturación del ítem para el período (Fase 5, #48).
+
+    Un socio ``is_comp`` no se factura: su ítem se escribe en 0, sin importar
+    la vía de alta. Así el total queda en 0 aunque un resto de precio se haya
+    colado en un snapshot previo.
+    """
+    return Decimal("0") if subscription.member.is_comp else monthly_price
 
 
 def _copy_activity_items(from_subscription, to_subscription):
@@ -55,6 +66,12 @@ def _copy_activity_items(from_subscription, to_subscription):
         activity = prev_item.activity
         if activity is None or not activity.active:
             continue
+        if SubscriptionItem.objects.filter(
+            subscription=to_subscription,
+            activity=activity,
+            status="active",
+        ).exists():
+            continue
         SubscriptionItem.objects.create(
             subscription=to_subscription,
             item_type="activity",
@@ -62,7 +79,7 @@ def _copy_activity_items(from_subscription, to_subscription):
             activity=activity,
             status="active",
             name_snapshot=activity.name,
-            price_snapshot=activity.monthly_price,
+            price_snapshot=_item_price(to_subscription, activity.monthly_price),
             start_date=to_subscription.start_date,
             end_date=to_subscription.end_date,
         )
@@ -90,6 +107,12 @@ def _copy_personal_training_items(from_subscription, to_subscription):
         pt_service = prev_item.personal_training
         if pt_service is None or not pt_service.active:
             continue
+        if SubscriptionItem.objects.filter(
+            subscription=to_subscription,
+            personal_training=pt_service,
+            status="active",
+        ).exists():
+            continue
         SubscriptionItem.objects.create(
             subscription=to_subscription,
             item_type="personal_training",
@@ -97,7 +120,7 @@ def _copy_personal_training_items(from_subscription, to_subscription):
             personal_training=pt_service,
             status="active",
             name_snapshot=pt_service.name,
-            price_snapshot=pt_service.monthly_price,
+            price_snapshot=_item_price(to_subscription, pt_service.monthly_price),
             start_date=to_subscription.start_date,
             end_date=to_subscription.end_date,
         )
@@ -126,6 +149,12 @@ def _copy_outing_items(from_subscription, to_subscription):
         outing = prev_item.outing
         if outing is None or not outing.active:
             continue
+        if SubscriptionItem.objects.filter(
+            subscription=to_subscription,
+            outing=outing,
+            status="active",
+        ).exists():
+            continue
         SubscriptionItem.objects.create(
             subscription=to_subscription,
             item_type="outing",
@@ -133,7 +162,7 @@ def _copy_outing_items(from_subscription, to_subscription):
             outing=outing,
             status="active",
             name_snapshot=outing.name,
-            price_snapshot=outing.monthly_price,
+            price_snapshot=_item_price(to_subscription, outing.monthly_price),
             start_date=to_subscription.start_date,
             end_date=to_subscription.end_date,
         )
@@ -152,6 +181,40 @@ def ensure_subscription_items(subscription, previous_subscription=None):
         _copy_activity_items(previous_subscription, subscription)
         _copy_personal_training_items(previous_subscription, subscription)
         _copy_outing_items(previous_subscription, subscription)
+
+
+def ensure_pt_items_for_active_assignments(member, subscription):
+    """Fase 5 (#2): garantiza el ítem de PT para cada asignación activa.
+
+    Al abrir o reactivar una suscripción, si el socio tiene asignaciones de
+    entrenamiento personal activas debe quedar el ítem de PT correspondiente
+    (facturado en 0 si el socio es ``is_comp``). Se ejecuta en el punto de
+    escritura canónico (``open_subscription``) porque hay flujos en los que
+    la asignación existe pero el ítem no llegó a la suscripción nueva (fue
+    creada sin suscripción vigente, o el ítem se anuló). Preventivo puro:
+    hoy el audit da 0 afectados.
+    """
+    for assignment in member.personal_training_assignments.filter(
+        active=True
+    ).select_related("service"):
+        service = assignment.service
+        if SubscriptionItem.objects.filter(
+            subscription=subscription,
+            personal_training=service,
+            status="active",
+        ).exists():
+            continue
+        SubscriptionItem.objects.create(
+            subscription=subscription,
+            item_type="personal_training",
+            plan=None,
+            personal_training=service,
+            status="active",
+            name_snapshot=service.name,
+            price_snapshot=_item_price(subscription, service.monthly_price),
+            start_date=subscription.start_date,
+            end_date=subscription.end_date,
+        )
 
 
 def calculate_subscription_total(subscription, apply_discount=True):

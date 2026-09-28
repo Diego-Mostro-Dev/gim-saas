@@ -5,8 +5,8 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-4 commiteadas en `development` (2026-09-28).**
-La Fase 5 es el próximo paso.
+Estado: **Fases 0-5 commiteadas en `development` (2026-09-28).**
+La Fase 6 es el próximo paso.
 
 | Fase | Qué | Estado | Commit |
 |---|---|---|---|
@@ -14,8 +14,8 @@ La Fase 5 es el próximo paso.
 | 1 | Arnés read-only `audit_renewal_dryrun` | **CERRADA** | `d14dfc9` |
 | 2 | Limpiar `auto_renew` + eliminar N+1 + orden de guards | **CERRADA** | `51022c1` |
 | 3 | #1: skip por período, no por socio | **CERRADA** | `7401f0a` |
-| 4 | Claim atómico + atómico por socio | **CERRADA** | (ver §4) |
-| 5 | Guards de escritura #2 y #48 | pendiente | — |
+| 4 | Claim atómico + atómico por socio | **CERRADA** | `4b8022a` |
+| 5 | Guards de escritura #2 y #48 | **CERRADA** | `4b8022a`+1 (en `development`) |
 | 6 | Tests focalizados | pendiente | — |
 
 Reglas para retomar:
@@ -256,7 +256,7 @@ devolviendo 25.000. **No tocar esos ítems sin autorización aparte**; sólo rep
    ser por claim atómico (H5 abajo) y el `atomic()` externo se saca.
 5. `management/commands/auto_renew_subscriptions.py:15` llama `auto_renew_subscriptions()`
    directo y **saltea el lock**.
-6. #2 y #48: sólo hay guard de lectura, falta el de escritura (Fase 5).
+6. #2 y #48: sólo hay guard de lectura, falta el de escritura → resuelto en la Fase 5.
 
 **La "Fase 3 vieja" de este documento (lock de sesión y keying por fecha exacta) queda
 descartada**: el keying del código ya es por overlap (H1 es sólo el tipo de retorno), y el
@@ -571,25 +571,36 @@ cliente, y muerto el proceso no se libera. **Descartado.**
 
 ---
 
-### Fase 5 — Guards de escritura #2 y #48 — ⬜ PENDIENTE
+### Fase 5 — Guards de escritura #2 y #48 — ✅ HECHO (2026-09-28)
 
-**Archivos**: los puntos de escritura de suscripciones — `create_next_subscription`,
-`recover_member`, `SubscriptionDomain.open_subscription` (`domain.py`) y el alta de ítems.
+**Archivos**: `subscriptions/services.py` y `subscriptions/domain.py`.
 
-Sin cambios a datos existentes. Sólo reglas de escritura. Los guards de lectura se conservan.
+Sin cambios a datos existentes. Sólo reglas de escritura. Los guards de lectura se conservan
+(`subscription_remaining_balance` en `services.py:300-303` sigue como red para lo ya existente).
 
-- **#2**: al abrir o reactivar una suscripción, si el socio tiene una asignación de PT activa,
-  se crea el ítem de PT correspondiente. Hoy 0 afectados → preventivo puro.
-- **#48**: al marcar `is_comp` o al agregar un ítem a un socio `is_comp`, el total queda en 0
-  y no se admiten ítems pagados. El guard de lectura de `services.py:296-303` sigue como red
-  para lo que ya exista en la base.
+1. **#2** — el ítem de PT se garantiza al abrir o reactivar. `ensure_pt_items_for_active_assignments`
+   (services.py) crea el ítem `personal_training` de cada asignación activa que no lo tenga en
+   la suscripción, y se llama desde `SubscriptionDomain.open_subscription` (domain.py), el único
+   punto canónico por el que pasan `create_next_subscription`, `recover_member`,
+   `apply_plan_change`, `mutate_membership` y el alta por staff. Preventivo puro: hoy 0.
+2. **#48** — los ítems de un socio `is_comp` se escriben en 0. Helper `_item_price(subscription,
+   monthly_price)` aplicado en `ensure_subscription_item` (ítem del plan) y en las tres copias
+   `_copy_activity_items`, `_copy_personal_training_items`, `_copy_outing_items`. Las copias
+   además pasan a ser idempotentes (no duplican un ítem activo ya presente en la suscripción
+   destino), algo necesario porque el guard de #2 corre en `open_subscription` antes de que las
+   copias vuelvan a crear los ítems de PT en la renovación.
+3. El resto de las vías de escritura ya eran comp-aware por precio al alta: actividades y outings
+   (`enrollment_service.py`), `assign_member` y `_ensure_pt_item` (`assignment_service.py`), y
+   `mutate_membership` al marcar `is_comp`. El grep de `is_comp` no dejó ninguna vía suelta.
 
-Si al implementar #48 aparece alguna vía de escritura que no pase por estos puntos (por
-ejemplo el admin o un importador), preferí el guard en el modelo o en el serializer antes que
-parcheos sueltos. Verificá con `grep -rn 'is_comp' backend --include='*.py' | grep -v .venv`.
-
-**Verificación**: los tests nuevos pasan, el audit sigue dando 0 en #2 y #48, y los datos de
-Diego Salvado no cambian.
+**Criterio de aceptación** (verificado 2026-09-28 en staging, en rollback):
+- `py_compile` de `services.py` y `domain.py` OK.
+- `audit_money_bugs`: **#2 = 0** (147 socios activos revisados) y **#48 = 0** (deuda fantasma en
+  la suscripción vigente). Los 2 ítems históricos pagados de Diego Salvado (socio 827,
+  julio y agosto) siguen reportándose **sin tocar**: `Escrituras detectadas: 0`.
+- Arnés (`audit_renewal_dryrun`): números de la Fase 4 sin cambios — `renewed 1` (801),
+  `skipped_already 236`, `failed 0`, contadores 235/90/7/0/38/1 (Σ371). La renovación de 801
+  pasa por las copias idempotentes sin cambios de precio.
 
 **Commit**: `fix(subscriptions): guards de escritura para PT e is_comp (#2/#48)`
 
@@ -669,6 +680,7 @@ test(subscriptions): tests focalizados de bugs de dinero
    | `last_status` durante la corrida / al final | `running` / `ok` |
    | `deduct_missed_sessions` | `atomic()` por gym |
    | `manage.py auto_renew_subscriptions` | pasa por `run_scheduled_tasks(force=True)` |
+   | audit #2 PT sin ítem / #48 is_comp con total>0 (Fase 5) | 0 / 0 (verificado 2026-09-28) |
 
    Los números del borrador (`stale 40 / gym 51 / member 1 / blocked 43`) mezclaban cortes
    de la métrica #19 con el orden de guards; el arnés es la referencia (ver Fase 2 y Fase 3).
