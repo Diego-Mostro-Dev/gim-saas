@@ -71,7 +71,10 @@ class SubscriptionDomain:
         """
         from django.db import transaction
         from .models import Subscription
-        from .services import ensure_subscription_item
+        from .services import (
+            ensure_pt_items_for_active_assignments,
+            ensure_subscription_item,
+        )
 
         if start_date is None or end_date is None:
             raise SubscriptionConflictError(
@@ -112,6 +115,10 @@ class SubscriptionDomain:
             )
 
             ensure_subscription_item(sub)
+
+            # Fase 5 (#2): una asignación de PT activa sin ítem en la
+            # suscripción recién abierta no debe quedar sin facturar.
+            ensure_pt_items_for_active_assignments(member, sub)
 
             return sub
 

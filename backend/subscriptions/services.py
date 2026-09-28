@@ -1,11 +1,12 @@
 import logging
 from calendar import monthrange
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Min, Q, Sum
+from django.db.models import Min, Sum
 from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
@@ -19,16 +20,27 @@ logger = logging.getLogger(__name__)
 
 
 def ensure_subscription_item(subscription):
+    price = _item_price(subscription, subscription.plan.price)
     SubscriptionItem.objects.create(
         subscription=subscription,
         item_type="plan",
         plan=subscription.plan,
         status="active",
         name_snapshot=subscription.plan.name,
-        price_snapshot=subscription.plan.price,
+        price_snapshot=price,
         start_date=subscription.start_date,
         end_date=subscription.end_date,
     )
+
+
+def _item_price(subscription, monthly_price):
+    """Precio de facturación del ítem para el período (Fase 5, #48).
+
+    Un socio ``is_comp`` no se factura: su ítem se escribe en 0, sin importar
+    la vía de alta. Así el total queda en 0 aunque un resto de precio se haya
+    colado en un snapshot previo.
+    """
+    return Decimal("0") if subscription.member.is_comp else monthly_price
 
 
 def _copy_activity_items(from_subscription, to_subscription):
@@ -54,6 +66,12 @@ def _copy_activity_items(from_subscription, to_subscription):
         activity = prev_item.activity
         if activity is None or not activity.active:
             continue
+        if SubscriptionItem.objects.filter(
+            subscription=to_subscription,
+            activity=activity,
+            status="active",
+        ).exists():
+            continue
         SubscriptionItem.objects.create(
             subscription=to_subscription,
             item_type="activity",
@@ -61,7 +79,7 @@ def _copy_activity_items(from_subscription, to_subscription):
             activity=activity,
             status="active",
             name_snapshot=activity.name,
-            price_snapshot=activity.monthly_price,
+            price_snapshot=_item_price(to_subscription, activity.monthly_price),
             start_date=to_subscription.start_date,
             end_date=to_subscription.end_date,
         )
@@ -89,6 +107,12 @@ def _copy_personal_training_items(from_subscription, to_subscription):
         pt_service = prev_item.personal_training
         if pt_service is None or not pt_service.active:
             continue
+        if SubscriptionItem.objects.filter(
+            subscription=to_subscription,
+            personal_training=pt_service,
+            status="active",
+        ).exists():
+            continue
         SubscriptionItem.objects.create(
             subscription=to_subscription,
             item_type="personal_training",
@@ -96,7 +120,7 @@ def _copy_personal_training_items(from_subscription, to_subscription):
             personal_training=pt_service,
             status="active",
             name_snapshot=pt_service.name,
-            price_snapshot=pt_service.monthly_price,
+            price_snapshot=_item_price(to_subscription, pt_service.monthly_price),
             start_date=to_subscription.start_date,
             end_date=to_subscription.end_date,
         )
@@ -125,6 +149,12 @@ def _copy_outing_items(from_subscription, to_subscription):
         outing = prev_item.outing
         if outing is None or not outing.active:
             continue
+        if SubscriptionItem.objects.filter(
+            subscription=to_subscription,
+            outing=outing,
+            status="active",
+        ).exists():
+            continue
         SubscriptionItem.objects.create(
             subscription=to_subscription,
             item_type="outing",
@@ -132,7 +162,7 @@ def _copy_outing_items(from_subscription, to_subscription):
             outing=outing,
             status="active",
             name_snapshot=outing.name,
-            price_snapshot=outing.monthly_price,
+            price_snapshot=_item_price(to_subscription, outing.monthly_price),
             start_date=to_subscription.start_date,
             end_date=to_subscription.end_date,
         )
@@ -151,6 +181,40 @@ def ensure_subscription_items(subscription, previous_subscription=None):
         _copy_activity_items(previous_subscription, subscription)
         _copy_personal_training_items(previous_subscription, subscription)
         _copy_outing_items(previous_subscription, subscription)
+
+
+def ensure_pt_items_for_active_assignments(member, subscription):
+    """Fase 5 (#2): garantiza el ítem de PT para cada asignación activa.
+
+    Al abrir o reactivar una suscripción, si el socio tiene asignaciones de
+    entrenamiento personal activas debe quedar el ítem de PT correspondiente
+    (facturado en 0 si el socio es ``is_comp``). Se ejecuta en el punto de
+    escritura canónico (``open_subscription``) porque hay flujos en los que
+    la asignación existe pero el ítem no llegó a la suscripción nueva (fue
+    creada sin suscripción vigente, o el ítem se anuló). Preventivo puro:
+    hoy el audit da 0 afectados.
+    """
+    for assignment in member.personal_training_assignments.filter(
+        active=True
+    ).select_related("service"):
+        service = assignment.service
+        if SubscriptionItem.objects.filter(
+            subscription=subscription,
+            personal_training=service,
+            status="active",
+        ).exists():
+            continue
+        SubscriptionItem.objects.create(
+            subscription=subscription,
+            item_type="personal_training",
+            plan=None,
+            personal_training=service,
+            status="active",
+            name_snapshot=service.name,
+            price_snapshot=_item_price(subscription, service.monthly_price),
+            start_date=subscription.start_date,
+            end_date=subscription.end_date,
+        )
 
 
 def calculate_subscription_total(subscription, apply_discount=True):
@@ -987,77 +1051,204 @@ def recover_member(member):
     return new_sub
 
 
-def _collect_renewal_candidates(queryset):
-    """Select expired auto_renew subscriptions that have not been renewed yet.
+def _precomputed_remaining(subscription, paid_amount):
+    """Remaining balance of a subscription using precomputed data.
 
-    Returns a list of (subscription, target_start, target_end) tuples.
-    The successor period always starts on the calendar month that follows
-    the expired subscription's end_date, so the command can run any day
-    of the month and still catch up on renewals the cron missed.
-
-    Skips:
-    - Base Plan subscriptions when the gym no longer allows activity-only.
-    - Members whose active flag is False.
-    - Members whose expired subscription was in 'blocked' payment status
-      at the time of expiry (unpaid renewal subscriptions whose end_date
-      falls on or after the gym's access_block_day).
+    Mirrors ``subscription_remaining_balance`` without issuing any query:
+    the items are prefetched and the paid total is passed in. Pase de
+    cortesía members always have zero remaining.
     """
-    from plans.services import get_base_plan_for_gym
+    total = calculate_subscription_total(subscription)
+    if subscription.member.is_comp:
+        return Decimal("0")
+    remaining = total - paid_amount
+    return remaining if remaining > 0 else Decimal("0")
+
+
+def _skips_base_plan(sub, base_plan_ids):
+    """True when the base-plan guard excludes ``sub`` from renewal.
+
+    A member on the base plan only renews when the gym still allows
+    activity-only access, or when it is a courtesy pass (always free).
+    """
+    if base_plan_ids.get(sub.gym_id) != sub.plan_id:
+        return False
+    if sub.gym.allow_activity_without_membership:
+        return False
+    return not sub.member.is_comp
+
+
+def _collect_renewal_candidates(queryset):
+    """Select expired auto_renew subscriptions and classify them (Fase 2).
+
+    Two passes over the already-fetched rows, no per-row queries:
+
+    - Pasada 0 (cobertura y limpieza): one range query over the candidate
+      windows. A row whose target period is already covered by a successor is
+      counted as ``covered`` and added to the cleanup list (auto_renew=False).
+      The cleanup is unconditional: member/gym state is irrelevant.
+    - Pasada 1 (guards, cheapest to most expensive): over the rows left after
+      coverage. Stale backlog (target in a closed month) also goes to cleanup.
+      The remaining guards split the rest into ``skipped_inactive_gym``,
+      ``skipped_base_plan``, ``skipped_inactive_member`` and ``skipped_blocked``.
+
+    Returns a 3-tuple:
+      - ``candidates``: list of (subscription, target_start, target_end) tuples
+        for rows that pass the creation guards (base plan, member active,
+        payment not blocked), using the pre-Fase-2 order so the renewal loop
+        behaviour (renewed / skipped_already / failed) is unchanged.
+      - ``counters``: dict with the period-level breakdown of the full raw set.
+      - ``cleanup_ids``: subscription pks that must get auto_renew=False
+        (covered + stale rows).
+    """
+    from payments.models import Payment
+    from plans.services import base_plan_ids_for_gyms
 
     today = timezone.localdate()
-    expired = queryset.filter(
-        end_date__lt=today,
-        auto_renew=True,
-    ).select_related("member__discount", "plan", "gym")
+    month_start = today.replace(day=1)
+    expired = list(
+        queryset.filter(
+            end_date__lt=today,
+            auto_renew=True,
+        )
+        .select_related("member__discount", "plan", "gym")
+        .prefetch_related("items")
+    )
 
+    member_ids = {sub.member_id for sub in expired}
+    sub_ids = [sub.pk for sub in expired]
+    gym_ids = {sub.gym_id for sub in expired}
+
+    # ── Precompute (1 query each) ────────────────────────────────────
+    windows = defaultdict(list)
+    for member_id, start_date, end_date in Subscription.objects.filter(
+        member_id__in=member_ids
+    ).values_list("member_id", "start_date", "end_date"):
+        windows[member_id].append((start_date, end_date))
+
+    base_plan_ids = base_plan_ids_for_gyms(gym_ids)
+
+    paid_by_sub = dict(
+        Payment.objects.filter(subscription_id__in=sub_ids)
+        .values("subscription_id")
+        .annotate(paid=Sum("amount"))
+        .values_list("subscription_id", "paid")
+    )
+
+    earliest_by_member = dict(
+        Subscription.objects.filter(member_id__in=member_ids)
+        .values("member_id")
+        .annotate(first=Min("created_at"))
+        .values_list("member_id", "first")
+    )
+
+    def payment_blocked(sub):
+        remaining = _precomputed_remaining(
+            sub, paid_by_sub.get(sub.pk, Decimal("0"))
+        )
+        return (
+            get_subscription_payment_status(
+                sub,
+                at_date=sub.end_date,
+                remaining=remaining,
+                is_first=(sub.created_at == earliest_by_member.get(sub.member_id)),
+            )
+            == "blocked"
+        )
+
+    counters = {
+        "covered": 0,
+        "skipped_stale_backlog": 0,
+        "skipped_inactive_gym": 0,
+        "skipped_base_plan": 0,
+        "skipped_inactive_member": 0,
+        "skipped_blocked": 0,
+        "candidates": 0,
+    }
+    cleanup_ids = []
     candidates = []
-    for sub in expired:
-        # ── Base plan guard ──────────────────────────────────────────
-        base_plan = get_base_plan_for_gym(sub.gym)
-        if base_plan and sub.plan_id == base_plan.pk:
-            if not sub.gym.allow_activity_without_membership:
-                # Un socio con pase de cortesía siempre renueva gratis,
-                # incluso si el gym desactiva el acceso sin membresía.
-                if not sub.member.is_comp:
-                    continue
 
-        # ── Member active guard ──────────────────────────────────────
+    for sub in expired:
+        target_start = get_first_day_of_next_month(sub.end_date)
+        target_end = get_last_day_of_month(target_start)
+
+        # ── Pasada 0 — cobertura del propio período ───────────────────
+        if any(
+            a <= target_end and b >= target_start
+            for a, b in windows[sub.member_id]
+        ):
+            counters["covered"] += 1
+            cleanup_ids.append(sub.pk)
+            continue
+
+        # ── Pasada 1 — guards, del más barato al más caro ─────────────
+        if target_start < month_start:
+            counters["skipped_stale_backlog"] += 1
+            cleanup_ids.append(sub.pk)
+            continue
+
+        if not sub.gym.active:
+            counters["skipped_inactive_gym"] += 1
+            continue
+
+        if _skips_base_plan(sub, base_plan_ids):
+            counters["skipped_base_plan"] += 1
+            continue
+
+        if not sub.member.active:
+            counters["skipped_inactive_member"] += 1
+            continue
+
+        if payment_blocked(sub):
+            counters["skipped_blocked"] += 1
+            continue
+
+        counters["candidates"] += 1
+
+    # Loop candidates with the creation guards, mirroring the pasada-1 guard
+    # set so the creation list stays identical to the counted "candidates".
+    # Covered/stale rows are excluded via cleanup_ids, never here.
+    for sub in expired:
+        if not sub.gym.active:
+            continue
+        if _skips_base_plan(sub, base_plan_ids):
+            continue
         if not sub.member.active:
             continue
-
-        # ── Payment status guard (evaluate at expiry date) ───────────
-        if get_subscription_payment_status(sub, at_date=sub.end_date) == "blocked":
+        if payment_blocked(sub):
             continue
-
         target_start = get_first_day_of_next_month(sub.end_date)
         target_end = get_last_day_of_month(target_start)
         candidates.append((sub, target_start, target_end))
-    return candidates
+
+    return candidates, counters, cleanup_ids
 
 
-def _find_already_renewed_members(candidates):
-    """Phase 2: Detect members who already have a subscription for the target period.
+def _find_covered_periods(candidates):
+    """Fase 3 (#1): map candidate members to their subscription windows.
 
-    Builds a single OR query across all candidates to find existing successors
-    in one round-trip, then returns a set of member_ids to skip.
-
-    Uses an overlap check (start <= target_end AND end >= target_start)
-    instead of an exact start_date match, because manually created or
-    shifted subscriptions may start on a different day of the month.
+    One bounded range query over the global target range replaces the
+    per-member OR of ``_find_already_renewed_members`` (742 parameters ->
+    ~16). Returns ``{member_id: [(start_date, end_date), ...]}`` — not a set
+    of member_ids — so each candidate is judged against its own target
+    period: a successor overlapping that window skips only that candidate,
+    and one successor no longer masks a missing renewal in another month
+    (H1, the 45 frozen members of Gym Demo).
     """
     if not candidates:
-        return set()
+        return {}
 
-    query = Q()
-    for _sub, target_start, target_end in candidates:
-        query |= Q(
-            member_id=_sub.member_id,
-            start_date__lte=target_end,
-            end_date__gte=target_start,
-        )
-    return set(
-        Subscription.objects.filter(query).values_list("member_id", flat=True)
-    )
+    min_target_start = min(target_start for _, target_start, _ in candidates)
+    max_target_end = max(target_end for _, _, target_end in candidates)
+
+    covered = defaultdict(list)
+    for member_id, start_date, end_date in Subscription.objects.filter(
+        member_id__in={sub.member_id for sub, _, _ in candidates},
+        start_date__lte=max_target_end,
+        end_date__gte=min_target_start,
+    ).values_list("member_id", "start_date", "end_date"):
+        covered[member_id].append((start_date, end_date))
+    return covered
 
 
 def _apply_due_plan_changes(member_id):
@@ -1245,6 +1436,19 @@ def auto_renew_subscriptions(gym=None):
          member is logged and does not stop the rest, so a later run can
          retry the failed member.
 
+    Fase 2 de PLAN-dinero.md: antes del loop, las filas cuyo target ya está
+    cubierto por una sucesora y el rezago inerte (mes cerrado) reciben
+    ``auto_renew = False`` en un ``UPDATE`` bulk y se cuentan con contadores
+    nuevos (covered / stale / gym / base_plan / member / blocked / candidates).
+
+    Fase 3 (#1): el skip del loop es por período propio, no por socio. Una
+    sucesora que se superponga al target de esta candidata la saltea a ella
+    nomás; una sucesora de otro mes ya no enmascara una renovación perdida
+    (H1, los 45 congelados de Gym Demo). Las filas de la limpieza (cubiertas
+    o rezago) no crean sucesora nunca: una cubierta ya tiene sucesora y el
+    rezago crearía una suscripción retroactiva. Un guard de duplicados
+    (member_id, target_start) protege ``unique_subscription_member_period``.
+
     A final phase applies every approved plan change whose effective date
     has arrived, for all members. A plan change is an administrative
     decision and never depends on the member's payment status or renewal
@@ -1256,17 +1460,62 @@ def auto_renew_subscriptions(gym=None):
     if gym is not None:
         qs = qs.filter(gym=gym)
 
-    candidates = _collect_renewal_candidates(qs)
-    already_renewed = _find_already_renewed_members(candidates)
+    candidates, counters, cleanup_ids = _collect_renewal_candidates(qs)
+    covered_periods = _find_covered_periods(candidates)
+    cleanup_set = set(cleanup_ids)
+
+    # Fase 2: limpieza de H2 — la primera escritura real del proceso.
+    # Las filas con el target ya cubierto y el rezago inerte dejan de
+    # auto-renovarse. No importa el estado del socio ni del gym.
+    if cleanup_ids:
+        Subscription.objects.filter(pk__in=cleanup_ids).update(auto_renew=False)
+
+    # Los socios con un cambio de plan vencido pendiente se atienden por
+    # socio (red de #5), pero la comprobación se precarga en una sola
+    # query para no emitir una por skip.
+    due_pcr_members = set(
+        PlanChangeRequest.objects.filter(
+            status="approved",
+            effective_date__lte=timezone.localdate(),
+        ).values_list("member_id", flat=True)
+    )
 
     renewed = 0
     skipped_already = 0
     failed = 0
 
-    for expired_sub, _target_start, _target_end in candidates:
-        if expired_sub.member_id in already_renewed:
+    attended = set()
+    for expired_sub, target_start, target_end in candidates:
+        attended_key = (expired_sub.member_id, target_start)
+
+        # Limpieza de la Fase 2 (target cubierto o rezago en mes cerrado):
+        # nunca crea sucesora — la cubierta ya tiene una y el rezago
+        # generaría una suscripción retroactiva.
+        if expired_sub.pk in cleanup_set:
             skipped_already += 1
-            _apply_due_plan_changes(expired_sub.member_id)
+            if expired_sub.member_id in due_pcr_members:
+                _apply_due_plan_changes(expired_sub.member_id)
+            continue
+
+        # Guard de duplicados en la misma corrida: el constraint
+        # unique_subscription_member_period es real (hoy 0 casos).
+        if attended_key in attended:
+            skipped_already += 1
+            if expired_sub.member_id in due_pcr_members:
+                _apply_due_plan_changes(expired_sub.member_id)
+            continue
+
+        # Fase 3 (#1): skip por período propio. Una sucesora que cubre el
+        # target de esta candidata la saltea a ella sola; una sucesora de
+        # otro mes ya no enmascara una renovación perdida.
+        if any(
+            start <= target_end and end >= target_start
+            for start, end in covered_periods.get(expired_sub.member_id, ())
+        ):
+            skipped_already += 1
+            attended.add(attended_key)
+            if expired_sub.member_id in due_pcr_members:
+                _apply_due_plan_changes(expired_sub.member_id)
             continue
 
         try:
@@ -1281,6 +1530,7 @@ def auto_renew_subscriptions(gym=None):
             continue
 
         if new_sub is not None:
+            attended.add(attended_key)
             renewed += 1
 
     plan_changes_applied, plan_changes_failed = _apply_all_due_plan_changes(gym)
@@ -1291,6 +1541,7 @@ def auto_renew_subscriptions(gym=None):
         "failed": failed,
         "plan_changes_applied": plan_changes_applied,
         "plan_changes_failed": plan_changes_failed,
+        **counters,
     }
 
 
@@ -1300,34 +1551,9 @@ def auto_renew_subscriptions(gym=None):
 
 import time as _time
 
-from django.db import connection
-
 from .models import TaskRun
 
-# Clave de advisory lock de Postgres (única dentro de la base de datos).
-# Garantiza que solo un worker/request ejecute la tarea a la vez.
-SCHEDULED_TASKS_LOCK_KEY = 738_410_159
-
 TASK_NAME = "subscription_maintenance"
-
-
-def _acquire_task_lock():
-    """Lock transaccional no bloqueante: solo un run gana a la vez.
-
-    En PostgreSQL (producción) usa pg_try_advisory_xact_lock, la opción
-    correcta para exclusión entre workers. En otros backends (SQLite en
-    tests) cede el paso: ahí la exclusión real la aporta el guard de
-    not_due + get_or_create, y los tests corren single-thread.
-    """
-    if connection.vendor == "postgresql":
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT pg_try_advisory_xact_lock(%s)",
-                [SCHEDULED_TASKS_LOCK_KEY],
-            )
-            row = cursor.fetchone()
-            return bool(row and row[0])
-    return True
 
 
 def _task_interval_seconds():
@@ -1335,11 +1561,12 @@ def _task_interval_seconds():
 
 
 def maybe_run_scheduled_tasks(force=False):
-    """Disparador perezoso: camino barato sin lock si no corresponde.
+    """Disparador perezoso: camino barato sin claim si no corresponde.
 
     Chequea la última ejecución con una sola consulta. Solo cuando la tarea
-    está vencida (o se fuerza) entra al camino con advisory lock, que hace
-    doble-chequeo para que dos requests concurrentes no la corran dos veces.
+    está vencida (o se fuerza) entra al camino con el claim atómico, que
+    hace doble-chequeo para que dos requests concurrentes no la corran dos
+    veces.
     """
     from .models import TaskRun as _TaskRun
 
@@ -1363,57 +1590,69 @@ def run_scheduled_tasks(force=False):
     """Ejecuta el mantenimiento de suscripciones exactamente una vez.
 
     Incluye renovaciones automáticas y cambios de plan vencidos
-    (auto_renew_subscriptions ya aplica ambos). El advisory lock dentro del
-    transaction.atomic hace que, aunque corran 2 workers, solo uno ejecute.
+    (auto_renew_subscriptions ya aplica ambos). La exclusión entre workers
+    la da un claim atómico (Fase 4): un ``UPDATE`` condicional sobre
+    ``TaskRun.last_run`` en una sola sentencia, sin lock de sesión y sin
+    transacción abierta. El advisory lock se descartó porque muerto el
+    proceso no se libera y el pooler de PgBouncer (transaction mode) puede
+    reasignar la conexión.
+
+    El claim ocurre al inicio: si la corrida muere, no se reintenta hasta que
+    venza el intervalo y queda visible como ``last_status == "running"``. A
+    cambio ya no hay un ``transaction.atomic()`` gigante: cada renovación es
+    atómica por socio (``create_next_subscription``) y el ``TaskRun``
+    autocommitea. Un timeout pierde una renovación en vez de 371.
     """
     from .models import TaskRun as _TaskRun
 
     started = _time.time()
+    now = timezone.now()
 
-    with transaction.atomic():
-        if not _acquire_task_lock():
-            return {"ran": False, "reason": "locked"}
+    run, _ = _TaskRun.objects.get_or_create(
+        name=TASK_NAME,
+        defaults={
+            "last_run": now - timezone.timedelta(days=1),
+            "last_status": "ok",
+        },
+    )
 
-        run, _ = _TaskRun.objects.get_or_create(
+    if not force:
+        claimed = _TaskRun.objects.filter(
             name=TASK_NAME,
-            defaults={
-                "last_run": timezone.now() - timezone.timedelta(days=1),
-                "last_status": "ok",
-            },
+            last_run__lt=now - timezone.timedelta(seconds=_task_interval_seconds()),
+        ).update(last_run=now, last_status="running")
+        if not claimed:
+            return {"ran": False, "reason": "not_due"}
+    else:
+        _TaskRun.objects.filter(name=TASK_NAME).update(
+            last_run=now, last_status="running"
         )
 
-        if (
-            not force
-            and (timezone.now() - run.last_run).total_seconds()
-            < _task_interval_seconds()
-        ):
-            return {"ran": False, "reason": "not_due"}
+    status = "ok"
+    error = ""
+    result = None
+    try:
+        result = auto_renew_subscriptions()
+        no_show = deduct_missed_sessions()
+        if isinstance(result, dict) and isinstance(no_show, dict):
+            result = {**result, "no_show": no_show}
+    except Exception as exc:  # pragma: no cover - defensivo
+        status = "error"
+        error = f"{type(exc).__name__}: {exc}"
+        logger.exception("Scheduled task %s failed", TASK_NAME)
 
-        status = "ok"
-        error = ""
-        result = None
-        try:
-            result = auto_renew_subscriptions()
-            no_show = deduct_missed_sessions()
-            if isinstance(result, dict) and isinstance(no_show, dict):
-                result = {**result, "no_show": no_show}
-        except Exception as exc:  # pragma: no cover - defensivo
-            status = "error"
-            error = f"{type(exc).__name__}: {exc}"
-            logger.exception("Scheduled task %s failed", TASK_NAME)
-
-        run.last_run = timezone.now()
-        run.last_status = status
-        run.last_duration_seconds = _time.time() - started
-        run.last_result = result
-        run.last_error = error[:5000] if error else ""
-        run.save(update_fields=[
-            "last_run",
-            "last_status",
-            "last_duration_seconds",
-            "last_result",
-            "last_error",
-        ])
+    run.last_run = timezone.now()
+    run.last_status = status
+    run.last_duration_seconds = _time.time() - started
+    run.last_result = result
+    run.last_error = error[:5000] if error else ""
+    run.save(update_fields=[
+        "last_run",
+        "last_status",
+        "last_duration_seconds",
+        "last_result",
+        "last_error",
+    ])
 
     return {
         "ran": True,
