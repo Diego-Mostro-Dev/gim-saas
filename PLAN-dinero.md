@@ -5,8 +5,12 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-5 commiteadas en `development` (2026-09-28).**
-La Fase 6 es el próximo paso.
+Estado: **Fases 0-6 commiteadas en `development` (2026-09-28).**
+Los tests focalizados corren contra SQLite con:
+
+```
+DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python manage.py test subscriptions
+```
 
 | Fase | Qué | Estado | Commit |
 |---|---|---|---|
@@ -15,8 +19,8 @@ La Fase 6 es el próximo paso.
 | 2 | Limpiar `auto_renew` + eliminar N+1 + orden de guards | **CERRADA** | `51022c1` |
 | 3 | #1: skip por período, no por socio | **CERRADA** | `7401f0a` |
 | 4 | Claim atómico + atómico por socio | **CERRADA** | `4b8022a` |
-| 5 | Guards de escritura #2 y #48 | **CERRADA** | `4b8022a`+1 (en `development`) |
-| 6 | Tests focalizados | pendiente | — |
+| 5 | Guards de escritura #2 y #48 | **CERRADA** | `a5271ed` |
+| 6 | Tests focalizados | **CERRADA** | `4b8022a`+1 (en `development`) |
 
 Reglas para retomar:
 
@@ -606,7 +610,7 @@ Sin cambios a datos existentes. Sólo reglas de escritura. Los guards de lectura
 
 ---
 
-### Fase 6 — Tests focalizados — ⬜ PENDIENTE
+### Fase 6 — Tests focalizados — ✅ HECHO (2026-09-28)
 
 **Archivo nuevo**: `backend/subscriptions/test_money_bugs.py`, sobre `BaseAPITest` de
 `backend/core/testing.py`.
@@ -631,6 +635,29 @@ Sin cambios a datos existentes. Sólo reglas de escritura. Los guards de lectura
    crear el ítem.
 9. **#48** — socio `is_comp` con ítems pagados. El total debe dar 0.
 10. **claim** — dos llamadas concurrentes: la segunda no entra.
+
+**Criterio de aceptación** (verificado 2026-09-28, SQLite local):
+- `manage.py test subscriptions`: **19/19 OK** (`Ran 19 tests ... OK`) — 12 del archivo nuevo
+  + los 7 de `tests.py`. Los 7 existentes no se tocaron.
+- El test #19 destapó un **gap de consistencia**: el segundo loop de candidatos
+  (`_collect_renewal_candidates`) no chequeaba `gym.active` — la pasada 1 sí lo cuenta como
+  `skipped_inactive_gym` pero la lista de creación pudo incluir filas de gyms inactivos. Se
+  agregó el guard (misma línea del orden de la Fase 2) para que la lista de creación coincida
+  con el set contado.
+- Impacto en staging (arnés read-only, en rollback; verificado 2026-09-28): `renewed 1`,
+  `covered 235 / stale 90 / gym 7 / member 0 / blocked 38 / candidates 1` — sin cambios;
+  `skipped_already` pasa de **236 → 193**. Los 43 de diferencia son filas de la limpieza
+  (covered/stale) en gyms inactivos que el loop ya no procesa; **no se pierde ninguna
+  renovación** (renovadas sigue en 1, member 801). Es la corrección que el funnel ya medía:
+  la lista de creación deja de reflejar filas que la métrica cuenta como excluidas.
+- Los fixtures con filas superpuestas (caso duplicado) se crean directo con
+  `Subscription.objects.create` porque `open_subscription` (domain) ya rechaza el
+  solapamiento — son la forma en que viven históricamente en staging.
+- El claim test usa `TransactionTestCase` + dos `Thread` con `Barrier`; SQLite exige un
+  `timeout` de busy generoso en las opciones de conexión para que el `UPDATE` condicional se
+  serialice en vez de lanzar "database is locked".
+
+**Commit**: `test(subscriptions): tests focalizados de bugs de dinero`
 
 Más los 7 tests existentes de `backend/subscriptions/tests.py`.
 

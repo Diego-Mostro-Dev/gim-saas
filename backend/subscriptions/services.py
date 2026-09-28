@@ -1205,9 +1205,12 @@ def _collect_renewal_candidates(queryset):
 
         counters["candidates"] += 1
 
-    # Loop candidates with the creation guards, in the pre-Fase-2 order. The
-    # list is unchanged by Fase 3 (only the loop's skip semantics change).
+    # Loop candidates with the creation guards, mirroring the pasada-1 guard
+    # set so the creation list stays identical to the counted "candidates".
+    # Covered/stale rows are excluded via cleanup_ids, never here.
     for sub in expired:
+        if not sub.gym.active:
+            continue
         if _skips_base_plan(sub, base_plan_ids):
             continue
         if not sub.member.active:
