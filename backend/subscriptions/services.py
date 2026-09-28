@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Min, Q, Sum
+from django.db.models import Min, Sum
 from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
@@ -1142,8 +1142,8 @@ def _collect_renewal_candidates(queryset):
 
         counters["candidates"] += 1
 
-    # Loop candidates with the pre-Fase-2 guards (same order and result),
-    # so the renewal loop behaviour is untouched here.
+    # Loop candidates with the creation guards, in the pre-Fase-2 order. The
+    # list is unchanged by Fase 3 (only the loop's skip semantics change).
     for sub in expired:
         if _skips_base_plan(sub, base_plan_ids):
             continue
@@ -1158,29 +1158,31 @@ def _collect_renewal_candidates(queryset):
     return candidates, counters, cleanup_ids
 
 
-def _find_already_renewed_members(candidates):
-    """Phase 2: Detect members who already have a subscription for the target period.
+def _find_covered_periods(candidates):
+    """Fase 3 (#1): map candidate members to their subscription windows.
 
-    Builds a single OR query across all candidates to find existing successors
-    in one round-trip, then returns a set of member_ids to skip.
-
-    Uses an overlap check (start <= target_end AND end >= target_start)
-    instead of an exact start_date match, because manually created or
-    shifted subscriptions may start on a different day of the month.
+    One bounded range query over the global target range replaces the
+    per-member OR of ``_find_already_renewed_members`` (742 parameters ->
+    ~16). Returns ``{member_id: [(start_date, end_date), ...]}`` — not a set
+    of member_ids — so each candidate is judged against its own target
+    period: a successor overlapping that window skips only that candidate,
+    and one successor no longer masks a missing renewal in another month
+    (H1, the 45 frozen members of Gym Demo).
     """
     if not candidates:
-        return set()
+        return {}
 
-    query = Q()
-    for _sub, target_start, target_end in candidates:
-        query |= Q(
-            member_id=_sub.member_id,
-            start_date__lte=target_end,
-            end_date__gte=target_start,
-        )
-    return set(
-        Subscription.objects.filter(query).values_list("member_id", flat=True)
-    )
+    min_target_start = min(target_start for _, target_start, _ in candidates)
+    max_target_end = max(target_end for _, _, target_end in candidates)
+
+    covered = defaultdict(list)
+    for member_id, start_date, end_date in Subscription.objects.filter(
+        member_id__in={sub.member_id for sub, _, _ in candidates},
+        start_date__lte=max_target_end,
+        end_date__gte=min_target_start,
+    ).values_list("member_id", "start_date", "end_date"):
+        covered[member_id].append((start_date, end_date))
+    return covered
 
 
 def _apply_due_plan_changes(member_id):
@@ -1372,8 +1374,14 @@ def auto_renew_subscriptions(gym=None):
     cubierto por una sucesora y el rezago inerte (mes cerrado) reciben
     ``auto_renew = False`` en un ``UPDATE`` bulk y se cuentan con contadores
     nuevos (covered / stale / gym / base_plan / member / blocked / candidates).
-    El comportamiento del loop (renewed / skipped_already / failed) no cambia
-    aquí: el arreglo por período propio es de la Fase 3.
+
+    Fase 3 (#1): el skip del loop es por período propio, no por socio. Una
+    sucesora que se superponga al target de esta candidata la saltea a ella
+    nomás; una sucesora de otro mes ya no enmascara una renovación perdida
+    (H1, los 45 congelados de Gym Demo). Las filas de la limpieza (cubiertas
+    o rezago) no crean sucesora nunca: una cubierta ya tiene sucesora y el
+    rezago crearía una suscripción retroactiva. Un guard de duplicados
+    (member_id, target_start) protege ``unique_subscription_member_period``.
 
     A final phase applies every approved plan change whose effective date
     has arrived, for all members. A plan change is an administrative
@@ -1387,7 +1395,8 @@ def auto_renew_subscriptions(gym=None):
         qs = qs.filter(gym=gym)
 
     candidates, counters, cleanup_ids = _collect_renewal_candidates(qs)
-    already_renewed = _find_already_renewed_members(candidates)
+    covered_periods = _find_covered_periods(candidates)
+    cleanup_set = set(cleanup_ids)
 
     # Fase 2: limpieza de H2 — la primera escritura real del proceso.
     # Las filas con el target ya cubierto y el rezago inerte dejan de
@@ -1409,9 +1418,36 @@ def auto_renew_subscriptions(gym=None):
     skipped_already = 0
     failed = 0
 
-    for expired_sub, _target_start, _target_end in candidates:
-        if expired_sub.member_id in already_renewed:
+    attended = set()
+    for expired_sub, target_start, target_end in candidates:
+        attended_key = (expired_sub.member_id, target_start)
+
+        # Limpieza de la Fase 2 (target cubierto o rezago en mes cerrado):
+        # nunca crea sucesora — la cubierta ya tiene una y el rezago
+        # generaría una suscripción retroactiva.
+        if expired_sub.pk in cleanup_set:
             skipped_already += 1
+            if expired_sub.member_id in due_pcr_members:
+                _apply_due_plan_changes(expired_sub.member_id)
+            continue
+
+        # Guard de duplicados en la misma corrida: el constraint
+        # unique_subscription_member_period es real (hoy 0 casos).
+        if attended_key in attended:
+            skipped_already += 1
+            if expired_sub.member_id in due_pcr_members:
+                _apply_due_plan_changes(expired_sub.member_id)
+            continue
+
+        # Fase 3 (#1): skip por período propio. Una sucesora que cubre el
+        # target de esta candidata la saltea a ella sola; una sucesora de
+        # otro mes ya no enmascara una renovación perdida.
+        if any(
+            start <= target_end and end >= target_start
+            for start, end in covered_periods.get(expired_sub.member_id, ())
+        ):
+            skipped_already += 1
+            attended.add(attended_key)
             if expired_sub.member_id in due_pcr_members:
                 _apply_due_plan_changes(expired_sub.member_id)
             continue
@@ -1428,6 +1464,7 @@ def auto_renew_subscriptions(gym=None):
             continue
 
         if new_sub is not None:
+            attended.add(attended_key)
             renewed += 1
 
     plan_changes_applied, plan_changes_failed = _apply_all_due_plan_changes(gym)

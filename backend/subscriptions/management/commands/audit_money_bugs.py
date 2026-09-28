@@ -9,8 +9,14 @@ subscriptions/services.py para poder dimensionar el daño en producción sin
 disparar la tarea de renovación.
 
 La sección #1 calcula el daño dos veces: con la semántica member-level actual
-—la que genera el bug— y con la semántica period-level que se implementará en
-el fix, para que una sola corrida muestre el antes y el después.
+—la que genera el bug— y con la semántica period-level que implementó el fix,
+para que una sola corrida muestre el antes y el después.
+
+Esta auditoría es una proyección read-only: replica la semántica de períodos,
+pero NO modela los guards del renovador (pago, plan base, miembro activo,
+gym activo). La verificación del código real es el arnés
+``audit_renewal_dryrun`` (Fase 1), que ejecuta ``auto_renew_subscriptions``
+dentro de un rollback.
 """
 
 import os
@@ -54,16 +60,19 @@ def _is_write(sql):
 def _collect_candidates(today):
     """Classify renewal candidates under the current and the fixed semantics.
 
-    Current (buggy) semantics, as implemented in
-    subscriptions/services.py:_find_already_renewed_members: a member is
-    skipped if *any* of its expired subscriptions already has a successor.
-    One successor for July masks a missing August.
+    Current (buggy) semantics, as shipped before Fase 3: a member is skipped
+    if *any* of its expired subscriptions already has a successor. One
+    successor for July masks a missing August. This audit still projects it
+    to quantify the damage that the fix repairs.
 
-    Fixed semantics: a candidate is skipped only when a successor overlaps
-    *its own* target period.
+    Fixed semantics (Fase 3, the real auto-renew code): a candidate is
+    skipped only when a successor overlaps *its own* target period.
 
     Both are computed here so a single run shows the damage measured with the
-    bug and the damage that would remain after the fix.
+    bug and the damage that would remain after the fix. It is a period
+    projection only — it does not model the renewal guards (payment status,
+    base plan, member/gym activity); the authoritative verification of the
+    real code is the arnés ``audit_renewal_dryrun`` (Fase 1).
     """
     candidates = list(
         Subscription.objects.filter(end_date__lt=today, auto_renew=True).values(

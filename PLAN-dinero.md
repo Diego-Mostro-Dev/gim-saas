@@ -5,15 +5,15 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Revisión completa terminada y plan reformulado (2026-09-28).**
-La Fase 1 es el próximo paso.
+Estado: **Fases 0-3 commiteadas en `development` (2026-09-28).**
+La Fase 4 es el próximo paso.
 
 | Fase | Qué | Estado | Commit |
 |---|---|---|---|
 | 0 | Métricas del audit por período | **CERRADA** | `bf6b28a` (+ docs `0d76102`) |
-| 1 | Arnés read-only `audit_renewal_dryrun` | pendiente | — |
-| 2 | Limpiar `auto_renew` + eliminar N+1 + orden de guards | pendiente | — |
-| 3 | #1: skip por período, no por socio | pendiente | — |
+| 1 | Arnés read-only `audit_renewal_dryrun` | **CERRADA** | `d14dfc9` |
+| 2 | Limpiar `auto_renew` + eliminar N+1 + orden de guards | **CERRADA** | `51022c1` |
+| 3 | #1: skip por período, no por socio | **CERRADA** | `51022c1`+1 (en `development`) |
 | 4 | Claim atómico + atómico por socio | pendiente | — |
 | 5 | Guards de escritura #2 y #48 | pendiente | — |
 | 6 | Tests focalizados | pendiente | — |
@@ -450,7 +450,7 @@ antes y verifica 0 escrituras.
 
 ---
 
-### Fase 3 — #1: skip por período, no por socio — ⬜ PENDIENTE
+### Fase 3 — #1: skip por período, no por socio — ✅ HECHO (2026-09-28)
 
 **Archivo**: `subscriptions/services.py` (`_find_already_renewed_members:1038` →
 `_find_covered_periods`; loop en `auto_renew_subscriptions:1266`)
@@ -483,16 +483,24 @@ juzgue sobre **su propia ventana**.
 5. Docstring del audit (línea 58): aclarar que **no** modela los guards y que la verificación
    es el arnés de la Fase 1.
 
-**Criterio de aceptación**:
+**Criterio de aceptación** (staging, vía el arnés de la Fase 1; verificado 2026-09-28):
 - `renewed: 1` y el único `member_id` es **801**. Los contadores suman 371.
-- `skipped_stale_backlog: 40` y `auto_renew = False` en esas 40. **No se crea ninguna
-  suscripción retroativa de julio para `Gym Demo`.**
+- Contadores con el orden de guards de la Fase 2 (el arnés como referencia):
+  `covered 235`, `stale 90`, `gym 7`, `member 0`, `blocked 38`, `candidatos 1`,
+  `skipped_already 236` (237 del baseline − la renovación de 801).
+- `auto_renew = False` en las 325 de la limpieza (235 covered + 90 stale).
+  **No se crea ninguna suscripción retroativa de julio para `Gym Demo`:**
+  las filas de la limpieza se saltean en el loop y el único `INSERT` es el
+  septiembre de 801 (sub 1509).
 - Los socios **812, 785, 793 y 829 no reciben un segundo septiembre** (son los 4 cubiertos
   sólo por overlap a mitad de mes). Si aparece alguno en la lista de renovados, el keying
   volvió a ser por fecha exacta.
-- Cero `IntegrityError`.
-- Con el bug actual el arnés da `renewed: 0` y 45 socios congelados; si da 0 después del fix,
-  la Fase 3 no se aplicó.
+- Cero `IntegrityError` (`failed: 0`). El arnés reporta 3 escrituras dentro del rollback
+  (1 UPDATE de limpieza + el INSERT de 801 y su ítem), nada persistido; queries reales 24,
+  duración 3.7 s.
+- Con el bug anterior el arnés daba `renewed: 0`. Tras el fix da `renewed: 1`; la
+  comparación contra `TaskRun.last_result` (0/237/0) da **NO** porque el código real cambió
+  por diseño — el valor almacenado pasará a 1/236/0 en la próxima corrida real.
 
 **Follow-up fuera del plan**: los 45 socios de `Gym Demo` quedan sin suscripción al aplicar
 esta fase. Reactivarlos es decisión de negocio, con `recover_member`, no con el auto-
@@ -632,22 +640,26 @@ test(subscriptions): tests focalizados de bugs de dinero
 
 1. `.venv/bin/python manage.py test subscriptions` — todos verdes, incluidos los 7
    preexistentes.
-2. `audit_renewal_dryrun` contra **staging**:
+2. `audit_renewal_dryrun` contra **staging** (post-Fase 3, verificado 2026-09-28):
 
    | Concepto | Valor |
    |---|---|
    | candidatos crudos | 371 |
-   | `skipped_already` + `auto_renew=False` | 235 |
-   | `skipped_stale_backlog` + `auto_renew=False` | 40 |
-   | `skipped_inactive_gym` | 51 |
-   | `skipped_inactive_member` | 1 |
-   | `skipped_blocked` | 43 |
+   | `covered` + `auto_renew=False` | 235 |
+   | `skipped_stale_backlog` + `auto_renew=False` | 90 |
+   | `skipped_inactive_gym` | 7 |
+   | `skipped_inactive_member` | 0 |
+   | `skipped_blocked` | 38 |
    | `renewed` | **1** (socio 801) |
-   | suma de contadores | **371** |
-   | queries | ≤ 40 |
-   | escrituras del arnés | **0** |
+   | `skipped_already` | 236 |
+   | suma de contadores del desglose | **371** |
+   | queries de la llamada real | 24 (≤ 40) |
+   | escrituras del arnés | 3 detectadas (1 UPDATE + 2 INSERT), **0 persistidas** |
    | suscripciones retroativas creadas para `Gym Demo` | 0 |
    | socios 812 / 785 / 793 / 829 con doble septiembre | 0 |
+
+   Los números del borrador (`stale 40 / gym 51 / member 1 / blocked 43`) mezclaban cortes
+   de la métrica #19 con el orden de guards; el arnés es la referencia (ver Fase 2 y Fase 3).
 
 3. Repetir el arnés contra **producción**, sólo lectura, antes de aplicar: si el diagnóstico
    se movió, se recalculan los números.
