@@ -387,9 +387,10 @@ Hoy el loop hace, por cada uno de los 371 candidatos, 1 query de `get_base_plan_
 
 1. **Pasada 0 — cobertura y limpieza.** Antes de cualquier guard, una query de rango acotada
    sobre las ventanas de los candidatos. Para cada candidato cuya ventana esté cubierta por
-   una sucesora: `skipped_already += 1` y `auto_renew = False` en un `UPDATE` bulk. Esto
-   colapsa 371 → 136 y es la causa del crecimiento mes a mes (H2). La limpieza es
-   **incondicional**: no importa el estado del socio ni del gym.
+   una sucesora: `covered += 1` y `auto_renew = False` en un `UPDATE` bulk. Esto colapsa
+   371 → 136 y es la causa del crecimiento mes a mes (H2). La limpieza es
+   **incondicional**: no importa el estado del socio ni del gym. El contador `covered` es
+   nuevo: `skipped_already` (del loop) no se toca aquí, lo cambia la Fase 3.
 2. **Pasada 1 — guards, del más barato al más caro**, sobre lo que queda:
 
    ```python
@@ -428,14 +429,19 @@ Hoy el loop hace, por cada uno de los 371 candidatos, 1 query de `get_base_plan_
    agrega los contadores nuevos al dict de `TaskRun.last_result` **sin tocar** `renewed` /
    `skipped_already` / `failed`.
 
-**Criterio de aceptación** (staging, vía el arnés de la Fase 1):
-- Queries **≤ 40** (de 1.235) y duración **< 10 s** (de 90-190 s).
-- `skipped_already: 235` y `auto_renew = False` aplicado a 235 suscripciones.
-- Contadores sobre los 136 restantes: `stale 40`, `gym 51`, `member 1`, `blocked 43`,
-  `candidatos 1`. Suman 371.
-- `renewed: 0` todavía — el fix de comportamiento es de la Fase 3.
+**Criterio de aceptación** (staging, vía el arnés de la Fase 1; verificado 2026-09-28):
+- Queries **≤ 40** (de 1.235): medido **12**. Duración **< 10 s** (de 90-190 s): medido **2.2 s**.
+- `renewed: 0`, `skipped_already: 237`, `failed: 0` — sin cambio (el arnés da **SÍ** contra
+  `TaskRun.last_result`). El `UPDATE` bulk aplica `auto_renew = False` sobre los 136
+  (235 covered + 90 stale); el arnés reporta esa única escritura, rolada.
+- Contadores nuevos (suman 371): `covered 235`, `stale 90`, `gym 7`, `member 0`,
+  `blocked 38`, `candidatos 1`. (Los números del borrador — `stale 40 / gym 51 / member 1 /
+  blocked 43` — mezclaban cortes de la métrica #19 con el orden de guards de esta fase; el
+  arnés es la referencia correcta y coincide con el funnel original: 90 en mes cerrado y
+  46 en el mes en curso: 7 gym + 38 blocked + 1 candidato.)
 - El conjunto de candidatos es **idéntico** (mismos pks) antes y después: cambiar el orden de
-  guards cambia los contadores, pero no la lista final.
+  guards cambia los contadores, pero no la lista final (el único candidato sigue siendo el
+  sub 1509 / member 801).
 
 **Riesgo**: el `UPDATE` bulk es la primera escritura real del proceso. Por eso la Fase 1 va
 antes y verifica 0 escrituras.

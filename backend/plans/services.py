@@ -67,3 +67,16 @@ def get_base_plan_for_gym(gym):
         return MembershipPlan.objects.get(gym=gym, is_base=True)
     except MembershipPlan.DoesNotExist:
         return None
+
+
+def base_plan_ids_for_gyms(gym_ids):
+    """Return {gym_id: base_plan_id} for the given gyms.
+
+    One query replaces per-gym ``get_base_plan_for_gym`` lookups in bulk
+    contexts (371 queries -> 1 in the renewal candidate scan).
+    """
+    return dict(
+        MembershipPlan.objects.filter(
+            gym_id__in=gym_ids, is_base=True
+        ).values_list("gym_id", "id")
+    )

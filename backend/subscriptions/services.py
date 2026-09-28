@@ -1,5 +1,6 @@
 import logging
 from calendar import monthrange
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -987,52 +988,174 @@ def recover_member(member):
     return new_sub
 
 
-def _collect_renewal_candidates(queryset):
-    """Select expired auto_renew subscriptions that have not been renewed yet.
+def _precomputed_remaining(subscription, paid_amount):
+    """Remaining balance of a subscription using precomputed data.
 
-    Returns a list of (subscription, target_start, target_end) tuples.
-    The successor period always starts on the calendar month that follows
-    the expired subscription's end_date, so the command can run any day
-    of the month and still catch up on renewals the cron missed.
-
-    Skips:
-    - Base Plan subscriptions when the gym no longer allows activity-only.
-    - Members whose active flag is False.
-    - Members whose expired subscription was in 'blocked' payment status
-      at the time of expiry (unpaid renewal subscriptions whose end_date
-      falls on or after the gym's access_block_day).
+    Mirrors ``subscription_remaining_balance`` without issuing any query:
+    the items are prefetched and the paid total is passed in. Pase de
+    cortesía members always have zero remaining.
     """
-    from plans.services import get_base_plan_for_gym
+    total = calculate_subscription_total(subscription)
+    if subscription.member.is_comp:
+        return Decimal("0")
+    remaining = total - paid_amount
+    return remaining if remaining > 0 else Decimal("0")
+
+
+def _skips_base_plan(sub, base_plan_ids):
+    """True when the base-plan guard excludes ``sub`` from renewal.
+
+    A member on the base plan only renews when the gym still allows
+    activity-only access, or when it is a courtesy pass (always free).
+    """
+    if base_plan_ids.get(sub.gym_id) != sub.plan_id:
+        return False
+    if sub.gym.allow_activity_without_membership:
+        return False
+    return not sub.member.is_comp
+
+
+def _collect_renewal_candidates(queryset):
+    """Select expired auto_renew subscriptions and classify them (Fase 2).
+
+    Two passes over the already-fetched rows, no per-row queries:
+
+    - Pasada 0 (cobertura y limpieza): one range query over the candidate
+      windows. A row whose target period is already covered by a successor is
+      counted as ``covered`` and added to the cleanup list (auto_renew=False).
+      The cleanup is unconditional: member/gym state is irrelevant.
+    - Pasada 1 (guards, cheapest to most expensive): over the rows left after
+      coverage. Stale backlog (target in a closed month) also goes to cleanup.
+      The remaining guards split the rest into ``skipped_inactive_gym``,
+      ``skipped_base_plan``, ``skipped_inactive_member`` and ``skipped_blocked``.
+
+    Returns a 3-tuple:
+      - ``candidates``: list of (subscription, target_start, target_end) tuples
+        for rows that pass the creation guards (base plan, member active,
+        payment not blocked), using the pre-Fase-2 order so the renewal loop
+        behaviour (renewed / skipped_already / failed) is unchanged.
+      - ``counters``: dict with the period-level breakdown of the full raw set.
+      - ``cleanup_ids``: subscription pks that must get auto_renew=False
+        (covered + stale rows).
+    """
+    from payments.models import Payment
+    from plans.services import base_plan_ids_for_gyms
 
     today = timezone.localdate()
-    expired = queryset.filter(
-        end_date__lt=today,
-        auto_renew=True,
-    ).select_related("member__discount", "plan", "gym")
+    month_start = today.replace(day=1)
+    expired = list(
+        queryset.filter(
+            end_date__lt=today,
+            auto_renew=True,
+        )
+        .select_related("member__discount", "plan", "gym")
+        .prefetch_related("items")
+    )
 
+    member_ids = {sub.member_id for sub in expired}
+    sub_ids = [sub.pk for sub in expired]
+    gym_ids = {sub.gym_id for sub in expired}
+
+    # ── Precompute (1 query each) ────────────────────────────────────
+    windows = defaultdict(list)
+    for member_id, start_date, end_date in Subscription.objects.filter(
+        member_id__in=member_ids
+    ).values_list("member_id", "start_date", "end_date"):
+        windows[member_id].append((start_date, end_date))
+
+    base_plan_ids = base_plan_ids_for_gyms(gym_ids)
+
+    paid_by_sub = dict(
+        Payment.objects.filter(subscription_id__in=sub_ids)
+        .values("subscription_id")
+        .annotate(paid=Sum("amount"))
+        .values_list("subscription_id", "paid")
+    )
+
+    earliest_by_member = dict(
+        Subscription.objects.filter(member_id__in=member_ids)
+        .values("member_id")
+        .annotate(first=Min("created_at"))
+        .values_list("member_id", "first")
+    )
+
+    def payment_blocked(sub):
+        remaining = _precomputed_remaining(
+            sub, paid_by_sub.get(sub.pk, Decimal("0"))
+        )
+        return (
+            get_subscription_payment_status(
+                sub,
+                at_date=sub.end_date,
+                remaining=remaining,
+                is_first=(sub.created_at == earliest_by_member.get(sub.member_id)),
+            )
+            == "blocked"
+        )
+
+    counters = {
+        "covered": 0,
+        "skipped_stale_backlog": 0,
+        "skipped_inactive_gym": 0,
+        "skipped_base_plan": 0,
+        "skipped_inactive_member": 0,
+        "skipped_blocked": 0,
+        "candidates": 0,
+    }
+    cleanup_ids = []
     candidates = []
-    for sub in expired:
-        # ── Base plan guard ──────────────────────────────────────────
-        base_plan = get_base_plan_for_gym(sub.gym)
-        if base_plan and sub.plan_id == base_plan.pk:
-            if not sub.gym.allow_activity_without_membership:
-                # Un socio con pase de cortesía siempre renueva gratis,
-                # incluso si el gym desactiva el acceso sin membresía.
-                if not sub.member.is_comp:
-                    continue
 
-        # ── Member active guard ──────────────────────────────────────
+    for sub in expired:
+        target_start = get_first_day_of_next_month(sub.end_date)
+        target_end = get_last_day_of_month(target_start)
+
+        # ── Pasada 0 — cobertura del propio período ───────────────────
+        if any(
+            a <= target_end and b >= target_start
+            for a, b in windows[sub.member_id]
+        ):
+            counters["covered"] += 1
+            cleanup_ids.append(sub.pk)
+            continue
+
+        # ── Pasada 1 — guards, del más barato al más caro ─────────────
+        if target_start < month_start:
+            counters["skipped_stale_backlog"] += 1
+            cleanup_ids.append(sub.pk)
+            continue
+
+        if not sub.gym.active:
+            counters["skipped_inactive_gym"] += 1
+            continue
+
+        if _skips_base_plan(sub, base_plan_ids):
+            counters["skipped_base_plan"] += 1
+            continue
+
+        if not sub.member.active:
+            counters["skipped_inactive_member"] += 1
+            continue
+
+        if payment_blocked(sub):
+            counters["skipped_blocked"] += 1
+            continue
+
+        counters["candidates"] += 1
+
+    # Loop candidates with the pre-Fase-2 guards (same order and result),
+    # so the renewal loop behaviour is untouched here.
+    for sub in expired:
+        if _skips_base_plan(sub, base_plan_ids):
+            continue
         if not sub.member.active:
             continue
-
-        # ── Payment status guard (evaluate at expiry date) ───────────
-        if get_subscription_payment_status(sub, at_date=sub.end_date) == "blocked":
+        if payment_blocked(sub):
             continue
-
         target_start = get_first_day_of_next_month(sub.end_date)
         target_end = get_last_day_of_month(target_start)
         candidates.append((sub, target_start, target_end))
-    return candidates
+
+    return candidates, counters, cleanup_ids
 
 
 def _find_already_renewed_members(candidates):
@@ -1245,6 +1368,13 @@ def auto_renew_subscriptions(gym=None):
          member is logged and does not stop the rest, so a later run can
          retry the failed member.
 
+    Fase 2 de PLAN-dinero.md: antes del loop, las filas cuyo target ya está
+    cubierto por una sucesora y el rezago inerte (mes cerrado) reciben
+    ``auto_renew = False`` en un ``UPDATE`` bulk y se cuentan con contadores
+    nuevos (covered / stale / gym / base_plan / member / blocked / candidates).
+    El comportamiento del loop (renewed / skipped_already / failed) no cambia
+    aquí: el arreglo por período propio es de la Fase 3.
+
     A final phase applies every approved plan change whose effective date
     has arrived, for all members. A plan change is an administrative
     decision and never depends on the member's payment status or renewal
@@ -1256,8 +1386,24 @@ def auto_renew_subscriptions(gym=None):
     if gym is not None:
         qs = qs.filter(gym=gym)
 
-    candidates = _collect_renewal_candidates(qs)
+    candidates, counters, cleanup_ids = _collect_renewal_candidates(qs)
     already_renewed = _find_already_renewed_members(candidates)
+
+    # Fase 2: limpieza de H2 — la primera escritura real del proceso.
+    # Las filas con el target ya cubierto y el rezago inerte dejan de
+    # auto-renovarse. No importa el estado del socio ni del gym.
+    if cleanup_ids:
+        Subscription.objects.filter(pk__in=cleanup_ids).update(auto_renew=False)
+
+    # Los socios con un cambio de plan vencido pendiente se atienden por
+    # socio (red de #5), pero la comprobación se precarga en una sola
+    # query para no emitir una por skip.
+    due_pcr_members = set(
+        PlanChangeRequest.objects.filter(
+            status="approved",
+            effective_date__lte=timezone.localdate(),
+        ).values_list("member_id", flat=True)
+    )
 
     renewed = 0
     skipped_already = 0
@@ -1266,7 +1412,8 @@ def auto_renew_subscriptions(gym=None):
     for expired_sub, _target_start, _target_end in candidates:
         if expired_sub.member_id in already_renewed:
             skipped_already += 1
-            _apply_due_plan_changes(expired_sub.member_id)
+            if expired_sub.member_id in due_pcr_members:
+                _apply_due_plan_changes(expired_sub.member_id)
             continue
 
         try:
@@ -1291,6 +1438,7 @@ def auto_renew_subscriptions(gym=None):
         "failed": failed,
         "plan_changes_applied": plan_changes_applied,
         "plan_changes_failed": plan_changes_failed,
+        **counters,
     }
 
 

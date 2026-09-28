@@ -57,8 +57,9 @@ def _is_write(sql):
 class Command(BaseCommand):
     help = (
         "Ejecuta el código real de renovación dentro de un rollback y reporta "
-        "contadores, queries, escrituras (deben ser 0) y el desglose de guards "
-        "con la semántica por período del fix."
+        "contadores, queries, escrituras (1 desde la Fase 2: el UPDATE bulk de "
+        "auto_renew=False, siempre rolado) y el desglose de guards con la "
+        "semántica por período del fix."
     )
 
     def add_arguments(self, parser):
