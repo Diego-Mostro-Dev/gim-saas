@@ -20,7 +20,7 @@ DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python mana
 | 3 | #1: skip por período, no por socio | **CERRADA** | `7401f0a` |
 | 4 | Claim atómico + atómico por socio | **CERRADA** | `4b8022a` |
 | 5 | Guards de escritura #2 y #48 | **CERRADA** | `a5271ed` |
-| 6 | Tests focalizados | **CERRADA** | `4b8022a`+1 (en `development`) |
+| 6 | Tests focalizados | **CERRADA** | `23438bf` |
 
 Reglas para retomar:
 
@@ -697,7 +697,7 @@ test(subscriptions): tests focalizados de bugs de dinero
    | `skipped_inactive_member` | 0 |
    | `skipped_blocked` | 38 |
    | `renewed` | **1** (socio 801) |
-   | `skipped_already` | 236 |
+   | `skipped_already` | 193 (post-Fase 6; 236 antes del guard de `gym.active`) |
    | suma de contadores del desglose | **371** |
    | queries de la llamada real | 24 (≤ 40) |
    | escrituras del arnés | 3 detectadas (1 UPDATE + 2 INSERT), **0 persistidas** |
@@ -712,8 +712,13 @@ test(subscriptions): tests focalizados de bugs de dinero
    Los números del borrador (`stale 40 / gym 51 / member 1 / blocked 43`) mezclaban cortes
    de la métrica #19 con el orden de guards; el arnés es la referencia (ver Fase 2 y Fase 3).
 
-3. Repetir el arnés contra **producción**, sólo lectura, antes de aplicar: si el diagnóstico
-   se movió, se recalculan los números.
+3. Repetir el arnés contra **producción**, sólo lectura, antes de aplicar (verificado 2026-09-28):
+   funnel 371 → `covered 235 / stale 90 / gym 7 / member 0 / blocked 36 / candidates **3**`;
+   `renewed **3**` (socios 801, 793, 803 — Gym Dev, targets septiembre, sucesores agotados),
+   `skipped_already 195`, **escrituras 7 (1 UPDATE + 3×(sub+ítem)) todas roladas / 0 persistidas**,
+   queries de la llamada real 51 (el delta vs staging son los 2 renovados extra; no hay huecos
+   retroactivos ni dobles meses — `812/785/829` quedan cubiertos, `socio 827` intacto). El
+   `renewed==1` de staging era staging; en producción el valor correcto es 3.
 4. Esperar una corrida real del `TaskRun` y confirmar `last_duration_seconds` < 15 s; confirmar
    con el usuario que el 502 de las 6h desapareció.
 5. Conteo de queries antes/después documentado en el mensaje del commit de la Fase 2.
