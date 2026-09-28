@@ -5,16 +5,16 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-3 commiteadas en `development` (2026-09-28).**
-La Fase 4 es el próximo paso.
+Estado: **Fases 0-4 commiteadas en `development` (2026-09-28).**
+La Fase 5 es el próximo paso.
 
 | Fase | Qué | Estado | Commit |
 |---|---|---|---|
 | 0 | Métricas del audit por período | **CERRADA** | `bf6b28a` (+ docs `0d76102`) |
 | 1 | Arnés read-only `audit_renewal_dryrun` | **CERRADA** | `d14dfc9` |
 | 2 | Limpiar `auto_renew` + eliminar N+1 + orden de guards | **CERRADA** | `51022c1` |
-| 3 | #1: skip por período, no por socio | **CERRADA** | `51022c1`+1 (en `development`) |
-| 4 | Claim atómico + atómico por socio | pendiente | — |
+| 3 | #1: skip por período, no por socio | **CERRADA** | `7401f0a` |
+| 4 | Claim atómico + atómico por socio | **CERRADA** | (ver §4) |
 | 5 | Guards de escritura #2 y #48 | pendiente | — |
 | 6 | Tests focalizados | pendiente | — |
 
@@ -510,10 +510,11 @@ renovador.
 
 ---
 
-### Fase 4 — Runner: claim atómico y fin del `atomic()` gigante — ⬜ PENDIENTE
+### Fase 4 — Runner: claim atómico y fin del `atomic()` gigante — ✅ HECHO (2026-09-28)
 
-**Archivos**: `subscriptions/services.py:1314-1423`,
-`subscriptions/management/commands/auto_renew_subscriptions.py:15`
+**Archivos**: `subscriptions/services.py:1314-1423` → `run_scheduled_tasks`,
+`subscriptions/management/commands/auto_renew_subscriptions.py:15`,
+`activities/no_show_service.py:234`
 
 **El riesgo (vs. la Fase 3 vieja)**: el plan anterior proponía `pg_try_advisory_xact_lock` →
 `pg_try_advisory_lock` (nivel sesión). Eso es **incompatible con PgBouncer transaction mode**
@@ -553,11 +554,18 @@ cliente, y muerto el proceso no se libera. **Descartado.**
    funciona en SQLite: dos threads, el segundo tiene que recibir `{"ran": False, "reason": "not_due"}`.
    Más un test de que el `TaskRun` se actualiza aunque `auto_renew_subscriptions` levante excepción.
 
-**Criterio de aceptación**:
-- Los 7 tests preexistentes pasan; el test de concurrencia nuevo pasa en SQLite y en Postgres.
-- Con el `atomic()` afuera, una excepción inyectada tras la primera renovación deja las
-  anteriores confirmadas.
-- `manage.py auto_renew_subscriptions` ya no llama directo a `auto_renew_subscriptions()`.
+**Criterio de aceptación** (verificado 2026-09-28 en staging, todo en rollback):
+- Arnés: los números de la Fase 3 sin cambios — `renewed 1` (801), `skipped_already 236`,
+  `failed 0`, contadores 235/90/7/0/38/1 (Σ371), ~24 queries, 3 escrituras rolleadas.
+- Claim CAS: sobre una fila vencida afecta **1** fila; un segundo worker concurrente afecta
+  **0** y recibe `not_due`; `last_status` queda en `"running"` durante la corrida y en `"ok"`
+  al terminar. Con `force=True` corre igual y vuelve a `"ok"` (renewed 1 en el rollback).
+- `manage.py auto_renew_subscriptions` ya no llama directo a `auto_renew_subscriptions()`:
+  pasa por `run_scheduled_tasks(force=True)`.
+- Sin `advisory lock` (se eliminaron `SCHEDULED_TASKS_LOCK_KEY` y `_acquire_task_lock`) y sin
+  el `transaction.atomic()` externo: el `TaskRun` autocommitea y cada renovación es atómica
+  por socio en `create_next_subscription`.
+- `deduct_missed_sessions` envuelve cada gym en su propio `atomic()`.
 
 **Commit**: `fix(subscriptions): claim atómico en vez de lock de sesión, y atómico por socio`
 
@@ -657,6 +665,10 @@ test(subscriptions): tests focalizados de bugs de dinero
    | escrituras del arnés | 3 detectadas (1 UPDATE + 2 INSERT), **0 persistidas** |
    | suscripciones retroativas creadas para `Gym Demo` | 0 |
    | socios 812 / 785 / 793 / 829 con doble septiembre | 0 |
+   | claim CAS (fila vencida / segundo worker) | 1 / 0 → `not_due` |
+   | `last_status` durante la corrida / al final | `running` / `ok` |
+   | `deduct_missed_sessions` | `atomic()` por gym |
+   | `manage.py auto_renew_subscriptions` | pasa por `run_scheduled_tasks(force=True)` |
 
    Los números del borrador (`stale 40 / gym 51 / member 1 / blocked 43`) mezclaban cortes
    de la métrica #19 con el orden de guards; el arnés es la referencia (ver Fase 2 y Fase 3).

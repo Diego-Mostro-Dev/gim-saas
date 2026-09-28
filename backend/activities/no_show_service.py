@@ -23,6 +23,7 @@ Reglas:
 
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils import timezone
 
 from gyms.models import Gym, GymClosedDate
@@ -241,8 +242,12 @@ def deduct_missed_sessions():
     }
 
     for gym in Gym.objects.filter(active=True):
-        activity = deduct_missed_activity_enrollments(gym)
-        pt = deduct_missed_pt_assignments(gym)
+        # Fase 4: cada gym dentro de su propio atomic(). La escritura avanza
+        # un watermark por enrollment (no_show_scan_until) y es idempotente,
+        # así el daño de un timeout queda acotado a los gyms ya procesados.
+        with transaction.atomic():
+            activity = deduct_missed_activity_enrollments(gym)
+            pt = deduct_missed_pt_assignments(gym)
         total["enrollments"] += activity["enrollments"]
         total["enrollment_records_created"] += activity["records_created"]
         total["assignments"] += pt["assignments"]

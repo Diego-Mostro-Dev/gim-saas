@@ -1485,34 +1485,9 @@ def auto_renew_subscriptions(gym=None):
 
 import time as _time
 
-from django.db import connection
-
 from .models import TaskRun
 
-# Clave de advisory lock de Postgres (única dentro de la base de datos).
-# Garantiza que solo un worker/request ejecute la tarea a la vez.
-SCHEDULED_TASKS_LOCK_KEY = 738_410_159
-
 TASK_NAME = "subscription_maintenance"
-
-
-def _acquire_task_lock():
-    """Lock transaccional no bloqueante: solo un run gana a la vez.
-
-    En PostgreSQL (producción) usa pg_try_advisory_xact_lock, la opción
-    correcta para exclusión entre workers. En otros backends (SQLite en
-    tests) cede el paso: ahí la exclusión real la aporta el guard de
-    not_due + get_or_create, y los tests corren single-thread.
-    """
-    if connection.vendor == "postgresql":
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT pg_try_advisory_xact_lock(%s)",
-                [SCHEDULED_TASKS_LOCK_KEY],
-            )
-            row = cursor.fetchone()
-            return bool(row and row[0])
-    return True
 
 
 def _task_interval_seconds():
@@ -1520,11 +1495,12 @@ def _task_interval_seconds():
 
 
 def maybe_run_scheduled_tasks(force=False):
-    """Disparador perezoso: camino barato sin lock si no corresponde.
+    """Disparador perezoso: camino barato sin claim si no corresponde.
 
     Chequea la última ejecución con una sola consulta. Solo cuando la tarea
-    está vencida (o se fuerza) entra al camino con advisory lock, que hace
-    doble-chequeo para que dos requests concurrentes no la corran dos veces.
+    está vencida (o se fuerza) entra al camino con el claim atómico, que
+    hace doble-chequeo para que dos requests concurrentes no la corran dos
+    veces.
     """
     from .models import TaskRun as _TaskRun
 
@@ -1548,57 +1524,69 @@ def run_scheduled_tasks(force=False):
     """Ejecuta el mantenimiento de suscripciones exactamente una vez.
 
     Incluye renovaciones automáticas y cambios de plan vencidos
-    (auto_renew_subscriptions ya aplica ambos). El advisory lock dentro del
-    transaction.atomic hace que, aunque corran 2 workers, solo uno ejecute.
+    (auto_renew_subscriptions ya aplica ambos). La exclusión entre workers
+    la da un claim atómico (Fase 4): un ``UPDATE`` condicional sobre
+    ``TaskRun.last_run`` en una sola sentencia, sin lock de sesión y sin
+    transacción abierta. El advisory lock se descartó porque muerto el
+    proceso no se libera y el pooler de PgBouncer (transaction mode) puede
+    reasignar la conexión.
+
+    El claim ocurre al inicio: si la corrida muere, no se reintenta hasta que
+    venza el intervalo y queda visible como ``last_status == "running"``. A
+    cambio ya no hay un ``transaction.atomic()`` gigante: cada renovación es
+    atómica por socio (``create_next_subscription``) y el ``TaskRun``
+    autocommitea. Un timeout pierde una renovación en vez de 371.
     """
     from .models import TaskRun as _TaskRun
 
     started = _time.time()
+    now = timezone.now()
 
-    with transaction.atomic():
-        if not _acquire_task_lock():
-            return {"ran": False, "reason": "locked"}
+    run, _ = _TaskRun.objects.get_or_create(
+        name=TASK_NAME,
+        defaults={
+            "last_run": now - timezone.timedelta(days=1),
+            "last_status": "ok",
+        },
+    )
 
-        run, _ = _TaskRun.objects.get_or_create(
+    if not force:
+        claimed = _TaskRun.objects.filter(
             name=TASK_NAME,
-            defaults={
-                "last_run": timezone.now() - timezone.timedelta(days=1),
-                "last_status": "ok",
-            },
+            last_run__lt=now - timezone.timedelta(seconds=_task_interval_seconds()),
+        ).update(last_run=now, last_status="running")
+        if not claimed:
+            return {"ran": False, "reason": "not_due"}
+    else:
+        _TaskRun.objects.filter(name=TASK_NAME).update(
+            last_run=now, last_status="running"
         )
 
-        if (
-            not force
-            and (timezone.now() - run.last_run).total_seconds()
-            < _task_interval_seconds()
-        ):
-            return {"ran": False, "reason": "not_due"}
+    status = "ok"
+    error = ""
+    result = None
+    try:
+        result = auto_renew_subscriptions()
+        no_show = deduct_missed_sessions()
+        if isinstance(result, dict) and isinstance(no_show, dict):
+            result = {**result, "no_show": no_show}
+    except Exception as exc:  # pragma: no cover - defensivo
+        status = "error"
+        error = f"{type(exc).__name__}: {exc}"
+        logger.exception("Scheduled task %s failed", TASK_NAME)
 
-        status = "ok"
-        error = ""
-        result = None
-        try:
-            result = auto_renew_subscriptions()
-            no_show = deduct_missed_sessions()
-            if isinstance(result, dict) and isinstance(no_show, dict):
-                result = {**result, "no_show": no_show}
-        except Exception as exc:  # pragma: no cover - defensivo
-            status = "error"
-            error = f"{type(exc).__name__}: {exc}"
-            logger.exception("Scheduled task %s failed", TASK_NAME)
-
-        run.last_run = timezone.now()
-        run.last_status = status
-        run.last_duration_seconds = _time.time() - started
-        run.last_result = result
-        run.last_error = error[:5000] if error else ""
-        run.save(update_fields=[
-            "last_run",
-            "last_status",
-            "last_duration_seconds",
-            "last_result",
-            "last_error",
-        ])
+    run.last_run = timezone.now()
+    run.last_status = status
+    run.last_duration_seconds = _time.time() - started
+    run.last_result = result
+    run.last_error = error[:5000] if error else ""
+    run.save(update_fields=[
+        "last_run",
+        "last_status",
+        "last_duration_seconds",
+        "last_result",
+        "last_error",
+    ])
 
     return {
         "ran": True,
