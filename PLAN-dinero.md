@@ -1,11 +1,21 @@
 # Plan — Bugs de dinero en suscripciones
 
-Rama de trabajo: `development`. `main` no se toca.
+Rama de trabajo: `development`.
 Test runner: Django (`manage.py test`). No hay pytest.
+
+> **Nota sobre `main` (corregido 2026-09-28).** Este documento decía antes "`main` no se
+> toca". Ya no es cierto: `main` y `development` tienen **el mismo árbol** (`5b618156`), con
+> `development` 0 commits adelante y 25 atrás (los 25 son merges de `development` hacia `main`).
+> Las Fases 0-6 **están en la rama que usa producción**. Verificar el estado real:
+>
+> ```bash
+> git rev-list --left-right --count main...development   # -> 25  0
+> git rev-parse main^{tree} development^{tree}            # -> idénticos
+> ```
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-6 commiteadas en `development` (2026-09-28).**
+Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 planificada, sin empezar.**
 Los tests focalizados corren contra SQLite con:
 
 ```
@@ -21,6 +31,7 @@ DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python mana
 | 4 | Claim atómico + atómico por socio | **CERRADA** | `4b8022a` |
 | 5 | Guards de escritura #2 y #48 | **CERRADA** | `a5271ed` |
 | 6 | Tests focalizados | **CERRADA** | `23438bf` |
+| 7 | Bugs ALTO de precio, pase de cortesía y PT por paquete | **PLANIFICADA — sin empezar** | — |
 
 Reglas para retomar:
 
@@ -28,11 +39,14 @@ Reglas para retomar:
 2. **No rehagas la Fase 0.** Ya está commiteada. Sus números verificados están en la
    sección 3, Fase 0. La nueva verificación es el arnés de la Fase 1, no el audit.
 3. Ejecutá las fases de la sección 3 **en orden**, una por vez. No arranques la Fase N+1
-   sin cerrar la N.
+   sin cerrar la N. La Fase 7 tiene orden propio: **7.0 → 7.2 → 7.1 → 7.3 → 7.4**.
 4. Después de cada fase, corré su criterio de verificación. Si no coincide, **frená** y
    reportá en vez de seguir.
 5. Un commit por fase, con los mensajes de la sección 4.
 6. Al final, la verificación global de la sección 5.
+7. **La 7.0 va primera y es de sólo lectura, a propósito.** Es la única de la fase que no se
+   puede deshacer fácil: un saldo a favor mal calculado escribe filas que después hay que
+   migrar a mano. La Fase 2 aprendió lo mismo con su `UPDATE` de limpieza.
 
 Pendientes sueltos que **no** son parte de ninguna fase, para que no se pierdan:
 
@@ -44,6 +58,69 @@ Pendientes sueltos que **no** son parte de ninguna fase, para que no se pierdan:
   auto-renovador. Es decisión de negocio, fuera del plan.
 - Los ítems históricos del socio 827 (Diego Salvado, julio y agosto, 25.000) **no** se tocan.
   Sólo se reportan.
+- **La Fase 7 nace de revisión de código, no de métricas.** Los 7 bugs que corrige (P1-P7) no
+  los detectó ningún contador: el `audit_money_bugs` actual sólo implementa
+  **#1, #2, #4, #5, #6, #19 y #48**. Por eso la Fase 7 arranca con una 7.0 de métricas
+  propias — sin línea base medida, no hay forma de probar que la 7.1 corrigió algo.
+- **Impacto real de los bugs de la Fase 7 al 2026-09-28: $0.** El único gym real (`Sinkro`)
+  tiene 0 socios, así que ninguno de estos caminos se ha ejercido con dinero de verdad. Se
+  corrigen ahora porque la ventana es antes de que entre el primer socio real, no porque
+  hayan costado plata.
+
+---
+
+## QUÉ FALTA HACER
+
+Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder cerrarlo.
+**Orden de ejecución de la Fase 7: `7.0 → 7.2 → 7.1 → 7.3 → 7.4`.**
+
+### Trabajo de código (Fase 7)
+
+| # | Qué | Dónde | Gate para cerrarlo | Estado |
+|---|---|---|---|---|
+| 1 | **7.0** — 4 contadores read-only con pares `confirmados`/`armados` | `audit_money_bugs.py` | `Escrituras: 0` + los 8 números medidos en staging **y** producción | ⬜ sin empezar |
+| 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py:197` **+ `services.py:88`** (dos vías) + alta de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** (Σ371) | ⬜ sin empezar |
+| 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ⬜ sin empezar |
+| 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ⬜ sin empezar |
+| 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:226-233` | el 4º loop, con el mismo factor de prorrateo | ⬜ sin empezar |
+| 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:268-290` | los 3 tipos de paquete, ida y vuelta | ⬜ sin empezar |
+| 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ⬜ sin empezar |
+| 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ⬜ sin empezar |
+| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación | ⬜ sin empezar |
+| 10 | **7.4** — arreglos de texto a este documento | `PLAN-dinero.md` | — | ✅ **hecho** |
+
+### Verificación que quedó abierta desde las Fases 0-6
+
+| # | Qué | Gate | Estado |
+|---|---|---|---|
+| 11 | **Corrida real del `TaskRun` en producción** | `last_status = "ok"` y `last_duration_seconds < 15`, más confirmar con el usuario que el 502 de las 6h desapareció | ⬜ **abierto desde el 2026-09-28**. Requiere un request real que dispare el middleware. El SQL está en la sección 5, punto 4 |
+
+### Decisiones de negocio (no son código)
+
+| # | Qué | Quién decide | Estado |
+|---|---|---|---|
+| 12 | **Los 45 socios de `Gym Demo` congelados** desde junio por H1 | Negocio. Se reactivan con `recover_member`, **nunca** con el auto-renovador | ⬜ sin decidir |
+| 13 | **Deuda de los 38 bloqueados** (3.659.100) | Negocio. Decisión 2 de la sección 2: no se cobran | ⬜ sin decidir |
+| 14 | **Backfill de `discount_percent_snapshot`** para las suscripciones ya abiertas | Sólo hace falta con socios reales. Hoy `Sinkro` está en 0, así que es inocuo | ⬜ condicionado |
+| 15 | **Ítems históricos de Diego Salvado** (socio 827, julio y agosto, 25.000) | Fuera de alcance por decisión explícita: sólo se reportan, no se tocan | ✅ decidido |
+
+### Bloqueado por información externa
+
+| # | Qué | Falta | Estado |
+|---|---|---|---|
+| 16 | **Los 8 números `#32, #30, #35, #18, #40, #38, #33, #37`** | No existen en el código (0 resultados). El audit sólo implementa `#1, #2, #4, #5, #6, #19, #48`. Hace falta el listado original para saber a qué se refieren | ⬜ **unknowable**. Sección 6 |
+
+### Fase 8 — mapeada, sin fecha
+
+Los 8 bugs MEDIO y BAJO (P8-P15) están documentados uno por uno en la tabla al final de la
+sección 3, con ubicación y severidad. **Ninguno entra en la Fase 7.** Cuando se retome:
+
+1. **8.0** — métricas propias primero, igual que la 7.0, con el mismo esquema de
+   `confirmados`/`armados` (sección 1.9).
+2. P9, P10 y P11 son **feature work de running, no de dinero**: no-asistencia y recuperación
+   para salidas, el guard `other_active` que PT tiene y outings/actividades no, y el consumo
+   de sesión de outing en el panel de staff. Merecen su propio plan, no una cola más.
+3. P13, P14 y P15 son de bajo riesgo y se pueden agrupar en una sola fase de higiene.
 
 ---
 
@@ -181,21 +258,29 @@ antes de que el framework envíe la respuesta**. Con 91,7 s de corrida, el POST 
 
 #### Funnel medido (371 crudos, código real)
 
+> **Números corregidos 2026-09-28.** Esta tabla y la de "renovaciones esperadas" más abajo
+> tenían los conteos de un borrador que mezclaba el corte de la métrica #19 con el orden de
+> guards. El orden real (Fase 2) pone el **guard de mes cerrado antes que el de gym inactivo**,
+> y por eso los inactivos son 7 y no 51. La referencia autoritativa es la sección 5.
+
 | Etapa | n |
 |---|---|
 | con sucesora que cubre el target (se limpian) | 235 |
 | sin sucesora (a evaluar) | 136 |
-| → socios en gym inactivo | 51 |
-| → socios inactivos | 1 |
-| → bloqueadas por impago al vencimiento | 43 |
-| → candidatos que pasan todos los guards | 41 |
+| → target en un mes ya cerrado (`skipped_stale_backlog`, se limpian) | 90 |
+| → target en el mes en curso | 46 |
+| → de esas 46: gym inactivo (`skipped_inactive_gym`) | 7 |
+| → socio inactivo (`skipped_inactive_member`) | 0 |
+| → bloqueadas por impago al vencimiento (`skipped_blocked`) | 38 |
+| → **candidatos que pasan todos los guards** | **1** |
 
-De los 41: **40** pertenecen a `Gym Demo` con target en un mes cerrado (pagados, congelados
-por H1 desde junio) y **1** es el socio 801 de `Gym Dev` con target septiembre (ese es la
-única renovación esperada).
+El único candidato es el **socio 801 de `Gym Dev`**, target septiembre, 220.000 pagados: la
+única renovación esperada. Los otros 45 de `Gym Demo` caen en el corte de mes cerrado (90),
+que es donde H1 los dejaba congelados.
 
-Deuda de las 43 bloqueadas: 3.659.100, **0 con pagos posteriores al vencimiento**. 38 en
-gyms activos, 5 en inactivos. Es la política de `access_block_day`, no un bug.
+Deuda de los bloqueados: 3.659.100 medidos sobre el corte previo a la Fase 2 (43 candidatos,
+38 en gyms activos y 5 en inactivos), **0 con pagos posteriores al vencimiento**. Bajo el
+orden de guards vigente el corte es 38. Es la política de `access_block_day`, no un bug.
 
 Los socios 812, 785, 793 y 829 (Gym Dev) tienen septiembre cubierto **sólo por overlap a
 mitad de mes** (sucesora que empieza el 3, 17, 18 y 17): si el keying de skip pasa a ser por
@@ -207,19 +292,22 @@ siendo por overlap.
 | Etapa | n |
 |---|---|
 | candidatos crudos | 371 |
-| `skipped_already` + `auto_renew=False` | 235 |
-| `skipped_stale_backlog` + `auto_renew=False` | 40 |
-| `skipped_inactive_gym` (no se limpia) | 51 |
-| `skipped_inactive_member` | 1 |
-| `skipped_blocked` (no se limpia) | 43 |
+| `covered` + `auto_renew=False` | 235 |
+| `skipped_stale_backlog` + `auto_renew=False` | 90 |
+| `skipped_inactive_gym` (no se limpia) | 7 |
+| `skipped_inactive_member` | 0 |
+| `skipped_blocked` (no se limpia) | 38 |
+| **candidatos evaluados** | **1** |
 | **`renewed`** | **1** (socio 801, Gym Dev, 220.000 pagados) |
+| `skipped_already` (post-Fase 6) | 193 |
 
-**Invariante: los contadores suman 371**: `235 + 40 + 51 + 1 + 43 + 1 = 371`. Si no, el fix
-está mal.
+**Invariante: los contadores suman 371**: `235 + 90 + 7 + 0 + 38 + 1 = 371`. Si no, el fix
+está mal. (`skipped_already` va aparte: es un desglose del loop, no una etapa del funnel, y por
+eso no participa en la suma. Venía de 237 antes de las Fases 3-6.)
 
-El pool queda estable en ~96 filas (51 gyms inactivos + 1 socio inactivo + 43 deudores + la
-rotación mensual) en vez de crecer 40-50 por mes. Las 51 de gyms inactivos y las 43 de deudores
-**no** se limpian a propósito: si el gym se reactiva o el deudor paga, la corrida los renueva.
+El pool queda estable en ~46 filas (7 gyms inactivos + 38 deudores + la rotación mensual) en
+vez de crecer 40-50 por mes. Las 7 de gyms inactivos y las 38 de deudores **no** se limpian a
+propósito: si el gym se reactiva o el deudor paga, la corrida los renueva.
 
 ### 1.5 Hallazgo colateral de #48
 
@@ -247,20 +335,32 @@ devolviendo 25.000. **No tocar esos ítems sin autorización aparte**; sólo rep
 - `models.py:158-163`: un `PlanChangeRequest` pending por socio.
 - Los 15 commits de seguridad (`98e72e2`, `4b6503e`, `d4ede6d`, `6e16b4a`, `90871d6`, etc.).
 
-### 1.7 Pendiente — el alcance real de este plan
+### 1.7 Alcance de este plan — RESUELTO en las Fases 0-6
 
-1. `_find_already_renewed_members` (`services.py:1038`): devuelve `member_id` en vez de
-   períodos → **H1**, 45 socios congelados. Más el OR de 371 clauses (742 parámetros).
-2. `create_next_subscription` (`services.py:875`): no limpia `auto_renew` del padre → **H2**,
-   235 filas fantasma que crecen mes a mes.
-3. `_collect_renewal_candidates` (`services.py:1014-1035`): N+1 y latencia → **H3**, el
-   timeout.
-4. `run_scheduled_tasks` (`services.py:1373`): un único `transaction.atomic()` con lock
-   *transaction-scoped*. Un timeout de 120s revierte todas las renovaciones. El lock debería
-   ser por claim atómico (H5 abajo) y el `atomic()` externo se saca.
-5. `management/commands/auto_renew_subscriptions.py:15` llama `auto_renew_subscriptions()`
-   directo y **saltea el lock**.
-6. #2 y #48: sólo hay guard de lectura, falta el de escritura → resuelto en la Fase 5.
+> Esta sección decía antes "Pendiente — el alcance real de este plan" con los 6 puntos abiertos.
+> Los 6 están cerrados. Se conserva el listado como índice de qué hizo cada fase.
+
+1. `_find_already_renewed_members` (hoy `_find_covered_periods`): devolvía `member_id` en vez
+   de períodos → **H1**, 45 socios congelados. Más el OR de 371 clauses (742 parámetros).
+   **→ Fase 3.**
+2. `create_next_subscription`: no limpiaba `auto_renew` del padre → **H2**, 235 filas fantasma
+   que crecían mes a mes. **→ Fase 2** (pasada 0).
+3. `_collect_renewal_candidates`: N+1 y latencia → **H3**, el timeout de 120s.
+   **→ Fase 2** (precomputación de ids de plan base, `remaining`, `is_first` e ítems).
+4. `run_scheduled_tasks`: un único `transaction.atomic()` con lock *transaction-scoped*. Un
+   timeout de 120s revertía todas las renovaciones. **→ Fase 4**: claim atómico por `UPDATE`
+   sobre `TaskRun` y `atomic()` por socio.
+5. `management/commands/auto_renew_subscriptions.py:15` llamaba `auto_renew_subscriptions()`
+   directo y salteaba el lock. **→ Fase 4**: pasa por `run_scheduled_tasks(force=True)`.
+6. #2 y #48: sólo había guard de lectura. **→ Fase 5** (guard de escritura).
+
+**Lo que este plan NO cubrió, y es donde nació la Fase 7:** el pase de cortesía se declara
+cerrado en la Fase 5, pero su verificación fue `audit_money_bugs` (#2 = 0, #48 = 0), y ese
+audit sólo mira el mes en curso. La Fase 7 encuentra cuatro bugs de escritura **en el mismo
+flujo** que la Fase 5 afirmó cerrado. Ver `Fase 7.1`.
+
+El análisis completo de **por qué** esos tres criterios no podían ver los bugs —con el código
+citado, las trazas paso a paso y las tres reglas que se extraen— está en la **sección 1.9**.
 
 **La "Fase 3 vieja" de este documento (lock de sesión y keying por fecha exacta) queda
 descartada**: el keying del código ya es por overlap (H1 es sólo el tipo de retorno), y el
@@ -284,6 +384,115 @@ verdad.
 ```bash
 cd backend && .venv/bin/python manage.py test subscriptions
 ```
+
+---
+
+### 1.9 Por qué la verificación de la Fase 5 no podía ver lo que dejó
+
+La Fase 5 construyó bien sus dos guards. El problema fue **cómo verificó que estaban bien**,
+y de ahí salieron los 4 bugs de dinero de la Fase 7. Esta sección existe para que la Fase 8 no
+repita el mismo patrón.
+
+El criterio de aceptación de la Fase 5 fue:
+
+```
+audit_money_bugs:  #2 = 0  (147 socios activos revisados)
+                   #48 = 0  (deuda fantasma en la suscripción vigente)
+```
+
+más el punto 3: *"el grep de `is_comp` no dejó ninguna vía suelta"*.
+
+Los tres criterios fallaron por razones distintas. Ninguna es culpa de quien los escribió: son
+todas **fallos de método**, y por eso son corregibles.
+
+#### Razón 1 — el contador #48 es unidireccional
+
+`backend/subscriptions/management/commands/audit_money_bugs.py:172`:
+
+```python
+if member.is_comp and calculate_subscription_total(subscription) > 0:
+    comp_with_total.append(member.id)
+```
+
+Pregunta *"¿a un cortesía le están cobrando?"*. **Nunca pregunta** *"¿a un socio que paga le
+están cobrando de menos?"*.
+
+| Dirección del error | ¿Lo ve el contador? |
+|---|---|
+| Dar el pase y que quede con precio de pago | ✅ Sí — cortesía con total > 0 |
+| **Quitar el pase y que quede en $0** | ❌ **No puede verlo** — ya no es cortesía, la línea ni se ejecuta |
+
+El bug que de verdad cuesta plata al gym —el subcobro— está **fuera de la métrica por
+construcción**. No es que no se activara: es que es matemáticamente invisible para ese
+contador.
+
+> **Regla permanente**: `audit_money_bugs` con `#48 = 0` **no** prueba que el toggle del pase
+> de cortesía sea correcto. No usarlo como criterio de aceptación de nada que toque
+> `mutate_membership`. Para eso existen los tests de la Fase 7.1.
+
+#### Razón 2 — sólo mira el mes en curso
+
+`audit_money_bugs.py:159`:
+
+```python
+subscription = SubscriptionDomain.get_current_subscription(member)
+if subscription is None:
+    ... chequear "atrapado" ...
+    continue
+```
+
+Sólo la suscripción que cubre hoy. El propio plan ya lo reconoce en la sección 1.5: *"El
+audit da #48 = 0 porque sólo mira el mes actual"* — y los 25.000 de Diego Salvado en julio y
+agosto son **exactamente la misma clase de bug que nunca se corrigió**. La Fase 5 se verificó
+con una métrica que no podía ver su propio hallazgo histórico.
+
+#### Razón 3 — un `0` es un dato, no una prueba de código
+
+En staging no había ningún socio cortesía en la situación rota, y ningún servicio de PT
+configurado a la vez como mensual y por sesiones. Por eso los contadores dieron 0. Eso es un
+**dato válido y bien medido**. Lo que no se puede concluir es *"el código está bien"*: son dos
+afirmaciones distintas y sólo la primera se midió.
+
+El propio plan lo dice y no lo reconoce: la Fase 5 anota *"Preventivo puro: hoy 0"* — o sea,
+el código se construyó para un caso que todavía no había pasado. Fue una decisión buena.
+El error fue usar ese `0` como cierre.
+
+> **Regla permanente**: un `0` de un contador prueba que **los datos están limpios**, no que el
+> **código sea correcto**. Para probar código hay que un test que ejercite el camino roto, o un
+> contador que también reporte cuántos casos están *armados*.
+
+#### Razón 4 — un grep no ve el orden
+
+*"El grep de `is_comp` no dejó ninguna vía suelta"*. Un grep responde **¿aparece la palabra
+acá?**. No responde **¿está en el orden correcto?**.
+
+El bug es este, en `members/serializers.py:566-591`:
+
+```
+línea 576   ¿cambió el pase?              → sí
+línea 579   llamo a mutate_membership     → ACÁ se calculan los precios
+      ↓
+      14 líneas de distancia
+      ↓
+línea 590   recién ahora guardo is_comp = True
+```
+
+Las dos menciones de `is_comp` están presentes. El grep queda satisfecho. El bug vive **en las
+14 líneas del medio**, que es justo lo que un grep no lee.
+
+Y el caso de P6 es el otro extremo: ahí `is_comp` **sí** está en el código, dentro de la rama
+`if comp:`. El grep pasa. Pero el archivo tiene un **conjunto asimétrico de loops** (tres
+restauran, falta el cuarto) y un grep no cuenta loops.
+
+> **Regla permanente**: para un guard de escritura, `grep` sirve para encontrar *dónde se
+> toca* el flag. Para probar que el guard está *completo*, hay que enumerar a mano todos los
+> caminos que escriben y revisar cada uno.
+
+#### La lección, en una línea
+
+**Medir datos no es medir código.** Y cuando el radio de impacto es cero por falta de socios
+reales, todo `0` es ambiguo: no sabemos si el bug no existe o si nunca se ejercitó. De ahí la
+exigencia de la Fase 7.0 de reportar también los casos *armados*.
 
 ---
 
@@ -348,7 +557,7 @@ H1: los 13 que parecían renovar en realidad caen en el set de `member_id` (ver 
 
 ---
 
-### Fase 1 — Arnés de verificación `audit_renewal_dryrun` — ⬜ PENDIENTE (siguiente)
+### Fase 1 — Arnés de verificación `audit_renewal_dryrun` — ✅ HECHO (`d14dfc9`)
 
 **Archivo nuevo**: `backend/subscriptions/management/commands/audit_renewal_dryrun.py`
 
@@ -381,7 +590,7 @@ de la transacción externa y el rollback final descarta todo, incluidas las escr
 
 ---
 
-### Fase 2 — Performance: limpiar `auto_renew`, eliminación del N+1, orden de guards — ⬜ PENDIENTE
+### Fase 2 — Performance: limpiar `auto_renew`, eliminación del N+1, orden de guards — ✅ HECHO (`51022c1`)
 
 **Archivos**: `subscriptions/services.py` (`_collect_renewal_candidates:990`),
 `plans/services.py` (nuevo `base_plan_ids_for_gyms`)
@@ -606,6 +815,25 @@ Sin cambios a datos existentes. Sólo reglas de escritura. Los guards de lectura
   `skipped_already 236`, `failed 0`, contadores 235/90/7/0/38/1 (Σ371). La renovación de 801
   pasa por las copias idempotentes sin cambios de precio.
 
+> #### ⚠️ El criterio de esta fase era insuficiente (anotado 2026-09-28)
+>
+> El código de esta fase está bien. **El criterio con el que se cerró, no.** Los tres
+> puntos de verificación fallaron por método, no por ejecución:
+>
+> - `#48 = 0` **no prueba** que `mutate_membership` sea correcto: el contador es
+>   unidireccional (`audit_money_bugs.py:172`) y no puede ver el subcobro. **No reutilizar
+>   este criterio** para nada que toque el toggle del pase.
+> - `#2 = 0` y `#48 = 0` medieron **datos**, no **código**: no había socios en la situación
+>   rota, así que el `0` sólo dice que el caso no se había dado. La propia fase lo anota
+>   como *"preventivo puro: hoy 0"*.
+> - *"el grep de `is_comp` no dejó ninguna vía suelta"* (punto 3): un grep encuentra **dónde
+>   se toca** el flag, no **si el orden es el correcto** ni **si el conjunto de loops está
+>   completo**. Los bugs P2 (orden) y P6 (falta un cuarto loop de restauración) están los
+>   dos bajo esa frase.
+>
+> El análisis completo, con las trazas, está en la **sección 1.9**. De ahí sale el requisito
+> de la Fase 7.0 de reportar casos *armados* además de casos *confirmados*.
+
 **Commit**: `fix(subscriptions): guards de escritura para PT e is_comp (#2/#48)`
 
 ---
@@ -665,11 +893,448 @@ Más los 7 tests existentes de `backend/subscriptions/tests.py`.
 cd backend && .venv/bin/python manage.py test subscriptions
 ```
 
-**Commit**: `test(subscriptions): tests focalizados de bugs de dinero`
+---
+
+### Fase 7 — Bugs ALTO de precio, pase de cortesía y PT por paquete — 📋 PLANIFICADA (sin empezar)
+
+**Origen**: revisión de código del 2026-09-28, no de métricas. Ningún contador del
+`audit_money_bugs` los detecta (ese comando sólo implementa #1, #2, #4, #5, #6, #19 y #48).
+
+**Por qué Fase 7 y no más fases del plan original**: la Fase 5 declaró cerrado el pase de
+cortesía con el criterio "`audit_money_bugs`: #2 = 0, #48 = 0". Ese criterio es válido pero
+**insuficiente**: el audit sólo mira el mes en curso y sólo mira datos, no el orden de las
+escrituras. Leyendo el flujo de escritura aparecen cuatro bugs de dinero en el mismo camino.
+
+**Impacto hoy: $0.** El único gym real (`Sinkro`) tiene 0 socios. Se corrigen antes de que
+entre el primer socio real, no porque hayan costado plata.
+
+#### Los 7 bugs
+
+| | Bug | Ubicación | Sev |
+|---|---|---|---|
+| P1 | PT en modalidad **paquete** genera además la cuota mensual, cada renovación | `subscriptions/services.py:197-199` | ALTO |
+| P2 | `is_comp` se persiste **después** de calcular los precios | `members/serializers.py:590` | ALTO |
+| P3 | Quitar/dar el pase reprecia el período en curso **sin prorrateo** | `subscriptions/domain.py:178-187, 200, 210, 225, 234` | ALTO |
+| P4 | El **sobrepago se borra en silencio** | `subscriptions/services.py:298-323, 357-361, 363-372, 378` | ALTO |
+| P5 | El **descuento se lee en vivo**, no está en el snapshot | `subscriptions/services.py:261, 264-274` | ALTO |
+| P6 | Al quitar el pase **no se restaura** el precio de PT | `subscriptions/domain.py:216-235` | MEDIO |
+| P7 | `_neutralize_comp_package_balances` **sólo cubre actividades** | `subscriptions/domain.py:268-290` | MEDIO |
+
+P6 y P7 son MEDIO pero entran acá porque son inseparables de P2/P3: están en el mismo flujo y
+arreglarlos por partes deja el toggle a medias.
+
+#### P1 en detalle
+
+`services.py:197-199` crea un ítem de PT por cada asignación `active=True`, sin mirar la
+modalidad. `assignment_service.py:68-72` permite `modality="package"` cuando
+`service.billing_mode == "sessions"`, pero **no exige `monthly_price == 0`**. Un servicio
+puede tener las dos cosas: cuota mensual *y* venta por paquetes. Como `ensure_pt_items_for_
+active_assignments` corre desde `open_subscription` (`domain.py:121`), el ítem de cuota se
+crea en **cada** alta, renovación, recuperación y cambio de plan.
+
+Socio con paquete de 10 sesiones × $8.000 (ya pagado $80.000) sobre un servicio de $22.000:
+$22.000 de más **cada mes**, indefinidos.
+
+> **Corrección 2026-09-29 — P1 tiene DOS vías de escritura, no una.** El plan decía que la 7.2
+> era "una línea" (`services.py:197`). Es falso: `_copy_personal_training_items`
+> (`services.py:88-126`) copia el ítem de PT del período anterior **sin mirar tampoco la
+> modalidad**, y se llama desde **cuatro** sitios:
+>
+> | # | Llamador | Cuándo |
+> |---|---|---|
+> | 1 | `services.py:182` (`ensure_subscription_items`) | `create_next_subscription` |
+> | 2 | `services.py:943` (`create_next_subscription`) | renovación automática |
+> | 3 | `services.py:1042` (`recover_member`) | recuperación |
+> | 4 | `services.py:1405` | `apply_plan_change` |
+>
+> Consecuencia: corregir sólo la línea 197 arregla el alta y deja el bug **en cada
+> renovación** del socio con paquete, que es donde más plata se pierde. La 7.2 mete el filtro
+> de modalidad en las dos funciones, con un helper compartido de "PT facturable como cuota".
+> El contador P1 de la 7.0 mide las dos vías, no sólo la primera.
+
+
+#### P2 en detalle
+
+`members/serializers.py:576-591` llama `mutate_membership` y **recién en la línea 590**
+persiste `is_comp`. `_item_price` (`services.py:43`) lee `subscription.member.is_comp`, así
+que calcula con el valor **anterior**:
+
+- **Dar el pase**, sin suscripción vigente → ítems al precio completo. La deuda se fuerza a 0,
+  pero la app y el panel muestran "debe $52.000". Es el fantasma de #48, otra vez.
+- **Quitar el pase**, sin suscripción vigente → ítems en **$0** y `paid=False`. El socio no
+  paga nada ese mes; la factura aparece recién en la renovación siguiente.
+
+Si **hay** suscripción vigente el camino ya reescribe bien los precios, que es lo que oculta
+el bug.
+
+**Traza del sentido "dar el pase"** (el que el contador #48 sí habría visto):
+
+```
+20/09, Ana NO tiene suscripción de septiembre. El staff tilda "pase de cortesía".
+  serializers.py:576   ¿cambió el flag?          → sí
+  serializers.py:579   mutate_membership(comp=True)
+  domain.py:253        no hay vigente → abre suscripción de septiembre
+  domain.py:117        ensure_subscription_item → _item_price → member.is_comp
+                       → todavía False → escribe $30.000
+  domain.py:121        ensure_pt_items_for_...   → _item_price → todavía False → $22.000
+  domain.py:258        paid = True
+  serializers.py:590   AHORA sí: is_comp = True
+```
+
+Resultado: la suscripción dice "pagada" pero sus ítems dicen $52.000. La deuda se fuerza a 0
+(`services.py:363-372`), así que nadie debe nada, pero la app y el panel muestran **"debe
+$52.000"**. Es el fantasma de #48 otra vez.
+
+**Traza del sentido "quitar el pase"** (el que el contador #48 **no puede** ver):
+
+```
+20/09, Ana ES cortesía. El staff destilda la casilla.
+  serializers.py:583   _resolve_plan_for_comp_off → PlanA
+  serializers.py:585   mutate_membership(comp=False, plan=PlanA)
+  domain.py:246        no hay vigente → open_subscription(paid=False, plan=PlanA)
+  domain.py:117        ensure_subscription_item → _item_price → member.is_comp
+                       → todavía True → escribe $0
+  domain.py:121        ensure_pt_items_for_...   → todavía True → $0
+  serializers.py:590   AHORA sí: is_comp = False
+```
+
+Resultado: Ana tiene una suscripción del plan **de pago**, con `paid=False` y total **$0**. No
+paga nada en septiembre; en octubre la renovación copia el precio real y aparece la factura de
+$52.000. Y el contador, al leer `member.is_comp == False`, ni ejecuta la línea.
+
+#### P3 y la decisión de prorrateo
+
+`domain.py:210, 225, 234` escriben `plan.price` / `activity.monthly_price` /
+`outing.monthly_price` — precio **vigente**, mes entero, sin prorrateo — y `domain.py:200`
+pone `paid = False` a mano sin pasar por `sync_subscription_paid`.
+
+**Decisión del 2026-09-28: prorratear por días, en las dos direcciones.**
+
+> El período en curso se factura sólo por los días que el socio estuvo en el estado de pago que
+> queda vigente **después** de la transición. El día de la transición cuenta a favor del estado
+> nuevo.
+
+Ejemplo (plan $30.000 + PT $22.000 = $52.000, septiembre de 30 días):
+
+| Transición | Días facturados | Total del mes | Efecto |
+|---|---|---|---|
+| **Quitan** el pase el 20 (venía gratis desde el 1) | 20→30 = **11** | **$19.067** | debe $19.067 |
+| **Dan** el pase el 20 (venía pagando desde el 1) | 1→19 = **19** | **$32.933** | pagó $52.000 → **crédito de $19.067** |
+
+Las dos direcciones son el mismo mecanismo: en la segunda, bajar el total de $52.000 a
+$32.933 deja un excedente de $19.067, que es exactamente un sobrepago y lo absorbe P4. Por eso
+el prorrateo y el crédito van en la misma fase.
+
+Se descartó la alternativa de prorratear sólo en una dirección por asimetría, y la de "el mes
+de la transición no se cobra" porque deja al socio sin suscripción (y por lo tanto sin
+renovación: el guard `services.py:1068-1078` saltea a todo el que esté en plan base salvo los
+cortesía) y porque no definía el caso inverso.
+
+#### P4 en detalle
+
+`subscription_remaining_balance` calcula `overpayment` (`services.py:357-361`) y lo devuelve en
+el dict (`:378`), pero **nadie lo lee**: aparece en 3 líneas del código y en un test. Peor, la
+rama `is_comp` (`:363-372`) fuerza `paid_amount = total`, así que la API **responde "pagó $0"**
+sobre una suscripción con un `Payment` de $52.000 adjunto.
+
+El sobrepago sólo puede nacer hacia atrás, porque `payments/serializers.py:129` y `:156`
+rechazan pagar más que el saldo pendiente. Se dispara cuando el total **baja** después del
+cobro: el toggle de cortesía, activar un descuento, o desactivar una actividad/PT/salida ya
+pagada. Y como el sistema de pagos capa el saldo pendiente, **no hay forma de mover ese
+crédito al mes siguiente**: no es que esté mal mostrado, es que el camino no existe.
+
+La asimetría es el bug de fondo: el clamp protege al socio de una deuda negativa (bien hecho)
+pero borra en silencio lo que el gym tiene por cobrar. **Una defensa sin su contrapartida.**
+
+#### P5 en detalle
+
+`services.py:261` llama a `member_discount_percent` (`:264-274`) en **cada cálculo**, que lee
+`member.discount` vivo. Si el descuento se desactiva después del cobro, el total de un período
+ya facturado baja solo: el socio vuelve a deber, la suscripción pasa a `overdue` → `blocked` →
+**le cortan el acceso por un mes que ya pagó**. Invertir el caso también cuesta plata (el
+excedente se pierde por P4).
+
+**Decisión del 2026-09-28: congelar sólo lo retroactivo.** El `help_text` de
+`Discount.active` (`gyms/models.py:238`) ya dice que inactivar hace que el socio pase a pagar
+el precio completo, así que congelar de más contradiría documentación existente. Lo que se
+congela es el snapshot: cada período guarda el % con el que se emitió, así que un período
+abierto el 30/09 conserva su % aunque el descuento se desactive el 01/10 — y el período
+siguiente abre con el valor vigente. Eso es exactamente lo que dice el `help_text`, sin el
+re-cobro sorpresa. Se actualiza el `help_text` para dejarlo explícito.
+
+#### P6 en detalle
+
+`domain.py:216-235` restaura los precios de los ítems al quitar el pase. Tiene **tres** loops:
+
+| Ítem | ¿Restaura? | Ubicación |
+|---|---|---|
+| Plan | ✅ | `domain.py:203-212` |
+| Actividades | ✅ | `domain.py:217-224` |
+| Salidas | ✅ | `domain.py:226-233` |
+| **PT** | ❌ **no hay loop** | — |
+
+`item_type="personal_training"` no aparece en ninguno de los tres, y el comentario de la línea
+214 dice literalmente *"Restore monthly billing for active activities and outings"* — el autor
+original enumeró dos, el código tiene tres, y PT no está ni en el comentario ni en la lista. Y
+este es el caso donde el grep **sí** vio `is_comp` (está en la rama `if comp:`) — el grep pasó
+igual, porque lo que falta no es una mención sino el cuarto loop de un conjunto de tres.
+
+```
+15/09, Ana ES cortesía y TIENE suscripción de septiembre (total $0). El staff destilda.
+  domain.py:210   ítem de plan      → $30.000  ✅
+  domain.py:219   ítems de actividad → $2.000  ✅
+  domain.py:228   ítems de salida    → $3.000  ✅
+  domain.py:???   ítems de PT        → $0      ❌
+  ──────────────────────────────────────────────────
+  total: $35.000 en vez de $57.000   → subcobro de $22.000/mes
+```
+
+Y como el ciclo de cortesía se repite, la pérdida se repite cada mes mientras el socio vuelva a
+pedir el pase.
+
+#### P7 en detalle
+
+`_neutralize_comp_package_balances` (`domain.py:268-290`) pone en $0 los paquetes comprados por
+adelantado cuando alguien pasa a cortesía — correcto, porque un cortesía no se factura. Pero
+recorre **sólo** `Enrollment`, que es el modelo de actividades:
+
+| Paquete | Modelo | ¿Lo cubre? |
+|---|---|---|
+| Actividades | `activities.Enrollment` | ✅ |
+| PT | `personal_training.PersonalTrainingAssignment` | ❌ |
+| Salidas | `outings.OutingEnrollment` | ❌ |
+
+```
+15/09, Ana tiene un paquete de PT de 10 sesiones × $6.000, pagó $80.000, usó 3. Pasa a cortesía.
+  actividades → session_price = 0, amount_paid = 0   ✅
+  PT          → session_price = $6.000, pagado $80.000 ❌
+  salidas     → session_price = $10.000              ❌
+```
+
+El bug tiene **dos puntas**, y las dos hay que tapar:
+
+1. **Entra mal**: los paquetes de PT y salidas no se neutralizan.
+2. **No sale nunca**: la función escribe `session_price = 0` y `amount_paid = 0` sin ninguna
+   ruta de restauración. Cuando a Ana le quitan el pase, las 7 sesiones restantes de su paquete
+   quedan a $0 **para siempre**, aunque el precio original siga en `service.monthly_price`. Los
+   únicos sitios que repponen `session_price` son
+   `activities/session_service.py:124-129` y `outings/session_service.py:122-127`, y lo hacen
+   **al crear** el paquete, no al desneutralizarlo.
+
+Por eso la Fase 7.1 no sólo extiende `_neutralize_comp_package_balances`: también escribe su
+gemela de restauración.
+
+---
+
+#### Fase 7.0 — Métricas read-only de los 7 bugs
+
+**Archivo**: `backend/subscriptions/management/commands/audit_money_bugs.py`
+
+Cuatro contadores nuevos, todos de sólo lectura, siguiendo el patrón de la Fase 0
+(`force_debug_cursor` + `atomic()` + `set_rollback(True)` + conteo de escrituras).
+
+**Cada contador reporta DOS números, no uno.** Es el requisito que sale de la sección 1.9: con
+un solo número, `0` no distingue entre *"el bug no se disparó"* y *"nunca se probó"*. El
+segundo número —los **casos armados**— dice cuántos están a un paso de costar plata.
+
+| Contador | `casos_confirmados` (el bug ocurrió) | `casos_armados` (a un paso de ocurrir) |
+|---|---|---|
+| **P1** | ítem `personal_training` activo en una suscripción cuya asignación es `modality="package"` | servicios con `billing_mode="sessions"` y `monthly_price > 0` — cada uno es un $22.000/mes esperando una asignación de paquete |
+| **P2/P3** | ítems con `price_snapshot > 0` en una suscripción de un socio **ya** `is_comp`, **en dos líneas: período vigente / períodos cerrados** | socios `is_comp` **sin** suscripción que cubra hoy — a un toggle de asignarles o quitarles el pase |
+| **P4** | `paid_amount > total` sin un `Payment` de `concept="credit"` que lo cubra | suscripciones pagadas con `total > 0` — cualquiera de ellas puede ver caer su total y abrir un sobrepago |
+| **P5** | suscripción pagada cuyo total con descuento vivo difiere del total con el descuento congelado, **desglosado por dirección** | socios con `discount` activo **y** una suscripción abierta: el día que el gym desactive el descuento, todas se re-cobran |
+
+**Tres precisiones sobre los contadores** (2026-09-29, antes de implementarlos):
+
+1. **P1 tiene que cubrir las dos vías de escritura.** El ítem de PT llega por
+   `ensure_pt_items_for_active_assignments` (`services.py:197`) y por
+   `_copy_personal_training_items` (`services.py:88`), que se llama desde 4 sitios. Un
+   contador que sólo mire el primero da 0 con el bug vivo en cada renovación. Se cuenta el
+   ítem, que es la evidencia común de las dos.
+2. **P2/P3 se parte en vigente / cerrados** porque la decisión #15 (no tocar los ítems
+   históricos del socio 827) vuelve inalcanzable un `= 0` global: con la línea base de hoy,
+   los 2 ítems de julio y agosto están ahí y **no se van a ir**. El gate de la 7.1 es
+   `vigente = 0` **y** `cerrados` igual a la línea base (que no crezca).
+3. **P4 excluye `is_comp` explícitamente** y **P5 se desglosa por dirección.** Sin la
+   exclusión, P4 da un `0` falso: la rama `is_comp` de `subscription_remaining_balance`
+   (`services.py:363-372`) fuerza `paid_amount = total`, así que un cortesía con un pago real
+   nunca aparece como sobrepago. Y `total_vivo != total_congelado` ocurre en dos sentidos con
+   costos opuestos —deuda resucitada (socio bloqueado un mes ya pagado) y sobrepago—, que
+   además tienen arreglos distintos.
+
+
+**Cómo se lee la salida:**
+
+| Lectura | Significado | Qué hacer |
+|---|---|---|
+| `confirmados 0 / armados 0` | El camino no es alcanzable con los datos actuales. El bug es **latente puro**. | Corregir igual (es barato) y anotarlo como no ejercitado |
+| `confirmados 0 / armados > 0` | El bug no se disparó pero hay N distancias de fuego. **Es el caso de hoy.** | Corregir con prioridad: el primer toggle lo activa |
+| `confirmados > 0` | El bug **está** costando plata ahora | Es una emergencia: primero cuantificar el monto, después corregir |
+
+El caso de hoy es la segunda fila para los cuatro contadores, y esa es exactamente la lectura
+que el `0` de la Fase 5 no daba.
+
+**Criterio de aceptación** (antes de implementar cualquier fase posterior):
+- `Escrituras detectadas: 0`.
+- Corrido contra **staging** y **producción**, read-only, con los 8 números (4 pares)
+  documentados como línea base. Los 4 pares van en la tabla de los 7 bugs: si un `armados` da
+  alto, la severidad sube aunque el `confirmados` dé 0.
+- La corrida **no** llama a `auto_renew_subscriptions`: sólo lee. El arnés de la Fase 1 sigue
+  siendo el que verifica el código real de renovación.
+
+**Commit**: `chore(audit): métricas read-only de los bugs de la Fase 7`
+
+---
+
+#### Fase 7.1 — Pase de cortesía: cerrar la vía que la Fase 5 declaró cerrada
+
+**Archivos**: `members/serializers.py:566-591`, `subscriptions/domain.py:168-290`
+
+1. **P2** — `members/serializers.py:590`: persistir `instance.is_comp` **antes** de llamar
+   `mutate_membership`, para que `_item_price` lea el valor correcto.
+2. **P3** — en `domain.py`, los precios del período en curso pasan a ser
+   `precio_base × días_facturables / días_del_mes`, cuantizado a 2 decimales con
+   `ROUND_HALF_UP`. Rama `comp=True`: se factura sólo lo ya servido, el resto queda en 0 y se
+   convierte en crédito vía P4. Rama `comp=False`: se factura sólo lo que falta. Sacar el
+   `paid = False` a mano de `domain.py:200` y delegar en `sync_subscription_paid`.
+3. **P6** — `domain.py:226-233`: sumar el cuarto loop de restauración,
+   `item_type="personal_training"`, junto a los de actividades y salidas, con el mismo factor de
+   prorrateo.
+4. **P7** — `domain.py:268-290`: extender `_neutralize_comp_package_balances` a
+   `PersonalTrainingAssignment` y `OutingEnrollment`, no sólo a `Enrollment`. Escribir su
+   gemela de restauración: hoy el `session_price = 0` no tiene vuelta atrás, así que el bug
+   tiene dos puntas.
+
+**Criterio de aceptación**:
+- Toggle × 2 sentidos × {con suscripción vigente / sin ella} × {con PT / sin PT} = 8 casos,
+  **todos assertando sobre `calculate_subscription_total` y `subscription_remaining_balance`,
+  nunca sobre el flag `paid`** (el flag es derivado y es justamente lo que hoy queda viejo).
+- Prorrateo: quitar el pase el día 20 de un mes de 30 → total del período = `11/30` de la
+  suma base. Darlo el día 20 → total = `19/30`.
+- `sync_subscription_paid` llamado en ambas ramas; ningún `paid` escrito a mano.
+- `_neutralize` cubre los tres tipos de paquete y su restauración devuelve los precios.
+- **Contadores de la 7.0**: P2/P3 `vigente = 0` y `cerrados` **sin crecer** sobre la línea
+  base de la 7.0. No se pide `= 0` global: los ítems históricos del socio 827 quedan por
+  decisión explícita (sección 1.5 y decisión de alcance "sólo se reportan"), así que un
+  `= 0` global sería inalcanzable y sólo serviría para tentarse a tocar lo que no se toca.
+
+**Commit**: `fix(subscriptions): orden de escritura y prorrateo del pase de cortesía (#2/#48)`
+
+---
+
+#### Fase 7.2 — PT por paquete: dejar de cobrar la cuota dos veces
+
+**Archivos**: `subscriptions/services.py:197` **y `subscriptions/services.py:88`**
+(las dos vías de escritura, ver la corrección de P1 más arriba),
+`personal_training/assignment_service.py:68`
+
+1. **Vía 1 — alta.** `services.py:197` → `.filter(active=True, modality="monthly")`.
+2. **Vía 2 — copia entre períodos.** `services.py:88-126` (`_copy_personal_training_items`)
+   tiene que saltar el ítem cuando la asignación del socio para ese servicio **no** es
+   `modality="monthly"`. Sin esto, el ítem vuelve por la copia en cada renovación aunque la
+   vía 1 esté arreglada, y el test de la vía 1 pasa mientras el bug sigue cobrando. Un helper
+   compartido (`_is_monthly_pt_billable(member, service)`) para que las dos vías no puedan
+   divergir.
+3. En el alta de un servicio con `billing_mode="sessions"`, forzar `monthly_price = 0`, para
+   que cuota y paquete no puedan coexistir. Decisión de implementación: si el serializer
+   permite hoy crear un servicio `sessions` con precio, la opción correcta es **forzar el
+   precio a 0 en el alta del servicio**, no rechazar en la asignación — el rechazo deja el
+   socio con una asignación que no se puede crear y ningún mensaje útil.
+4. Los datos existentes se limpian con la métrica de la 7.0, **no** con un `UPDATE` masivo.
+
+**Criterio de aceptación**:
+- Socio con PT `billing_mode="sessions"` en `modality="package"`: la suscripción renewed **no**
+  tiene ítem de PT, y su total es sólo el del plan. El mismo test corre por las **dos** vías:
+  (a) alta sin suscripción previa, (b) renovación desde un período que **ya tenía** el ítem de
+  PT. (b) es el que falla si sólo se arregla `services.py:197`.
+- Socio con PT `modality="monthly"`: sigue teniendo su ítem, al precio completo, en las dos
+  vías.
+- Contador P1 de la 7.0: `confirmados = 0` (los históricos no se tocan, así que el histórico
+  no se exige en 0: se exige que no **crezca**).
+- El arnés de la Fase 1 no cambia: `renewed 1`, contadores Σ371. Esta fase no toca el
+  renovador.
+
+**Commit**: `fix(subscriptions): los PT por paquete no generan cuota mensual (#2)`
+
+
+---
+
+#### Fase 7.3 — Saldo a favor y descuento congelado (requiere migración)
+
+**Migraciones**:
+- `subscriptions/0022_subscription_discount_snapshot.py` —
+  `discount_percent_snapshot = PositiveSmallIntegerField(null=True, blank=True)`
+- `payments/0013_payment_credit.py` — `Payment.CONCEPT_CHOICES += ("credit", "Saldo a favor")`
+  y `Payment.applied_to = FK(Subscription, null=True, blank=True, SET_NULL, related_name="+")`
+
+**P5** — `calculate_subscription_total` usa el snapshot si no es `None`; si es `None` (filas
+legacy) cae al valor vivo. El snapshot se escribe en `open_subscription` (`domain.py:117`, el
+mismo punto donde la Fase 5 puso sus guards), una vez por período. Actualizar el `help_text` de
+`Discount.active` para decir que no altera períodos ya facturados.
+
+*Limitación honesta*: las suscripciones **ya abiertas** no tienen snapshot y quedan con el
+comportamiento viejo hasta que renuevan. Con `Sinkro` en 0 socios es inocuo; con data real
+habría que backfillear antes de la Fase 7.3.
+
+**P4** — tres puntos de toque:
+1. **Crear el crédito** cuando el total baja. El punto natural es `sync_subscription_paid`
+   (`services.py:298-323`), que ya centraliza "el total cambió": si `paid_amount > total`,
+   crear `Payment(concept="credit", amount=-(paid_amount - total), subscription=<sub>,
+   member=<member>, notes="Sobrepago por baja de total")`.
+2. **Consumirlo** en `create_next_subscription`, topeado por el total de la suscripción nueva.
+3. **Exponerlo** con `member_credit_balance(member)` en las vistas de deuda y el portal del socio.
+
+**El crédito se adjunta a la suscripción que lo consume** (para que el saldo baje solo, que es
+lo pedido) y el origen queda en `applied_to` + `notes`. La suscripción de origen conserva
+`paid_amount > total`, que no es deuda: es el asiento histórico.
+
+**Criterio de aceptación**:
+- Invariante de crédito: pago de $52.000 → pase de cortesía → `remaining == 0` **y** existe
+  `Payment(concept="credit", amount=-52000)` **y** la renovación de octubre lo consume y queda
+  en 0. Si el crédito no se consume solo en octubre, el diseño del punto 2 está mal.
+- `calculate_subscription_total` con descuento desactivado a mitad de un período **pagado**
+  devuelve el total original, no el nuevo.
+- Un período abierto **después** de desactivar el descuento ya se emite sin descuento.
+- `SubscriptionItem` no se toca: el descuento vive en la suscripción, no en los ítems.
+- Los 19 tests existentes siguen verdes.
+
+**Commit**: `feat(subscriptions): saldo a favor y descuento congelado por período`
+
+---
+
+#### Fase 7.4 — Arreglar este documento (sólo texto)
+
+Siete puntos donde el plan se contradecía a sí mismo, ya corregidos al cierre de la Fase 7:
+los headers de las Fases 1 y 2 que decían PENDIENTE con sus criterios ya verificados, la
+sección 1.7 que listaba como pendiente lo que estaba hecho, el funnel de 1.4 con los conteos
+del borrador, el "`main` no se toca" que ya era falso, la verificación global #4 nunca cerrada,
+y los 8 números de bug sin fuente. Se hacen **dentro** de la Fase 7 porque el archivo ya se está
+tocando. No requiere código ni tests.
+
+---
+
+#### Lo que queda para la Fase 8 (MEDIO y BAJO, no de la Fase 7)
+
+| | Bug | Ubicación | Sev |
+|---|---|---|---|
+| P8 | Una **recuperación de sesión perdona dos faltas**: al otorgan borra el no_show ya descontado, y el cron siguiente `_pending_recovery_credits` suprime la falta más reciente otra vez. El filtro es por `(member, activity)`, no por enrollment → con 2 inscripciones a la misma actividad perdona N | `attendance/recovery_service.py:475-479` + `activities/no_show_service.py:88-92` | MEDIO |
+| P9 | **Running no tiene descuento por no-asistencia ni recuperación.** `no_show_service.py:235-256` recorre actividades y PT; `recovery_service.py:188-190` rechaza todo `kind` fuera de `("training","activity")` | `activities/no_show_service.py:235-256` | MEDIO |
+| P10 | Darse de baja de **un horario cancela el ítem compartido de otro**: el ítem es por outing/actividad, no por horario. PT tiene el guard `other_active` (`personal_training/assignment_service.py:345-352`); outings y actividades no | `outings/enrollment_service.py:283-300`, `activities/enrollment_service.py:299-317` | MEDIO |
+| P11 | La **asistencia de staff no consume la sesión** del paquete de salida: sólo lo hace el check-in por QR | `attendance/serializers.py:307-322` | MEDIO |
+| P12 | Borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` (`SET_NULL`): no computan en ningún saldo pero siguen en la caja; si el período se reabre, doble cobro | `payments/models.py:31-38`, `subscriptions/admin.py:5-25` | MEDIO |
+| P13 | El fallback `total += subscription.plan.price` reintroduce el **precio vigente** —que el propio docstring prohíbe— cuando falta el ítem de plan | `subscriptions/services.py:255-256` | BAJO |
+| P14 | `subscription.paid` queda desincronizado cuando el total cambia por ítems: nadie llama `sync_subscription_paid` desde `apply_plan_change` ni desde `mutate_membership` | `subscriptions/services.py:298-323` | BAJO |
+| P15 | El watermark `no_show_scan_until` avanza aunque el cap trunque las faltas: si el socio amplía el paquete, esas faltas nunca se descuentan | `activities/no_show_service.py:83-95, 189-190` | BAJO |
+
+**Regla de la Fase 8**: 8.0 de métricas propias primero, igual que la 7.0. Los MEDIO son
+feature work (P9, P10 y P11 son de running, no de dinero) y probablemente merecen su propio
+plan.
 
 ---
 
 ## 4. Commits
+
+Fases 0-6 (ya commiteadas):
 
 ```
 chore(audit): arnés read-only para verificar el código real de renovación
@@ -679,6 +1344,20 @@ fix(subscriptions): claim atómico en vez de lock de sesión, y atómico por soc
 fix(subscriptions): guards de escritura para PT e is_comp (#2/#48)
 test(subscriptions): tests focalizados de bugs de dinero
 ```
+
+Fase 7 (planificadas, **un commit por sub-fase**):
+
+```
+chore(audit): métricas read-only de los bugs de la Fase 7
+fix(subscriptions): los PT por paquete no generan cuota mensual (#2)
+fix(subscriptions): orden de escritura y prorrateo del pase de cortesía (#2/#48)
+feat(subscriptions): saldo a favor y descuento congelado por período
+docs(plan): Fase 7 y corrección de las contradicciones del documento
+```
+
+**Orden de ejecución de la Fase 7**: 7.0 → 7.2 → 7.1 → 7.3 → 7.4. La 7.2 va antes que la 7.1
+a propósito: es **una línea** y el bug más caro de la fase, así que sirve para calibrar cuánto
+tarda un fix con su test antes de meter las dos migraciones de la 7.3.
 
 ---
 
@@ -719,12 +1398,50 @@ test(subscriptions): tests focalizados de bugs de dinero
    queries de la llamada real 51 (el delta vs staging son los 2 renovados extra; no hay huecos
    retroactivos ni dobles meses — `812/785/829` quedan cubiertos, `socio 827` intacto). El
    `renewed==1` de staging era staging; en producción el valor correcto es 3.
-4. Esperar una corrida real del `TaskRun` y confirmar `last_duration_seconds` < 15 s; confirmar
-   con el usuario que el 502 de las 6h desapareció.
+4. **⬜ PENDIENTE — la única verificación de las Fases 0-6 que nunca se cerró.** Esperar una
+   corrida real del `TaskRun` en producción y confirmar `last_duration_seconds` < 15 s, y
+   confirmar con el usuario que el 502 de las 6h desapareció.
+
+   No se puede cerrar desde el código: depende de un request real que dispare el middleware.
+   Con `Sinkro` en 0 socios y todo el radio de impacto en data de prueba, esta corrida va a
+   salir con `renewed: 0` o con renovaciones de socios de `Gym Demo`/`Gym Dev`. Lo que
+   **sí** se puede verificar sin ella, y conviene hacerlo antes de dar por buena la Fase 2:
+
+   ```sql
+   -- en producción, sólo lectura
+   SELECT name, last_run, last_status, last_duration_seconds, last_result
+     FROM subscriptions_taskrun ORDER BY name;
+   ```
+
+   Si `last_status` es `"ok"` y `last_duration_seconds` < 15, la Fase 2 funcionó. Si sigue
+   pidiendo > 120 s, el 502 sigue vivo y esto vuelve a ser urgencia.
+
 5. Conteo de queries antes/después documentado en el mensaje del commit de la Fase 2.
+
+6. **Fase 7** (al cerrarla, no antes):
+
+   | Concepto | Valor |
+   |---|---|
+   | `manage.py test subscriptions` | 19 preexistentes verdes + los nuevos de 7.1/7.2 |
+   | arnés `audit_renewal_dryrun` | **sin cambios**: `renewed 1`, contadores 235/90/7/0/38/1, Σ371 |
+   | contador P1 (PT paquete con ítem de cuota) | `confirmados` **no crece** sobre la línea base de la 7.0 |
+   | contador P2/P3 (ítems > 0 en socio `is_comp`) | `vigente = 0`; `cerrados` **no crece** sobre la línea base (los del socio 827 no se tocan) |
+   | contador P4 (`paid_amount > total` sin crédito) | `confirmados = 0` (con `is_comp` excluido explícitamente) |
+   | contador P5 (período pagado con descuento vivo distinto) | `confirmados = 0`, y en ambas direcciones por separado |
+   | escrituras de los 4 contadores | **0** |
+   | invariante del crédito | saldo a favor se crea **y se consume en la renovación** |
+   | arnés antes/después de la 7.2 | idéntico — la 7.2 no toca el renovador |
+
+   Los tres contadores que piden "no crece" en vez de `= 0` están así a propósito: los ítems
+   históricos de `is_comp` están **fuera de alcance por decisión explícita** (sección 1.5), así
+   que exigirles 0 haría el gate inalcanzable y sólo tentaría a tocar lo que no se toca. El
+   `= 0` va donde sí es exigible: los bugs que nacen de código y no de datos viejos.
 
 **Si `renewed` no da 1, o si los contadores no suman 371, o si algún socio con septiembre
 abierto aparece en la lista de renovados, el fix está mal y hay que volver a la Fase 3.**
+
+**Si algún contador de la Fase 7 **crece** sobre su línea base, o si el crédito no se consume
+solo en la renovación siguiente, la 7.3 está mal y hay que volver a la 7.0 antes de seguir.**
 
 ---
 
@@ -732,14 +1449,33 @@ abierto aparece en la lista de renovados, el fix está mal y hay que volver a la
 
 No se toca:
 
-- `main`, ni la contraseña de la base, ni la configuración de Render.
+- Ni la contraseña de la base, ni la configuración de Render.
+  ~~`main`~~ — **ya se tocó**: `main` y `development` comparten árbol. Ver la nota de arriba.
 - Mover el trigger a un cron externo o a un thread (decisión 3 de la sección 2).
 - Los ítems históricos de los socios `is_comp` (sólo se reportan).
 - Los 21 gyms de prueba de producción.
-- Los bugs #32, #30, #35, #18, #40, #38, #33, #37.
 - No se agrega `charge_token_error` ni `hire_date` al modelo: son ondas posteriores y
   requieren migración.
-- No se resuelva la deuda de los 43 bloqueados: es decisión de negocio (decisión 2).
+- No se resuelve la deuda de los bloqueados (38 bajo el orden de guards vigente): es decisión
+  de negocio (decisión 2 de la sección 2).
+- Los bugs MEDIO y BAJO P8-P15: van a la **Fase 8**, ver la tabla al final de la sección 3.
+
+### Los números `#32, #30, #35, #18, #40, #38, #33, #37` — sin fuente
+
+Este documento los mencionaba en "fuera de alcance" sin describirlos nunca. Al auditarlos el
+2026-09-28 se comprobó que **no existen en ninguna parte del código**:
+
+```bash
+rg '#(32|30|35|18|40|38|33|37)\b' backend/ --glob '!**/.venv/**'   # -> 0 resultados
+```
+
+El `audit_money_bugs` implementa exactamente siete secciones: **#1, #2, #4, #5, #6, #19 y
+#48**. Ninguna más. Esos ocho números vienen de un listado externo (issue tracker o una versión
+anterior de este documento) que no está en el repo, así que **no hay forma de saber a qué se
+refieren**.
+
+Mientras no aparezca la fuente, quedan afuera por unknowable, no por decisión. Si el negocio
+tiene el listado original, agregarlo acá y priorizarlo es un paso de la Fase 8.
 
 ---
 
