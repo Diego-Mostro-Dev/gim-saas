@@ -78,7 +78,7 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 
 | # | Qué | Dónde | Gate para cerrarlo | Estado |
 |---|---|---|---|---|
-| 1 | **7.0** — 4 contadores read-only con pares `confirmados`/`armados` | `audit_money_bugs.py` | `Escrituras: 0` + los 8 números medidos en staging **y** producción | ⬜ sin empezar |
+| 1 | **7.0** — 4 contadores read-only con pares `confirmados`/`armados` | `audit_money_bugs.py` | `Escrituras: 0` + los 8 números medidos en staging **y** producción | ✅ **hecho** (2026-09-29) |
 | 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py:197` **+ `services.py:88`** (dos vías) + alta de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** (Σ371) | ⬜ sin empezar |
 | 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ⬜ sin empezar |
 | 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ⬜ sin empezar |
@@ -86,7 +86,7 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 | 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:268-290` | los 3 tipos de paquete, ida y vuelta | ⬜ sin empezar |
 | 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ⬜ sin empezar |
 | 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ⬜ sin empezar |
-| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación | ⬜ sin empezar |
+| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación, **por los dos caminos** (caída del total y pago mayor al total) | ⬜ sin empezar |
 | 10 | **7.4** — arreglos de texto a este documento | `PLAN-dinero.md` | — | ✅ **hecho** |
 
 ### Verificación que quedó abierta desde las Fases 0-6
@@ -163,11 +163,20 @@ cd backend && .venv/bin/python manage.py audit_money_bugs
 cd backend
 set -a; . ./.env.audit-prod; set +a
 export DATABASE_URL="$DATABASE_URL_PROD"
+export ENVIRONMENT=production
 .venv/bin/python manage.py audit_money_bugs
 unset DATABASE_URL DATABASE_URL_PROD
 ```
 
 El valor debe ir entre comillas simples: contiene `&`.
+
+> **`ENVIRONMENT` hay que setearlo también contra producción** (2026-09-29). El guard de
+> `config/settings.py:354` es *ciego al host*: dispara el aviso "STAGING CHECK" con sólo mirar
+> `ENVIRONMENT == "staging"` y que la base se llame `neondb`, que es el nombre en **las dos**
+> ramas. Corriendo el audit de producción sin `ENVIRONMENT=production` sale un aviso que dice
+> que estás contra la base de staging cuando estás contra la de producción — y viceversa. La
+> única línea que dice la verdad es el `DB host` que imprime el propio comando, así que **verificá
+> siempre el `DB host` contra la tabla de arriba** antes de mirar cualquier número.
 
 ### 1.2 Resultados de la auditoría de la Fase 0 (0 escrituras, ambos ambientes)
 
@@ -895,7 +904,7 @@ cd backend && .venv/bin/python manage.py test subscriptions
 
 ---
 
-### Fase 7 — Bugs ALTO de precio, pase de cortesía y PT por paquete — 📋 PLANIFICADA (sin empezar)
+### Fase 7 — Bugs ALTO de precio, pase de cortesía y PT por paquete — 🚧 EN CURSO (7.0 hecha)
 
 **Origen**: revisión de código del 2026-09-28, no de métricas. Ningún contador del
 `audit_money_bugs` los detecta (ese comando sólo implementa #1, #2, #4, #5, #6, #19 y #48).
@@ -910,15 +919,19 @@ entre el primer socio real, no porque hayan costado plata.
 
 #### Los 7 bugs
 
-| | Bug | Ubicación | Sev |
-|---|---|---|---|
-| P1 | PT en modalidad **paquete** genera además la cuota mensual, cada renovación | `subscriptions/services.py:197-199` | ALTO |
-| P2 | `is_comp` se persiste **después** de calcular los precios | `members/serializers.py:590` | ALTO |
-| P3 | Quitar/dar el pase reprecia el período en curso **sin prorrateo** | `subscriptions/domain.py:178-187, 200, 210, 225, 234` | ALTO |
-| P4 | El **sobrepago se borra en silencio** | `subscriptions/services.py:298-323, 357-361, 363-372, 378` | ALTO |
-| P5 | El **descuento se lee en vivo**, no está en el snapshot | `subscriptions/services.py:261, 264-274` | ALTO |
-| P6 | Al quitar el pase **no se restaura** el precio de PT | `subscriptions/domain.py:216-235` | MEDIO |
-| P7 | `_neutralize_comp_package_balances` **sólo cubre actividades** | `subscriptions/domain.py:268-290` | MEDIO |
+| | Bug | Ubicación | Sev | Conf. / armados (prod) |
+|---|---|---|---|---|
+| P1 | PT en modalidad **paquete** genera además la cuota mensual, cada renovación | `subscriptions/services.py:197-199` | ALTO | 0 / 0 — latente puro |
+| P2 | `is_comp` se persiste **después** de calcular los precios | `members/serializers.py:590` | ALTO | 0 / 0 — latente puro |
+| P3 | Quitar/dar el pase reprecia el período en curso **sin prorrateo** | `subscriptions/domain.py:178-187, 200, 210, 225, 234` | ALTO | 0 / 0 — latente puro |
+| P4 | El **sobrepago se borra en silencio** | `subscriptions/services.py:298-323, 357-361, 363-372, 378` | ALTO | **8 / 206 — costando plata ahora** |
+| P5 | El **descuento se lee en vivo**, no está en el snapshot | `subscriptions/services.py:261, 264-274` | ALTO | 4 / 1 — 100 % sobrepago |
+| P6 | Al quitar el pase **no se restaura** el precio de PT | `subscriptions/domain.py:216-235` | MEDIO | sin contador (cubierto por P2/P3) |
+| P7 | `_neutralize_comp_package_balances` **sólo cubre actividades** | `subscriptions/domain.py:268-290` | MEDIO | sin contador (cubierto por P2/P3) |
+
+Las dos últimas columnas son la línea base de la Fase 7.0, medida el 2026-09-29 contra
+producción; el detalle por ambiente y las consecuencias están en "Fase 7.0 — línea base medida".
+P2 y P3 comparten contador porque el ítem es la misma evidencia.
 
 P6 y P7 son MEDIO pero entran acá porque son inseparables de P2/P3: están en el mismo flujo y
 arreglarlos por partes deja el toggle a medias.
@@ -1174,6 +1187,10 @@ segundo número —los **casos armados**— dice cuántos están a un paso de co
 El caso de hoy es la segunda fila para los cuatro contadores, y esa es exactamente la lectura
 que el `0` de la Fase 5 no daba.
 
+> **CORREGIDO por la medición — la segunda fila era la predicción, no el dato.** Abajo está la
+> línea base real. P4 salió en la **tercera** fila: `confirmados > 0`. Es el único contador que
+> no dio la lectura prevista.
+
 **Criterio de aceptación** (antes de implementar cualquier fase posterior):
 - `Escrituras detectadas: 0`.
 - Corrido contra **staging** y **producción**, read-only, con los 8 números (4 pares)
@@ -1183,6 +1200,60 @@ que el `0` de la Fase 5 no daba.
   siendo el que verifica el código real de renovación.
 
 **Commit**: `chore(audit): métricas read-only de los bugs de la Fase 7`
+
+#### Fase 7.0 — línea base medida (2026-09-29) — ✅ HECHO
+
+Corrido contra los dos ambientes, `Escrituras detectadas: 0` en ambos, rollback explícito.
+Verificado por `DB host`: staging `green-sea` / producción `round-sunset`.
+
+| Contador | Staging | Producción | Lectura |
+|---|---|---|---|
+| **P1** conf / armados | **0 / 0** | **0 / 0** | fila 1 — inalcanzable con los datos actuales, latente puro |
+| **P2-P3** vigente / cerrados | **0 / 2** | **0 / 2** | vigente en el goal; cerrados = histórico congelado (socio 827) |
+| **P2-P3** armados | **0** | **0** | ningún cortesía sin suscripción que cubra hoy |
+| **P4** conf / armados | **13 / 198** | **8 / 206** | **fila 3 — el bug está costando plata ahora** |
+| **P4** monto que se pierde | **663.002** | **509.002** | sobrepago sin destino, 5-6 socios |
+| **P5** conf / armados | **9 / 2** | **4 / 1** | 100 % dirección B |
+| **P5** A) queda debiendo | **0** | **0** | el bloqueo de un mes ya pagado nunca ocurrió |
+| **P5** B) queda sobrepagado | **9 (506.000)** | **4 (352.000)** | subconjunto de P4 |
+| **Escrituras** | **0** | **0** | — |
+
+`member_ids`: P4 staging `2, 8, 785, 820, 821, 825` / producción `2, 8, 820, 821, 825` · P5 armado
+staging `785, 820` / producción `820` · P2-P3 cerrados `827` en ambos.
+
+**Los cuatro hallazgos de esta línea base:**
+
+1. **P4 no es latente: es el único contador en la tercera fila.** Hay 8 suscripciones en
+   producción y 13 en staging con `paid > total` y sin nada que cubra la diferencia. El monto
+   es **dinero semilla** de los gyms de demo, así que no es una pérdida contable real — lo
+   importante es que **el camino está ejercitado**: cada pago de más que se haga desde hoy se
+   pierde igual. Es la lectura que un `0` nunca hubiera dado, y es la tercera fila de la tabla
+   de arriba, que dice "primero cuantificar, después corregir". Ya se cuantificó.
+2. **P5 es 100 % sobrepago, 0 % deuda resucitada.** La dirección cara (socio bloqueado un mes
+   que ya pagó) no ocurrió nunca; todo el daño medido de P5 es el de P4. La 7.3 tiene que
+   arreglar las dos igual, pero la prioridad la pone el sobrepago.
+3. **Un cuarto de P4 no viene del descuento, y la 7.3 no lo cubre.** En los dos ambientes la
+   resta da exactamente lo mismo: staging `13 − 9 = 4` y `663.002 − 506.000 = 157.002`;
+   producción `8 − 4 = 4` y `509.002 − 352.000 = 157.002`. Son 4 suscripciones —socios `2` y
+   `8`, ambas en junio— y en **las cuatro `total_vivo == contrato`**: el total nunca cambió
+   después del cobro, así que congelar el descuento no las toca. El sobrepago nació **al
+   ingresar el pago** (`paid=3000` contra `total=1000`, `paid=50000` contra `total=25000`,
+   `paid=350000` contra `total=220000`, `paid=3000` contra `total=2998`): un pago de un mes
+   contra un período prorrateado, o más de un mes contra un mes. El diseño de la 7.3 crea el
+   crédito en `sync_subscription_paid`, que es "el total bajó" — y acá el total no bajó nunca.
+   **La 7.3 necesita un segundo punto de creación, en el asiento del pago**; si no, estos
+   157.002 se siguen perdiendo igual que hoy.
+4. **P1 y P2-P3 son inalcanzables hoy, no sólo silenciosos.** `armados = 0` en los dos: no hay
+   ningún servicio PT `sessions` con `monthly_price > 0` ni ningún cortesía sin suscripción que
+   cubra hoy. Se corrigen igual (son baratos) pero **no se van a poder ejercitar contra datos
+   reales**: su verificación va a tener que ser por test, no por medición.
+
+> **El pool de #1 se movió solo: 371 → 46 (staging) / 43 (producción).** No lo cambió este
+> audit — es read-only. Lo que pasó es que la tarea programada del middleware ya corrió la Fase 2
+> contra los dos ambientes: los `auto_renew=False` quedaron limpios. 46 y 43 son el tamaño
+> estable que predice la sección 1.4 (7 de gym inactivo + los deudores + la rotación mensual).
+> Los demás contadores no se movieron: `#2 = 0`, `#5 = 0`, `#19 = 7`, `#48 vigente = 0`,
+> `#48 cerrados = 2` (los mismos ítems de julio y agosto del socio 827).
 
 ---
 
@@ -1276,13 +1347,20 @@ mismo punto donde la Fase 5 puso sus guards), una vez por período. Actualizar e
 comportamiento viejo hasta que renuevan. Con `Sinkro` en 0 socios es inocuo; con data real
 habría que backfillear antes de la Fase 7.3.
 
-**P4** — tres puntos de toque:
+**P4** — cuatro puntos de toque:
 1. **Crear el crédito** cuando el total baja. El punto natural es `sync_subscription_paid`
    (`services.py:298-323`), que ya centraliza "el total cambió": si `paid_amount > total`,
    crear `Payment(concept="credit", amount=-(paid_amount - total), subscription=<sub>,
    member=<member>, notes="Sobrepago por baja de total")`.
-2. **Consumirlo** en `create_next_subscription`, topeado por el total de la suscripción nueva.
-3. **Exponerlo** con `member_credit_balance(member)` en las vistas de deuda y el portal del socio.
+2. **Crear el crédito también al ingresar un pago mayor al total** (agregado el 2026-09-29 tras
+   la línea base de la 7.0). El punto 1 sólo cubre el sobrepago que nace de un *reprecio*; la
+   medición encontró 4 suscripciones —157.002, socios `2` y `8`— donde el sobrepago nace en el
+   asiento del pago y `total_vivo == contrato`, así que el punto 1 no las ve nunca. Es además
+   el caso más común en la vida real: cobrar dos meses contra un mes, o un mes contra un
+   período prorrateado. Si la 7.3 sólo implementa el punto 1, el bug queda vivo para el caso
+   más común.
+3. **Consumirlo** en `create_next_subscription`, topeado por el total de la suscripción nueva.
+4. **Exponerlo** con `member_credit_balance(member)` en las vistas de deuda y el portal del socio.
 
 **El crédito se adjunta a la suscripción que lo consume** (para que el saldo baje solo, que es
 lo pedido) y el origen queda en `applied_to` + `notes`. La suscripción de origen conserva
@@ -1291,7 +1369,10 @@ lo pedido) y el origen queda en `applied_to` + `notes`. La suscripción de orige
 **Criterio de aceptación**:
 - Invariante de crédito: pago de $52.000 → pase de cortesía → `remaining == 0` **y** existe
   `Payment(concept="credit", amount=-52000)` **y** la renovación de octubre lo consume y queda
-  en 0. Si el crédito no se consume solo en octubre, el diseño del punto 2 está mal.
+  en 0. Si el crédito no se consume solo en octubre, el diseño del punto 3 está mal.
+- Invariante del punto 2: un pago de $35.000 contra un total de $22.000 deja
+  `Payment(concept="credit", amount=-13000)`. Sin este caso, el crédito del punto 1 no lo
+  cubre nunca porque el total no se movió.
 - `calculate_subscription_total` con descuento desactivado a mitad de un período **pagado**
   devuelve el total original, no el nuevo.
 - Un período abierto **después** de desactivar el descuento ya se emite sin descuento.
@@ -1345,10 +1426,10 @@ fix(subscriptions): guards de escritura para PT e is_comp (#2/#48)
 test(subscriptions): tests focalizados de bugs de dinero
 ```
 
-Fase 7 (planificadas, **un commit por sub-fase**):
+Fase 7 (un commit por sub-fase; las marcadas ya están):
 
 ```
-chore(audit): métricas read-only de los bugs de la Fase 7
+chore(audit): métricas read-only de los bugs de la Fase 7        ← 7.0, hecha 2026-09-29
 fix(subscriptions): los PT por paquete no generan cuota mensual (#2)
 fix(subscriptions): orden de escritura y prorrateo del pase de cortesía (#2/#48)
 feat(subscriptions): saldo a favor y descuento congelado por período
@@ -1356,12 +1437,25 @@ docs(plan): Fase 7 y corrección de las contradicciones del documento
 ```
 
 **Orden de ejecución de la Fase 7**: 7.0 → 7.2 → 7.1 → 7.3 → 7.4. La 7.2 va antes que la 7.1
-a propósito: es **una línea** y el bug más caro de la fase, así que sirve para calibrar cuánto
+a propósito: es el fix más chico de la fase y el bug más caro, así que sirve para calibrar cuánto
 tarda un fix con su test antes de meter las dos migraciones de la 7.3.
+
+> Corrección 2026-09-29: la 7.2 **no** es "una línea". P1 tiene dos vías de escritura
+> (`ensure_pt_items_for_active_assignments` y `_copy_personal_training_items`, esta última
+> llamada desde 4 sitios). Ver el detalle en "P1 en detalle".
 
 ---
 
 ## 5. Verificación global (al final)
+
+> **La suite completa del backend tiene 7 rojos preexistentes (2026-09-29)**, verificados
+> idénticos con y sin los cambios de la Fase 7 (`git stash` + rerun): 4 `FAIL` + 3 `ERROR` en
+> `accounts.tests.LoginTests`, `attendance.tests.PublicCheckinAccessTests`,
+> `members.tests.PublicRegisterSecurityTests`, `members.tests.MemberCreateTests` y
+> `gyms.tests.GymClosedDateHolidaysTests`. **No son de esta fase y no se tocan acá**; el comando
+> para verlos es `.venv/bin/python manage.py test` (107 tests), mientras que el gate de esta fase
+> es `manage.py test subscriptions` (19 tests), que está verde. Si se arreglan, es trabajo
+> aparte.
 
 1. `.venv/bin/python manage.py test subscriptions` — todos verdes, incluidos los 7
    preexistentes.
