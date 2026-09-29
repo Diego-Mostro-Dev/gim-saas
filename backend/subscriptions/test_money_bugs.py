@@ -26,12 +26,18 @@ from personal_training.models import (
 )
 from plans.models import Service
 from subscriptions.domain import SubscriptionDomain
-from subscriptions.models import PlanChangeRequest, Subscription, TaskRun
+from subscriptions.models import (
+    PlanChangeRequest,
+    Subscription,
+    SubscriptionItem,
+    TaskRun,
+)
 from subscriptions.services import (
     TASK_NAME,
     _task_interval_seconds,
     auto_renew_subscriptions,
     calculate_subscription_total,
+    create_next_subscription,
     get_last_day_of_month,
     recover_member,
     run_scheduled_tasks,
@@ -428,6 +434,238 @@ class MoneyBugRecoveryAndCompTests(_MoneyBugBase):
         self.assertEqual(calculate_subscription_total(sub), Decimal("0"))
         self.assertEqual(
             subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+
+class MoneyBugPTPackageFeeTests(_MoneyBugBase):
+    """Fase 7 (#2, P1): el PT por paquete no genera cuota mensual.
+
+    El bug tenía dos caminos de escritura, y por eso los casos vienen de a
+    dos: corregir sólo el alta deja el cobro vivo en cada renovación, que es
+    donde más plata se pierde.
+    """
+
+    def _pt_setup(self, gym, modality, monthly_price="22000", billing_mode="sessions"):
+        plan = self.create_plan(gym)
+        member = self.create_member(gym)
+        pt_service = PersonalTrainingService.objects.create(
+            gym=gym,
+            service=Service.get_default_for_gym(gym),
+            name="PT 1 a 1",
+            monthly_price=Decimal(monthly_price),
+            billing_mode=billing_mode,
+        )
+        trainer = self.create_user(gym, username="trainer")
+        assignment = PersonalTrainingAssignment.objects.create(
+            gym=gym,
+            member=member,
+            trainer=trainer,
+            service=pt_service,
+            day="monday",
+            start_time=_time(10, 0),
+            end_time=_time(11, 0),
+            modality=modality,
+            active=True,
+        )
+        if modality == "package":
+            assignment.package_total_sessions = 10
+            assignment.session_price = Decimal("8000")
+            assignment.save(
+                update_fields=["package_total_sessions", "session_price"]
+            )
+        return plan, member, pt_service
+
+    def _pt_item(self, subscription):
+        return subscription.items.filter(
+            item_type="personal_training", status="active"
+        )
+
+    def test_package_assignment_adds_no_monthly_fee_on_open(self):
+        """Vía 1 (alta): la suscripción nueva no trae cuota de PT."""
+        p = self._periods()
+        gym = self.create_gym()
+        plan, member, _ = self._pt_setup(gym, "package")
+
+        sub = self.open_month_subscription(
+            member, plan, start_date=p["month_start"], end_date=p["target_end"]
+        )
+
+        self.assertEqual(self._pt_item(sub).count(), 0)
+        self.assertEqual(calculate_subscription_total(sub), plan.price)
+
+    def test_package_fee_not_copied_into_next_period(self):
+        """Vía 2 (copia): el período anterior ya tenía el ítem y no se renueva.
+
+        Es el caso que falla si sólo se arregla el alta: el socio que ya
+        tenía el ítem mal creado lo arrastraba a todos los períodos futuros.
+        """
+        p = self._periods()
+        gym = self.create_gym()
+        plan, member, pt_service = self._pt_setup(gym, "package")
+
+        prev_sub = self._settled_sub(member, plan, p["prev_start"], p["prev_end"])
+        SubscriptionItem.objects.create(
+            subscription=prev_sub,
+            item_type="personal_training",
+            plan=None,
+            personal_training=pt_service,
+            status="active",
+            name_snapshot=pt_service.name,
+            price_snapshot=Decimal("22000.00"),
+            start_date=prev_sub.start_date,
+            end_date=prev_sub.end_date,
+        )
+        self.settle_subscription(prev_sub)
+
+        new_sub = create_next_subscription(prev_sub)
+
+        self.assertEqual(self._pt_item(new_sub).count(), 0)
+        self.assertEqual(calculate_subscription_total(new_sub), plan.price)
+
+    def test_package_fee_dropped_on_autorenewal(self):
+        """La renovación automática es el camino que más plata perdía."""
+        p = self._periods()
+        gym = self.create_gym()
+        plan, member, pt_service = self._pt_setup(gym, "package")
+
+        prev_sub = self._settled_sub(member, plan, p["prev_start"], p["prev_end"])
+        SubscriptionItem.objects.create(
+            subscription=prev_sub,
+            item_type="personal_training",
+            plan=None,
+            personal_training=pt_service,
+            status="active",
+            name_snapshot=pt_service.name,
+            price_snapshot=Decimal("22000.00"),
+            start_date=prev_sub.start_date,
+            end_date=prev_sub.end_date,
+        )
+        self.settle_subscription(prev_sub)
+
+        result = auto_renew_subscriptions()
+
+        self.assertEqual(result["renewed"], 1)
+        new_sub = Subscription.objects.get(
+            member=member, start_date=p["month_start"]
+        )
+        self.assertEqual(self._pt_item(new_sub).count(), 0)
+        self.assertEqual(calculate_subscription_total(new_sub), plan.price)
+
+    def test_monthly_assignment_still_billed_on_open(self):
+        """Control positivo del alta: la modalidad mensual no se toca."""
+        p = self._periods()
+        gym = self.create_gym()
+        plan, member, _ = self._pt_setup(
+            gym, "monthly", monthly_price="22000", billing_mode="monthly"
+        )
+
+        sub = self.open_month_subscription(
+            member, plan, start_date=p["month_start"], end_date=p["target_end"]
+        )
+
+        self.assertEqual(self._pt_item(sub).count(), 1)
+        self.assertEqual(
+            calculate_subscription_total(sub), plan.price + Decimal("22000.00")
+        )
+
+    def test_monthly_assignment_still_copied_into_next_period(self):
+        """Control positivo de la copia: la modalidad mensual se renueva."""
+        p = self._periods()
+        gym = self.create_gym()
+        plan, member, _ = self._pt_setup(
+            gym, "monthly", monthly_price="22000", billing_mode="monthly"
+        )
+
+        prev_sub = self._settled_sub(member, plan, p["prev_start"], p["prev_end"])
+        self.assertEqual(self._pt_item(prev_sub).count(), 1)
+
+        new_sub = create_next_subscription(prev_sub)
+
+        self.assertEqual(self._pt_item(new_sub).count(), 1)
+        self.assertEqual(
+            self._pt_item(new_sub).first().price_snapshot, Decimal("22000.00")
+        )
+        self.assertEqual(
+            calculate_subscription_total(new_sub), plan.price + Decimal("22000.00")
+        )
+
+    def test_two_services_one_package_one_monthly(self):
+        """La regla es por oferta, no por socio: conviven sin mezclarse."""
+        p = self._periods()
+        gym = self.create_gym()
+        plan = self.create_plan(gym)
+        member = self.create_member(gym)
+        trainer = self.create_user(gym, username="trainer")
+        for name, modality, mode, day, start in (
+            ("PT paquete", "package", "sessions", "monday", (10, 0)),
+            ("PT mensual", "monthly", "monthly", "tuesday", (12, 0)),
+        ):
+            service = PersonalTrainingService.objects.create(
+                gym=gym,
+                service=Service.get_default_for_gym(gym),
+                name=name,
+                monthly_price=Decimal("22000" if mode == "monthly" else "0"),
+                billing_mode=mode,
+            )
+            PersonalTrainingAssignment.objects.create(
+                gym=gym,
+                member=member,
+                trainer=trainer,
+                service=service,
+                day=day,
+                start_time=_time(*start),
+                end_time=_time(start[0] + 1, start[1]),
+                modality=modality,
+                active=True,
+            )
+
+        sub = self.open_month_subscription(
+            member, plan, start_date=p["month_start"], end_date=p["target_end"]
+        )
+
+        self.assertEqual(
+            [i.personal_training.name for i in self._pt_item(sub)], ["PT mensual"]
+        )
+        self.assertEqual(
+            calculate_subscription_total(sub), plan.price + Decimal("22000.00")
+        )
+
+    def test_inactive_assignment_does_not_resurrect_fee(self):
+        """Sin asignación activa no hay cuota, aunque el período previo la tenga."""
+        p = self._periods()
+        gym = self.create_gym()
+        plan, member, _ = self._pt_setup(
+            gym, "monthly", monthly_price="22000", billing_mode="monthly"
+        )
+
+        prev_sub = self._settled_sub(member, plan, p["prev_start"], p["prev_end"])
+        self.assertEqual(self._pt_item(prev_sub).count(), 1)
+        self.settle_subscription(prev_sub)
+        member.personal_training_assignments.update(active=False)
+
+        new_sub = create_next_subscription(prev_sub)
+
+        self.assertEqual(self._pt_item(new_sub).count(), 0)
+        self.assertEqual(calculate_subscription_total(new_sub), plan.price)
+
+    def _stale_pt_item(self, subscription, price="22000.00"):
+        """Escribe el ítem de PT a mano, como lo dejaba el bug.
+
+        Así el caso depende sólo del fix y no de que hoy ``open_subscription``
+        ya no lo cree: el punto es que el período anterior tenga la línea y la
+        renovación tenga que decidir si la arrastra.
+        """
+        service = subscription.member.personal_training_assignments.first().service
+        return SubscriptionItem.objects.create(
+            subscription=subscription,
+            item_type="personal_training",
+            plan=None,
+            personal_training=service,
+            status="active",
+            name_snapshot=service.name,
+            price_snapshot=Decimal(price),
+            start_date=subscription.start_date,
+            end_date=subscription.end_date,
         )
 
 

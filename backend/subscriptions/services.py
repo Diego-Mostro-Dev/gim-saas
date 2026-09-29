@@ -85,12 +85,37 @@ def _copy_activity_items(from_subscription, to_subscription):
         )
 
 
+def _monthly_pt_service_ids(member):
+    """Ids de ofertas de PT que el socio factura como cuota mensual (Fase 7, #2).
+
+    Un paquete de sesiones ya se cobra por sesión, así que su oferta **no**
+    debe generar un ítem de cuota mensual encima: antes de la 7.2 el socio
+    pagaba el paquete una vez y la cuota todos los meses, indefinidos.
+
+    Es la única definición de esa regla y la consultan las dos vías de
+    escritura del ítem (alta y copia entre períodos) para que no puedan
+    divergir: arreglar una sola deja el bug vivo en cada renovación.
+
+    Sin asignación activa no hay nada que facturar como cuota. La única forma
+    de tener un ítem de PT sin asignación mensual activa son datos
+    inconsistentes, y en ese caso dejar de facturar es lo prudente.
+    """
+    return set(
+        member.personal_training_assignments.filter(
+            active=True, modality="monthly"
+        ).values_list("service_id", flat=True)
+    )
+
+
 def _copy_personal_training_items(from_subscription, to_subscription):
     """Copy active personal-training items from one subscription to another.
 
     Mirrors _copy_activity_items: when the gym's personal-training add-on
     is disabled, PT items are not copied so the service stops being billed
     in renewals. Re-enabling the add-on restores billing in later renewals.
+
+    Las ofertas con paquete de sesiones no se copian (Fase 7, #2): su cobro es
+    por sesión y copiar el ítem renovaría la cuota mensual en cada período.
     """
     from gyms.features import personal_training_enabled
 
@@ -103,9 +128,13 @@ def _copy_personal_training_items(from_subscription, to_subscription):
         status="active",
     ).select_related("personal_training")
 
+    monthly_service_ids = _monthly_pt_service_ids(to_subscription.member)
+
     for prev_item in previous_items:
         pt_service = prev_item.personal_training
         if pt_service is None or not pt_service.active:
+            continue
+        if pt_service.id not in monthly_service_ids:
             continue
         if SubscriptionItem.objects.filter(
             subscription=to_subscription,
@@ -193,11 +222,20 @@ def ensure_pt_items_for_active_assignments(member, subscription):
     la asignación existe pero el ítem no llegó a la suscripción nueva (fue
     creada sin suscripción vigente, o el ítem se anuló). Preventivo puro:
     hoy el audit da 0 afectados.
+
+    Sólo las asignaciones mensuales generan cuota (Fase 7, #2). Un paquete de
+    sesiones se cobra por sesión y además pagaría la cuota mensual.
     """
+    monthly_service_ids = _monthly_pt_service_ids(member)
+    if not monthly_service_ids:
+        return
+
     for assignment in member.personal_training_assignments.filter(
         active=True
     ).select_related("service"):
         service = assignment.service
+        if service.id not in monthly_service_ids:
+            continue
         if SubscriptionItem.objects.filter(
             subscription=subscription,
             personal_training=service,

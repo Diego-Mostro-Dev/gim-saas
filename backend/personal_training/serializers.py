@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db.models import Count
 from rest_framework import serializers
 
@@ -68,6 +70,27 @@ class PersonalTrainingServiceSerializer(serializers.ModelSerializer):
                     "Ya existe una oferta con ese nombre."
                 )
         return value
+
+    def validate(self, attrs):
+        """Impone que una oferta por sesiones no tenga cuota mensual (Fase 7, #2).
+
+        Las dos modalidades se cobran por caminos distintos: la mensual como
+        ítem de cuota en cada período, el paquete por sesión con su propio
+        asiento de pago. Dejar las dos habilitadas sobre la misma oferta hacía
+        que el socio pagara el paquete y además la cuota todos los meses.
+
+        Se fuerza el precio a 0 en vez de rechazar la oferta: el rechazo deja al
+        socio con una asignación que no se puede crear y ningún mensaje útil,
+        mientras que el precio de una oferta por sesiones no se usa para nada.
+        """
+        attrs = super().validate(attrs)
+        billing_mode = attrs.get(
+            "billing_mode",
+            self.instance.billing_mode if self.instance else None,
+        )
+        if billing_mode == "sessions":
+            attrs["monthly_price"] = Decimal("0")
+        return attrs
 
     def create(self, validated_data):
         gym = validated_data.pop("gym")

@@ -31,7 +31,7 @@ DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python mana
 | 4 | Claim atómico + atómico por socio | **CERRADA** | `4b8022a` |
 | 5 | Guards de escritura #2 y #48 | **CERRADA** | `a5271ed` |
 | 6 | Tests focalizados | **CERRADA** | `23438bf` |
-| 7 | Bugs ALTO de precio, pase de cortesía y PT por paquete | **PLANIFICADA — sin empezar** | — |
+| 7 | Bugs ALTO de precio, pase de cortesía y PT por paquete | **EN CURSO** — 7.0 y 7.2 hechas (2026-09-29) | `6bd6a91`, 7.2 |
 
 Reglas para retomar:
 
@@ -79,7 +79,7 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 | # | Qué | Dónde | Gate para cerrarlo | Estado |
 |---|---|---|---|---|
 | 1 | **7.0** — 4 contadores read-only con pares `confirmados`/`armados` | `audit_money_bugs.py` | `Escrituras: 0` + los 8 números medidos en staging **y** producción | ✅ **hecho** (2026-09-29) |
-| 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py:197` **+ `services.py:88`** (dos vías) + alta de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** (Σ371) | ⬜ sin empezar |
+| 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py` (dos vías) + alta/edición de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** | ✅ **hecho** (2026-09-29) |
 | 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ⬜ sin empezar |
 | 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ⬜ sin empezar |
 | 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:226-233` | el 4º loop, con el mismo factor de prorrateo | ⬜ sin empezar |
@@ -965,6 +965,11 @@ $22.000 de más **cada mes**, indefinidos.
 > de modalidad en las dos funciones, con un helper compartido de "PT facturable como cuota".
 > El contador P1 de la 7.0 mide las dos vías, no sólo la primera.
 
+> **Resuelto en la 7.2 (2026-09-29)**. La regla que quedó es más simple que la que se describe
+> arriba: una oferta se factura como cuota si el socio tiene **alguna** asignación activa
+> `monthly` de esa oferta, y en ningún otro caso. Cubre el paquete (que ya se cobra por sesión) y
+> también el ítem huérfano de una asignación dada de baja.
+
 
 #### P2 en detalle
 
@@ -1327,6 +1332,58 @@ staging `785, 820` / producción `820` · P2-P3 cerrados `827` en ambos.
 
 **Commit**: `fix(subscriptions): los PT por paquete no generan cuota mensual (#2)`
 
+##### Cómo quedó implementada (2026-09-29) — ✅ hecha
+
+Tres desvíos del diseño de arriba, todos menores y a favor:
+
+1. **El helper es `_monthly_pt_service_ids(member)` y devuelve un `set` de ids**, no el
+   booleano `_is_monthly_pt_billable(member, service)` que decía el plan. Misma regla, misma
+   fuente única, pero un set: la vía de copia itera sobre ítems y con un booleano por servicio
+   haría una query por ítem. Un lookup por renovación, 1 query.
+2. **Sin asignación activa no hay cuota.** El plan sólo hablaba del caso "paquete". La regla
+   que quedó es más simple y cubre los dos casos: un servicio se factura como cuota si el socio
+   tiene **alguna** asignación activa `monthly` de esa oferta. La única forma de tener un ítem de
+   PT sin asignación activa son datos inconsistentes, y dejar de facturar ahí es lo prudente.
+3. **El precio en 0 se fuerza también al editar, no sólo al crear.** El plan decía "en el alta".
+   Un `PATCH` que pasa la oferta de `monthly` a `sessions`, o que manda un `monthly_price` a una
+   oferta que ya era `sessions`, reintroducía exactamente la condición que genera el bug. Va en
+   `validate()`, que corre en create y en update (con el `billing_mode` del `instance` como
+   fallback para los `PATCH` parciales).
+
+**Tests** (13 nuevos, todos verdes, y **verificados en rojo sin el fix**):
+
+| Test | Qué fija |
+|---|---|
+| `test_package_assignment_adds_no_monthly_fee_on_open` | vía 1 (alta): sin ítem, total = plan |
+| `test_package_fee_not_copied_into_next_period` | vía 2 (copia), con el ítem previo escrito a mano |
+| `test_package_fee_dropped_on_autorenewal` | la renovación automática, el camino que más plata perdía |
+| `test_monthly_assignment_still_billed_on_open` | control positivo del alta |
+| `test_monthly_assignment_still_copied_into_next_period` | control positivo de la copia |
+| `test_two_services_one_package_one_monthly` | la regla es por oferta: conviven sin mezclarse |
+| `test_inactive_assignment_does_not_resurrect_fee` | el caso "sin asignación activa" del desvío 2 |
+| `PTServicePriceInvariantTests` (6) | el precio en 0 se fuerza en create, en el cambio de modalidad y en el `PATCH` del precio; y el `PATCH` de una oferta mensual sigue funcionando |
+
+Sin el fix en `services.py` caen 4 de los 7 (los 4 de paquete) y los 3 controles positivos siguen
+verdes: los tests fijan el bug, no la ausencia de tests. Sin el fix del serializer caen 3 de 6.
+
+**Costo en queries** (medido con `CaptureQueriesContext` sobre `create_next_subscription`, no
+estimado):
+
+| Socio | Antes | Después |
+|---|---|---|
+| con PT mensual (el ítem se renueva) | 11 | **12** |
+| con PT por paquete (el ítem no se renueva) | 11 | **9** |
+
+O sea **+1 query por renovación** que tiene PT mensual, y −2 para la que tiene paquete. El
+presupuesto de la Fase 1 es 40 y la última medición daba 24 con una renovación: queda en 25.
+
+**Lo que la medición de la 7.0 no anticipó**: el arnés de la Fase 1 **ya no sirve para
+comparar contra la tabla de la sección 5 tal como está escrita**. La tarea programada corrió hoy
+15:22 en staging y renovó al socio 801, así que la corrida actual da `renewed 0` / `candidates 0`
+en vez de `renewed 1` / Σ371. Ese `0` es el fix de la Fase 2 funcionando, no una regresión. La
+comparación válida es **A/B sobre el mismo estado**: con el fix y sin él, las dos salidas del
+`audit_renewal_dryrun` son idénticas byte a byte salvo el timestamp.
+
 
 ---
 
@@ -1430,15 +1487,16 @@ Fase 7 (un commit por sub-fase; las marcadas ya están):
 
 ```
 chore(audit): métricas read-only de los bugs de la Fase 7        ← 7.0, hecha 2026-09-29
-fix(subscriptions): los PT por paquete no generan cuota mensual (#2)
+fix(subscriptions): los PT por paquete no generan cuota mensual (#2)   ← 7.2, hecha 2026-09-29
 fix(subscriptions): orden de escritura y prorrateo del pase de cortesía (#2/#48)
 feat(subscriptions): saldo a favor y descuento congelado por período
 docs(plan): Fase 7 y corrección de las contradicciones del documento
 ```
 
-**Orden de ejecución de la Fase 7**: 7.0 → 7.2 → 7.1 → 7.3 → 7.4. La 7.2 va antes que la 7.1
-a propósito: es el fix más chico de la fase y el bug más caro, así que sirve para calibrar cuánto
-tarda un fix con su test antes de meter las dos migraciones de la 7.3.
+**Orden de ejecución de la Fase 7**: 7.0 → **7.2 (hecha)** → 7.1 → 7.3 → 7.4. La 7.2 va antes que
+la 7.1 a propósito: es el fix más chico de la fase y el bug más caro, así que sirve para calibrar
+cuánto tarda un fix con su test antes de meter las dos migraciones de la 7.3. Salió bien: 13
+tests, 2 desvíos menores del diseño y una regla más simple de la que estaba escrita.
 
 > Corrección 2026-09-29: la 7.2 **no** es "una línea". P1 tiene dos vías de escritura
 > (`ensure_pt_items_for_active_assignments` y `_copy_personal_training_items`, esta última
