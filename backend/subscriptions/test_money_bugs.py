@@ -567,7 +567,8 @@ class CourtesyPassProrationTests(_MoneyBugBase):
     (19 días). El denominador es la duración real del período.
 
     Los montos están elegidos para que el prorrateo caiga exacto: plan $30.000
-    + actividad $3.000 = $33.000, que da $12.100 con 11/30 y $20.900 con 19/30.
+    + actividad $3.000 + PT $6.000 = $39.000, que da $14.300 con 11/30 y
+    $24.700 con 19/30. Sin PT el total es $33.000 → $12.100 / $20.900.
     """
 
     TRANSITION_DAY = date(2026, 9, 20)
@@ -575,6 +576,7 @@ class CourtesyPassProrationTests(_MoneyBugBase):
     PERIOD_END = date(2026, 9, 30)
     PLAN_PRICE = Decimal("30000.00")
     ACTIVITY_PRICE = Decimal("3000.00")
+    PT_PRICE = Decimal("6000.00")
 
     def setUp(self):
         super().setUp()
@@ -588,13 +590,20 @@ class CourtesyPassProrationTests(_MoneyBugBase):
             monthly_price=self.ACTIVITY_PRICE,
             billing_mode="monthly",
         )
+        self.pt_service = PersonalTrainingService.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="PT mensual",
+            monthly_price=self.PT_PRICE,
+            billing_mode="monthly",
+        )
 
-    def _member_with_september(self, item_price, settle=False):
-        """Socio con la suscripción de septiembre abierta y un ítem de actividad.
+    def _member_with_september(self, comp_from_start, settle=False, with_pt=False):
+        """Socio con la suscripción de septiembre abierta.
 
-        ``item_price`` es el precio con el que quedan los ítems del período: a
-        precio completo si el socio venía pagando, en 0 si venía cortesía desde
-        el 1º (que es cuando el prorrateo de días ya servidos da 0).
+        ``comp_from_start`` refleja el estado real del socio desde el 1º:
+        cortesía (``is_comp`` e ítems en 0) o pagando (ítems a precio de
+        contrato). ``with_pt`` agrega el ítem de PT mensual al período.
         """
         member = self.create_member(self.gym)
         sub = self.open_month_subscription(
@@ -605,7 +614,14 @@ class CourtesyPassProrationTests(_MoneyBugBase):
             paid=False,
             auto_renew=True,
         )
-        sub.items.filter(item_type="plan").update(price_snapshot=item_price)
+        if comp_from_start:
+            member.is_comp = True
+            member.save(update_fields=["is_comp"])
+        snapshot = Decimal("0") if comp_from_start else self.PLAN_PRICE
+        sub.items.filter(item_type="plan").update(price_snapshot=snapshot)
+        activity_snapshot = (
+            Decimal("0") if comp_from_start else self.ACTIVITY_PRICE
+        )
         SubscriptionItem.objects.create(
             subscription=sub,
             item_type="activity",
@@ -613,10 +629,23 @@ class CourtesyPassProrationTests(_MoneyBugBase):
             activity=self.activity,
             status="active",
             name_snapshot=self.activity.name,
-            price_snapshot=item_price,
+            price_snapshot=activity_snapshot,
             start_date=self.PERIOD_START,
             end_date=self.PERIOD_END,
         )
+        if with_pt:
+            pt_snapshot = Decimal("0") if comp_from_start else self.PT_PRICE
+            SubscriptionItem.objects.create(
+                subscription=sub,
+                item_type="personal_training",
+                plan=None,
+                personal_training=self.pt_service,
+                status="active",
+                name_snapshot=self.pt_service.name,
+                price_snapshot=pt_snapshot,
+                start_date=self.PERIOD_START,
+                end_date=self.PERIOD_END,
+            )
         if settle:
             self.settle_subscription(sub)
         return member, sub
@@ -638,9 +667,7 @@ class CourtesyPassProrationTests(_MoneyBugBase):
         ).price_snapshot
 
     def test_removing_comp_on_day_20_bills_remaining_11_of_30(self):
-        member, sub = self._member_with_september(Decimal("0"))
-        member.is_comp = True
-        member.save(update_fields=["is_comp"])
+        member, sub = self._member_with_september(True)
 
         resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
 
@@ -657,7 +684,7 @@ class CourtesyPassProrationTests(_MoneyBugBase):
         )
 
     def test_granting_comp_on_day_20_bills_served_19_of_30(self):
-        member, sub = self._member_with_september(self.PLAN_PRICE, settle=True)
+        member, sub = self._member_with_september(False, settle=True)
 
         resp = self._toggle(member, is_comp=True)
 
@@ -673,6 +700,45 @@ class CourtesyPassProrationTests(_MoneyBugBase):
         # $12.100. ``subscription_remaining_balance`` lo fuerza a 0 para un
         # cortesía, así que el sobrepago no se ve hasta que 7.3 lo convierta
         # en crédito. No se asserta acá a propósito: es el bug de P4.
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+    def test_removing_comp_on_day_20_restores_pt_with_11_of_30(self):
+        member, sub = self._member_with_september(True, with_pt=True)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertFalse(member.is_comp)
+
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("11000.00"))
+        self.assertEqual(self._snapshot(sub, "activity"), Decimal("1100.00"))
+        self.assertEqual(self._snapshot(sub, "personal_training"), Decimal("2200.00"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("14300.00"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("14300.00")
+        )
+
+    def test_granting_comp_on_day_20_bills_served_19_of_30_with_pt(self):
+        member, sub = self._member_with_september(False, settle=True, with_pt=True)
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertTrue(member.is_comp)
+
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("19000.00"))
+        self.assertEqual(self._snapshot(sub, "activity"), Decimal("1900.00"))
+        self.assertEqual(self._snapshot(sub, "personal_training"), Decimal("3800.00"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("24700.00"))
+        # El socio pagó el mes entero ($39.000) y el total prorrateado bajó a
+        # $24.700: queda un excedente de $14.300 que la rama ``is_comp`` de
+        # subscription_remaining_balance fuerza a 0 (P4, hasta 7.3).
         self.assertEqual(
             subscription_remaining_balance(sub)["remaining"], Decimal("0")
         )

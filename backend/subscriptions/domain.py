@@ -237,30 +237,20 @@ class SubscriptionDomain:
                             update_fields=["plan", "price_snapshot", "name_snapshot"]
                         )
 
-                    # Restore monthly billing for active activities and
-                    # outings (their snapshots were prorated down while comp
-                    # was active), for the days left in the period.
+                    # Restore monthly billing for active activities, outings
+                    # and monthly PT (their snapshots were prorated down while
+                    # comp was active), for the days left in the period.
                     for item in SubscriptionItem.objects.filter(
                         subscription=current,
-                        item_type="activity",
+                        item_type__in=("activity", "outing", "personal_training"),
                         status="active",
-                    ).select_related("activity"):
-                        if item.activity is not None:
-                            item.price_snapshot = SubscriptionDomain._prorate(
-                                item.activity.monthly_price, billable, period_days
-                            )
-                            item.save(update_fields=["price_snapshot"])
-
-                    for item in SubscriptionItem.objects.filter(
-                        subscription=current,
-                        item_type="outing",
-                        status="active",
-                    ).select_related("outing"):
-                        if item.outing is not None:
-                            item.price_snapshot = SubscriptionDomain._prorate(
-                                item.outing.monthly_price, billable, period_days
-                            )
-                            item.save(update_fields=["price_snapshot"])
+                    ).select_related("activity", "outing", "personal_training"):
+                        item.price_snapshot = SubscriptionDomain._prorate(
+                            SubscriptionDomain._item_contract_price(item),
+                            billable,
+                            period_days,
+                        )
+                        item.save(update_fields=["price_snapshot"])
 
                 # ``paid`` is derived from the balance, never written here:
                 # it has to run after the items are rewritten, because

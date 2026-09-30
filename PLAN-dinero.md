@@ -15,8 +15,8 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 planificada, sin empezar.**
-Los tests focalizados corren contra SQLite con:
+Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 en curso: 7.0, 7.2 y
+7.1a-c hechas (2026-09-29); 7.1d, 7.3 y 7.4 pendientes.** Los tests focalizados corren contra SQLite con:
 
 ```
 DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python manage.py test subscriptions
@@ -82,7 +82,7 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 | 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py` (dos vías) + alta/edición de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** | ✅ **hecho** (2026-09-29) |
 | 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:226-233` | el 4º loop, con el mismo factor de prorrateo | ⬜ sin empezar |
+| 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:240-263` | los ítems de actividad/outing/PT se restauran prorrateados en **un solo loop** con `_item_contract_price` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:268-290` | los 3 tipos de paquete, ida y vuelta | ⬜ sin empezar |
 | 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ⬜ sin empezar |
 | 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ⬜ sin empezar |
@@ -1597,7 +1597,7 @@ tests, 2 desvíos menores del diseño y una regla más simple de la que estaba e
    | `manage.py test subscriptions` | 19 preexistentes verdes + los nuevos de 7.1/7.2 |
    | arnés `audit_renewal_dryrun` | **sin cambios**: `renewed 1`, contadores 235/90/7/0/38/1, Σ371 |
    | contador P1 (PT paquete con ítem de cuota) | `confirmados` **no crece** sobre la línea base de la 7.0 |
-   | contador P2/P3 (ítems > 0 en socio `is_comp`) | `vigente = 0`; `cerrados` **no crece** sobre la línea base (los del socio 827 no se tocan) |
+   | contador P2/P3 (ítems > 0 en socio `is_comp`) | `cerrados` **no crece** sobre la línea base (los del socio 827 no se tocan); todo ítem **positivo** de un cortesía en período **vigente** tiene **crédito que lo cubra** (estado final que sólo entrega la 7.3 — criterio reescrito en 7.1, ver Fase 7.1) |
    | contador P4 (`paid_amount > total` sin crédito) | `confirmados = 0` (con `is_comp` excluido explícitamente) |
    | contador P5 (período pagado con descuento vivo distinto) | `confirmados = 0`, y en ambas direcciones por separado |
    | escrituras de los 4 contadores | **0** |
