@@ -12,12 +12,14 @@ base de staging.
 import threading
 from datetime import date, time as _time
 from decimal import Decimal
+from unittest import mock
 
 from django.conf import settings
 from django.db import connections
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
+from activities.models import Activity
 from core.testing import BaseAPITest
 from payments.models import Payment
 from personal_training.models import (
@@ -419,14 +421,21 @@ class MoneyBugRecoveryAndCompTests(_MoneyBugBase):
         )
         self.assertNotEqual(calculate_subscription_total(sub), Decimal("0"))
 
-        SubscriptionDomain.mutate_membership(
-            member=member, comp=True, origin="plan_change"
-        )
+        # El pase se da el 1º, así que no hay días ya servidos que facturar y los
+        # ítems del período quedan en 0 (Fase 7.1, P3). Una transición a mitad
+        # de mes factura lo ya servido: eso va en CourtesyPassProrationTests, y
+        # acá la fecha se congela para que el caso no dependa del día en que
+        # corra la suite.
+        with mock.patch(
+            "django.utils.timezone.localdate", return_value=p["month_start"]
+        ):
+            SubscriptionDomain.mutate_membership(
+                member=member, comp=True, origin="plan_change"
+            )
         member.is_comp = True
         member.save(update_fields=["is_comp"])
 
         sub.refresh_from_db()
-        self.assertTrue(sub.paid)
         self.assertTrue(sub.auto_renew)
 
         plan_item = sub.items.get(item_type="plan", status="active")
@@ -547,6 +556,126 @@ class CourtesyPassToggleOrderTests(_MoneyBugBase):
         member.refresh_from_db()
         self.assertTrue(member.is_comp)
         self.assertFalse(Subscription.objects.filter(member=member).exists())
+
+
+class CourtesyPassProrationTests(_MoneyBugBase):
+    """Fase 7.1 (P3): el período en curso se factura por días, en las dos
+    direcciones.
+
+    El día de la transición cuenta a favor del estado nuevo: al quitar el pase
+    el 20 de un mes de 30 se factura 20→30 (11 días) y al darlo se factura 1→19
+    (19 días). El denominador es la duración real del período.
+
+    Los montos están elegidos para que el prorrateo caiga exacto: plan $30.000
+    + actividad $3.000 = $33.000, que da $12.100 con 11/30 y $20.900 con 19/30.
+    """
+
+    TRANSITION_DAY = date(2026, 9, 20)
+    PERIOD_START = date(2026, 9, 1)
+    PERIOD_END = date(2026, 9, 30)
+    PLAN_PRICE = Decimal("30000.00")
+    ACTIVITY_PRICE = Decimal("3000.00")
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.staff = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.staff)
+        self.plan = self.create_plan(self.gym, price=self.PLAN_PRICE)
+        self.activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Kinesio",
+            monthly_price=self.ACTIVITY_PRICE,
+            billing_mode="monthly",
+        )
+
+    def _member_with_september(self, item_price, settle=False):
+        """Socio con la suscripción de septiembre abierta y un ítem de actividad.
+
+        ``item_price`` es el precio con el que quedan los ítems del período: a
+        precio completo si el socio venía pagando, en 0 si venía cortesía desde
+        el 1º (que es cuando el prorrateo de días ya servidos da 0).
+        """
+        member = self.create_member(self.gym)
+        sub = self.open_month_subscription(
+            member,
+            self.plan,
+            start_date=self.PERIOD_START,
+            end_date=self.PERIOD_END,
+            paid=False,
+            auto_renew=True,
+        )
+        sub.items.filter(item_type="plan").update(price_snapshot=item_price)
+        SubscriptionItem.objects.create(
+            subscription=sub,
+            item_type="activity",
+            plan=None,
+            activity=self.activity,
+            status="active",
+            name_snapshot=self.activity.name,
+            price_snapshot=item_price,
+            start_date=self.PERIOD_START,
+            end_date=self.PERIOD_END,
+        )
+        if settle:
+            self.settle_subscription(sub)
+        return member, sub
+
+    def _toggle(self, member, **payload):
+        with mock.patch(
+            "django.utils.timezone.localdate",
+            return_value=self.TRANSITION_DAY,
+        ):
+            return self.client.patch(
+                f"/api/members/{member.id}/",
+                payload,
+                format="json",
+            )
+
+    def _snapshot(self, subscription, item_type):
+        return subscription.items.get(
+            item_type=item_type, status="active"
+        ).price_snapshot
+
+    def test_removing_comp_on_day_20_bills_remaining_11_of_30(self):
+        member, sub = self._member_with_september(Decimal("0"))
+        member.is_comp = True
+        member.save(update_fields=["is_comp"])
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertFalse(member.is_comp)
+
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("11000.00"))
+        self.assertEqual(self._snapshot(sub, "activity"), Decimal("1100.00"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("12100.00"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("12100.00")
+        )
+
+    def test_granting_comp_on_day_20_bills_served_19_of_30(self):
+        member, sub = self._member_with_september(self.PLAN_PRICE, settle=True)
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertTrue(member.is_comp)
+
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("19000.00"))
+        self.assertEqual(self._snapshot(sub, "activity"), Decimal("1900.00"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("20900.00"))
+        # El socio pagó el mes entero y el total bajó: quedó un excedente de
+        # $12.100. ``subscription_remaining_balance`` lo fuerza a 0 para un
+        # cortesía, así que el sobrepago no se ve hasta que 7.3 lo convierta
+        # en crédito. No se asserta acá a propósito: es el bug de P4.
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
 
 
 class MoneyBugPTPackageFeeTests(_MoneyBugBase):

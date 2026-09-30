@@ -80,8 +80,8 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 |---|---|---|---|---|
 | 1 | **7.0** — 4 contadores read-only con pares `confirmados`/`armados` | `audit_money_bugs.py` | `Escrituras: 0` + los 8 números medidos en staging **y** producción | ✅ **hecho** (2026-09-29) |
 | 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py` (dos vías) + alta/edición de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** | ✅ **hecho** (2026-09-29) |
-| 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ⬜ sin empezar |
-| 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ⬜ sin empezar |
+| 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
+| 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:226-233` | el 4º loop, con el mismo factor de prorrateo | ⬜ sin empezar |
 | 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:268-290` | los 3 tipos de paquete, ida y vuelta | ⬜ sin empezar |
 | 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ⬜ sin empezar |
@@ -1269,10 +1269,17 @@ staging `785, 820` / producción `820` · P2-P3 cerrados `827` en ambos.
 1. **P2** — `members/serializers.py:590`: persistir `instance.is_comp` **antes** de llamar
    `mutate_membership`, para que `_item_price` lea el valor correcto.
 2. **P3** — en `domain.py`, los precios del período en curso pasan a ser
-   `precio_base × días_facturables / días_del_mes`, cuantizado a 2 decimales con
-   `ROUND_HALF_UP`. Rama `comp=True`: se factura sólo lo ya servido, el resto queda en 0 y se
-   convierte en crédito vía P4. Rama `comp=False`: se factura sólo lo que falta. Sacar el
-   `paid = False` a mano de `domain.py:200` y delegar en `sync_subscription_paid`.
+   `precio_contrato × días_facturables / días_del_período`, cuantizado a 2 decimales con
+   `ROUND_HALF_UP`. El denominador es **la duración real del período**
+   (`end_date - start_date + 1`), que en un mes calendario común coincide con los días del mes.
+   El numerador sale del estado al que se entra y **el día de la transición cuenta a favor del
+   estado nuevo**: `comp=True` factura `(today - start_date).days` (lo ya servido), `comp=False`
+   factura `(end_date - today) + 1` (lo que falta). La base es siempre el **precio de contrato**
+   del ítem (`plan.price` / `activity.monthly_price` / `outing.monthly_price` /
+   `personal_training.monthly_price`), nunca el `price_snapshot` ya prorrateado: si no, dos
+   toggles en el mismo período componen el factor. Lo que se factura de más al dar el pase se
+   convierte en crédito vía P4. Sacar el `paid` a mano de las dos ramas (`domain.py:184` y
+   `:210`) y delegar en `sync_subscription_paid`, **después** de reescribir los ítems.
 3. **P6** — `domain.py:226-233`: sumar el cuarto loop de restauración,
    `item_type="personal_training"`, junto a los de actividades y salidas, con el mismo factor de
    prorrateo.
@@ -1289,10 +1296,23 @@ staging `785, 820` / producción `820` · P2-P3 cerrados `827` en ambos.
   suma base. Darlo el día 20 → total = `19/30`.
 - `sync_subscription_paid` llamado en ambas ramas; ningún `paid` escrito a mano.
 - `_neutralize` cubre los tres tipos de paquete y su restauración devuelve los precios.
-- **Contadores de la 7.0**: P2/P3 `vigente = 0` y `cerrados` **sin crecer** sobre la línea
-  base de la 7.0. No se pide `= 0` global: los ítems históricos del socio 827 quedan por
-  decisión explícita (sección 1.5 y decisión de alcance "sólo se reportan"), así que un
-  `= 0` global sería inalcanzable y sólo serviría para tentarse a tocar lo que no se toca.
+- **Contadores de la 7.0 — criterio reescrito el 2026-09-29 (decisión del usuario)**: el
+  `P2/P3 vigente = 0` que estaba acá **es inalcanzable por diseño** después de la 7.1b, y por la
+  misma razón que el `= 0` global lo era: la 7.1b hace que dar el pase a mitad de mes deje ítems
+  **positivos** a propósito (los días ya servidos se facturan), y eso es exactamente lo que el
+  contador cuenta (`_comp_items_by_scope`, `price_snapshot__gt=0` sobre socios `is_comp`).
+  El gate que corresponde al estado final es:
+  - `cerrados` **sin crecer** sobre la línea base de la 7.0 (2, socio 827), y
+  - todo ítem **positivo** de un cortesía en período **vigente** tiene **crédito que lo cubra** —
+    estado final que sólo entrega la 7.3. Hasta entonces el excedente existe y no se ve: la rama
+    `is_comp` de `subscription_remaining_balance` fuerza `overpayment = 0`.
+
+  **Consecuencia aceptada**: entre la 7.1b y la 7.3, `audit_money_bugs.py:182` (contador **#48**,
+  `member.is_comp and calculate_subscription_total(subscription) > 0`) va a contar de a un
+  cortesía al que se le da el pase a mitad de mes, y el panel le va a mostrar un total mayor a 0 a
+  un socio cortesía. No es una regresión de #48: es el prorrateo de días ya servidos, y se
+  resuelve cuando el crédito exista y la UI distinga crédito de deuda. **El contador no se toca**
+  (es read-only y su línea base es la de la 7.0); lo que se corrige es este criterio.
 
 **Commit**: `fix(subscriptions): orden de escritura y prorrateo del pase de cortesía (#2/#48)`
 

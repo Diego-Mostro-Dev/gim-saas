@@ -17,6 +17,8 @@ is not yet known). This is the opposite of the old pattern where
 Subscription was always looked up FROM Member.
 """
 
+from decimal import ROUND_HALF_UP, Decimal
+
 from django.utils import timezone
 
 from attendance.models import DAY_CHOICES
@@ -130,14 +132,24 @@ class SubscriptionDomain:
         toggle so enrollments keep pointing at their SubscriptionItem:
 
         - comp=True: switches the current period to the free base plan.
-          Every active item is re-snapshotted to 0 and the subscription
-          is marked paid.
+          Only the days already served are billed, prorated by day; the
+          rest of the period stops being charged. Any difference becomes
+          an overpayment (see sync_subscription_paid).
         - comp=False: switches to a paid plan (base plan when the member
-          is activity-only). Prices are restored and the subscription is
-          marked unpaid so the member generates a balance.
+          is activity-only). Prices are restored and prorated by the days
+          left in the period, so the member generates a balance for
+          exactly what remains.
+
+        Both directions bill the days the member spends in the state that
+        is in force *after* the transition, the day of the transition
+        counting towards the new state (Fase 7.1, P3).
 
         When the member has no subscription covering today, a new one is
-        opened for the current month.
+        opened for the current month. That period starts today, so it is
+        billed whole and no proration applies.
+
+        ``paid`` is never written by hand: it is derived from the real
+        balance by ``sync_subscription_paid`` at the end of each branch.
 
         Args:
             member: The Member instance.
@@ -149,12 +161,10 @@ class SubscriptionDomain:
         Returns:
             The (possibly new) Subscription covering today.
         """
-        from decimal import Decimal
-        from datetime import timedelta
-
         from django.db import transaction
 
         from .models import Subscription, SubscriptionItem
+        from .services import sync_subscription_paid
 
         today = timezone.localdate()
 
@@ -166,19 +176,32 @@ class SubscriptionDomain:
             ).order_by("-created_at").first()
 
             if current is not None:
+                billable, period_days = SubscriptionDomain._proration_days(
+                    current, today, comp
+                )
+
                 if comp:
                     from plans.services import ensure_base_plan_for_gym
 
                     base_plan = ensure_base_plan_for_gym(member.gym)
                     current.plan = base_plan
-                    current.paid = True
                     current.auto_renew = True
-                    current.save(update_fields=["plan", "paid", "auto_renew"])
+                    current.save(update_fields=["plan", "auto_renew"])
 
+                    # Only the days already served keep being billed; the rest
+                    # of the period stops being charged. The price line has to
+                    # read the contract price *before* the plan item is moved
+                    # to the free base plan below, or it reads 0.
                     for item in SubscriptionItem.objects.filter(
                         subscription=current, status="active"
+                    ).select_related(
+                        "plan", "activity", "outing", "personal_training"
                     ):
-                        item.price_snapshot = Decimal("0")
+                        item.price_snapshot = SubscriptionDomain._prorate(
+                            SubscriptionDomain._item_contract_price(item),
+                            billable,
+                            period_days,
+                        )
                         if item.item_type == "plan":
                             item.plan = base_plan
                             item.name_snapshot = base_plan.name
@@ -197,8 +220,7 @@ class SubscriptionDomain:
                         )
 
                     current.plan = plan
-                    current.paid = False
-                    current.save(update_fields=["plan", "paid"])
+                    current.save(update_fields=["plan"])
 
                     plan_item = SubscriptionItem.objects.filter(
                         subscription=current,
@@ -207,22 +229,26 @@ class SubscriptionDomain:
                     ).first()
                     if plan_item is not None:
                         plan_item.plan = plan
-                        plan_item.price_snapshot = plan.price
+                        plan_item.price_snapshot = SubscriptionDomain._prorate(
+                            plan.price, billable, period_days
+                        )
                         plan_item.name_snapshot = plan.name
                         plan_item.save(
                             update_fields=["plan", "price_snapshot", "name_snapshot"]
                         )
 
                     # Restore monthly billing for active activities and
-                    # outings (their snapshots were zeroed while comp was
-                    # active).
+                    # outings (their snapshots were prorated down while comp
+                    # was active), for the days left in the period.
                     for item in SubscriptionItem.objects.filter(
                         subscription=current,
                         item_type="activity",
                         status="active",
                     ).select_related("activity"):
                         if item.activity is not None:
-                            item.price_snapshot = item.activity.monthly_price
+                            item.price_snapshot = SubscriptionDomain._prorate(
+                                item.activity.monthly_price, billable, period_days
+                            )
                             item.save(update_fields=["price_snapshot"])
 
                     for item in SubscriptionItem.objects.filter(
@@ -231,8 +257,15 @@ class SubscriptionDomain:
                         status="active",
                     ).select_related("outing"):
                         if item.outing is not None:
-                            item.price_snapshot = item.outing.monthly_price
+                            item.price_snapshot = SubscriptionDomain._prorate(
+                                item.outing.monthly_price, billable, period_days
+                            )
                             item.save(update_fields=["price_snapshot"])
+
+                # ``paid`` is derived from the balance, never written here:
+                # it has to run after the items are rewritten, because
+                # calculate_subscription_total reads them back from the DB.
+                sync_subscription_paid(current)
 
                 return current
 
@@ -266,14 +299,96 @@ class SubscriptionDomain:
             return opened
 
     @staticmethod
+    def _proration_days(subscription, today, comp):
+        """Return (billable_days, period_days) for a courtesy-pass transition.
+
+        Fase 7.1 (P3). The period in course is billed only for the days the
+        member spends in the state that is in force *after* the transition,
+        and the day of the transition counts towards the new state:
+
+        - comp=True (pass granted): what was already served before today, so
+          the days are ``today - start_date``.
+        - comp=False (pass removed): what is left, so the days are
+          ``end_date - today + 1`` (today included).
+
+        The denominator is the real length of the period, which for a regular
+        calendar month equals the days in the month.
+
+        Args:
+            subscription: The Subscription covering the transition.
+            today: The transition date.
+            comp: The state the member is moving into.
+
+        Returns:
+            A (billable, period_days) tuple of ints, both clamped so that
+            billable never leaves [0, period_days].
+        """
+        period_days = (subscription.end_date - subscription.start_date).days + 1
+        if period_days <= 0:
+            period_days = 1
+
+        if comp:
+            billable = (today - subscription.start_date).days
+        else:
+            billable = (subscription.end_date - today).days + 1
+
+        return max(0, min(billable, period_days)), period_days
+
+    @staticmethod
+    def _item_contract_price(item):
+        """Return the full contract price of an item, whatever its state.
+
+        Proration starts from the contract price, never from the current
+        ``price_snapshot``: snapshots may already be prorated, and prorating
+        one of those compounds the factor when the pass is toggled twice in
+        the same period.
+
+        Args:
+            item: A SubscriptionItem with its related objects selected.
+
+        Returns:
+            A Decimal, 0 when the item has no related object to bill.
+        """
+        if item.item_type == "plan":
+            return item.plan.price if item.plan is not None else Decimal("0")
+        if item.item_type == "activity":
+            if item.activity is None:
+                return Decimal("0")
+            return item.activity.monthly_price
+        if item.item_type == "outing":
+            if item.outing is None:
+                return Decimal("0")
+            return item.outing.monthly_price
+        if item.item_type == "personal_training":
+            if item.personal_training is None:
+                return Decimal("0")
+            return item.personal_training.monthly_price
+        return item.price_snapshot
+
+    @staticmethod
+    def _prorate(amount, billable, period_days):
+        """Return ``amount`` scaled by billable/period_days, half-up to cents.
+
+        A fully billable period returns ``amount`` untouched, so the common
+        whole-month case carries no rounding drift.
+        """
+        if amount is None:
+            return Decimal("0")
+        if billable >= period_days:
+            return amount
+        if billable <= 0:
+            return Decimal("0")
+
+        prorated = (amount * Decimal(billable)) / Decimal(period_days)
+        return prorated.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @staticmethod
     def _neutralize_comp_package_balances(member):
         """Zero pending package co-pay balances for a courtesy-pass member.
 
         Courtesy members are never billed, so any active package enrollment
         that still carries a session price or an accumulated payment is reset.
         """
-        from decimal import Decimal
-
         from activities.models import Enrollment
 
         for enrollment in Enrollment.objects.filter(
