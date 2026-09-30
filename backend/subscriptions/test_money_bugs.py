@@ -437,6 +437,118 @@ class MoneyBugRecoveryAndCompTests(_MoneyBugBase):
         )
 
 
+class CourtesyPassToggleOrderTests(_MoneyBugBase):
+    """Fase 7.1 (P2): ``is_comp`` se persiste antes de ``mutate_membership``.
+
+    ``_item_price`` y ``subscription_remaining_balance`` leen ``member.is_comp``,
+    así que con el orden anterior (persistir el flag después del dominio) el
+    período se escribía con el valor viejo. El bug sólo se vinha manifesting
+    **sin suscripción vigente**: con una vigente el dominio reescribe los
+    precios a mano y lo tapa.
+
+    Los tres casos van por el endpoint de staff, que es donde vive el toggle, y
+    ninguno asserta sobre ``paid``: el flag es derivado y es justo lo que queda
+    viejo.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.staff = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.staff)
+        self.paid_plan = self.create_plan(self.gym)
+        self.pt_price = Decimal("22000.00")
+        self.pt_service = PersonalTrainingService.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="PT 1 a 1",
+            monthly_price=self.pt_price,
+            billing_mode="monthly",
+        )
+        self.trainer = self.create_user(self.gym, username="trainer")
+
+    def _member_with_monthly_pt(self, is_comp=False):
+        """Socio con PT mensual activa y **sin** suscripción vigente."""
+        member = self.create_member(self.gym)
+        PersonalTrainingAssignment.objects.create(
+            gym=self.gym,
+            member=member,
+            trainer=self.trainer,
+            service=self.pt_service,
+            day="monday",
+            start_time=_time(10, 0),
+            end_time=_time(11, 0),
+            modality="monthly",
+            active=True,
+        )
+        if is_comp:
+            member.is_comp = True
+            member.save(update_fields=["is_comp"])
+        return member
+
+    def _toggle(self, member, **payload):
+        return self.client.patch(
+            f"/api/members/{member.id}/",
+            payload,
+            format="json",
+        )
+
+    def _snapshot(self, member, item_type):
+        sub = SubscriptionDomain.get_current_subscription(member)
+        return sub.items.get(item_type=item_type, status="active").price_snapshot
+
+    def test_granting_comp_writes_zero_items_without_current_subscription(self):
+        member = self._member_with_monthly_pt()
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertTrue(member.is_comp)
+
+        sub = SubscriptionDomain.get_current_subscription(member)
+        self.assertIsNotNone(sub)
+        self.assertEqual(self._snapshot(member, "plan"), Decimal("0"))
+        self.assertEqual(self._snapshot(member, "personal_training"), Decimal("0"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("0"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+    def test_removing_comp_writes_real_prices_without_current_subscription(self):
+        member = self._member_with_monthly_pt(is_comp=True)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.paid_plan.id)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertFalse(member.is_comp)
+
+        sub = SubscriptionDomain.get_current_subscription(member)
+        self.assertEqual(sub.plan, self.paid_plan)
+        self.assertEqual(self._snapshot(member, "plan"), self.paid_plan.price)
+        self.assertEqual(
+            self._snapshot(member, "personal_training"), self.pt_price
+        )
+
+        expected = self.paid_plan.price + self.pt_price
+        self.assertEqual(calculate_subscription_total(sub), expected)
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], expected
+        )
+
+    def test_failed_comp_off_does_not_persist_flag(self):
+        """Sin plan elegido el dominio revienta: el flag tampoco se persiste."""
+        member = self._member_with_monthly_pt(is_comp=True)
+
+        resp = self._toggle(member, is_comp=False)
+
+        self.assertEqual(resp.status_code, 400)
+        member.refresh_from_db()
+        self.assertTrue(member.is_comp)
+        self.assertFalse(Subscription.objects.filter(member=member).exists())
+
+
 class MoneyBugPTPackageFeeTests(_MoneyBugBase):
     """Fase 7 (#2, P1): el PT por paquete no genera cuota mensual.
 

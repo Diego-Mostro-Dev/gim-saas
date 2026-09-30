@@ -1,5 +1,6 @@
 import unicodedata
 
+from django.db import transaction
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -567,28 +568,35 @@ class MemberSerializer(serializers.ModelSerializer):
         validated_data.pop("plan_id", None)
 
         is_comp = validated_data.pop("is_comp", None)
+        was_comp = instance.is_comp
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.save()
 
-        if is_comp is not None and is_comp != instance.is_comp:
+        if is_comp is not None and is_comp != was_comp:
             # ── Pase de cortesía: transición de membresía ─────────────
-            if is_comp:
-                SubscriptionDomain.mutate_membership(
-                    member=instance,
-                    comp=True,
-                )
-            else:
-                plan = self._resolve_plan_for_comp_off(instance)
-                SubscriptionDomain.mutate_membership(
-                    member=instance,
-                    comp=False,
-                    plan=plan,
-                )
-            instance.is_comp = is_comp
-            instance.save(update_fields=["is_comp"])
+            # El flag se persiste ANTES de mutate_membership (Fase 7.1, P2):
+            # _item_price y subscription_remaining_balance leen member.is_comp,
+            # así que guardarlo después hace que el período se escriba con el
+            # valor anterior (fantasma de #48). Con suscripción vigente el
+            # dominio reescribe los precios a mano y el bug queda oculto.
+            with transaction.atomic():
+                instance.is_comp = is_comp
+                instance.save(update_fields=["is_comp"])
+                if is_comp:
+                    SubscriptionDomain.mutate_membership(
+                        member=instance,
+                        comp=True,
+                    )
+                else:
+                    plan = self._resolve_plan_for_comp_off(instance)
+                    SubscriptionDomain.mutate_membership(
+                        member=instance,
+                        comp=False,
+                        plan=plan,
+                    )
 
         if "schedules" in self.initial_data:
             schedules = self._parse_schedules()
