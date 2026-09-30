@@ -16,7 +16,7 @@ Test runner: Django (`manage.py test`). No hay pytest.
 ## CÓMO RETOMAR ESTE TRABAJO
 
 Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 en curso: 7.0, 7.2 y
-7.1a-c hechas (2026-09-29); 7.1d, 7.3 y 7.4 pendientes.** Los tests focalizados corren contra SQLite con:
+7.1a-d hechas (2026-09-29); 7.3 y 7.4 pendientes.** Los tests focalizados corren contra SQLite con:
 
 ```
 DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python manage.py test subscriptions
@@ -83,7 +83,7 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 | 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:240-263` | los ítems de actividad/outing/PT se restauran prorrateados en **un solo loop** con `_item_contract_price` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:268-290` | los 3 tipos de paquete, ida y vuelta | ⬜ sin empezar |
+| 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:388-481` | los 3 tipos de paquete, ida y vuelta | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ⬜ sin empezar |
 | 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ⬜ sin empezar |
 | 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación, **por los dos caminos** (caída del total y pago mayor al total) | ⬜ sin empezar |
@@ -1286,7 +1286,16 @@ staging `785, 820` / producción `820` · P2-P3 cerrados `827` en ambos.
 4. **P7** — `domain.py:268-290`: extender `_neutralize_comp_package_balances` a
    `PersonalTrainingAssignment` y `OutingEnrollment`, no sólo a `Enrollment`. Escribir su
    gemela de restauración: hoy el `session_price = 0` no tiene vuelta atrás, así que el bug
-   tiene dos puntas.
+   tiene dos puntas. **Decisión del usuario (2026-09-29) — sin migración**: los tres tipos
+   comparten el mismo par de campos, así que la neutralización y su gemela usan un queryset e
+   iteración comunes. Restaurar `amount_paid` es **recalcularlo** desde los `Payment` de sesión
+   (`sync_enrollment_paid` / `sync_assignment_paid` / `sync_outing_paid`, `payments/services.py:
+   59-88` — su fuente canónica, mejor que un snapshot porque respeta pagos hechos bajo comp), y
+   `session_price` se **refresca desde `member.insurance.session_price`**, igual que
+   `renew_package`; sin obra social queda `0` ("sin cargo", convención del backfill). La
+   restauración corre en las dos ramas `comp=False` (con y sin suscripción vigente). Edge
+   documentado: un coseguro escrito a mano distinto de la obra social (o socio sin obra social)
+   se restaura al de la obra social, no al original; impacto real $0 hoy.
 
 **Criterio de aceptación**:
 - Toggle × 2 sentidos × {con suscripción vigente / sin ella} × {con PT / sin PT} = 8 casos,

@@ -19,8 +19,10 @@ from django.db import connections
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
-from activities.models import Activity
+from activities.models import Activity, ActivitySchedule, Enrollment
 from core.testing import BaseAPITest
+from members.models import HealthInsurance
+from outings.models import Outing, OutingEnrollment, OutingSchedule
 from payments.models import Payment
 from personal_training.models import (
     PersonalTrainingAssignment,
@@ -742,6 +744,217 @@ class CourtesyPassProrationTests(_MoneyBugBase):
         self.assertEqual(
             subscription_remaining_balance(sub)["remaining"], Decimal("0")
         )
+
+
+class CourtesyPassPackageBalancesTests(_MoneyBugBase):
+    """Fase 7.1 (P7): los paquetes de sesiones del toggle ida y vuelta.
+
+    Al dar el pase, los paquetes activos de los tres tipos (actividad, PT y
+    salida) se neutralizan: ``session_price`` y ``amount_paid`` pasan a 0.
+    Al quitarlo, ``amount_paid`` se recalcula de los pagos de sesión
+    (su fuente canónica) y ``session_price`` se refresca desde la obra
+    social del socio.
+    """
+
+    PERIOD_START = date(2026, 9, 1)
+    PERIOD_END = date(2026, 9, 30)
+    TRANSITION_DAY = date(2026, 9, 20)
+    COPAY = Decimal("2500.00")
+    AMOUNT_PAID = Decimal("6000.00")
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.staff = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.staff)
+        self.plan = self.create_plan(self.gym)
+        self.insurance = HealthInsurance.objects.create(
+            gym=self.gym,
+            name="IAPOS",
+            session_price=self.COPAY,
+            sellado_amount=Decimal("0"),
+        )
+        self.payment_fk = {
+            "activity": "enrollment",
+            "pt": "personal_training_assignment",
+            "outing": "outing_enrollment",
+        }
+        self.payment_concept = {
+            "activity": "coseguro",
+            "pt": "personal_training",
+            "outing": "outing",
+        }
+
+    def _activity_package(self, member):
+        activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Kinesio",
+            billing_mode="sessions",
+        )
+        schedule = ActivitySchedule.objects.create(
+            activity=activity,
+            day="monday",
+            start_time=_time(9, 0),
+            end_time=_time(10, 0),
+            capacity=10,
+        )
+        return Enrollment.objects.create(
+            gym=self.gym,
+            member=member,
+            schedule=schedule,
+            modality="package",
+            package_total_sessions=10,
+            session_price=self.COPAY,
+            amount_paid=self.AMOUNT_PAID,
+        )
+
+    def _pt_package(self, member):
+        service = PersonalTrainingService.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="PT paquete",
+            monthly_price=Decimal("0"),
+            billing_mode="sessions",
+        )
+        trainer = self.create_user(self.gym, username="pt-trainer")
+        return PersonalTrainingAssignment.objects.create(
+            gym=self.gym,
+            member=member,
+            trainer=trainer,
+            service=service,
+            day="monday",
+            start_time=_time(10, 0),
+            end_time=_time(11, 0),
+            modality="package",
+            package_total_sessions=10,
+            session_price=self.COPAY,
+            amount_paid=self.AMOUNT_PAID,
+        )
+
+    def _outing_package(self, member):
+        outing = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Trail",
+        )
+        schedule = OutingSchedule.objects.create(
+            outing=outing,
+            day="monday",
+            start_time=_time(9, 0),
+            end_time=_time(10, 0),
+            capacity=10,
+        )
+        return OutingEnrollment.objects.create(
+            gym=self.gym,
+            member=member,
+            schedule=schedule,
+            modality="package",
+            package_total_sessions=10,
+            session_price=self.COPAY,
+            amount_paid=self.AMOUNT_PAID,
+        )
+
+    def _member_with_package(self, kind, with_subscription):
+        member = self.create_member(self.gym)
+        member.insurance = self.insurance
+        member.save(update_fields=["insurance"])
+        package = {
+            "activity": self._activity_package,
+            "pt": self._pt_package,
+            "outing": self._outing_package,
+        }[kind](member)
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            amount=self.AMOUNT_PAID,
+            concept=self.payment_concept[kind],
+            **{self.payment_fk[kind]: package},
+        )
+        if with_subscription:
+            self.open_month_subscription(
+                member,
+                self.plan,
+                start_date=self.PERIOD_START,
+                end_date=self.PERIOD_END,
+                paid=False,
+                auto_renew=True,
+            )
+        return member, package
+
+    def _toggle(self, member, **payload):
+        with mock.patch(
+            "django.utils.timezone.localdate",
+            return_value=self.TRANSITION_DAY,
+        ):
+            return self.client.patch(
+                f"/api/members/{member.id}/",
+                payload,
+                format="json",
+            )
+
+    def _assert_neutralized(self, package):
+        package.refresh_from_db()
+        self.assertEqual(package.session_price, Decimal("0"))
+        self.assertEqual(package.amount_paid, Decimal("0"))
+
+    def _assert_restored(self, package):
+        package.refresh_from_db()
+        self.assertEqual(package.session_price, self.COPAY)
+        self.assertEqual(package.amount_paid, self.AMOUNT_PAID)
+
+    def test_package_balances_round_trip_activity(self):
+        member, enrollment = self._member_with_package("activity", with_subscription=True)
+
+        resp = self._toggle(member, is_comp=True)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_neutralized(enrollment)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_restored(enrollment)
+
+    def test_package_balances_round_trip_pt(self):
+        member, assignment = self._member_with_package("pt", with_subscription=True)
+
+        resp = self._toggle(member, is_comp=True)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_neutralized(assignment)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_restored(assignment)
+
+    def test_package_balances_round_trip_outing(self):
+        member, enrollment = self._member_with_package("outing", with_subscription=True)
+
+        resp = self._toggle(member, is_comp=True)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_neutralized(enrollment)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_restored(enrollment)
+
+    def test_granting_comp_without_subscription_neutralizes_packages(self):
+        member, enrollment = self._member_with_package("activity", with_subscription=False)
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        self._assert_neutralized(enrollment)
+
+    def test_removing_comp_without_subscription_restores_packages(self):
+        member, enrollment = self._member_with_package("activity", with_subscription=False)
+        Enrollment.objects.filter(pk=enrollment.pk).update(
+            session_price=Decimal("0"), amount_paid=Decimal("0")
+        )
+        member.is_comp = True
+        member.save(update_fields=["is_comp"])
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+
+        self.assertEqual(resp.status_code, 200)
+        self._assert_restored(enrollment)
 
 
 class MoneyBugPTPackageFeeTests(_MoneyBugBase):

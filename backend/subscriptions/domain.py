@@ -252,6 +252,11 @@ class SubscriptionDomain:
                         )
                         item.save(update_fields=["price_snapshot"])
 
+                    # Restore package co-pay balances that were zeroed while
+                    # comp was active: session_price back from the insurance,
+                    # amount_paid recomputed from the session payments.
+                    SubscriptionDomain._restore_comp_package_balances(member)
+
                 # ``paid`` is derived from the balance, never written here:
                 # it has to run after the items are rewritten, because
                 # calculate_subscription_total reads them back from the DB.
@@ -285,6 +290,8 @@ class SubscriptionDomain:
 
             if comp:
                 SubscriptionDomain._neutralize_comp_package_balances(member)
+            else:
+                SubscriptionDomain._restore_comp_package_balances(member)
 
             return opened
 
@@ -377,22 +384,94 @@ class SubscriptionDomain:
         """Zero pending package co-pay balances for a courtesy-pass member.
 
         Courtesy members are never billed, so any active package enrollment
-        that still carries a session price or an accumulated payment is reset.
+        that still carries a session price or an accumulated payment is reset
+        across the three package kinds: activity enrollments, PT assignments
+        and outing enrollments.
         """
         from activities.models import Enrollment
+        from outings.models import OutingEnrollment
+        from personal_training.models import PersonalTrainingAssignment
 
-        for enrollment in Enrollment.objects.filter(
-            member=member, active=True
-        ).exclude(modality="monthly", session_price=None):
+        for model in (Enrollment, PersonalTrainingAssignment, OutingEnrollment):
+            SubscriptionDomain._neutralize_package_fields(
+                SubscriptionDomain._package_queryset(model, member)
+            )
+
+    @staticmethod
+    def _package_queryset(model, member):
+        """Active package records of ``member`` that carry a session price."""
+        return model.objects.filter(member=member, active=True).exclude(
+            modality="monthly", session_price=None
+        )
+
+    @staticmethod
+    def _neutralize_package_fields(packages):
+        """Write session_price and amount_paid to 0 on package records.
+
+        Shared by the three package kinds. Only saves records that actually
+        changed, so untouched packages aren't rewritten.
+        """
+        for package in packages:
             update_fields = []
-            if enrollment.session_price is not None and enrollment.session_price != 0:
-                enrollment.session_price = Decimal("0")
+            if package.session_price is not None and package.session_price != 0:
+                package.session_price = Decimal("0")
                 update_fields.append("session_price")
-            if enrollment.amount_paid is not None and enrollment.amount_paid != 0:
-                enrollment.amount_paid = Decimal("0")
+            if package.amount_paid is not None and package.amount_paid != 0:
+                package.amount_paid = Decimal("0")
                 update_fields.append("amount_paid")
             if update_fields:
-                enrollment.save(update_fields=update_fields)
+                package.save(update_fields=update_fields)
+
+    @staticmethod
+    def _restore_comp_package_balances(member):
+        """Bring package co-pay balances back when a member leaves the courtesy pass.
+
+        The twin of ``_neutralize_comp_package_balances``. ``amount_paid`` is
+        recomputed from the session payments (its canonical source), and
+        ``session_price`` is refreshed from the member's current insurance the
+        same way ``renew_package`` does; with no insurance the co-pay is 0
+        ("sin cargo"), matching the backfill convention.
+
+        Edge to be aware of (documented in the plan): a co-pay that was set by
+        staff to a value different from ``insurance.session_price`` (or a
+        member with no insurance) is restored to the insurance rate, not to
+        the hand-written original. The Fase 7 real-money impact is $0.
+        """
+        from activities.models import Enrollment
+        from outings.models import OutingEnrollment
+        from personal_training.models import PersonalTrainingAssignment
+
+        session_price = Decimal("0")
+        insurance = getattr(member, "insurance", None)
+        if insurance is not None:
+            session_price = insurance.session_price or Decimal("0")
+
+        from payments.services import (
+            sync_assignment_paid,
+            sync_enrollment_paid,
+            sync_outing_paid,
+        )
+
+        for enrollment in SubscriptionDomain._package_queryset(
+            Enrollment, member
+        ):
+            enrollment.session_price = session_price
+            enrollment.save(update_fields=["session_price"])
+            sync_enrollment_paid(enrollment)
+
+        for assignment in SubscriptionDomain._package_queryset(
+            PersonalTrainingAssignment, member
+        ):
+            assignment.session_price = session_price
+            assignment.save(update_fields=["session_price"])
+            sync_assignment_paid(assignment)
+
+        for enrollment in SubscriptionDomain._package_queryset(
+            OutingEnrollment, member
+        ):
+            enrollment.session_price = session_price
+            enrollment.save(update_fields=["session_price"])
+            sync_outing_paid(enrollment)
 
     @staticmethod
     def get_active_subscription(member):
