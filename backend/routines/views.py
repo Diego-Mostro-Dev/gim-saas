@@ -561,7 +561,11 @@ class PublicRoutineView(APIView):
                     }
                     for item in activity_items
                 ],
-                "discount_percent": member_discount_percent(sub.member),
+                # Fase 7 (P5): el descuento con el que se emitió el período.
+                "discount_percent": member_discount_percent(
+                    sub.member,
+                    snapshot=sub.discount_percent_snapshot,
+                ),
                 "original_total": str(subscription_original_total(sub)),
                 "total": str(total),
             }

@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Min, Sum
+from django.db.models import Min, Q, Sum
 from django.utils import timezone
 
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
@@ -271,10 +271,14 @@ def calculate_subscription_total(subscription, apply_discount=True):
     and must stay identical to what the member portal displays (see
     SubscriptionSerializer.get_total).
 
-    When the member has an active gym-assigned discount, the discount is
-    applied to the total (rounding half-up to cents). The original price is
-    kept in the price snapshots, so passing ``apply_discount=False`` yields
-    the undiscounted contract total for display.
+    When the member has a discount, the discount is applied to the total
+    (rounding half-up to cents). Fase 7 (P5): the percent comes from
+    ``discount_percent_snapshot``, the one frozen when the period was
+    issued, so deactivating the discount later never re-bills a period the
+    member already paid. ``None`` falls back to the live discount (legacy
+    rows). The original price is kept in the price snapshots, so passing
+    ``apply_discount=False`` yields the undiscounted contract total for
+    display.
 
     Defensive fallback: a subscription created before the SubscriptionItem
     backfill may lack a plan item; only then is the current plan price used
@@ -296,16 +300,31 @@ def calculate_subscription_total(subscription, apply_discount=True):
     if not apply_discount:
         return total
 
-    return discounted_amount(total, member_discount_percent(subscription.member))
+    return discounted_amount(
+        total,
+        member_discount_percent(
+            subscription.member,
+            snapshot=subscription.discount_percent_snapshot,
+        ),
+    )
 
 
-def member_discount_percent(member):
-    """Return the active discount percent for a member, or 0.
+def member_discount_percent(member, snapshot=None):
+    """Return the discount percent to bill, or 0.
+
+    Fase 7 (P5): a period is billed with the discount it was issued with.
+    ``snapshot`` is the value frozen when the subscription was opened; it
+    wins over the live one, so deactivating a discount never alters a period
+    that was already billed. ``None`` (legacy rows, and new periods) falls
+    back to the live discount.
 
     A member with no assigned discount (or whose discount is inactive) has
     no discount. Pase de cortesía members are not affected here: their
     price snapshots are zeroed, so their total is already 0.
     """
+    if snapshot is not None:
+        return snapshot
+
     discount = getattr(member, "discount", None)
     if discount is None or not discount.active:
         return 0
@@ -333,6 +352,215 @@ def subscription_original_total(subscription):
     return calculate_subscription_total(subscription, apply_discount=False)
 
 
+def credit_realized_for(subscription):
+    """Credit already applied to this subscription, as a positive Decimal.
+
+    Fase 7 (P4): a credit row carries a negative ``amount`` and sits on the
+    subscription that received the money (``subscription``). Its absolute
+    value is how much of this period was already paid with the member's
+    credit balance, so it subtracts from the pending amount.
+
+    Only **consumed** credits count (``applied_to`` set). An open credit is
+    parked on the period that generated it and is not money spent on that
+    period yet: counting it twice would inflate that period's overpayment
+    instead of leaving it as the historical entry it is.
+    """
+    from payments.models import Payment
+
+    total = (
+        Payment.objects.filter(
+            subscription=subscription,
+            concept="credit",
+            applied_to__isnull=False,
+        )
+        .aggregate(credit=Sum("amount"))["credit"]
+        or Decimal("0")
+    )
+    return -total
+
+
+def credit_recorded_for(subscription):
+    """Total credit already accounted to a subscription, as a positive Decimal.
+
+    Fase 7 (P4): a credit counts for a period on both ends of its journey.
+    The row parked on the period that generated it (``subscription``) is the
+    historical record of the overpayment, and the same row once consumed
+    points at that period through ``applied_to``. Summing both sides is what
+    makes the creation of credits idempotent: a period that already has its
+    overpayment credited never gets credited twice, no matter how many times
+    ``sync`` runs or how the credit was later split.
+    """
+    from payments.models import Payment
+
+    total = (
+        Payment.objects.filter(concept="credit")
+        .filter(
+            Q(subscription=subscription) | Q(applied_to=subscription)
+        )
+        .aggregate(credit=Sum("amount"))["credit"]
+        or Decimal("0")
+    )
+    return -total
+
+
+def member_credit_balance(member):
+    """Open credit balance owed to a member, as a positive Decimal.
+
+    Fase 7 (P4): a credit row is **open** while ``applied_to`` is null: the
+    gym owes the member that money and no period has taken it yet. Once a
+    renewal consumes it, the row points at the period that did
+    (``applied_to``) and stops counting.
+
+    Read-only by design: consumption is the only writer, and it happens
+    inside the renewal's transaction.
+    """
+    from payments.models import Payment
+
+    total = (
+        Payment.objects.filter(
+            member=member,
+            concept="credit",
+            applied_to__isnull=True,
+        ).aggregate(credit=Sum("amount"))["credit"]
+        or Decimal("0")
+    )
+    return -total
+
+
+def ensure_overpayment_credit(subscription):
+    """Turn a subscription's overpayment into member credit. Fase 7 (P4).
+
+    The gym had collected more than the period was worth, so the difference
+    is owed to the member as credit instead of being silently dropped. This
+    is the single creation point: it runs from ``sync_subscription_paid``,
+    which every reprice and every payment write already funnels through, so
+    it covers both an overpayment born from a repriced total and one born at
+    the payment entry.
+
+    Idempotent: the balance is recomputed with the credit row included, so a
+    second call finds no overpayment and writes nothing.
+
+    Returns:
+        The created Payment, or None when there was nothing to credit.
+    """
+    from payments.models import Payment
+
+    balance = subscription_remaining_balance(subscription)
+    overpayment = balance["overpayment"]
+    if overpayment <= 0:
+        return None
+
+    # Idempotency: the balance only sees the credit already spent on this
+    # period, so a still-open credit would let every later sync mint a new
+    # one. Compare against everything this period has been credited.
+    already = credit_recorded_for(subscription)
+    if already >= overpayment:
+        return None
+
+    # A courtesy member's overpayment is credit too: that is precisely the
+    # money they keep from the month the pass was granted.
+    return Payment.objects.create(
+        gym=subscription.gym,
+        subscription=subscription,
+        member=subscription.member,
+        concept="credit",
+        amount=-overpayment,
+        member_name=(
+            f"{subscription.member.first_name} "
+            f"{subscription.member.last_name}"
+        ),
+        plan_name="Saldo a favor",
+        notes=(
+            f"Saldo a favor por sobrepago (total ${balance['total']:.2f}, "
+            f"cobrado ${balance['paid_amount']:.2f})."
+        ),
+    )
+
+
+def consume_member_credit(member, subscription):
+    """Apply the member's open credit to a newly opened period. Fase 7 (P4).
+
+    Runs inside the renewal's transaction. Open credits are taken oldest
+    first and capped by the new period's total, so a credit can never cover
+    more than what the period is worth (the remainder stays open for the
+    period after).
+
+    Each consumed amount becomes (or stays) a credit row whose
+    ``subscription`` is the new period, which is what makes that period's
+    balance drop on its own; the period that generated the money stays
+    recorded in ``applied_to``. A fully consumed credit moves whole rather
+    than leaving a copy behind, so no cent is ever counted twice.
+
+    Returns:
+        The Decimal actually consumed (0 when there was nothing to use).
+    """
+    from payments.models import Payment
+
+    if member.is_comp:
+        # A courtesy member never pays, so there is nothing to credit against.
+        return Decimal("0")
+
+    remaining_to_cover = calculate_subscription_total(subscription)
+    if remaining_to_cover <= 0:
+        return Decimal("0")
+
+    consumed = Decimal("0")
+    open_credits = Payment.objects.filter(
+        member=member,
+        concept="credit",
+        applied_to__isnull=True,
+    ).order_by("paid_at", "id")
+
+    for credit in open_credits:
+        if remaining_to_cover <= 0:
+            break
+
+        available = -credit.amount
+        to_consume = min(available, remaining_to_cover)
+        leftover = available - to_consume
+        origin = credit.subscription
+
+        if leftover > 0:
+            # Partial use: the leftover stays open on its origin and this
+            # slice moves, so no cent is counted as available twice.
+            credit.amount = -leftover
+            credit.save(update_fields=["amount"])
+            credit = Payment.objects.create(
+                gym=subscription.gym,
+                subscription=subscription,
+                applied_to=origin,
+                member=member,
+                concept="credit",
+                amount=-to_consume,
+                member_name=credit.member_name,
+                plan_name="Saldo a favor aplicado",
+                notes=(
+                    f"Saldo a favor aplicado al período "
+                    f"{subscription.start_date} → {subscription.end_date}."
+                ),
+            )
+        else:
+            # Full use: the credit moves whole onto the new period and keeps
+            # its origin in applied_to, so the period that generated it
+            # stays credited and never looks like unaccounted overpayment.
+            credit.subscription = subscription
+            credit.applied_to = origin
+            credit.plan_name = "Saldo a favor aplicado"
+            credit.save(
+                update_fields=["subscription", "applied_to", "plan_name"]
+            )
+
+        consumed += to_consume
+        remaining_to_cover -= to_consume
+
+    if consumed > 0:
+        # El credit rows no pasan por el serializer de pagos, así que el flag
+        # denormalizado queda desfasado: se re-sincroniza con el saldo real.
+        sync_subscription_paid(subscription)
+
+    return consumed
+
+
 def sync_subscription_paid(subscription):
     """Reconcile the denormalized ``paid`` flag with the real balance.
 
@@ -358,6 +586,12 @@ def sync_subscription_paid(subscription):
         subscription.paid = should_be_paid
         subscription.save(update_fields=["paid"])
 
+    # Fase 7 (P4): este es el punto natural de creación del saldo a favor.
+    # ``sync`` ya centraliza "el total cambió" (reprecio de ítems, toggle de
+    # cortesía, alta de un pago), así que acá nacen los dos tipos de
+    # sobrepago: el que viene de una baja de total y el del asiento del pago.
+    ensure_overpayment_credit(subscription)
+
     return subscription
 
 
@@ -369,13 +603,17 @@ def subscription_remaining_balance(subscription, paid_amount=None):
     - total: the full amount to pay for the period, computed through
       calculate_subscription_total, which remains the source of truth
       for billing amounts.
-    - paid_amount: the sum of every Payment linked to the subscription.
-    - remaining: total minus paid_amount, clamped at zero.
+    - paid_amount: the sum of every Payment linked to the subscription,
+      excluding credit rows (Fase 7 P4: a credit is money owed back, not
+      money collected).
+    - remaining: total minus paid_amount minus the credit already realized
+      on this period, clamped at zero.
 
     Args:
         subscription: The Subscription instance.
         paid_amount: Optional precomputed paid total. When provided it is
-            used as-is to avoid an extra query in bulk contexts.
+            used as-is to avoid an extra query in bulk contexts. It must
+            already exclude credit rows.
 
     Returns:
         A dict with "total", "paid_amount" and "remaining" Decimals.
@@ -385,14 +623,21 @@ def subscription_remaining_balance(subscription, paid_amount=None):
     total = calculate_subscription_total(subscription)
 
     if paid_amount is None:
+        # Fase 7 (P4): los créditos a favor son saldo, no cobrado. Excluidos
+        # acá para que un período que ya recibió un crédito no se cuente dos
+        # veces: el crédito se resta aparte, vía credit_realized_for().
         paid_amount = (
-            Payment.objects.filter(subscription=subscription).aggregate(
-                paid=Sum("amount")
-            )["paid"]
+            Payment.objects.filter(subscription=subscription)
+            .exclude(concept="credit")
+            .aggregate(paid=Sum("amount"))["paid"]
             or Decimal("0")
         )
 
-    remaining = total - paid_amount
+    # Fase 7 (P4): un crédito consumido en ESTE período ya está cobrado de
+    # hecho. Se descuenta del saldo para que el período quede en 0 solo.
+    credit_realized = credit_realized_for(subscription)
+
+    remaining = total - paid_amount - credit_realized
     overpayment = Decimal("0")
     if remaining < 0:
         overpayment = -remaining
@@ -402,11 +647,16 @@ def subscription_remaining_balance(subscription, paid_amount=None):
         # Pase de cortesía: nunca genera saldo pendiente, sin importar el
         # historial de items o pagos. Es la garantía de que un socio comp
         # no figure en deudas, pendientes ni recuperables.
+        #
+        # Fase 7 (P4): paid_amount y overpayment ya NO se fuerzan. Antes
+        # respondían "pagó $0" sobre una suscripción con un pago de $52.000
+        # y el sobrepago quedaba invisible. Ahora el pago real se ve y el
+        # excedente queda disponible como saldo a favor; remaining sigue 0.
         return {
             "total": total,
-            "paid_amount": total,
+            "paid_amount": paid_amount,
             "remaining": Decimal("0"),
-            "overpayment": Decimal("0"),
+            "overpayment": overpayment,
         }
 
     return {
@@ -713,11 +963,14 @@ def member_total_outstanding_debt(member):
         .order_by("start_date", "created_at")
     )
 
+    # Fase 7 (P4): los créditos a favor no son cobrado (los cuenta
+    # credit_realized_for por separado), así que quedan fuera del agregado.
     paid_by_subscription = {
         row["subscription"]: row["paid"]
-        for row in Payment.objects.filter(
-            subscription__in=outstanding_subs
-        ).values("subscription").annotate(paid=Sum("amount"))
+        for row in Payment.objects.filter(subscription__in=outstanding_subs)
+        .exclude(concept="credit")
+        .values("subscription")
+        .annotate(paid=Sum("amount"))
     }
 
     subscriptions = []
@@ -793,11 +1046,13 @@ def gym_outstanding_subscriptions(gym):
         .order_by("start_date", "created_at")
     )
 
+    # Fase 7 (P4): los créditos a favor no son cobrado.
     paid_by_subscription = {
         row["subscription"]: row["paid"]
-        for row in Payment.objects.filter(
-            subscription__in=subscriptions
-        ).values("subscription").annotate(paid=Sum("amount"))
+        for row in Payment.objects.filter(subscription__in=subscriptions)
+        .exclude(concept="credit")
+        .values("subscription")
+        .annotate(paid=Sum("amount"))
     }
 
     earliest_first_created = dict(
@@ -981,6 +1236,11 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
         _copy_personal_training_items(expired_sub, new_sub)
         _copy_outing_items(expired_sub, new_sub)
 
+        # Fase 7 (P4): el saldo a favor no se queda en el mes que lo originó.
+        # Se aplica al período nuevo, topeado por su total, dentro de la
+        # misma transacción que lo emitió.
+        consume_member_credit(expired_sub.member, new_sub)
+
         if approved_pcr is not None:
             apply_plan_change(approved_pcr)
 
@@ -1089,17 +1349,18 @@ def recover_member(member):
     return new_sub
 
 
-def _precomputed_remaining(subscription, paid_amount):
+def _precomputed_remaining(subscription, paid_amount, credit_realized=Decimal("0")):
     """Remaining balance of a subscription using precomputed data.
 
     Mirrors ``subscription_remaining_balance`` without issuing any query:
-    the items are prefetched and the paid total is passed in. Pase de
-    cortesía members always have zero remaining.
+    the items are prefetched, and both the paid total (excluding credit
+    rows, Fase 7 P4) and the credit already realized on the period are
+    passed in. Pase de cortesía members always have zero remaining.
     """
     total = calculate_subscription_total(subscription)
     if subscription.member.is_comp:
         return Decimal("0")
-    remaining = total - paid_amount
+    remaining = total - paid_amount - credit_realized
     return remaining if remaining > 0 else Decimal("0")
 
 
@@ -1166,12 +1427,24 @@ def _collect_renewal_candidates(queryset):
 
     base_plan_ids = base_plan_ids_for_gyms(gym_ids)
 
+    # Fase 7 (P4): los créditos a favor no son cobrado; van por separado para
+    # descontarlos del período que los consumió, como hace
+    # subscription_remaining_balance.
     paid_by_sub = dict(
         Payment.objects.filter(subscription_id__in=sub_ids)
+        .exclude(concept="credit")
         .values("subscription_id")
         .annotate(paid=Sum("amount"))
         .values_list("subscription_id", "paid")
     )
+    credit_by_sub = {
+        row["subscription_id"]: -row["credit"]
+        for row in Payment.objects.filter(
+            subscription_id__in=sub_ids, concept="credit"
+        )
+        .values("subscription_id")
+        .annotate(credit=Sum("amount"))
+    }
 
     earliest_by_member = dict(
         Subscription.objects.filter(member_id__in=member_ids)
@@ -1182,7 +1455,9 @@ def _collect_renewal_candidates(queryset):
 
     def payment_blocked(sub):
         remaining = _precomputed_remaining(
-            sub, paid_by_sub.get(sub.pk, Decimal("0"))
+            sub,
+            paid_by_sub.get(sub.pk, Decimal("0")),
+            credit_by_sub.get(sub.pk, Decimal("0")),
         )
         return (
             get_subscription_payment_status(

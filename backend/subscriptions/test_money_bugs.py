@@ -21,6 +21,7 @@ from django.utils import timezone
 
 from activities.models import Activity, ActivitySchedule, Enrollment
 from core.testing import BaseAPITest
+from gyms.models import Discount
 from members.models import HealthInsurance
 from outings.models import Outing, OutingEnrollment, OutingSchedule
 from payments.models import Payment
@@ -43,9 +44,11 @@ from subscriptions.services import (
     calculate_subscription_total,
     create_next_subscription,
     get_last_day_of_month,
+    member_credit_balance,
     recover_member,
     run_scheduled_tasks,
     subscription_remaining_balance,
+    sync_subscription_paid,
 )
 
 
@@ -1186,6 +1189,389 @@ class MoneyBugPTPackageFeeTests(_MoneyBugBase):
             price_snapshot=Decimal(price),
             start_date=subscription.start_date,
             end_date=subscription.end_date,
+        )
+
+
+class CourtesyCreditFrozenDiscountTests(_MoneyBugBase):
+    """Fase 7.3 (P5): el descuento se congela por período.
+
+    El bug de fondo: ``calculate_subscription_total`` leía ``Discount.active``
+    en vivo, así que desactivar el descuento re-cobraba un mes ya pagado. Con
+    el snapshot, cada período se factura con el porcentaje con el que se
+    emitió. Los períodos ya abiertos antes de la 7.3 no tienen snapshot y
+    siguen con el valor vivo (filas legacy).
+    """
+
+    PERIOD_START = date(2026, 9, 1)
+    PERIOD_END = date(2026, 9, 30)
+    PLAN_PRICE = Decimal("50000.00")
+    DISCOUNT = 20
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.staff = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.staff)
+        self.plan = self.create_plan(self.gym, price=self.PLAN_PRICE)
+        self.discount = Discount.objects.create(
+            gym=self.gym,
+            name="Estudiante",
+            discount_percent=self.DISCOUNT,
+        )
+
+    def _member_with_discount(self):
+        member = self.create_member(self.gym)
+        member.discount = self.discount
+        member.save(update_fields=["discount"])
+        return member
+
+    def _open_september(self, member):
+        return self.open_month_subscription(
+            member,
+            self.plan,
+            start_date=self.PERIOD_START,
+            end_date=self.PERIOD_END,
+            paid=False,
+            auto_renew=True,
+        )
+
+    def test_open_subscription_freezes_the_discount(self):
+        member = self._member_with_discount()
+
+        sub = self._open_september(member)
+
+        self.assertEqual(sub.discount_percent_snapshot, self.DISCOUNT)
+        # $50.000 con 20% off.
+        self.assertEqual(calculate_subscription_total(sub), Decimal("40000.00"))
+
+    def test_deactivating_discount_does_not_rebill_a_paid_period(self):
+        member = self._member_with_discount()
+        sub = self._open_september(member)
+        self.settle_subscription(sub)
+
+        self.discount.active = False
+        self.discount.save(update_fields=["active"])
+
+        sub.refresh_from_db()
+        # El bug: acá el total volvía a $50.000 y el socio debía de nuevo un
+        # mes que ya había pagado.
+        self.assertEqual(calculate_subscription_total(sub), Decimal("40000.00"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+    def test_period_opened_after_deactivation_has_no_discount(self):
+        member = self._member_with_discount()
+
+        self.discount.active = False
+        self.discount.save(update_fields=["active"])
+
+        sub = self._open_september(member)
+
+        self.assertEqual(sub.discount_percent_snapshot, 0)
+        self.assertEqual(calculate_subscription_total(sub), self.PLAN_PRICE)
+
+    def test_legacy_period_without_snapshot_keeps_live_discount(self):
+        """Limitación honesta de la 7.3: las filas ya abiertas no tienen
+        snapshot y se comportan como antes hasta que renuevan."""
+        member = self._member_with_discount()
+        sub = self._open_september(member)
+        Subscription.objects.filter(pk=sub.pk).update(
+            discount_percent_snapshot=None
+        )
+        sub.refresh_from_db()
+
+        self.assertEqual(calculate_subscription_total(sub), Decimal("40000.00"))
+
+        self.discount.active = False
+        self.discount.save(update_fields=["active"])
+
+        self.assertEqual(calculate_subscription_total(sub), self.PLAN_PRICE)
+
+    def test_each_period_freezes_its_own_discount(self):
+        """La renovación congela el valor vigente del período nuevo."""
+        member = self._member_with_discount()
+        sub = self._open_september(member)
+
+        self.discount.active = False
+        self.discount.save(update_fields=["active"])
+
+        new_sub = create_next_subscription(sub)
+
+        self.assertEqual(new_sub.discount_percent_snapshot, 0)
+        self.assertEqual(calculate_subscription_total(new_sub), self.PLAN_PRICE)
+        # El período viejo conserva el suyo.
+        sub.refresh_from_db()
+        self.assertEqual(calculate_subscription_total(sub), Decimal("40000.00"))
+
+
+class MemberCreditBalanceTests(_MoneyBugBase):
+    """Fase 7.3 (P4): el sobrepago se convierte en saldo a favor, y el saldo
+    se consume solo en la renovación.
+
+    El bug de fondo: ``overpayment`` se calculaba y nadie lo leía, así que el
+    clamp protegía al socio de una deuda negativa (bien) y borraba en
+    silencio lo que el gym tenía por cobrar. No había camino para mover ese
+    crédito al mes siguiente: no era mal mostrar, era que el camino no
+    existía.
+    """
+
+    PERIOD_START = date(2026, 9, 1)
+    PERIOD_END = date(2026, 9, 30)
+    PLAN_PRICE = Decimal("50000.00")
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.staff = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.staff)
+        self.plan = self.create_plan(self.gym, price=self.PLAN_PRICE)
+        self.credit_rows = None
+
+    def _open_september(self, member, settle=True):
+        sub = self.open_month_subscription(
+            member,
+            self.plan,
+            start_date=self.PERIOD_START,
+            end_date=self.PERIOD_END,
+            paid=False,
+            auto_renew=True,
+        )
+        if settle:
+            self.settle_subscription(sub)
+        return sub
+
+    def _credits(self, member=None, on_subscription=None, applied=False):
+        rows = Payment.objects.filter(concept="credit")
+        if member is not None:
+            rows = rows.filter(member=member)
+        if on_subscription is not None:
+            rows = rows.filter(subscription=on_subscription)
+        if applied:
+            rows = rows.filter(applied_to__isnull=False)
+        return rows
+
+    def _repriced(self, member, sub, new_price):
+        """Baja el total del período ya pagado, como el toggle de cortesía."""
+        sub.items.filter(item_type="plan").update(price_snapshot=new_price)
+        sync_subscription_paid(sub)
+        return sub
+
+    def _october(self, sub):
+        return create_next_subscription(sub)
+
+    def test_lowered_total_creates_credit_for_the_member(self):
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+        self._repriced(member, sub, Decimal("20000.00"))
+
+        credit = self._credits(member=member, on_subscription=sub).get()
+        # $50.000 cobrados contra un total que bajó a $20.000.
+        self.assertEqual(credit.amount, Decimal("-30000.00"))
+        self.assertIsNone(credit.applied_to)
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+    def test_overpayment_at_payment_entry_creates_credit(self):
+        """El caso real: cobrar dos meses contra un mes.
+
+        El serializer rechaza pagar más que el saldo, así que esta fila
+        sobrepaga igual que las 4 que la 7.0 encontró en staging: se escribe
+        directo y ``sync`` la convierte en crédito, que es el punto.
+        """
+        member = self.create_member(self.gym)
+        sub = self._open_september(member, settle=False)
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            subscription=sub,
+            amount=Decimal("130000.00"),
+            member_name=str(member),
+            plan_name=self.plan.name,
+        )
+
+        credit = self._credits(member=member, on_subscription=sub).get()
+
+        # $130.000 cobrados contra un total de $50.000.
+        self.assertEqual(credit.amount, Decimal("-80000.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("80000.00"))
+
+    def test_credit_is_idempotent_across_repeated_syncs(self):
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self._repriced(member, sub, Decimal("20000.00"))
+
+        for _ in range(3):
+            sync_subscription_paid(sub)
+
+        self.assertEqual(
+            self._credits(member=member).count(),
+            1,
+            "sync repetido no debe duplicar el crédito",
+        )
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+
+    def test_renewal_consumes_the_credit_and_lands_on_zero(self):
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self._repriced(member, sub, Decimal("20000.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+
+        new_sub = self._october(sub)
+
+        # $30.000 de crédito sobre un período de $50.000: no alcanza, así que
+        # queda debiendo $20.000 y el saldo ya no está disponible.
+        self.assertEqual(calculate_subscription_total(new_sub), self.PLAN_PRICE)
+        self.assertEqual(
+            subscription_remaining_balance(new_sub)["remaining"],
+            Decimal("20000.00"),
+        )
+        self.assertEqual(member_credit_balance(member), Decimal("0.00"))
+        applied = self._credits(on_subscription=new_sub).get()
+        self.assertEqual(applied.amount, Decimal("-30000.00"))
+        self.assertEqual(applied.applied_to, sub)
+
+    def test_credit_covering_the_period_lands_it_on_zero(self):
+        """Invariante central de la 7.3: el crédito se consume solo."""
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self._repriced(member, sub, Decimal("0.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("50000.00"))
+
+        new_sub = self._october(sub)
+
+        self.assertEqual(
+            subscription_remaining_balance(new_sub)["remaining"], Decimal("0")
+        )
+        self.assertEqual(member_credit_balance(member), Decimal("0.00"))
+        # El crédito viaja entero, no queda una copia atrás: un cent contado
+        # una sola vez.
+        self.assertEqual(self._credits(member=member).count(), 1)
+
+    def test_credit_is_capped_by_the_new_period_total(self):
+        """Un crédito de $80.000 contra un período de $50.000 no puede
+        cubrir más que el período, y el resto sigue disponible."""
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self._repriced(member, sub, Decimal("0.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("50000.00"))
+        # Exceso extra: el pago de $130.000 de arriba dejó $80.000 de crédito.
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            subscription=sub,
+            concept="credit",
+            amount=Decimal("-30000.00"),
+            member_name=str(member),
+            plan_name="Saldo a favor",
+        )
+        self.assertEqual(member_credit_balance(member), Decimal("80000.00"))
+
+        new_sub = self._october(sub)
+
+        self.assertEqual(
+            subscription_remaining_balance(new_sub)["remaining"], Decimal("0")
+        )
+        # $30.000 de los $80.000 quedaron en el período viejo, abiertos.
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+        open_rows = self._credits(member=member, applied=False)
+        self.assertEqual(open_rows.count(), 1)
+        self.assertEqual(open_rows.get().amount, Decimal("-30000.00"))
+
+    def test_second_renewal_consumes_the_remainder(self):
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self._repriced(member, sub, Decimal("0.00"))
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            subscription=sub,
+            concept="credit",
+            amount=Decimal("-30000.00"),
+            member_name=str(member),
+            plan_name="Saldo a favor",
+        )
+
+        october = self._october(sub)
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+
+        november = self._october(october)
+
+        self.assertEqual(
+            subscription_remaining_balance(november)["remaining"],
+            Decimal("20000.00"),
+        )
+        self.assertEqual(member_credit_balance(member), Decimal("0.00"))
+
+    def test_courtesy_member_overpayment_becomes_credit(self):
+        """El caso del plan: $52.000 pagados y después el pase de cortesía.
+
+        Antes la API respondía "pagó $0" sobre una suscripción con un pago de
+        $52.000 y el excedente quedaba invisible. Ahora el pago real se ve, el
+        período queda en 0 y el excedente es saldo a favor del socio.
+        """
+        member = self.create_member(self.gym)
+        member.is_comp = True
+        member.save(update_fields=["is_comp"])
+        sub = self._open_september(member, settle=False)
+        sub.items.filter(item_type="plan").update(
+            price_snapshot=self.PLAN_PRICE
+        )
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            subscription=sub,
+            amount=self.PLAN_PRICE,
+            member_name=str(member),
+            plan_name=self.plan.name,
+        )
+
+        balance = subscription_remaining_balance(sub)
+
+        self.assertEqual(balance["remaining"], Decimal("0"))
+        self.assertEqual(balance["paid_amount"], self.PLAN_PRICE)
+        self.assertEqual(balance["overpayment"], self.PLAN_PRICE)
+        self.assertEqual(member_credit_balance(member), self.PLAN_PRICE)
+
+    def test_courtesy_member_never_consumes_credit(self):
+        """Un cortesía no paga, así que no hay crédito que aplicarle."""
+        member = self.create_member(self.gym)
+        member.is_comp = True
+        member.save(update_fields=["is_comp"])
+        sub = self._open_september(member, settle=False)
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            subscription=sub,
+            amount=self.PLAN_PRICE,
+            member_name=str(member),
+            plan_name=self.plan.name,
+        )
+        self.assertEqual(member_credit_balance(member), self.PLAN_PRICE)
+
+        new_sub = self._october(sub)
+
+        self.assertEqual(member_credit_balance(member), self.PLAN_PRICE)
+        self.assertEqual(
+            self._credits(on_subscription=new_sub).count(), 0
+        )
+
+    def test_member_credit_balance_is_exposed_in_the_subscription_api(self):
+        member = self.create_member(self.gym)
+        sub = self._open_september(member)
+        self._repriced(member, sub, Decimal("20000.00"))
+
+        resp = self.client.get(f"/api/subscriptions/{sub.id}/")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.data["member_credit_balance"], "30000.00"
         )
 
 

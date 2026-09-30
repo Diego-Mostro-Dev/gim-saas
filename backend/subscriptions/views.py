@@ -46,10 +46,13 @@ from .services import (
 class SubscriptionView(viewsets.ReadOnlyModelViewSet):
     lookup_value_regex = r"[0-9]+"
 
+    # Fase 7 (P4): los créditos a favor se restan aparte (credit_realized_for),
+    # así que quedan fuera del agregado de cobrado.
     _paid_amount_subquery = Subquery(
         Payment.objects.filter(
             subscription=OuterRef("pk"),
         )
+        .exclude(concept="credit")
         .order_by()
         .values("subscription")
         .annotate(paid=Sum("amount"))

@@ -19,6 +19,7 @@ from .services import (
     compute_projected_occupancy,
     get_subscription_payment_status,
     member_discount_percent,
+    member_credit_balance,
     subscription_original_total,
     subscription_remaining_balance,
 )
@@ -103,6 +104,9 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     has_pending_plan_change = serializers.SerializerMethodField()
     future_plan_name = serializers.SerializerMethodField()
     future_effective_date = serializers.SerializerMethodField()
+    # Fase 7 (P4): saldo a favor abierto del socio, positivo. Es lo que el
+    # gym le debe y que la renovación siguiente va a aplicar solo.
+    member_credit_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Subscription
@@ -118,6 +122,7 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             "paid",
             "auto_renew",
             "origin",
+            "discount_percent_snapshot",
             "created_at",
         ]
 
@@ -142,7 +147,12 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         return str(calculate_subscription_total(obj))
 
     def get_discount_percent(self, obj):
-        percent = member_discount_percent(obj.member)
+        # Fase 7 (P5): se informa el descuento con el que se emitió el
+        # período, para que el total que ve el socio no se contradiga.
+        percent = member_discount_percent(
+            obj.member,
+            snapshot=obj.discount_percent_snapshot,
+        )
         return percent if percent > 0 else None
 
     def get_original_total(self, obj):
@@ -193,6 +203,14 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
 
     def get_has_pending_plan_change(self, obj):
         return self._get_pending_plan_change(obj) is not None
+
+    def get_member_credit_balance(self, obj):
+        member = obj.member
+        cached = getattr(member, "_credit_balance_cache", None)
+        if cached is None:
+            cached = member_credit_balance(member)
+            member._credit_balance_cache = cached
+        return str(cached)
 
     def get_future_plan_name(self, obj):
         pcr = self._get_pending_plan_change(obj)

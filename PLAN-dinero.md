@@ -15,8 +15,8 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 en curso: 7.0, 7.2 y
-7.1a-d hechas (2026-09-29); 7.3 y 7.4 pendientes.** Los tests focalizados corren contra SQLite con:
+Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 en curso: 7.0, 7.2,
+7.1a-d y 7.3 hechas (2026-09-29); 7.4 pendiente.** Los tests focalizados corren contra SQLite con:
 
 ```
 DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python manage.py test subscriptions
@@ -84,9 +84,9 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 | 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:240-263` | los ítems de actividad/outing/PT se restauran prorrateados en **un solo loop** con `_item_contract_price` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:388-481` | los 3 tipos de paquete, ida y vuelta | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ⬜ sin empezar |
-| 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ⬜ sin empezar |
-| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación, **por los dos caminos** (caída del total y pago mayor al total) | ⬜ sin empezar |
+| 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
+| 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
+| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación, **por los dos caminos** (caída del total y pago mayor al total) | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
 | 10 | **7.4** — arreglos de texto a este documento | `PLAN-dinero.md` | — | ✅ **hecho** |
 
 ### Verificación que quedó abierta desde las Fases 0-6
@@ -1452,6 +1452,32 @@ habría que backfillear antes de la Fase 7.3.
 lo pedido) y el origen queda en `applied_to` + `notes`. La suscripción de origen conserva
 `paid_amount > total`, que no es deuda: es el asiento histórico.
 
+**Contabilidad elegida al implementar (decisión del usuario, 2026-09-29).** El crédito **no**
+cuenta como cobrado: `paid_amount` excluye `concept="credit"` en los 7 agregados que lo
+calculaban, y `remaining` descuenta aparte lo consumido en ese período (`credit_realized_for`).
+Es lo único que hace cumplir el invariante sin doble conteo:
+
+| | `total` | `paid` (caja) | crédito | `remaining` |
+|---|---|---|---|---|
+| mes de origen, tras la baja | 0 | 52.000 | −52.000 (abierto) | 0 |
+| período nuevo, tras consumir | 52.000 | 0 | −52.000 (en esa suscripción) | 0 |
+
+Dos consecuencias aceptadas a conciencia:
+
+1. **La rama `is_comp` de `subscription_remaining_balance` ya no fuerza `paid_amount = total`.**
+   Devuelve el pago real y el `overpayment` real, con `remaining` en 0. Antes respondía
+   "pagó $0" sobre una suscripción con $52.000 cobrados; ése era el punto de P4 (la pérdida se
+   hacía invisible justo en el socio que la suffered). Un cortesía con un pago real puede ahora
+   tener saldo a favor, que es exactamente el dinero que se quedó con el pase.
+2. **Un crédito consumido por completo se mueve entero** (cambia de `subscription` y se le pone
+   `applied_to=<origen>`) en vez de dejar una copia. Con copia, un crédito de $30.000 cubierto
+   en dos partes se contaría dos veces. En el uso parcial se parte la fila: el resto
+   queda abierto en el origen y la porción aplicada viaja en una fila nueva.
+
+`member_credit_balance` suma sólo los créditos **abiertos** (`applied_to IS NULL`), o sea lo que
+el gym le debe todavía. Un corteśía nunca consume: no paga, no hay crédito que aplicarle.
+`recover_member` tampoco consume (no es una renovación); con `Sinkro` en 0 socios es inocuo.
+
 **Criterio de aceptación**:
 - Invariante de crédito: pago de $52.000 → pase de cortesía → `remaining == 0` **y** existe
   `Payment(concept="credit", amount=-52000)` **y** la renovación de octubre lo consume y queda
@@ -1462,8 +1488,14 @@ lo pedido) y el origen queda en `applied_to` + `notes`. La suscripción de orige
 - `calculate_subscription_total` con descuento desactivado a mitad de un período **pagado**
   devuelve el total original, no el nuevo.
 - Un período abierto **después** de desactivar el descuento ya se emite sin descuento.
+- Un período legacy (`discount_percent_snapshot IS NULL`) sigue con el descuento vivo: es la
+  limitación honesta de la 7.3 y por eso importa que `Sinkro` esté en 0 socios.
 - `SubscriptionItem` no se toca: el descuento vive en la suscripción, no en los ítems.
+- Un crédito de $80.000 contra un período de $50.000 deja $30.000 abiertos para el período
+  siguiente: el tope es el total del período, no el saldo.
+- `sync_subscription_paid` repetido sobre el mismo sobrepago no duplica el crédito.
 - Los 19 tests existentes siguen verdes.
+- Nuevos: `CourtesyCreditFrozenDiscountTests` (5) y `MemberCreditBalanceTests` (10).
 
 **Commit**: `feat(subscriptions): saldo a favor y descuento congelado por período`
 

@@ -354,24 +354,30 @@ def _settlement_snapshot():
     """
     from payments.models import Payment
 
+    # Fase 7.3 (P4): los créditos a favor no son cobrado, así que quedan
+    # fuera de ``paid``. El sobrepago que los originó sigue visible.
     paid_by_sub = {
         row["subscription_id"]: row["paid"]
         for row in Payment.objects.filter(subscription__isnull=False)
+        .exclude(concept="credit")
         .values("subscription_id")
         .annotate(paid=Sum("amount"))
     }
 
-    # El saldo a favor (Fase 7.3) se crea con importe negativo y con la
-    # suscripción que lo consumió en ``subscription``; ``applied_to`` guarda el
-    # origen. Mientras esa columna no exista, este grupo siempre da 0: el
-    # contador simplemente no encuentra nada que cubrir, que es lo honesto.
+    # El saldo a favor se crea con importe negativo y queda en la suscripción
+    # que lo consumió (``subscription``); ``applied_to`` guarda el origen, así
+    # que un crédito cuenta a favor de las dos: la que lo recibió y la que
+    # lo originó. Sumarlos por los dos lados es lo que permite que un origen
+    # consumido por completo siga cubierto y no vuelva a contar como P4.
     credit_by_sub = defaultdict(lambda: Decimal("0"))
-    for row in (
-        Payment.objects.filter(concept="credit", subscription__isnull=False)
-        .values("subscription")
-        .annotate(amount=Sum("amount"))
-    ):
+    for row in Payment.objects.filter(
+        concept="credit", subscription__isnull=False
+    ).values("subscription").annotate(amount=Sum("amount")):
         credit_by_sub[row["subscription"]] += abs(row["amount"])
+    for row in Payment.objects.filter(
+        concept="credit", applied_to__isnull=False
+    ).values("applied_to").annotate(amount=Sum("amount")):
+        credit_by_sub[row["applied_to"]] += abs(row["amount"])
 
     rows = []
     for sub in Subscription.objects.filter(pk__in=paid_by_sub).select_related(

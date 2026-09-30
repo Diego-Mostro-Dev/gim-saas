@@ -76,6 +76,7 @@ class SubscriptionDomain:
         from .services import (
             ensure_pt_items_for_active_assignments,
             ensure_subscription_item,
+            member_discount_percent,
         )
 
         if start_date is None or end_date is None:
@@ -105,6 +106,9 @@ class SubscriptionDomain:
                 )
 
             # ── Create ───────────────────────────────────────────────────
+            # Fase 7 (P5): el descuento se congela una vez por período, en el
+            # mismo punto donde la Fase 5 puso sus guards. Así desactivar el
+            # descuento después no altera un período ya facturado.
             sub = Subscription.objects.create(
                 gym=member.gym,
                 member=member,
@@ -114,6 +118,7 @@ class SubscriptionDomain:
                 paid=paid,
                 auto_renew=auto_renew,
                 origin=origin,
+                discount_percent_snapshot=member_discount_percent(member),
             )
 
             ensure_subscription_item(sub)

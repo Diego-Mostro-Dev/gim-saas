@@ -12,6 +12,7 @@ from members.identity import MemberIdentityMixin
 from subscriptions.models import Subscription
 from subscriptions.services import (
     calculate_subscription_total,
+    credit_realized_for,
     sync_subscription_paid,
 )
 
@@ -102,9 +103,13 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         return enrollment
 
     def _paid_total_excluding(self, subscription, exclude_pk=None):
+        # Fase 7 (P4): los créditos a favor no son cobrado; los cuenta
+        # subscription_remaining_balance por separado, así que el saldo que se
+        # valida acá tiene que ser el mismo.
         return (
             Payment.objects.filter(subscription=subscription)
             .exclude(pk=exclude_pk)
+            .exclude(concept="credit")
             .aggregate(paid=Sum("amount"))["paid"]
             or Decimal("0")
         )
@@ -120,6 +125,9 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             - self._paid_total_excluding(
                 subscription, getattr(self.instance, "pk", None)
             )
+            # Fase 7 (P4): el crédito que este período ya consumió cuenta
+            # como pagado, así que se puede cobrar el resto sin pasarse.
+            - credit_realized_for(subscription)
         )
 
         if amount > remaining:

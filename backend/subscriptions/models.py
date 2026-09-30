@@ -43,6 +43,17 @@ class Subscription(models.Model):
         help_text="Flujo que originó esta suscripción (auditoría).",
     )
 
+    discount_percent_snapshot = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Descuento congelado",
+        help_text=(
+            "Porcentaje de descuento del día en que se emitió la suscripción. "
+            "Un descuento desactivado después no altera este período ya "
+            "facturado; None significa fila legacy (se usa el descuento vivo)."
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
 
     class Meta:

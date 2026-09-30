@@ -343,8 +343,18 @@ class MemberSerializer(serializers.ModelSerializer):
                 if not has_plan_item and sub.plan is not None:
                     total += sub.plan.price
 
-                total = discounted_amount(total, member_discount_percent(obj))
-                paid = sum(p.amount for p in sub.payments.all())
+                # Fase 7 (P5): el descuento congelado del período, para que
+                # el badge de deuda no contradiga al total facturado.
+                total = discounted_amount(
+                    total,
+                    member_discount_percent(
+                        obj,
+                        snapshot=sub.discount_percent_snapshot,
+                    ),
+                )
+                paid = sum(
+                    p.amount for p in sub.payments.exclude(concept="credit")
+                )
 
                 if total - paid > 0:
                     has_debt = True
