@@ -1525,27 +1525,32 @@ class MemberCreditBalanceTests(_MoneyBugBase):
         período queda en 0 y el excedente es saldo a favor del socio.
         """
         member = self.create_member(self.gym)
-        member.is_comp = True
-        member.save(update_fields=["is_comp"])
         sub = self._open_september(member, settle=False)
-        sub.items.filter(item_type="plan").update(
-            price_snapshot=self.PLAN_PRICE
-        )
         Payment.objects.create(
             gym=self.gym,
             member=member,
             subscription=sub,
-            amount=self.PLAN_PRICE,
+            amount=Decimal("52000.00"),
             member_name=str(member),
             plan_name=self.plan.name,
         )
+        sync_subscription_paid(sub)
+        self.assertEqual(member_credit_balance(member), Decimal("2000.00"))
+
+        member.is_comp = True
+        member.save(update_fields=["is_comp"])
+        self._repriced(member, sub, Decimal("0.00"))
 
         balance = subscription_remaining_balance(sub)
 
         self.assertEqual(balance["remaining"], Decimal("0"))
-        self.assertEqual(balance["paid_amount"], self.PLAN_PRICE)
-        self.assertEqual(balance["overpayment"], self.PLAN_PRICE)
-        self.assertEqual(member_credit_balance(member), self.PLAN_PRICE)
+        self.assertEqual(balance["paid_amount"], Decimal("52000.00"))
+        self.assertEqual(balance["overpayment"], Decimal("52000.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("52000.00"))
+
+        sync_subscription_paid(sub)
+
+        self.assertEqual(member_credit_balance(member), Decimal("52000.00"))
 
     def test_courtesy_member_never_consumes_credit(self):
         """Un cortesía no paga, así que no hay crédito que aplicarle."""

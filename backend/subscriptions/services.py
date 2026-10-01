@@ -437,8 +437,8 @@ def ensure_overpayment_credit(subscription):
     it covers both an overpayment born from a repriced total and one born at
     the payment entry.
 
-    Idempotent: the balance is recomputed with the credit row included, so a
-    second call finds no overpayment and writes nothing.
+    Idempotent: only the growth over what the period already has credited is
+    minted, so a second call with the same balance writes nothing.
 
     Returns:
         The created Payment, or None when there was nothing to credit.
@@ -457,6 +457,13 @@ def ensure_overpayment_credit(subscription):
     if already >= overpayment:
         return None
 
+    # Only the growth is new credit. The guard above stops a re-mint when the
+    # overpayment did not move, but it does not stop one when the period total
+    # drops (the courtesy pass, a discount change, a plan change) and the
+    # overpayment grows with it: minting the full amount again would credit
+    # the part already credited a second time.
+    pending = overpayment - already
+
     # A courtesy member's overpayment is credit too: that is precisely the
     # money they keep from the month the pass was granted.
     return Payment.objects.create(
@@ -464,7 +471,7 @@ def ensure_overpayment_credit(subscription):
         subscription=subscription,
         member=subscription.member,
         concept="credit",
-        amount=-overpayment,
+        amount=-pending,
         member_name=(
             f"{subscription.member.first_name} "
             f"{subscription.member.last_name}"
