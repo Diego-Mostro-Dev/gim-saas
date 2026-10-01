@@ -210,7 +210,7 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         if cached is None:
             cached = member_credit_balance(member)
             member._credit_balance_cache = cached
-        return str(cached)
+        return f"{cached:.2f}"
 
     def get_future_plan_name(self, obj):
         pcr = self._get_pending_plan_change(obj)

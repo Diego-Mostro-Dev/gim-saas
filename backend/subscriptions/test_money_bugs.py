@@ -1341,14 +1341,21 @@ class MemberCreditBalanceTests(_MoneyBugBase):
             self.settle_subscription(sub)
         return sub
 
-    def _credits(self, member=None, on_subscription=None, applied=False):
+    def _credits(self, member=None, on_subscription=None, applied=None):
+        """Filtrar por consumo del crédito con tres estados.
+
+        ``None`` (default) no filtra y cuenta todas las filas, que es lo que
+        quieren los tests que comparan el total de créditos del socio.
+        ``True`` cuenta sólo las consumidas (``applied_to`` puesto) y
+        ``False`` sólo las abiertas.
+        """
         rows = Payment.objects.filter(concept="credit")
         if member is not None:
             rows = rows.filter(member=member)
         if on_subscription is not None:
             rows = rows.filter(subscription=on_subscription)
-        if applied:
-            rows = rows.filter(applied_to__isnull=False)
+        if applied is not None:
+            rows = rows.filter(applied_to__isnull=not applied)
         return rows
 
     def _repriced(self, member, sub, new_price):
@@ -1395,6 +1402,7 @@ class MemberCreditBalanceTests(_MoneyBugBase):
             member_name=str(member),
             plan_name=self.plan.name,
         )
+        sync_subscription_paid(sub)
 
         credit = self._credits(member=member, on_subscription=sub).get()
 
@@ -1553,6 +1561,7 @@ class MemberCreditBalanceTests(_MoneyBugBase):
             member_name=str(member),
             plan_name=self.plan.name,
         )
+        sync_subscription_paid(sub)
         self.assertEqual(member_credit_balance(member), self.PLAN_PRICE)
 
         new_sub = self._october(sub)
