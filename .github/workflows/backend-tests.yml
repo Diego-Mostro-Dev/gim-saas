@@ -29,10 +29,15 @@ jobs:
     env:
       DATABASE_URL: postgresql://gim_test:gim_test@localhost:5432/neondb
       SECRET_KEY: ci-only-not-a-real-secret
-      # Vacío a propósito: silencia el STAGING CHECK de settings.py, que
-      # existe para detectar mezclas entre staging y producción y no
-      # aplica a un Postgres efímero del runner.
+      # Vacío a propósito: silencia el aviso de mezcla de base de settings.py,
+      # que no aplica a un Postgres efímero del runner.
       ENVIRONMENT: ""
+      # settings.py:60 activa SECURE_SSL_REDIRECT (y cookies seguras) cuando
+      # DEBUG es False, que es el default. Los APITestCase de esta suite
+      # requisan por HTTP, así que con el redirect cada request recibía un 301
+      # y ningún test llegaba a ejecutarse. En local no pasaba porque el .env
+      # del dev tiene DEBUG=True y el bloque ni se entra.
+      SECURE_SSL_REDIRECT: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
