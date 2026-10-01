@@ -58,17 +58,11 @@ class MemberViewSet(GymModelViewSet):
             ),
             Prefetch(
                 "activity_enrollments",
-                queryset=Enrollment.objects.filter(
-                    active=True,
-                    modality="package",
-                ).select_related("schedule__activity"),
+                queryset=Enrollment.objects.all().select_related("schedule__activity"),
             ),
             Prefetch(
                 "personal_training_assignments",
-                queryset=PersonalTrainingAssignment.objects.filter(
-                    active=True,
-                    modality="package",
-                ).select_related("service"),
+                queryset=PersonalTrainingAssignment.objects.all().select_related("service"),
             ),
             Prefetch(
                 "outing_enrollments",

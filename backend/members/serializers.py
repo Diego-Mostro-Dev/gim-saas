@@ -278,10 +278,16 @@ class MemberSerializer(serializers.ModelSerializer):
             return False
 
         pending_sellados = any(
-            e.active and e.sellado_amount is not None and not e.sellado_paid
+            e.active
+            and e.modality == "package"
+            and e.sellado_amount is not None
+            and not e.sellado_paid
             for e in obj.activity_enrollments.all()
         ) or any(
-            a.active and a.sellado_amount is not None and not a.sellado_paid
+            a.active
+            and a.modality == "package"
+            and a.sellado_amount is not None
+            and not a.sellado_paid
             for a in obj.personal_training_assignments.all()
         )
         if pending_sellados:
@@ -293,7 +299,11 @@ class MemberSerializer(serializers.ModelSerializer):
         latest_sub = None
 
         for package in obj.activity_enrollments.all():
-            if package.modality != "package" or package.session_price is None:
+            if (
+                not package.active
+                or package.modality != "package"
+                or package.session_price is None
+            ):
                 continue
             remaining = package.remaining_amount
             if remaining and remaining > 0:
@@ -302,7 +312,11 @@ class MemberSerializer(serializers.ModelSerializer):
 
         if not has_debt:
             for package in obj.personal_training_assignments.all():
-                if package.modality != "package" or package.session_price is None:
+                if (
+                    not package.active
+                    or package.modality != "package"
+                    or package.session_price is None
+                ):
                     continue
                 remaining = package.remaining_amount
                 if remaining and remaining > 0:
@@ -626,6 +640,8 @@ class MemberSerializer(serializers.ModelSerializer):
             return []
         result = []
         for e in enrollments.all():
+            if not e.active:
+                continue
             schedule = e.schedule
             outing = schedule.outing
             result.append(
