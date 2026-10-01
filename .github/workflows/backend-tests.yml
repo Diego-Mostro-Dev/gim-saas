@@ -38,6 +38,10 @@ jobs:
       # y ningún test llegaba a ejecutarse. En local no pasaba porque el .env
       # del dev tiene DEBUG=True y el bloque ni se entra.
       SECURE_SSL_REDIRECT: "false"
+      # El container postgres:16 viene con ssl = off y settings.py exige
+      # "require" por defecto, así que sin esto el CI no conecta:
+      # "server does not support SSL, but SSL was required".
+      DB_SSLMODE: "disable"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

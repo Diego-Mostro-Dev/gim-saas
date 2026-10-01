@@ -314,10 +314,18 @@ _db_config = dj_database_url.parse(
     conn_health_checks=True,
 )
 
-# Forzar TLS solo cuando el backend es PostgreSQL (Neon/Render). No aplicar
-# sslmode al backend sqlite (pruebas/dev local) porque no lo soporta.
+# Forzar TLS cuando el backend es PostgreSQL. No aplicar sslmode al backend
+# sqlite porque no lo soporta.
+#
+# El default "require" es lo que necesitan Neon y Render, así que no cambia
+# el comportamiento de ningún servicio existente. DB_SSLMODE lo baja a
+# "disable" para Postgres sin TLS: el container postgres:16 del CI tiene
+# ssl = off y sin esta variable no conecta con "server does not support SSL,
+# but SSL was required". Sirve igual para un Postgres local sin certificados.
 if _db_config["ENGINE"].endswith("postgresql"):
-    _db_config.setdefault("OPTIONS", {})["sslmode"] = "require"
+    _db_config.setdefault("OPTIONS", {})["sslmode"] = (
+        os.getenv("DB_SSLMODE", "require").strip() or "require"
+    )
 
 # Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
 # Resolve the hostname once at startup and inject hostaddr so libpq skips
