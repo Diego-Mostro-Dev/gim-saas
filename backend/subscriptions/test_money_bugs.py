@@ -5,8 +5,24 @@ comportamiento en los puntos de escritura (renovación automática,
 recuperación, cambio de plan, claim concurrente) usando los helpers de
 ``core.testing``.
 
-Se ejecutan contra SQLite (ver el comando en PLAN-dinero.md), no contra la
-base de staging.
+Se ejecutan contra Postgres real, nunca contra SQLite ni contra la base de
+desarrollo. El gate es ``.github/workflows/backend-tests.yml``, que levanta un
+``postgres:16`` como service del runner; el usuario del container es
+superusuario, así que Django crea ``test_neondb``, corre los tests adentro y la
+dropea al terminar. Por eso los ``flush`` de ``TransactionTestCase`` caen
+sobre ``test_neondb``.
+
+Eso importa para ``ScheduledTaskClaimTests``: el claim atómico se apoya en el
+lock de fila de Postgres, que en SQLite no existe porque las escrituras se
+serializan solas. Contra SQLite el test pasa sin ejercitar la garantía real.
+
+Localmente hace falta un Postgres con ``CREATEDB`` (cualquier ``postgres`` de
+la máquina sirve). El Neon del plan gratuito no alcanza: su rol de aplicación
+no tiene ``CREATEDB`` ni ``CREATEROLE``, así que ni puede crear ``test_neondb``
+ni concederse esos permisos.
+
+Ojo con no configurar un ``TEST.NAME`` que reutilice la base de desarrollo,
+porque eso sí termina borrando los datos.
 """
 
 import threading
@@ -14,8 +30,6 @@ from datetime import date, time as _time
 from decimal import Decimal
 from unittest import mock
 
-from django.conf import settings
-from django.db import connections
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
@@ -1286,6 +1300,11 @@ class CourtesyCreditFrozenDiscountTests(_MoneyBugBase):
         self.discount.active = False
         self.discount.save(update_fields=["active"])
 
+        # El assert anterior entró por calculate_subscription_total, que dejó
+        # cacheados el socio y su discount tal como estaban antes de esta
+        # desactivación: son otras instancias que self.discount, así que la
+        # segunda aserción leía un Discount que ya no refleja la base.
+        sub.refresh_from_db()
         self.assertEqual(calculate_subscription_total(sub), self.PLAN_PRICE)
 
     def test_each_period_freezes_its_own_discount(self):
@@ -1596,14 +1615,14 @@ class MemberCreditBalanceTests(_MoneyBugBase):
 class ScheduledTaskClaimTests(TransactionTestCase):
     """Fase 4: el claim atómico deja entrar a una sola corrida a la vez."""
 
-    def test_second_concurrent_worker_does_not_claim(self):
-        # SQLite serializa escrituras con un busy handler: sin un timeout
-        # generoso, dos UPDATEs concurrentes desde hilos distintos explotan
-        # con "database is locked" en vez de esperar a la corrida oponente.
-        settings.DATABASES["default"]["OPTIONS"] = {"timeout": 30}
-        connections["default"].close()
+    # La suite corre contra una base remota, así que una conexión estancada
+    # tiene que romper el test en vez de colgar el proceso entero. Estos dos
+    # son la red de seguridad para eso.
+    BARRIER_TIMEOUT = 10
+    JOIN_TIMEOUT = 30
 
-        TaskRun.objects.create(
+    def _create_due_task_run(self):
+        return TaskRun.objects.create(
             name=TASK_NAME,
             last_run=timezone.now() - timezone.timedelta(
                 seconds=_task_interval_seconds() * 2
@@ -1611,13 +1630,39 @@ class ScheduledTaskClaimTests(TransactionTestCase):
             last_status="ok",
         )
 
+    def test_claim_is_rejected_the_second_time(self):
+        """El guard del claim es el WHERE, no un lock: la segunda corrida
+        del mismo intervalo matchea 0 filas y no renueva.
+
+        Separate del test de hilos a propósito. Sin concurrencia, esto fija el
+        WHERE como la única garantía; allá lo que suma es el lock de fila de
+        Postgres, que impide que dos workers renueven a la vez.
+        """
+        self._create_due_task_run()
+
+        first = run_scheduled_tasks()
+
+        # ran=True no alcanza: run_scheduled_tasks se traga la excepción de
+        # auto_renew_subscriptions y devuelve ran=True con status="error".
+        # Sin esto, un renewal roto dejaría el test en verde.
+        self.assertEqual(first["status"], "ok")
+        self.assertTrue(first["ran"])
+
+        second = run_scheduled_tasks()
+
+        self.assertFalse(second["ran"])
+        self.assertEqual(second["reason"], "not_due")
+
+    def test_second_concurrent_worker_does_not_claim(self):
+        self._create_due_task_run()
+
         barrier = threading.Barrier(2)
         results = [None, None]
         errors = [None, None]
 
         def worker(idx):
             try:
-                barrier.wait()
+                barrier.wait(timeout=self.BARRIER_TIMEOUT)
                 results[idx] = run_scheduled_tasks()
             except Exception as exc:  # pragma: no cover - defensivo
                 errors[idx] = exc
@@ -1626,8 +1671,14 @@ class ScheduledTaskClaimTests(TransactionTestCase):
         t2 = threading.Thread(target=worker, args=(1,))
         t1.start()
         t2.start()
-        t1.join()
-        t2.join()
+        t1.join(timeout=self.JOIN_TIMEOUT)
+        t2.join(timeout=self.JOIN_TIMEOUT)
+
+        # join con timeout no mata el hilo, sólo deja de esperarlo. Si
+        # alguno quedó vivo, results[idx] sigue en None y las aserciones de
+        # abajo petarían con un TypeError que no dice nada.
+        self.assertFalse(t1.is_alive(), "worker 0 no terminó a tiempo")
+        self.assertFalse(t2.is_alive(), "worker 1 no terminó a tiempo")
 
         self.assertIsNone(errors[0], errors[0])
         self.assertIsNone(errors[1], errors[1])

@@ -1,0 +1,51 @@
+name: Backend tests
+
+on:
+  pull_request:
+  push:
+    branches: [development, main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  subscriptions:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gim_test
+          POSTGRES_PASSWORD: gim_test
+          POSTGRES_DB: neondb
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U gim_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://gim_test:gim_test@localhost:5432/neondb
+      SECRET_KEY: ci-only-not-a-real-secret
+      # Vacío a propósito: silencia el STAGING CHECK de settings.py, que
+      # existe para detectar mezclas entre staging y producción y no
+      # aplica a un Postgres efímero del runner.
+      ENVIRONMENT: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      # gim_test es superusuario del Postgres del runner, así que tiene
+      # CREATEDB y Django crea y dropea test_neondb sin --keepdb. Por eso
+      # esta suite puede correr contra Postgres real en vez de SQLite: los
+      # locks de fila que fija ScheduledTaskClaimTests existen de verdad acá.
+      - name: Run subscriptions tests
+        working-directory: backend
+        run: python manage.py test subscriptions

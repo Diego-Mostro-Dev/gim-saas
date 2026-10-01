@@ -112,7 +112,7 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 
 ### Fase 8 — mapeada, sin fecha
 
-Los 8 bugs MEDIO y BAJO (P8-P15) están documentados uno por uno en la tabla al final de la
+Los 9 bugs MEDIO y BAJO (P8-P16) están documentados uno por uno en la tabla al final de la
 sección 3, con ubicación y severidad. **Ninguno entra en la Fase 7.** Cuando se retome:
 
 1. **8.0** — métricas propias primero, igual que la 7.0, con el mismo esquema de
@@ -121,6 +121,13 @@ sección 3, con ubicación y severidad. **Ninguno entra en la Fase 7.** Cuando s
    para salidas, el guard `other_active` que PT tiene y outings/actividades no, y el consumo
    de sesión de outing en el panel de staff. Merecen su propio plan, no una cola más.
 3. P13, P14 y P15 son de bajo riesgo y se pueden agrupar en una sola fase de higiene.
+4. **P16 (agregado el 2026-09-30) es de dinero y va antes que los de higiene**: es el único de
+   esta lista que **deja de cobrar** plata, y encima está en la línea que la Fase 2 escribió, así
+   que se lee como correcto. Necesita un test propio que arme crédito abierto + total que sube, y
+   el arnés de la 8.0. Detalle en "P16 en detalle", sección 3.
+5. El fix de performance del dashboard (sección 3-bis) **también bajó el costo de P16 sin
+   arreglarlo**: el helper nuevo `consumed_credit_by_subscription` tiene el `applied_to` correcto,
+   así que cuando se arregle P16 ya hay un único lugar donde cambiarlo.
 
 ---
 
@@ -1524,10 +1531,127 @@ tocando. No requiere código ni tests.
 | P13 | El fallback `total += subscription.plan.price` reintroduce el **precio vigente** —que el propio docstring prohíbe— cuando falta el ítem de plan | `subscriptions/services.py:255-256` | BAJO |
 | P14 | `subscription.paid` queda desincronizado cuando el total cambia por ítems: nadie llama `sync_subscription_paid` desde `apply_plan_change` ni desde `mutate_membership` | `subscriptions/services.py:298-323` | BAJO |
 | P15 | El watermark `no_show_scan_until` avanza aunque el cap trunque las faltas: si el socio amplía el paquete, esas faltas nunca se descuentan | `activities/no_show_service.py:83-95, 189-190` | BAJO |
+| P16 | El bulk de créditos de la renovación **no filtra `applied_to__isnull=False`**, al revés de `credit_realized_for`: cuenta como ya pagado en el período los créditos **abiertos** que ese mismo período generó. `payment_blocked` ve `remaining = 0` donde debería ver `> 0`, y la renovación no cobra un saldo real | `subscriptions/services.py:1440-1447` (contra `credit_realized_for`, `:355-379`) | MEDIO |
 
 **Regla de la Fase 8**: 8.0 de métricas propias primero, igual que la 7.0. Los MEDIO son
 feature work (P9, P10 y P11 son de running, no de dinero) y probablemente merecen su propio
 plan.
+
+#### P16 en detalle — el bulk que no replica el filtro de `credit_realized_for`
+
+**Registrado el 2026-09-30. No corregido. Es el bug más difícil de ver de todos los del plan,
+porque la línea que lo causa es la que la Fase 2 escribió bien.**
+
+La Fase 2 eliminó un N+1 en `_collect_renewal_candidates` y, de paso, escribió el patrón que hoy
+se usa en todas partes: precalcular los pagos en bulk y pasar el saldo ya hecho con
+`_precomputed_remaining` (`services.py:1352`). Ese patrón quedó **sin el filtro de
+`applied_to`**, y `credit_realized_for` sí lo tiene:
+
+```python
+# credit_realized_for (services.py:371-378) — el original
+Payment.objects.filter(
+    subscription=subscription,
+    concept="credit",
+    applied_to__isnull=False,     # <-- sólo créditos CONSUMIDOS
+)
+
+# bulk de _collect_renewal_candidates (services.py:1440-1447) — el que falta
+Payment.objects.filter(
+    subscription_id__in=sub_ids,
+    concept="credit",             # <-- sin el applied_to
+)
+```
+
+**Por qué el filtro importa, con el caso concreto.** El ciclo de vida de una fila de crédito
+(services.py:491-550): nace en el período que la generó con `subscription=origen` y
+`applied_to=None`; al consumirla en una renovación, la fila **se mueve** y queda
+`subscription=nuevo, applied_to=origen`. El `applied_to` no nulo significa "esta plata ya se gastó
+en este período". El docstring de `credit_realized_for` (`:363-366`) lo dice sin rodeos: un crédito
+abierto *"is parked on the period that generated it and is not money spent on that period yet:
+counting it twice would inflate that period's overpayment"*.
+
+**El daño es sub-cobro, y necesita dos pasos para dispararse** (por eso es MEDIO y no ALTO):
+
+1. El total del período **baja** después del cobro → se crea el crédito abierto. Esto ya lo
+   describen P4 y P5, y es el comportamiento correcto.
+2. El total del período **vuelve a subir**: se reactiva el descuento, se saca el pase de cortesía,
+   se reactiva una actividad/PT. Es el caso que P5 ya dice que existe, con el snapshot congelado.
+
+En el paso 2 el período vuelve a deber, y el cálculo correcto es `remaining = total - paid > 0`.
+Con el bulk sin filtro da `remaining = total - paid - crédito_abierto`, que da ≤ 0. O sea: **el
+gym no cobra una deuda que sí existe**, y el socio pasa de `overdue` a `paid` sin haber pagado.
+`payment_blocked` (`services.py:1456`) es el que decide si eso bloquea el acceso o deja renovar.
+
+**Por qué no lo arreglo junto con el N+1 que sí arreglé.** Corregirlo cambia el resultado de
+`payment_blocked`, o sea la decisión de **renovar o bloquear el acceso**. Eso es lógica de dinero
+que la sección 5 exige verificar con arnés propio, y no corresponde colarlo en un commit de
+performance. Además el caso del paso 2 necesita un test que arme el estado exacto — crédito
+abierto + total que sube — y ese test **no existe**.
+
+Alcance real: $0 hasta ahora (misma respuesta que la Fase 7 — el único gym con socios reales tiene
+histórico thin). Se corrige antes de que entre el primer socio, no porque haya costado plata.
+
+> **Corolario del mismo bug, ya resuelto (2026-09-30).** Al arreglar el N+1 de
+> `gym_outstanding_subscriptions` había dos caminos para calcular el crédito: usar
+> `_precomputed_remaining` (el de la renovación, que hereda el bug) o pasar el crédito a
+> `subscription_remaining_balance` (el que sí replica el filtro). **Se eligió el segundo
+> precisamente para no propagar P16.** El helper nuevo `consumed_credit_by_subscription`
+> (`services.py:382`) deja el `applied_to__isnull=False` en un solo lugar, escrito junto a
+> `credit_realized_for`, así que las dos implementaciones no pueden volver a divergir en silencio.
+
+---
+
+## 3-bis. Fix de performance del dashboard (2026-09-30) — HECHO, sin commitear
+
+Distinto de las fases: no es un bug de dinero, es **el mismo N+1 de la Fase 2 en la función
+hermana**, y sólo se veía porque el desarrollo local apunta a una base remota.
+
+`gym_outstanding_subscriptions` (`services.py:1064`) recorre **todo el historial de suscripciones
+del gym** (sin filtro de fechas) y por cada una pedía su crédito con
+`credit_realized_for`: 1 query por suscripción. Con `backend/.env` apuntando a Neon en
+`us-east-1` (~160 ms por query, medido), el panel del profesor se caía:
+
+```
+/api/dashboard/  ->  35.86 s  /  230 queries  (211 = una por suscripción)
+timeout del frontend (api.js:3) = 30 s  ->  "La petición tardó demasiado"
+```
+
+En Render no se veía: el servidor está en la misma región que la base. El bug era real en los dos,
+lo que hacía que los otros endpoints de pago fueran igual de caros sin que nadie lo midiera.
+
+**Lo que se cambió** (`subscriptions/services.py`, 68 líneas):
+
+- `subscription_remaining_balance` acepta `credit_realized=None` precomputado, con el mismo
+  patrón que ya tenía `paid_amount`. Default `None` y no `Decimal("0")` a propósito: tiene que
+  distinguir "no vine" de "vine y es cero".
+- Helper nuevo `consumed_credit_by_subscription` (`:382`): un query, con el `applied_to` correcto.
+- `gym_outstanding_subscriptions` y `member_total_outstanding_debt` lo usan. Los dos bucles
+  materializan la lista y filtran por `subscription_id__in=[...]` en vez del subquery.
+
+**Medición (misma DB, antes y después con `CaptureQueriesContext`)**:
+
+| Endpoint | Antes | Después | Payload |
+|---|---|---|---|
+| `/api/dashboard/` (Gym Dev, 211 subs) | 35.86 s / 230 q | **3.67 s / 20 q** | idéntico |
+| `/api/dashboard/` (Gym Demo, 95 subs) | 17.47 s / 113 q | **2.96 s / 19 q** | idéntico |
+| `/api/subscriptions/outstanding/` (Gym Dev) | 221 q | **11 q** | idéntico |
+| `member_total_outstanding_debt` × 40 socios | — | — | idéntico |
+
+El gate de este fix es el que corresponde: **el JSON de la respuesta tiene que ser idéntico
+byte a byte**. Se comparó la respuesta completa de los dos endpoints antes y después: idéntica.
+Un refactor de performance que cambia un número no es un refactor de performance.
+
+`manage.py test subscriptions`: 53 tests, **8 fallos preexistentes, ninguno nuevo** (verificado
+contra el árbol limpio con `git stash`: la lista de fallos es la misma función por función). Son
+justo los que el propio plan marca "sin verificar" en las filas 7.1a-7.1d y 7.3a-7.3c.
+
+**Lo que quedó sin hacer, a propósito** (no es la causa del problema y amerita fase propia):
+
+| | Qué | Dónde | Por qué no ahora |
+|---|---|---|---|
+| 1 | Se arman dicts con `photo.url` de Cloudinary para **todas** las filas de debt y después se corta a 10 | `config/api/dashboard.py:200-260` | Reordenar es cambiar el orden de un slice; sin test del orden es un cambio de comportamiento disfrazado de perf |
+| 2 | `gym_activity/personal_training/outing_package_debt` corren aunque el gym no tenga la feature habilitada | `dashboard.py:201, 220, 239` | Requiere leer `activities_enabled` / `personal_training_enabled` / `outings_enabled` y es semántica de features, no perf |
+| 3 | `paid_at__date__gte` envuelve la columna y anula el índice; `Payment` no tiene `(gym, paid_at)` y `Member`/`RoutineAssignment` no tienen índice para su `order_by` | `dashboard.py:59-67`, `payments/models.py`, `members/models.py`, `routines/models.py` | Necesita migración. Con el N+1 arreglado el endpoint ya está en 3.67 s: el índice es la Fase 8, no el fix de hoy |
 
 ---
 

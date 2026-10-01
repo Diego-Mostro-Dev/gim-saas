@@ -379,6 +379,33 @@ def credit_realized_for(subscription):
     return -total
 
 
+def consumed_credit_by_subscription(subscription_ids):
+    """Bulk version of credit_realized_for: {subscription_id: Decimal}.
+
+    One query for the whole set instead of one per subscription. Used by the
+    gym-wide and per-member balance loops, which used to issue a query per
+    subscription and made ``/api/dashboard/`` take 35s against a remote
+    database.
+
+    The ``applied_to__isnull=False`` filter is the whole point and must match
+    credit_realized_for exactly: an open credit sits on the period that
+    generated it as the record of an overpayment, and counting it as money
+    spent on that period is double counting (see the docstring above).
+    """
+    from payments.models import Payment
+
+    return {
+        row["subscription"]: -row["credit"]
+        for row in Payment.objects.filter(
+            subscription_id__in=list(subscription_ids),
+            concept="credit",
+            applied_to__isnull=False,
+        )
+        .values("subscription")
+        .annotate(credit=Sum("amount"))
+    }
+
+
 def credit_recorded_for(subscription):
     """Total credit already accounted to a subscription, as a positive Decimal.
 
@@ -602,7 +629,7 @@ def sync_subscription_paid(subscription):
     return subscription
 
 
-def subscription_remaining_balance(subscription, paid_amount=None):
+def subscription_remaining_balance(subscription, paid_amount=None, credit_realized=None):
     """Return the pending balance of a subscription.
 
     Single source of truth for a subscription's balance:
@@ -621,9 +648,20 @@ def subscription_remaining_balance(subscription, paid_amount=None):
         paid_amount: Optional precomputed paid total. When provided it is
             used as-is to avoid an extra query in bulk contexts. It must
             already exclude credit rows.
+        credit_realized: Optional precomputed consumed credit for this
+            subscription, as a positive Decimal. Same rationale as
+            paid_amount: passing it keeps a bulk loop at one query per
+            field instead of one query per row. It must count ONLY
+            consumed credits (``applied_to`` set), exactly as
+            credit_realized_for does -- an open credit parked on this
+            period is the historical record of an overpayment, not money
+            spent on the period. The default is None rather than
+            Decimal("0") so that "not provided" is distinguishable from
+            "computed and it is zero".
 
     Returns:
-        A dict with "total", "paid_amount" and "remaining" Decimals.
+        A dict with "total", "paid_amount", "remaining" and "overpayment"
+        Decimals.
     """
     from payments.models import Payment
 
@@ -642,7 +680,9 @@ def subscription_remaining_balance(subscription, paid_amount=None):
 
     # Fase 7 (P4): un crédito consumido en ESTE período ya está cobrado de
     # hecho. Se descuenta del saldo para que el período quede en 0 solo.
-    credit_realized = credit_realized_for(subscription)
+    # Si el llamador ya lo trae calculado en bulk, se usa tal cual.
+    if credit_realized is None:
+        credit_realized = credit_realized_for(subscription)
 
     remaining = total - paid_amount - credit_realized
     overpayment = Decimal("0")
@@ -961,7 +1001,7 @@ def member_sellado_debt(member):
 def member_total_outstanding_debt(member):
     from payments.models import Payment
 
-    outstanding_subs = (
+    outstanding_subs = list(
         Subscription.objects.filter(
             member=member,
         )
@@ -969,22 +1009,26 @@ def member_total_outstanding_debt(member):
         .prefetch_related("items")
         .order_by("start_date", "created_at")
     )
+    subscription_ids = [sub.id for sub in outstanding_subs]
 
     # Fase 7 (P4): los créditos a favor no son cobrado (los cuenta
     # credit_realized_for por separado), así que quedan fuera del agregado.
     paid_by_subscription = {
         row["subscription"]: row["paid"]
-        for row in Payment.objects.filter(subscription__in=outstanding_subs)
+        for row in Payment.objects.filter(subscription_id__in=subscription_ids)
         .exclude(concept="credit")
         .values("subscription")
         .annotate(paid=Sum("amount"))
     }
+
+    credit_by_subscription = consumed_credit_by_subscription(subscription_ids)
 
     subscriptions = []
     for sub in outstanding_subs:
         balance = subscription_remaining_balance(
             sub,
             paid_amount=paid_by_subscription.get(sub.id) or Decimal("0"),
+            credit_realized=credit_by_subscription.get(sub.id, Decimal("0")),
         )
         if balance["remaining"] <= 0:
             continue
@@ -1036,31 +1080,43 @@ def gym_outstanding_subscriptions(gym):
     computed from the actual payments through subscription_remaining_balance,
     and only subscriptions with remaining > 0 are returned.
 
+    Scans the gym's whole subscription history, so the balance is built with
+    a fixed number of queries: paid and consumed credit are aggregated in bulk
+    and passed to subscription_remaining_balance. Previously each row issued
+    its own credit query, making this endpoint's cost proportional to the
+    number of subscriptions the gym ever created.
+
     Args:
         gym: The Gym instance.
 
     Returns:
         A list of {"subscription": Subscription, "total": Decimal,
-        "paid_amount": Decimal, "remaining": Decimal}, ordered by period
-        ascending.
+        "paid_amount": Decimal, "remaining": Decimal, "overpayment": Decimal,
+        "is_first": bool}, ordered by period ascending.
     """
     from payments.models import Payment
 
-    subscriptions = (
+    subscriptions = list(
         Subscription.objects.filter(gym=gym)
         .select_related("member__discount", "plan", "gym")
         .prefetch_related("items__activity")
         .order_by("start_date", "created_at")
     )
+    subscription_ids = [sub.id for sub in subscriptions]
 
-    # Fase 7 (P4): los créditos a favor no son cobrado.
+    # Fase 7 (P4): los créditos a favor no son cobrados.
     paid_by_subscription = {
         row["subscription"]: row["paid"]
-        for row in Payment.objects.filter(subscription__in=subscriptions)
+        for row in Payment.objects.filter(subscription_id__in=subscription_ids)
         .exclude(concept="credit")
         .values("subscription")
         .annotate(paid=Sum("amount"))
     }
+
+    # El crédito consumido también se bulk, no query por suscripción: este loop
+    # corre sobre TODO el historial del gym, así que el N+1 de
+    # credit_realized_for lo hacía proporcional al tamaño del gym.
+    credit_by_subscription = consumed_credit_by_subscription(subscription_ids)
 
     earliest_first_created = dict(
         Subscription.objects.filter(gym=gym)
@@ -1074,6 +1130,7 @@ def gym_outstanding_subscriptions(gym):
         balance = subscription_remaining_balance(
             sub,
             paid_amount=paid_by_subscription.get(sub.id) or Decimal("0"),
+            credit_realized=credit_by_subscription.get(sub.id, Decimal("0")),
         )
         if balance["remaining"] > 0:
             outstanding.append({
