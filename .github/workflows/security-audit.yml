@@ -34,6 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          # El input default es "package.json" relativo a GITHUB_WORKSPACE, y
+          # en la raíz del repo no hay ninguno: el package.json está dentro de
+          # frontend/. Sin esto el action no encuentra dónde leer el campo
+          # "packageManager" y falla con "No pnpm version is specified".
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

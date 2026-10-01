@@ -12,6 +12,12 @@ superusuario, así que Django crea ``test_neondb``, corre los tests adentro y la
 dropea al terminar. Por eso los ``flush`` de ``TransactionTestCase`` caen
 sobre ``test_neondb``.
 
+Ese drop es estricto: si algún test deja una conexión viva en otro hilo,
+Postgres corta con ``ObjectInUse: database "test_neondb" is being accessed by
+other users`` y el job queda rojo aunque todos los tests hayan pasado. Por eso
+los que usan ``threading.Thread`` tienen que cerrar sus conexiones con
+``connections.close_all()`` antes de terminar.
+
 Eso importa para ``ScheduledTaskClaimTests``: el claim atómico se apoya en el
 lock de fila de Postgres, que en SQLite no existe porque las escrituras se
 serializan solas. Contra SQLite el test pasa sin ejercitar la garantía real.
@@ -30,6 +36,7 @@ from datetime import date, time as _time
 from decimal import Decimal
 from unittest import mock
 
+from django.db import connections
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
@@ -1666,6 +1673,16 @@ class ScheduledTaskClaimTests(TransactionTestCase):
                 results[idx] = run_scheduled_tasks()
             except Exception as exc:  # pragma: no cover - defensivo
                 errors[idx] = exc
+            finally:
+                # El teardown dropea test_neondb, y Postgres rechaza el DROP
+                # si queda alguna sesión viva ("database is being accessed by
+                # other users"). Django cierra las conexiones del hilo principal
+                # al terminar, pero no las que abriron estos workers. Sin este
+                # close_all las 2 sesiones sobreviven y el DROP falla con
+                # ObjectInUse, aunque los 54 tests hayan pasado. En SQLite no
+                # se nota porque no hay DROP: el archivo se borra del disco
+                # aunque queden descriptores abiertos.
+                connections.close_all()
 
         t1 = threading.Thread(target=worker, args=(0,))
         t2 = threading.Thread(target=worker, args=(1,))
