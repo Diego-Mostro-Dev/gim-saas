@@ -178,12 +178,29 @@ unset DATABASE_URL DATABASE_URL_PROD
 El valor debe ir entre comillas simples: contiene `&`.
 
 > **`ENVIRONMENT` hay que setearlo también contra producción** (2026-09-29). El guard de
-> `config/settings.py:354` es *ciego al host*: dispara el aviso "STAGING CHECK" con sólo mirar
+> `config/settings.py` era *ciego al host*: dispara el aviso "STAGING CHECK" con sólo mirar
 > `ENVIRONMENT == "staging"` y que la base se llame `neondb`, que es el nombre en **las dos**
-> ramas. Corriendo el audit de producción sin `ENVIRONMENT=production` sale un aviso que dice
+> ramas. Corriendo el audit de producción sin `ENVIRONMENT=production` salía un aviso que decía
 > que estás contra la base de staging cuando estás contra la de producción — y viceversa. La
-> única línea que dice la verdad es el `DB host` que imprime el propio comando, así que **verificá
-> siempre el `DB host` contra la tabla de arriba** antes de mirar cualquier número.
+> única línea que decía la verdad era el `DB host` que imprime el propio comando.
+
+**Corregido** (2026-10-01). El check ahora compara el **endpoint**, que en Neon es único por
+branch, en vez del nombre de la base. `config/neon.py:neon_endpoint_role` hace el matching contra
+`NEON_ENDPOINT_STAGING` / `NEON_ENDPOINT_PRODUCTION` (defaults: `green-sea-aqmezbmg` y
+`round-sunset-aq8oo16v`), y tanto el aviso de arranque como `manage.py check_environment`
+distinguen los tres casos que antes no distinguían:
+
+| Config | Resultado |
+|---|---|
+| staging → `green-sea` | consistente |
+| staging → `round-sunset` | **MIX DE BASE** (antes: un aviso genérico) |
+| producción → `green-sea` | **MIX DE BASE** (antes: "parece consistente") |
+| host no reconocido | "no pude validar", explícito |
+
+Verificado contra el `DATABASE_URL` real de staging: `Consistente: ENVIRONMENT=staging y el host
+es la branch de staging`. **Staging y producción no comparten base.** Antes de este commit el
+`check_environment` salía con "Config de entorno/db parece consistente" incluso con staging
+apuntando a producción, que es justo el error que dice detectar.
 
 ### 1.2 Resultados de la auditoría de la Fase 0 (0 escrituras, ambos ambientes)
 

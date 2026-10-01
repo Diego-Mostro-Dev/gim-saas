@@ -13,6 +13,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Se usa para detectar mezclas de base entre entornos.
 ENVIRONMENT = os.getenv("ENVIRONMENT", "").strip().lower()
 
+# Fragmentos del endpoint Neon que identifican la branch de cada entorno.
+# Configurables por si cambian; los defaults son los de este proyecto.
+NEON_ENDPOINT_STAGING = os.getenv("NEON_ENDPOINT_STAGING", "green-sea-aqmezbmg").strip()
+NEON_ENDPOINT_PRODUCTION = os.getenv("NEON_ENDPOINT_PRODUCTION", "round-sunset-aq8oo16v").strip()
+
 
 # =========================
 # SENTRY (monitoreo)
@@ -343,21 +348,38 @@ _env_log = _env_logging.getLogger("environment")
 _DB_HOST = _db_config.get("HOST", "")
 _DB_NAME = _db_config.get("NAME", "")
 
+from config.neon import neon_endpoint_role as _neon_endpoint_role  # noqa: E402
+
+_DB_HOST_ROLE = _neon_endpoint_role(_DB_HOST)
+
 if ENVIRONMENT:
-    # Neon pooler endpoints: ep-<name>-pooler.c-<id>.<region>.aws.neon.tech
-    # Los endpoint IDs son únicos por branch.
     _env_log.warning(
         "ENVIRONMENT=%s  |  DB host=%s  |  DB name=%s",
         ENVIRONMENT, _DB_HOST, _DB_NAME,
     )
 
-    if ENVIRONMENT == "staging" and _DB_NAME == "neondb":
+    # Antes esto comparaba ENVIRONMENT == "staging" con _DB_NAME == "neondb",
+    # que no distingue nada: toda branch de Neon se llama neondb, así que el
+    # aviso salía siempre y también habría salido en el caso que debía
+    # detectar. Ahora se compara el endpoint, que sí es único por branch.
+    if _DB_HOST_ROLE is None:
         _env_log.warning(
-            "STAGING CHECK: DATABASE_URL apunta a '%s' (neondb). "
-            "Si esta branch es la de producción, staging y producción "
-            "comparten la misma base. Actualizá DATABASE_URL en Render "
-            "para apuntar a la branch 'staging' de Neon.",
+            "No pude identificar la branch de Neon desde el host '%s' "
+            "(no contiene '%s' ni '%s'). Si ENVIRONMENT=%s, revisá que "
+            "DATABASE_URL apunte a la branch correcta: con este check no "
+            "hay forma de detectar una mezcla con producción.",
+            _DB_HOST, NEON_ENDPOINT_STAGING, NEON_ENDPOINT_PRODUCTION, ENVIRONMENT,
+        )
+    elif _DB_HOST_ROLE != ENVIRONMENT:
+        _env_log.warning(
+            "MIX DE BASE: ENVIRONMENT=%s pero DATABASE_URL apunta a la branch "
+            "de %s ('%s'). %s y %s comparten la misma base: los cambios de un "
+            "entorno aparecen en el otro. Corregí DATABASE_URL en Render.",
+            ENVIRONMENT,
+            _DB_HOST_ROLE,
             _DB_HOST,
+            ENVIRONMENT,
+            _DB_HOST_ROLE,
         )
 else:
     _env_log.warning(
