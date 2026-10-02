@@ -6,10 +6,10 @@ import ValidationBanner from "../ui/ValidationBanner";
 function ReviewStep({
   formData,
   services,
-  plans,
+  plans = [],
   selectedPlanId,
   schedules,
-  activities,
+  activities = [],
   activitySelections,
   validationMessage,
   onEditPersonal,
