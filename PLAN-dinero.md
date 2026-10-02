@@ -15,12 +15,23 @@ Test runner: Django (`manage.py test`). No hay pytest.
 
 ## CÓMO RETOMAR ESTE TRABAJO
 
-Estado: **Fases 0-6 commiteadas en `development` (2026-09-28). Fase 7 en curso: 7.0, 7.2,
-7.1a-d y 7.3 hechas (2026-09-29); 7.4 pendiente.** Los tests focalizados corren contra SQLite con:
+Estado: **Fases 0-7 commiteadas en `development`. La 7 cierra el 2026-10-02** con dos bugs que no
+estaban en el alcance original, P17 y P18, que aparecieron al escribir la matriz de tests del
+toggle de cortesía (detalle en "P17 en detalle" y "P18 en detalle").
+
+**El gate cambió de base el 2026-10-01** (`ab56e53`). Antes era SQLite; ahora el gate de la Fase 7
+corre contra **Postgres real**, que es lo que hace CI (`.github/workflows/backend-tests.yml`
+levanta un `postgres:16` y corre `manage.py test subscriptions`). SQLite ya no sirve como
+referencia: `ScheduledTaskClaimTests` se apoya en el lock de fila de Postgres, que en SQLite no
+existe porque las escrituras se serializan solas, así que en SQLite el test pasaba sin ejercitar
+la garantía que dice comprobar. Para una corrida local rápida:
 
 ```
-DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python manage.py test subscriptions
+cd backend && .venv/bin/python manage.py test subscriptions
 ```
+
+con `DATABASE_URL` apuntando a un Postgres descartable. Si sólo se quiere iterar sobre lógica de
+precio y no sobre concurrencia, SQLite sirve, pero lo que entonces se mide no es el gate.
 
 | Fase | Qué | Estado | Commit |
 |---|---|---|---|
@@ -31,7 +42,7 @@ DATABASE_URL=sqlite:////tmp/f6_test.sqlite3 SECRET_KEY=... .venv/bin/python mana
 | 4 | Claim atómico + atómico por socio | **CERRADA** | `4b8022a` |
 | 5 | Guards de escritura #2 y #48 | **CERRADA** | `a5271ed` |
 | 6 | Tests focalizados | **CERRADA** | `23438bf` |
-| 7 | Bugs ALTO de precio, pase de cortesía y PT por paquete | **EN CURSO** — 7.0 y 7.2 hechas (2026-09-29) | `6bd6a91`, 7.2 |
+| 7 | Bugs ALTO de precio, pase de cortesía y PT por paquete | **CERRADA** en código (2026-10-02); checklist de cierre abierto | 7.0 `6bd6a91` · 7.1 `9185300`, `baa7fb8`, `2eba60b`, `35c3577` · 7.2 `22107ff` · 7.3 `a06f6f2` · P17 `a000871` · P18 `9a051c8` · bulk `ab56e53` |
 
 Reglas para retomar:
 
@@ -80,14 +91,29 @@ Todo lo pendiente en un solo lugar, con el gate que hay que cumplir para poder c
 |---|---|---|---|---|
 | 1 | **7.0** — 4 contadores read-only con pares `confirmados`/`armados` | `audit_money_bugs.py` | `Escrituras: 0` + los 8 números medidos en staging **y** producción | ✅ **hecho** (2026-09-29) |
 | 2 | **7.2** — PT por paquete no genera cuota mensual | `services.py` (dos vías) + alta/edición de servicio | test de paquete sin ítem de PT por las **dos** vías + arnés **sin cambios** | ✅ **hecho** (2026-09-29) |
-| 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:240-263` | los ítems de actividad/outing/PT se restauran prorrateados en **un solo loop** con `_item_contract_price` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:388-481` | los 3 tipos de paquete, ida y vuelta | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
-| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación, **por los dos caminos** (caída del total y pago mayor al total) | ✅ **hecho** (2026-09-29) — **sin verificar**: no se ejecutaron tests |
+| 3 | **7.1a** — `is_comp` se persiste antes de calcular precios | `members/serializers.py:590` | 8 casos del toggle, assertando sobre total y balance, **nunca sobre `paid`** | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
+| 4 | **7.1b** — prorrateo por días en las dos direcciones | `domain.py:178-234` | quitar el día 20 → `11/30`; dar el día 20 → `19/30` | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
+| 5 | **7.1c** — restaurar precio de PT al quitar el pase | `domain.py:240-263` | los ítems de actividad/outing/PT se restauran prorrateados en **un solo loop** con `_item_contract_price` | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
+| 6 | **7.1d** — `_neutralize` + su gemela de restauración | `domain.py:388-481` | los 3 tipos de paquete, ida y vuelta | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
+| 7 | **7.3a** — migración del snapshot de descuento | `subscriptions/0022` | snapshot escrito en `open_subscription` | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
+| 8 | **7.3b** — migración del crédito | `payments/0013` | `concept="credit"` + `applied_to` | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
+| 9 | **7.3c** — crear, consumir y exponer el crédito | `services.py:298-323`, `create_next_subscription` | invariante: se crea **y se consume solo** en la renovación, **por los dos caminos** (caída del total y pago mayor al total) | ✅ **hecho** (2026-09-29) — **verificado** (nota de verificación debajo de la tabla) |
 | 10 | **7.4** — arreglos de texto a este documento | `PLAN-dinero.md` | — | ✅ **hecho** |
+
+**Nota de verificación de las filas 3-9** (las que decían "sin verificar" hasta el 2026-10-02).
+La verificación existe, pero no como una corrida única: quedó registrada en los mensajes de los
+commits que harpata. `a000871` (*el prefetch no puede ocultar relaciones filtradas*) reporta
+`manage.py test subscriptions members` → **66 tests**, y dice que los 2 `ERROR` de
+`CourtesyPassToggleOrderTests` se van y que los 6 rojos que quedaban eran **tests mal seteados**
+—no bugs de código— y que los 4 preexistentes de `members` seguían igual. `9a051c8` (*acreditar
+sólo el crecimiento del sobrepago*) reporta `manage.py test subscriptions` → **53 tests, 52
+pasan**, y el único rojo restante era `test_legacy_period_without_snapshot_keeps_live_discount`,
+que leía un `Discount` cacheado de antes de desactivarlo. `ab56e53` corrigió ese test y movió el
+gate a Postgres real. Los 6 rojos "mal seteados" de `a000871` son exactamente los que cerraban
+`9a051c8` y `ab56e53`.
+
+Lo que **no** hay es una corrida posterior a `15bce65` (los tests de la matriz del toggle): el
+gate quedó pendiente. Tampoco la hay desde los 8 tests que CI no corre — ver sección 5.
 
 ### Verificación que quedó abierta desde las Fases 0-6
 
@@ -928,7 +954,12 @@ cd backend && .venv/bin/python manage.py test subscriptions
 
 ---
 
-### Fase 7 — Bugs ALTO de precio, pase de cortesía y PT por paquete — 🚧 EN CURSO (7.0 hecha)
+### Fase 7 — Bugs ALTO de precio, pase de cortesía y PT por paquete — ✅ CERRADA (7.0-7.4)
+
+**Estado al 2026-10-02**: los 9 bugs (P1-P7, P17, P18) tienen fix commiteado. Falta **sólo** el
+checklist de cierre del punto 6 de la sección 5, que pide correr el arnés y los contadores otra
+vez —no se corrió en esta sesión. La Fase 7 se puede dar por cerrada en código sin que eso la
+bloquee, pero el checklist sigue abierto y no debe contarse como verde.
 
 **Origen**: revisión de código del 2026-09-28, no de métricas. Ningún contador del
 `audit_money_bugs` los detecta (ese comando sólo implementa #1, #2, #4, #5, #6, #19 y #48).
@@ -941,7 +972,11 @@ escrituras. Leyendo el flujo de escritura aparecen cuatro bugs de dinero en el m
 **Impacto hoy: $0.** El único gym real (`Sinkro`) tiene 0 socios. Se corrigen antes de que
 entre el primer socio real, no porque hayan costado plata.
 
-#### Los 7 bugs
+#### Los 9 bugs
+
+P1-P7 nacieron de la revisión de código del 2026-09-28. **P17 y P18 nacieron de los tests**, al
+escribir la matriz del toggle: son bugs que la revisión no miró porque no se ven leyendo el flujo
+de escritura, se ven midiendo el resultado. Por eso no tienen contador en la 7.0.
 
 | | Bug | Ubicación | Sev | Conf. / armados (prod) |
 |---|---|---|---|---|
@@ -952,6 +987,8 @@ entre el primer socio real, no porque hayan costado plata.
 | P5 | El **descuento se lee en vivo**, no está en el snapshot | `subscriptions/services.py:261, 264-274` | ALTO | 4 / 1 — 100 % sobrepago |
 | P6 | Al quitar el pase **no se restaura** el precio de PT | `subscriptions/domain.py:216-235` | MEDIO | sin contador (cubierto por P2/P3) |
 | P7 | `_neutralize_comp_package_balances` **sólo cubre actividades** | `subscriptions/domain.py:268-290` | MEDIO | sin contador (cubierto por P2/P3) |
+| P17 | El **prefetch** del viewset oculta las relaciones filtradas: `personal_training_assignments` y `activity_enrollments` venían con `active=True, modality="package"`, así que el `.filter()` de los consumidores arrancaba de la queryset prefetcheada y veía sólo paquetes → la **cuota mensual de PT desaparece** del período al togglear el pase | `members/views.py:59-66` (los dos `Prefetch`) + `subscriptions/services.py:88`, `:215` | ALTO | sin contador (nació de los tests) |
+| P18 | `ensure_overpayment_credit` acuña el **sobrepago entero** cuando crece: el guard `if already >= overpayment` frena el re-acuña si no se mueve, pero si el total baja y el sobrepago sube con él, la fila nueva **acredita dos veces la parte ya acreditada** | `subscriptions/services.py:457` (`ensure_overpayment_credit`, la función de P4) | ALTO | sin contador (nació de los tests) |
 
 Las dos últimas columnas son la línea base de la Fase 7.0, medida el 2026-09-29 contra
 producción; el detalle por ambiente y las consecuencias están en "Fase 7.0 — línea base medida".
@@ -959,6 +996,17 @@ P2 y P3 comparten contador porque el ítem es la misma evidencia.
 
 P6 y P7 son MEDIO pero entran acá porque son inseparables de P2/P3: están en el mismo flujo y
 arreglarlos por partes deja el toggle a medias.
+
+P17 y P18 son ALTO y también entran acá aunque la 7.0 no los midiera, porque los dos bugs vivían en
+el mismo camino que P1-P7: el toggle de cortesía. P17 es la vuelta de P1 (la 7.2 cerró que un PT
+por paquete no genere cuota mensual; P17 cerró que un PT **mensual** tampoco se creara) y P18 es
+una segunda vuelta de P4 (la 7.3 creó el crédito; P18 cerró que se acuña dos veces cuando el
+sobrepago crece). Ni P17 ni P18 cambian un número de producción: `Sinkro` tiene 0 socios, así que
+su línea base es 0 por definición y no hacía falta un contador para decidir corregirlos.
+
+**La ubicación de P4 quedó vieja** (`services.py:298-323` y compañía): después de la 7.3, del
+`credit_realized` y del bulk de `consumed_credit_by_subscription`, esa función está en
+`services.py:457`. La fila de P18 trae la posición vigente.
 
 #### P1 en detalle
 
@@ -1165,6 +1213,73 @@ El bug tiene **dos puntas**, y las dos hay que tapar:
 
 Por eso la Fase 7.1 no sólo extiende `_neutralize_comp_package_balances`: también escribe su
 gemela de restauración.
+
+#### P17 en detalle
+
+El bug no está en el toggle: está en **cómo el queryset llega al viewset**. `MemberViewSet`
+(`members/views.py:51-81`) prefetchea `personal_training_assignments` y `activity_enrollments`
+con `queryset=...filter(active=True, modality="package")`. El detalle que lo vuelve un bug y no
+una decisión: **cualquier `.filter()` posterior sobre esa relación no vuelve a la base, arranca
+de la queryset prefetcheada.** Django no distingue "acabo de pedir esto" de "esto es todo lo que
+hay". Así que `services.py` veía únicamente paquetes:
+
+- `_monthly_pt_service_ids` (`services.py:88`) se apoyaba en
+  `member.personal_training_assignments.filter(active=True)` para sacarle los IDs de los PT
+  mensuales. Con la caché del viewset, esa lista —no la base— era sólo la de los paquetes.
+- `ensure_pt_items_for_active_assignments` (`services.py:215`) por lo tanto no creaba el ítem de
+  cuota mensual, y el período se abría sin él.
+
+El camino afectado es el toggle de cortesía (`members/serializers.py` → `mutate_membership` →
+`open_subscription`), el único que pasa un socio del viewset a la apertura: el período se reescribe
+sin el ítem de PT y la cuota mensual desaparece del total. **Un socio que ya pagaba su cuota
+mensual de PT deja de pagarla al tocarle el pase.** Ese es el daño.
+
+El fix (`a000871`) saca los filtros de los dos `Prefetch` y los pasa a los consumidores:
+`pending_sellados` exige `modality="package"`, los loops de deuda de `is_recoverable` exigen
+`active`, y `get_outing_enrollments` exige `active`. `outing_enrollments` **no** se desfiltra,
+porque no tenía guard propio y desfiltro mostraría salidas canceladas: el guard va en el
+consumidor. El payload queda idéntico: con la instancia del viewset los filtros dan el mismo
+resultado que antes, y sin instancia ahora también dan el correcto.
+
+La lección, que es más gruesa que el bug: **un `Prefetch` con queryset filtrada es un `cache()` con
+alcance de ORM**. Es una afirmación sobre la base que todos los consumidores tienen que repetir, y
+el que la incumplía no estaba cerca del prefetch.
+
+#### P18 en detalle
+
+`ensure_overpayment_credit` (`services.py:457`) convierte el sobrepago en saldo a favor. El bug
+no es que acuñe de más, es **cuándo**: el guard era
+
+```python
+if already >= overpayment:
+    return
+```
+
+que es cierto y no es suficiente. Frena el re-acuña cuando el saldo no se mueve, pero no cuando
+**crece**. La secuencia que lo dispara es la del toggle:
+
+1. El socio paga el mes: $50.000 sobre un total de $50.000 → sobrepago $0.
+2. Se le da el pase. El total baja a $0.
+3. El sobrepago pasa de $0 a $50.000.
+4. `ensure_overpayment_credit` ve `already = 0`, `overpayment = 50000`, no cumple el guard y
+   **acuña $50.000 enteros**. Si el socio ya traía $2.000 de saldo a favor de antes, la parte ya
+   acreditada aparece dos veces.
+
+El fix (`9a051c8`) acuña el **delta**, `overpayment - already`. El delta conserva la idempotencia
+sin depender del guard: un segundo sync con el mismo saldo deja `pending` en 0, que es el mismo
+no-op que ya daba el guard. La forma buena no es "agregar una condición más", es cambiar la
+unidad de la operación de "el saldo es X" a "el saldo pasó de A a B".
+
+**Cómo se encontró**: no leyendo `ensure_overpayment_credit`, sino reescribiendo
+`test_courtesy_member_overpayment_becomes_credit`. El test viejo seteaba al socio como cortesía
+*antes* de abrir el período, así que el período nacía ya sin ítem de plan a 0 y el pago de $50.000
+se leía entero como sobrepago. Fijaba un estado imposible —un cortesía no genera un mes de deuda
+que después se descuente— y con ese estado el bug quedaba tapado. Recién con la secuencia real
+(el socio abre y paga como normal, después se le da el pase) el test murió por una razón real.
+
+Este es el patrón que compartieron P17 y P18: los dos estaban en código que la Fase 7 ya había
+tocado y que ningún test alcanzaba, y los dos aparecieron al **escribir el caso que faltaba**, no
+al revisar la función.
 
 ---
 
@@ -1618,7 +1733,7 @@ histórico thin). Se corrige antes de que entre el primer socio, no porque haya 
 
 ---
 
-## 3-bis. Fix de performance del dashboard (2026-09-30) — HECHO, sin commitear
+## 3-bis. Fix de performance del dashboard (2026-09-30) — HECHO (`ab56e53`)
 
 Distinto de las fases: no es un bug de dinero, es **el mismo N+1 de la Fase 2 en la función
 hermana**, y sólo se veía porque el desarrollo local apunta a una base remota.
@@ -1658,9 +1773,13 @@ El gate de este fix es el que corresponde: **el JSON de la respuesta tiene que s
 byte a byte**. Se comparó la respuesta completa de los dos endpoints antes y después: idéntica.
 Un refactor de performance que cambia un número no es un refactor de performance.
 
-`manage.py test subscriptions`: 53 tests, **8 fallos preexistentes, ninguno nuevo** (verificado
-contra el árbol limpio con `git stash`: la lista de fallos es la misma función por función). Son
-justo los que el propio plan marca "sin verificar" en las filas 7.1a-7.1d y 7.3a-7.3c.
+Al momento de escribir este fix, `manage.py test subscriptions` corría con 53 tests y **8 fallos
+preexistentes, ninguno nuevo** (verificado contra el árbol limpio con `git stash`: la lista de
+fallos era la misma función por función). Eran los que las filas 7.1a-7.1d y 7.3a-7.3c marcaban
+"sin verificar" — es decir, tests escritos sin ejecutar. **Los 8 están resueltos hoy**: `a000871`
+reporta que se van 2 `ERROR` y que 6 quedaban por tests mal seteados, `9a051c8` deja 52/53 y
+`ab56e53` cierra el que faltaba. El conteo vigente y si hay una corrida nueva está en el punto 1
+de la sección 5.
 
 **Lo que quedó sin hacer, a propósito** (no es la causa del problema y amerita fase propia):
 
@@ -1685,15 +1804,25 @@ fix(subscriptions): guards de escritura para PT e is_comp (#2/#48)
 test(subscriptions): tests focalizados de bugs de dinero
 ```
 
-Fase 7 (un commit por sub-fase; las marcadas ya están):
+Fase 7 (un commit por sub-fase; todas hechas, con los hashes reales):
 
 ```
-chore(audit): métricas read-only de los bugs de la Fase 7        ← 7.0, hecha 2026-09-29
-fix(subscriptions): los PT por paquete no generan cuota mensual (#2)   ← 7.2, hecha 2026-09-29
-fix(subscriptions): orden de escritura y prorrateo del pase de cortesía (#2/#48)
-feat(subscriptions): saldo a favor y descuento congelado por período
-docs(plan): Fase 7 y corrección de las contradicciones del documento
+6bd6a91 chore(audit): métricas read-only de los bugs de la Fase 7            ← 7.0
+22107ff fix(subscriptions): los PT por paquete no generan cuota mensual (#2)  ← 7.2
+9185300 fix(members): persistir is_comp antes de recalcular la suscripción (#48)      ← 7.1a
+baa7fb8 fix(subscriptions): prorratear por días el pase de cortesía (#2/#48)         ← 7.1b
+2eba60b fix(subscriptions): restaurar PT mensual al prorratear al quitar el pase      ← 7.1c
+35c3577 fix(subscriptions): neutralizar y restaurar paquetes en el toggle del pase     ← 7.1d
+a06f6f2 feat(subscriptions): saldo a favor y descuento congelado por período     ← 7.3
+a000871 fix(members): el prefetch no puede ocultar relaciones filtradas (#2/#48)      ← P17
+9a051c8 fix(subscriptions): acreditar sólo el crecimiento del sobrepago                 ← P18
+ab56e53 test(subscriptions): bulk credit lookup y claim concurrente con timeouts
+15bce65 test(subscriptions): cerrar la matriz del toggle de cortesía
 ```
+
+Los cuatro commits de la 7.1 no son uno: el orden importa porque cada uno reorganiza el flujo del
+mismo archivo. `a000871` (P17) parece de la 7.2 y no lo es — es la vuelta de P1, y por eso está
+del lado de los tests y no del lado de la 7.2.
 
 **Orden de ejecución de la Fase 7**: 7.0 → **7.2 (hecha)** → 7.1 → 7.3 → 7.4. La 7.2 va antes que
 la 7.1 a propósito: es el fix más chico de la fase y el bug más caro, así que sirve para calibrar
@@ -1714,11 +1843,36 @@ tests, 2 desvíos menores del diseño y una regla más simple de la que estaba e
 > `members.tests.PublicRegisterSecurityTests`, `members.tests.MemberCreateTests` y
 > `gyms.tests.GymClosedDateHolidaysTests`. **No son de esta fase y no se tocan acá**; el comando
 > para verlos es `.venv/bin/python manage.py test` (107 tests), mientras que el gate de esta fase
-> es `manage.py test subscriptions` (19 tests), que está verde. Si se arreglan, es trabajo
-> aparte.
+> es `manage.py test subscriptions`. Si se arreglan, es trabajo aparte.
+>
+> **⬜ Los dos números de arriba (7 rojos y 107 tests) están sin re-medir desde el 2026-09-29.**
+> Quedan así a propósito: son la última medición real y no hay forma de actualizarlos sin correr la
+> suite completa, que es lo que falta. Dos razones por las que conviene dejarlos así:
+>
+> - **CI no corre la suite completa.** `.github/workflows/backend-tests.yml:60` corre sólo
+>   `python manage.py test subscriptions`. Nadie va a detectar que uno de los 7 rojos se arregló o
+>   se rompió: no está en ningún pipeline.
+> - La corrida tiene que ser contra **Postgres**, no SQLite, desde `ab56e53`. Un número medido en
+>   SQLite no es comparable con uno medido en Postgres, así que cambiar de base a mitad de camino
+>   rompe la serie histórica en vez de extenderla.
+>
+> La última palabra sobre el gate de la fase está en el punto 1 de abajo.
 
-1. `.venv/bin/python manage.py test subscriptions` — todos verdes, incluidos los 7
-   preexistentes.
+1. **⬜ `manage.py test subscriptions` — sin corrida posterior a `15bce65`.** El gate de la Fase 7
+   es este, y lo que se sabe del estado de la suite es lo que está escrito en los mensajes de
+   commit, no una corrida propia:
+
+   | Corrida | Resultado | Registrado en |
+   |---|---|---|
+   | `a000871` | `subscriptions members` → 66 tests; se van 2 `ERROR`, quedan 6 rojos "tests mal seteados" + 4 preexistentes de `members` | mensaje del commit |
+   | `9a051c8` | `subscriptions` → 53 tests, **52 pasan**; el 1 restante era `test_legacy_period_without_snapshot_keeps_live_discount` leyendo un `Discount` cacheado | mensaje del commit |
+   | `ab56e53` | corrige ese test y mueve el gate a Postgres; **no reporta un conteo final** | mensaje del commit |
+   | `15bce65` | suma 8 tests de la matriz del toggle; **no ejecutados** | este documento |
+
+   El paquete tiene hoy **62 métodos `test_`** (55 en `test_money_bugs.py`, 7 en `tests.py`),
+   contando estáticamente y sin ejecutar: ese es el número que debería dar la corrida, no 53. Si
+   no coincide, la diferencia es un test saltado o una clase que no se descubre: investigar antes
+   de escribir el número acá.
 2. `audit_renewal_dryrun` contra **staging** (post-Fase 3, verificado 2026-09-28):
 
    | Concepto | Valor |
@@ -1772,11 +1926,12 @@ tests, 2 desvíos menores del diseño y una regla más simple de la que estaba e
 
 5. Conteo de queries antes/después documentado en el mensaje del commit de la Fase 2.
 
-6. **Fase 7** (al cerrarla, no antes):
+6. **Fase 7** — **⬜ checklist abierto.** Es lo único que le falta a la fase, que en código está
+   cerrada desde el 2026-10-02. Ninguna de estas filas se midió en esa sesión:
 
    | Concepto | Valor |
    |---|---|
-   | `manage.py test subscriptions` | 19 preexistentes verdes + los nuevos de 7.1/7.2 |
+   | `manage.py test subscriptions` | **⬜ sin corrida desde `15bce65`** — ver el punto 1 de esta sección |
    | arnés `audit_renewal_dryrun` | **sin cambios**: `renewed 1`, contadores 235/90/7/0/38/1, Σ371 |
    | contador P1 (PT paquete con ítem de cuota) | `confirmados` **no crece** sobre la línea base de la 7.0 |
    | contador P2/P3 (ítems > 0 en socio `is_comp`) | `cerrados` **no crece** sobre la línea base (los del socio 827 no se tocan); todo ítem **positivo** de un cortesía en período **vigente** tiene **crédito que lo cubra** (estado final que sólo entrega la 7.3 — criterio reescrito en 7.1, ver Fase 7.1) |
