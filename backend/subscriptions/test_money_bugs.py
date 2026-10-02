@@ -521,6 +521,19 @@ class CourtesyPassToggleOrderTests(_MoneyBugBase):
             member.save(update_fields=["is_comp"])
         return member
 
+    def _member_without_pt(self, is_comp=False):
+        """Socio sin PT y **sin** suscripción vigente.
+
+        La celda que faltaba de la matriz del toggle: los otros casos sin
+        suscripción vigentes todos arrastraban PT mensual, así que nunca se
+        probó que el dominio no invente un ítem de PT donde no hay asignación.
+        """
+        member = self.create_member(self.gym)
+        if is_comp:
+            member.is_comp = True
+            member.save(update_fields=["is_comp"])
+        return member
+
     def _toggle(self, member, **payload):
         return self.client.patch(
             f"/api/members/{member.id}/",
@@ -583,6 +596,48 @@ class CourtesyPassToggleOrderTests(_MoneyBugBase):
         self.assertTrue(member.is_comp)
         self.assertFalse(Subscription.objects.filter(member=member).exists())
 
+    def test_granting_comp_without_subscription_or_pt_writes_zero_plan(self):
+        member = self._member_without_pt()
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertTrue(member.is_comp)
+
+        sub = SubscriptionDomain.get_current_subscription(member)
+        self.assertIsNotNone(sub)
+        self.assertEqual(self._snapshot(member, "plan"), Decimal("0"))
+        # Sin asignación de PT no puede aparecer un ítem de PT con precio 0:
+        # el cobro del pase tiene que ser exactamente el del plan.
+        self.assertFalse(
+            sub.items.filter(item_type="personal_training").exists()
+        )
+        self.assertEqual(calculate_subscription_total(sub), Decimal("0"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+    def test_removing_comp_without_subscription_or_pt_writes_real_plan_price(self):
+        member = self._member_without_pt(is_comp=True)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.paid_plan.id)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertFalse(member.is_comp)
+
+        sub = SubscriptionDomain.get_current_subscription(member)
+        self.assertEqual(sub.plan, self.paid_plan)
+        self.assertEqual(self._snapshot(member, "plan"), self.paid_plan.price)
+        self.assertFalse(
+            sub.items.filter(item_type="personal_training").exists()
+        )
+        self.assertEqual(calculate_subscription_total(sub), self.paid_plan.price)
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], self.paid_plan.price
+        )
+
 
 class CourtesyPassProrationTests(_MoneyBugBase):
     """Fase 7.1 (P3): el período en curso se factura por días, en las dos
@@ -595,6 +650,8 @@ class CourtesyPassProrationTests(_MoneyBugBase):
     Los montos están elegidos para que el prorrateo caiga exacto: plan $30.000
     + actividad $3.000 + PT $6.000 = $39.000, que da $14.300 con 11/30 y
     $24.700 con 19/30. Sin PT el total es $33.000 → $12.100 / $20.900.
+    La salida suma $4.000: sola con la actividad da $37.000 → $13.566,67 con
+    11/30 y $23.433,33 con 19/30.
     """
 
     TRANSITION_DAY = date(2026, 9, 20)
@@ -603,6 +660,7 @@ class CourtesyPassProrationTests(_MoneyBugBase):
     PLAN_PRICE = Decimal("30000.00")
     ACTIVITY_PRICE = Decimal("3000.00")
     PT_PRICE = Decimal("6000.00")
+    OUTING_PRICE = Decimal("4000.00")
 
     def setUp(self):
         super().setUp()
@@ -623,13 +681,23 @@ class CourtesyPassProrationTests(_MoneyBugBase):
             monthly_price=self.PT_PRICE,
             billing_mode="monthly",
         )
+        self.outing = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Trail",
+            monthly_price=self.OUTING_PRICE,
+            billing_mode="monthly",
+        )
 
-    def _member_with_september(self, comp_from_start, settle=False, with_pt=False):
+    def _member_with_september(
+        self, comp_from_start, settle=False, with_pt=False, with_outing=False
+    ):
         """Socio con la suscripción de septiembre abierta.
 
         ``comp_from_start`` refleja el estado real del socio desde el 1º:
         cortesía (``is_comp`` e ítems en 0) o pagando (ítems a precio de
-        contrato). ``with_pt`` agrega el ítem de PT mensual al período.
+        contrato). ``with_pt`` y ``with_outing`` agregan su ítem mensual al
+        período.
         """
         member = self.create_member(self.gym)
         sub = self.open_month_subscription(
@@ -669,6 +737,19 @@ class CourtesyPassProrationTests(_MoneyBugBase):
                 status="active",
                 name_snapshot=self.pt_service.name,
                 price_snapshot=pt_snapshot,
+                start_date=self.PERIOD_START,
+                end_date=self.PERIOD_END,
+            )
+        if with_outing:
+            outing_snapshot = Decimal("0") if comp_from_start else self.OUTING_PRICE
+            SubscriptionItem.objects.create(
+                subscription=sub,
+                item_type="outing",
+                plan=None,
+                outing=self.outing,
+                status="active",
+                name_snapshot=self.outing.name,
+                price_snapshot=outing_snapshot,
                 start_date=self.PERIOD_START,
                 end_date=self.PERIOD_END,
             )
@@ -768,6 +849,111 @@ class CourtesyPassProrationTests(_MoneyBugBase):
         self.assertEqual(
             subscription_remaining_balance(sub)["remaining"], Decimal("0")
         )
+
+    def test_removing_comp_on_day_20_restores_outing_with_11_of_30(self):
+        """La salida entra en el mismo loop de restauración que actividad y PT.
+
+        ``mutate_membership`` prora los tres tipos juntos contra
+        ``_item_contract_price`` (domain.py:248), que para ``outing`` lee
+        ``item.outing.monthly_price``. Antes este tipo no lo ejercitaba ningún
+        test, así que un ``item_type`` mal escrito en ese ``__in`` habría
+        pasado inadvertido.
+        """
+        member, sub = self._member_with_september(True, with_outing=True)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertFalse(member.is_comp)
+
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("11000.00"))
+        self.assertEqual(self._snapshot(sub, "activity"), Decimal("1100.00"))
+        # 4.000 * 11/30 = 1466,666... -> 1466.67 con ROUND_HALF_UP.
+        self.assertEqual(self._snapshot(sub, "outing"), Decimal("1466.67"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("13566.67"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("13566.67")
+        )
+
+    def test_granting_comp_on_day_20_bills_served_19_of_30_with_outing(self):
+        """El otro loop, el de dar el pase (domain.py:200), también cubre outing.
+
+        Recorre todos los ítems activos en vez de los tres tipos, y parte de
+        ``_item_contract_price`` y no del snapshot, para que togglear dos veces
+        en el mismo período no componga el factor.
+        """
+        member, sub = self._member_with_september(False, settle=True, with_outing=True)
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        member.refresh_from_db()
+        self.assertTrue(member.is_comp)
+
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("19000.00"))
+        self.assertEqual(self._snapshot(sub, "activity"), Decimal("1900.00"))
+        # 4.000 * 19/30 = 2533,333... -> 2533.33 con ROUND_HALF_UP.
+        self.assertEqual(self._snapshot(sub, "outing"), Decimal("2533.33"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("23433.33"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+
+    def test_toggle_delegates_paid_and_never_writes_it_by_hand(self):
+        """``paid`` es derivado: lo calcula ``sync_subscription_paid``, no el toggle.
+
+        El plan exige que ninguna rama escriba ``paid`` a mano. Con el sync
+        mockeado a un no-op, el total se prorea igual pero ``paid`` no puede
+        cambiar: si algún ``sub.paid = ...`` sobrevivo en el dominio, este
+        assert lo delata.
+        """
+        member, sub = self._member_with_september(False, settle=True)
+        self.assertTrue(sub.paid)
+
+        with mock.patch("subscriptions.services.sync_subscription_paid") as sync:
+            resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(sync.call_count, 1)
+        self.assertEqual(sync.call_args.args[0].pk, sub.pk)
+
+        sub.refresh_from_db()
+        # El total bajó de $33.000 a $20.900, pero con el sync desactivado
+        # ``paid`` sigue en True: nadie más lo tocó.
+        self.assertEqual(
+            SubscriptionItem.objects.filter(
+                subscription=sub, item_type="plan", status="active"
+            ).get().price_snapshot,
+            Decimal("19000.00"),
+        )
+        self.assertTrue(sub.paid)
+
+    def test_toggle_recomputes_paid_from_the_rewritten_items(self):
+        """La contraparte: con el sync real, ``paid`` sí se recalcula.
+
+        Es un flip de verdad (False → True), que el test anterior con el sync
+        desactivado no podría deducir: nadie escribe ``paid`` a mano,
+        sale de ``subscription_remaining_balance``.
+        """
+        member, sub = self._member_with_september(False)
+        self.assertFalse(sub.paid)
+
+        resp = self._toggle(member, is_comp=True)
+
+        self.assertEqual(resp.status_code, 200)
+        sub.refresh_from_db()
+        self.assertEqual(self._snapshot(sub, "plan"), Decimal("19000.00"))
+        self.assertEqual(calculate_subscription_total(sub), Decimal("20900.00"))
+        # El total bajó de $33.000 a $20.900, pero la rama ``is_comp`` de
+        # subscription_remaining_balance fuerza el saldo a 0, así que ``paid``
+        # tiene que haber pasado a True.
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0")
+        )
+        self.assertTrue(sub.paid)
 
 
 class CourtesyPassPackageBalancesTests(_MoneyBugBase):
@@ -878,10 +1064,11 @@ class CourtesyPassPackageBalancesTests(_MoneyBugBase):
             amount_paid=self.AMOUNT_PAID,
         )
 
-    def _member_with_package(self, kind, with_subscription):
-        member = self.create_member(self.gym)
-        member.insurance = self.insurance
-        member.save(update_fields=["insurance"])
+    def _member_with_package(self, kind, with_subscription, with_insurance=True, phone=None):
+        member = self.create_member(self.gym, phone=phone)
+        if with_insurance:
+            member.insurance = self.insurance
+            member.save(update_fields=["insurance"])
         package = {
             "activity": self._activity_package,
             "pt": self._pt_package,
@@ -979,6 +1166,61 @@ class CourtesyPassPackageBalancesTests(_MoneyBugBase):
 
         self.assertEqual(resp.status_code, 200)
         self._assert_restored(enrollment)
+
+    def test_restoring_comp_without_insurance_leaves_copay_at_zero(self):
+        """Sin obra social el co-pay vuelve a 0 ("sin cargo"), no a $2.500.
+
+        Los cinco casos anteriores fijaban siempre ``insurance`` con
+        ``session_price=$2.500``, así que el branch sin obra social de
+        ``_restore_comp_package_balances`` (domain.py:449-452) no lo ejercitaba
+        nadie. Es el edge que el propio docstring de la función declara.
+        """
+        member, enrollment = self._member_with_package(
+            "activity", with_subscription=True, with_insurance=False
+        )
+        self.assertIsNone(member.insurance)
+
+        resp = self._toggle(member, is_comp=True)
+        self.assertEqual(resp.status_code, 200)
+        self._assert_neutralized(enrollment)
+
+        resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+        self.assertEqual(resp.status_code, 200)
+
+        enrollment.refresh_from_db()
+        # ``session_price`` se refresca desde la obra social del socio; sin
+        # ella es 0, no el $2.500 que tenía antes del pase.
+        self.assertEqual(enrollment.session_price, Decimal("0"))
+        # ``amount_paid`` en cambio sale de los pagos de sesión, que no se
+        # tocaron, así que vuelve al valor real.
+        self.assertEqual(enrollment.amount_paid, self.AMOUNT_PAID)
+
+    def test_restoring_comp_without_insurance_covers_pt_and_outing(self):
+        """El mismo edge en los otros dos tipos de paquete, no sólo en actividad.
+
+        ``_restore_comp_package_balances`` tiene tres bucles casi idénticos
+        (enrollment, PT, outing). Cubrir sólo el primero dejaba los otros dos
+        con la mitad de sus llamadas sin ejercitar.
+        """
+        for kind in ("pt", "outing"):
+            with self.subTest(kind=kind):
+                member, package = self._member_with_package(
+                    kind,
+                    with_subscription=True,
+                    with_insurance=False,
+                    phone=f"11-{kind}",
+                )
+
+                resp = self._toggle(member, is_comp=True)
+                self.assertEqual(resp.status_code, 200)
+                self._assert_neutralized(package)
+
+                resp = self._toggle(member, is_comp=False, plan_id=self.plan.id)
+                self.assertEqual(resp.status_code, 200)
+
+                package.refresh_from_db()
+                self.assertEqual(package.session_price, Decimal("0"))
+                self.assertEqual(package.amount_paid, self.AMOUNT_PAID)
 
 
 class MoneyBugPTPackageFeeTests(_MoneyBugBase):
