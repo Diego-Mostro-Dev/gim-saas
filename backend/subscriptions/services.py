@@ -1494,6 +1494,14 @@ def _collect_renewal_candidates(queryset):
     # Fase 7 (P4): los créditos a favor no son cobrado; van por separado para
     # descontarlos del período que los consumió, como hace
     # subscription_remaining_balance.
+    #
+    # Esto va por consumed_credit_by_subscription y no por una query inline
+    # porque necesita su mismo applied_to__isnull=False. Sin ese filtro un
+    # crédito abierto —el registro de un sobrepago, plata que el gym le debe
+    # al socio y que ningún período tomó todavía— se descuenta igual, el
+    # período que volvió a deber queda con remaining 0, no llega a blocked y
+    # renueva sin pagar. Y el crédito abierto sobrevive para consumirse contra
+    # el período nuevo, así que el gym además lo regalaba dos veces.
     paid_by_sub = dict(
         Payment.objects.filter(subscription_id__in=sub_ids)
         .exclude(concept="credit")
@@ -1501,14 +1509,7 @@ def _collect_renewal_candidates(queryset):
         .annotate(paid=Sum("amount"))
         .values_list("subscription_id", "paid")
     )
-    credit_by_sub = {
-        row["subscription_id"]: -row["credit"]
-        for row in Payment.objects.filter(
-            subscription_id__in=sub_ids, concept="credit"
-        )
-        .values("subscription_id")
-        .annotate(credit=Sum("amount"))
-    }
+    credit_by_sub = consumed_credit_by_subscription(sub_ids)
 
     earliest_by_member = dict(
         Subscription.objects.filter(member_id__in=member_ids)
