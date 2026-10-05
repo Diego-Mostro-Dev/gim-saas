@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date
 
@@ -29,6 +30,8 @@ class MemberCreateTests(BaseAPITest):
                 "first_name": "Ana",
                 "last_name": "Gomez",
                 "phone": "112233",
+                "document_number": "12345678",
+                "date_of_birth": "1990-05-04",
                 "services": json.dumps(["gym"]),
                 "schedules": json.dumps(
                     [{"day": self.slot.day, "hour": "10:00"}]
@@ -236,11 +239,25 @@ class PublicRegisterSecurityTests(BaseAPITest):
     después del alta; el onboarding anónimo debe ignorarlos/forzarlos.
     """
 
+    def _phone(self, suffix=""):
+        """Teléfono válido para el test en curso, único por método.
+
+        Antes era f"11-{self._testMethodName}", que con el nombre más largo
+        de esta clase daba 48 caracteres y reventaba contra el max_length=30
+        de Member.phone. Peor: el 400 que devolvía era indistinguible del que
+        estos tests assertan, así que la regresión de campos obligatorios
+        quedó escondida detrás de un error de fixture.
+        """
+        digest = hashlib.md5(self._testMethodName.encode()).hexdigest()[:12]
+        return f"11-{digest}{suffix}"
+
     def _register_payload(self, gym, plan_id=None, **overrides):
         payload = {
             "first_name": "Luz",
             "last_name": "Pérez",
-            "phone": f"11-{self._testMethodName}",
+            "phone": self._phone(),
+            "document_number": "12345678",
+            "date_of_birth": "1990-05-04",
             "services": ["gym"],
             "schedules": [{"day": self.weekday_name(), "hour": "10:00"}],
         }
@@ -275,7 +292,7 @@ class PublicRegisterSecurityTests(BaseAPITest):
 
         self.assertEqual(resp.status_code, 201)
         self.assertFalse(resp.data["is_comp"])
-        member = Member.objects.get(phone=f"11-{self._testMethodName}")
+        member = Member.objects.get(phone=self._phone())
         self.assertFalse(member.is_comp)
         self.assertTrue(member.active)
         self.assertEqual(Subscription.objects.get(member=member).plan, plan)
@@ -305,5 +322,7 @@ class PublicRegisterSecurityTests(BaseAPITest):
                 format="json",
             )
             self.assertEqual(resp.status_code, 201)
-            member = Member.objects.get(phone=f"11-{self._testMethodName}-{discount_id}")
+            member = Member.objects.get(
+                phone=self._phone(f"-{discount_id}")
+            )
             self.assertIsNone(member.discount)
