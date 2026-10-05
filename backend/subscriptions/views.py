@@ -59,10 +59,58 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         .values("paid")
     )
 
+    # El mismo filtro que credit_realized_for, pero resuelto para las N filas
+    # del listado en una sola query. Sin esto el serializer caía al default
+    # (credit_realized=None -> una query por suscripción) y el endpoint costaba
+    # 226 queries para un gym mediano. Negado para cumplir el mismo contrato
+    # que el service: Decimal positivo.
+    _credit_realized_subquery = Subquery(
+        Payment.objects.filter(
+            subscription=OuterRef("pk"),
+            concept="credit",
+            applied_to__isnull=False,
+        )
+        .order_by()
+        .values("subscription")
+        .annotate(credit=-Sum("amount"))
+        .values("credit")
+    )
+
+    # Equivalente bulk de member_credit_balance: el saldo abierto del socio.
+    # Va por member_id y no por una caché en la instancia porque
+    # select_related crea un Member distinto por fila de suscripción, así que
+    # la caché por instancia nunca acierta y la consulta se repetía N veces.
+    _member_open_credit_subquery = Subquery(
+        Payment.objects.filter(
+            member_id=OuterRef("member_id"),
+            concept="credit",
+            applied_to__isnull=True,
+        )
+        .order_by()
+        .values("member")
+        .annotate(credit=-Sum("amount"))
+        .values("credit")
+    )
+
+    # Primer período del socio, para derivar is_first sin el exists() por
+    # suscripción de get_subscription_payment_status. Sin filtro de gym a
+    # propósito: es lo que hace hoy ese exists(), y el socio pertenece a un
+    # solo gym igual.
+    _member_first_created_subquery = Subquery(
+        Subscription.objects.filter(member_id=OuterRef("member_id"))
+        .order_by("created_at")
+        .values("created_at")[:1]
+    )
+
     queryset = (
         Subscription.objects.all()
         .select_related("member__insurance", "member__discount", "plan", "gym")
-        .annotate(_paid_amount=_paid_amount_subquery)
+        .annotate(
+            _paid_amount=_paid_amount_subquery,
+            _credit_realized=_credit_realized_subquery,
+            _member_open_credit=_member_open_credit_subquery,
+            _member_first_created=_member_first_created_subquery,
+        )
         .prefetch_related(
             Prefetch(
                 "items",

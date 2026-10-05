@@ -24,7 +24,29 @@ from .services import (
     subscription_remaining_balance,
 )
 
-_PAID_ANNOTATION_MISSING = object()
+_ANNOTATION_MISSING = object()
+
+
+def _annotated_decimal(obj, name):
+    """Read an optional Decimal annotation to hand to the service layer.
+
+    Three states, three answers:
+    - annotation absent: return None so the service falls back to its own
+      query. This is what keeps the single-object callers correct (the reopen
+      action serializes a Subscription straight from recover_member, with no
+      queryset behind it).
+    - annotation present but NULL (the aggregate matched no rows): return
+      Decimal("0"). That is the computed-and-empty answer, and passing None
+      here would make the service re-issue the exact query the annotation just
+      answered.
+    - annotation present with a value: pass it through untouched.
+    """
+    value = getattr(obj, name, _ANNOTATION_MISSING)
+    if value is _ANNOTATION_MISSING:
+        return None
+    if value is None:
+        return Decimal("0")
+    return value
 
 
 def _create_plan_change_request(create_func, validated_data):
@@ -161,14 +183,14 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     def _balance(self, obj):
         balance = getattr(obj, "_balance_cache", None)
         if balance is None:
-            annotated = getattr(obj, "_paid_amount", _PAID_ANNOTATION_MISSING)
-            if annotated is _PAID_ANNOTATION_MISSING:
-                paid = None
-            elif annotated is None:
-                paid = Decimal("0")
-            else:
-                paid = annotated
-            balance = subscription_remaining_balance(obj, paid_amount=paid)
+            # credit_realized (Fase 7 P4) viaja anotado junto con _paid_amount
+            # por la misma razón: el default None del service dispara una query
+            # por suscripción, y en el listado eso son cientos.
+            balance = subscription_remaining_balance(
+                obj,
+                paid_amount=_annotated_decimal(obj, "_paid_amount"),
+                credit_realized=_annotated_decimal(obj, "_credit_realized"),
+            )
             obj._balance_cache = balance
         return balance
 
@@ -178,10 +200,23 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     def get_remaining(self, obj):
         return str(self._balance(obj)["remaining"])
 
+    def _is_first(self, obj):
+        """is_first from the annotation, or None to let the service decide.
+
+        Equivalent to the ``not exists(created_at__lt)`` it replaces, ties
+        included: when nothing is earlier the member's first subscription *is*
+        this one, so the comparison holds for every row tied at the minimum.
+        """
+        first_created = getattr(obj, "_member_first_created", _ANNOTATION_MISSING)
+        if first_created is _ANNOTATION_MISSING:
+            return None
+        return obj.created_at == first_created
+
     def get_payment_status(self, obj):
         return get_subscription_payment_status(
             obj,
             remaining=self._balance(obj)["remaining"],
+            is_first=self._is_first(obj),
         )
 
     def _get_pending_plan_change(self, obj):
@@ -205,6 +240,14 @@ class SubscriptionSerializer(MemberIdentityMixin, serializers.ModelSerializer):
         return self._get_pending_plan_change(obj) is not None
 
     def get_member_credit_balance(self, obj):
+        # El listado trae el saldo abierto anotado por member_id. Sin
+        # anotación (objeto suelto) se mantiene la caché por instancia del
+        # Member, que ahí sí sirve porque no hay select_related que clonee al
+        # socio por cada fila de suscripción.
+        annotated = getattr(obj, "_member_open_credit", _ANNOTATION_MISSING)
+        if annotated is not _ANNOTATION_MISSING:
+            return f"{Decimal('0') if annotated is None else annotated:.2f}"
+
         member = obj.member
         cached = getattr(member, "_credit_balance_cache", None)
         if cached is None:

@@ -36,8 +36,9 @@ from datetime import date, time as _time
 from decimal import Decimal
 from unittest import mock
 
-from django.db import connections
+from django.db import connection, connections
 from django.test import TransactionTestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from activities.models import Activity, ActivitySchedule, Enrollment
@@ -58,6 +59,7 @@ from subscriptions.models import (
     SubscriptionItem,
     TaskRun,
 )
+from subscriptions.serializers import SubscriptionSerializer
 from subscriptions.services import (
     TASK_NAME,
     _task_interval_seconds,
@@ -65,6 +67,7 @@ from subscriptions.services import (
     calculate_subscription_total,
     create_next_subscription,
     get_last_day_of_month,
+    get_subscription_payment_status,
     member_credit_balance,
     recover_member,
     run_scheduled_tasks,
@@ -127,6 +130,29 @@ class _MoneyBugBase(BaseAPITest):
             member_name=str(member),
             plan_name=plan.name,
         )
+        return sub
+
+    def _credits(self, member=None, on_subscription=None, applied=None):
+        """Filtrar por consumo del crédito con tres estados.
+
+        ``None`` (default) no filtra y cuenta todas las filas, que es lo que
+        quieren los tests que comparan el total de créditos del socio.
+        ``True`` cuenta sólo las consumidas (``applied_to`` puesto) y
+        ``False`` sólo las abiertas.
+        """
+        rows = Payment.objects.filter(concept="credit")
+        if member is not None:
+            rows = rows.filter(member=member)
+        if on_subscription is not None:
+            rows = rows.filter(subscription=on_subscription)
+        if applied is not None:
+            rows = rows.filter(applied_to__isnull=not applied)
+        return rows
+
+    def _repriced(self, member, sub, new_price):
+        """Cambia el total del período ya pagado, como el toggle de cortesía."""
+        sub.items.filter(item_type="plan").update(price_snapshot=new_price)
+        sync_subscription_paid(sub)
         return sub
 
 
@@ -288,6 +314,68 @@ class MoneyBugRenewalTests(_MoneyBugBase):
             ).count(),
             1,
         )
+
+    def test_open_credit_does_not_unblock_a_renewal_that_owes_money(self):
+        """P16: un crédito abierto no es plata gastada en su propio período.
+
+        Un crédito abierto queda estacionado en el período que lo generó como
+        registro de un sobrepago: el gym le debe esa plata al socio y ningún
+        período la tomó todavía. El bulk de créditos de
+        ``_collect_renewal_candidates`` lo contaba igual que un crédito ya
+        consumido, así que un período que vuelve a deber después del sobrepago
+        daba ``remaining = 0``, el socio no llegaba a ``blocked`` y renovaba
+        sin pagar. Peor: el crédito abierto se consumía después contra el
+        período nuevo, así que el gym además lo regalaba.
+
+        El camino canónico (``credit_realized_for``) sí filtra por
+        ``applied_to``, así que la deuda se ve correcta en el portal, en el
+        formulario de cobro y en el dashboard. Sólo la decisión de renovar
+        usaba el cálculo roto, que es lo que hace el bug invisible.
+        """
+        p = self._periods()
+        gym = self.create_gym()
+        plan = self.create_plan(gym, price=Decimal("50000.00"))
+        member = self.create_member(gym)
+
+        # Período previo para que el de abajo no sea el primero del socio:
+        # payment_blocked consulta is_first y con el primero nunca bloquea.
+        self._settled_sub(member, plan, p["prev2_start"], p["prev2_end"])
+
+        sub = self._settled_sub(member, plan, p["prev_start"], p["prev_end"])
+
+        # Paso 1: el total baja después del cobro -> crédito abierto de $50.000.
+        self._repriced(member, sub, Decimal("0.00"))
+        open_rows = self._credits(member=member, on_subscription=sub, applied=False)
+        self.assertEqual(open_rows.count(), 1)
+        self.assertEqual(open_rows.get().amount, Decimal("-50000.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("50000.00"))
+
+        # Paso 2: el total vuelve a subir -> el período debe plata de nuevo.
+        self._repriced(member, sub, Decimal("80000.00"))
+
+        # El camino canónico ve la deuda real: esto pasa hoy y después del fix.
+        self.assertEqual(calculate_subscription_total(sub), Decimal("80000.00"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"],
+            Decimal("30000.00"),
+            "el período debe $30.000: el crédito abierto está vivo, no gastado",
+        )
+        self.assertEqual(member_credit_balance(member), Decimal("50000.00"))
+
+        result = auto_renew_subscriptions()
+
+        self.assertEqual(result["skipped_blocked"], 1)
+        self.assertEqual(result["candidates"], 0)
+        self.assertEqual(result["renewed"], 0)
+        self.assertFalse(
+            Subscription.objects.filter(
+                member=member, start_date=p["month_start"]
+            ).exists(),
+            "no debe renovar: debe $30.000 del período anterior",
+        )
+        # Y el crédito sigue disponible para un pago futuro: no se consumió
+        # contra un período que no debía renovarse.
+        self.assertEqual(member_credit_balance(member), Decimal("50000.00"))
 
     def test_due_plan_change_applies_for_non_candidate(self):
         p = self._periods()
@@ -1609,29 +1697,6 @@ class MemberCreditBalanceTests(_MoneyBugBase):
             self.settle_subscription(sub)
         return sub
 
-    def _credits(self, member=None, on_subscription=None, applied=None):
-        """Filtrar por consumo del crédito con tres estados.
-
-        ``None`` (default) no filtra y cuenta todas las filas, que es lo que
-        quieren los tests que comparan el total de créditos del socio.
-        ``True`` cuenta sólo las consumidas (``applied_to`` puesto) y
-        ``False`` sólo las abiertas.
-        """
-        rows = Payment.objects.filter(concept="credit")
-        if member is not None:
-            rows = rows.filter(member=member)
-        if on_subscription is not None:
-            rows = rows.filter(subscription=on_subscription)
-        if applied is not None:
-            rows = rows.filter(applied_to__isnull=not applied)
-        return rows
-
-    def _repriced(self, member, sub, new_price):
-        """Baja el total del período ya pagado, como el toggle de cortesía."""
-        sub.items.filter(item_type="plan").update(price_snapshot=new_price)
-        sync_subscription_paid(sub)
-        return sub
-
     def _october(self, sub):
         return create_next_subscription(sub)
 
@@ -1854,6 +1919,150 @@ class MemberCreditBalanceTests(_MoneyBugBase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(
             resp.data["member_credit_balance"], "30000.00"
+        )
+
+
+class SubscriptionListQueryCountTests(_MoneyBugBase):
+    """El listado de suscripciones no puede costar más según cuántas haya.
+
+    a06f6f2 (saldo a favor) dejó tres N+1 dentro de SubscriptionSerializer:
+    ``credit_realized_for``, ``member_credit_balance`` y el ``exists()`` de
+    ``is_first``. Con 226 suscripciones eran 557 queries contra una base
+    remota: 85s, muy por encima del DEFAULT_TIMEOUT_MS del front, que abortaba
+    el fetch y lo reportaba como error de red.
+
+    El guard es "no escala", no un número absoluto: duplicar los socios tiene
+    que dejar el conteo igual. Un ``assertNumQueries`` con número fijo se
+    rompería con cada prefetch nuevo y no distingue un N+1 de un costo fijo.
+
+    Los tests de equivalencia de los valores van aparte, en
+    ``test_annotated_values_match_the_service_functions``.
+    """
+
+    PLAN_PRICE = Decimal("50000.00")
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.staff = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.staff)
+        self.plan = self.create_plan(self.gym, price=self.PLAN_PRICE)
+
+    def _member_with_history(self, index):
+        """Socio con un período pagado, un crédito abierto y uno consumido.
+
+        Los dos estados de crédito son los que separan
+        ``credit_realized_for`` (applied_to puesto) de
+        ``member_credit_balance`` (applied_to nulo). Con cero créditos los
+        tests pasarían sin tocar ninguno de los dos caminos.
+        """
+        member = self.create_member(
+            self.gym,
+            first_name=f"Socio{index}",
+            last_name="Historia",
+            phone=f"11-{index:04d}-0000",
+        )
+        prev_start, prev_end = self.last_month_period()
+        expired = self._settled_sub(member, self.plan, prev_start, prev_end)
+
+        # Bajar el total de un período ya cobrado deja el sobrepago abierto.
+        self._repriced(member, expired, Decimal("20000.00"))
+        # La renovación siguiente se lleva ese crédito y deja saldo a favor.
+        create_next_subscription(expired)
+        return member
+
+    def _list_subscriptions(self):
+        """GET del listado, con el conteo de queries de esa llamada."""
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get("/api/subscriptions/")
+        self.assertEqual(response.status_code, 200)
+        return len(ctx), response
+
+    def test_query_count_does_not_grow_with_subscription_count(self):
+        for index in range(3):
+            self._member_with_history(index)
+        with_few, _ = self._list_subscriptions()
+
+        for index in range(3, 9):
+            self._member_with_history(index)
+        with_many, response = self._list_subscriptions()
+
+        self.assertEqual(
+            with_few,
+            with_many,
+            f"el listado hizo {with_many} queries con el doble de socios "
+            f"({with_few} con la mitad): volvió un N+1",
+        )
+        # Sanity: el listado devuelve todo, no una página recortada.
+        self.assertEqual(
+            len(response.data),
+            Subscription.objects.filter(gym=self.gym).count(),
+        )
+
+    def test_annotated_values_match_the_service_functions(self):
+        """El camino anotado tiene que dar lo mismo que el camino por fila.
+
+        Cada campo se recalcula acá con el service sin argumentos, que es
+        exactamente el código que las anotaciones reemplazan: si divergen, el
+        listado estaría mintiendo sobre saldo, pago o estado.
+        """
+        self._member_with_history(1)
+        _, response = self._list_subscriptions()
+        rows = {row["id"]: row for row in response.data}
+        self.assertTrue(rows)
+
+        for sub in Subscription.objects.filter(gym=self.gym).select_related(
+            "member",
+            "member__discount",
+        ):
+            row = rows[sub.id]
+            reference = subscription_remaining_balance(sub)
+            reference_status = get_subscription_payment_status(
+                sub,
+                remaining=reference["remaining"],
+            )
+            self.assertEqual(
+                row["paid_amount"],
+                str(reference["paid_amount"]),
+                f"paid_amount de la suscripción {sub.id}",
+            )
+            self.assertEqual(
+                row["remaining"],
+                str(reference["remaining"]),
+                f"remaining de la suscripción {sub.id}",
+            )
+            self.assertEqual(
+                row["member_credit_balance"],
+                f"{member_credit_balance(sub.member):.2f}",
+                f"member_credit_balance de la suscripción {sub.id}",
+            )
+            self.assertEqual(
+                row["payment_status"],
+                reference_status,
+                f"payment_status de la suscripción {sub.id}",
+            )
+
+    def test_single_object_serialization_falls_back_without_annotations(self):
+        """Sin queryset detrás, el serializer tiene que ir a los services.
+
+        reopen() serializa lo que devuelve recover_member, una suscripción
+        suelta sin las anotaciones de SubscriptionView. Si el serializer
+        asumiera que llegan, ese endpoint devolvería 0 en vez de 30000.
+        """
+        member = self.create_member(self.gym, phone="11-9999-0000")
+        sub = self._settled_sub(member, self.plan, *self.last_month_period())
+        self._repriced(member, sub, Decimal("20000.00"))
+
+        row = SubscriptionSerializer(sub).data
+
+        self.assertEqual(row["member_credit_balance"], "30000.00")
+        self.assertEqual(
+            row["remaining"],
+            str(subscription_remaining_balance(sub)["remaining"]),
+        )
+        self.assertEqual(
+            row["payment_status"],
+            get_subscription_payment_status(sub, remaining=Decimal("0")),
         )
 
 
