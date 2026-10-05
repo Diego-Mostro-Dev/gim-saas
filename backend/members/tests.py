@@ -313,16 +313,21 @@ class PublicRegisterSecurityTests(BaseAPITest):
             discount_percent=10,
         )
 
+        # El teléfono va por override en vez de quedar fijo en el payload: el
+        # assert busca al socio con el sufijo del descuento, y además cada
+        # iteración necesita uno distinto o la segunda rebota con 400 por
+        # teléfono duplicado. Antes el assert y el payload armaban cadenas
+        # distintas, algo que solo se vio al destapar el 400 de max_length.
         for discount_id in [discount.id, foreign_discount.id]:
+            phone = self._phone(f"-{discount_id}")
             resp = self.client.post(
                 f"/api/public/register/{gym.onboarding_code}/",
                 self._register_payload(
-                    gym, plan_id=plan.id, discount_id=discount_id,
+                    gym, plan_id=plan.id, phone=phone,
+                    discount_id=discount_id,
                 ),
                 format="json",
             )
             self.assertEqual(resp.status_code, 201)
-            member = Member.objects.get(
-                phone=self._phone(f"-{discount_id}")
-            )
+            member = Member.objects.get(phone=phone)
             self.assertIsNone(member.discount)
