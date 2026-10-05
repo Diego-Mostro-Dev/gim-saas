@@ -366,8 +366,26 @@ class MemberSerializer(serializers.ModelSerializer):
                         snapshot=sub.discount_percent_snapshot,
                     ),
                 )
+                # Fase 7 (P4): el crédito ya consumido por este período cuenta
+                # como pagado. Sin este término el socio aparece con deuda
+                # ficticia y el botón "recuperar" no aparece, aunque
+                # recover_member() sí lo aceptaría (member_total_outstanding_
+                # debt sí resta el crédito).
+                #
+                # Replica credit_realized_for() en memoria: suma solo créditos
+                # con applied_to puesto y los niega, porque esas filas tienen
+                # amount negativo. Los créditos abiertos quedan afuera. Da igual
+                # que la versión con query porque la fila consumida queda con
+                # subscription = período que la consumió y applied_to =
+                # período que la originó, o sea que está en sub.payments.
+                #
+                # Todo con .all() a propósito: .exclude() descartaba el
+                # prefetch y pagaba una query por suscripción, al revés de lo
+                # que promete el docstring de este método.
                 paid = sum(
-                    p.amount for p in sub.payments.exclude(concept="credit")
+                    p.amount if p.concept != "credit" else -p.amount
+                    for p in sub.payments.all()
+                    if p.concept != "credit" or p.applied_to_id is not None
                 )
 
                 if total - paid > 0:

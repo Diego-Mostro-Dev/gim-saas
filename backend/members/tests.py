@@ -1,6 +1,7 @@
 import hashlib
 import json
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from rest_framework.authtoken.models import Token
 
@@ -95,6 +96,67 @@ class IsRecoverableTests(BaseAPITest):
         self.settle_subscription(sub)
 
         self.assertTrue(member.active)
+
+        serializer = MemberSerializer(member, context={"gym": gym})
+        self.assertTrue(serializer.data["is_recoverable"])
+
+    def test_limbo_member_settled_with_credit_is_recoverable(self):
+        """El crédito consumido por el período es pagado, no deuda.
+
+        Regresión de get_is_recoverable: no restaba el crédito ya realizado,
+        así que un socio que saldó el mes con saldo a favor quedaba con deuda
+        ficticia y sin botón "recuperar", mientras recover_member() lo
+        aceptaba. El primer assert ancla el invariante real —el badge no puede
+        contradecir al servicio de deuda— para que la regresión no vuelva a
+        colarse por el camino de una de las dos copias de la regla.
+        """
+        # Imports locales como en core/testing.py: payments <-> subscriptions
+        # se importan uno al otro y así se evita el ciclo a nivel de módulo.
+        from payments.models import Payment
+        from subscriptions.services import (
+            calculate_subscription_total,
+            consume_member_credit,
+            member_total_outstanding_debt,
+            sync_subscription_paid,
+        )
+
+        gym = self.create_gym()
+        member = self.create_member(gym)
+        plan = self.create_plan(gym)
+
+        # Dos meses atrás pagado de más: así queda saldo a favor abierto.
+        prev_start, prev_end = self.last_month_period()
+        anteprev_end = prev_start.replace(day=1) - timedelta(days=1)
+        old_sub = self.open_month_subscription(
+            member, plan,
+            start_date=anteprev_end.replace(day=1),
+            end_date=anteprev_end,
+            origin="onboarding",
+        )
+        total = calculate_subscription_total(old_sub)
+        Payment.objects.create(
+            gym=gym,
+            member=member,
+            subscription=old_sub,
+            amount=total + Decimal("10000.00"),
+            payment_method="cash",
+            member_name=str(member),
+            plan_name=plan.name,
+        )
+        sync_subscription_paid(old_sub)
+
+        # El mes pasado consume ese saldo: su período queda saldado sin un
+        # solo peso en pagos directos, solo con crédito.
+        sub = self.open_month_subscription(
+            member, plan,
+            start_date=prev_start,
+            end_date=prev_end,
+            origin="renewal",
+        )
+        consumed = consume_member_credit(member, sub)
+        self.assertEqual(consumed, calculate_subscription_total(sub))
+
+        self.assertFalse(member_total_outstanding_debt(member)["total"] > 0)
 
         serializer = MemberSerializer(member, context={"gym": gym})
         self.assertTrue(serializer.data["is_recoverable"])
