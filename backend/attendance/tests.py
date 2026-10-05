@@ -103,9 +103,14 @@ class PublicCheckinAccessTests(BaseAPITest):
         member.active = True
         member.save(update_fields=["active"])
 
+        # subscriptions.domain ya no usa date.today(): pide el día con
+        # timezone.localdate(), que es el patch de arriba. El segundo patch a
+        # subscriptions.domain.date quedó sin efecto cuando 28ecfb7 sacó
+        # date.today() del dominio; hoy además revienta con AttributeError
+        # porque el atributo no existe, antes de llegar al assert.
         with mock.patch(
             "django.utils.timezone.localdate", return_value=FIXED_TODAY
-        ), mock.patch("subscriptions.domain.date", wraps=date):
+        ):
             resp = self.client.post(
                 f"/api/attendance/checkin/{member.access_token}/"
             )
