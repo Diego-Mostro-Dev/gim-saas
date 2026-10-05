@@ -95,8 +95,19 @@ class BaseAPITest(APITestCase):
         )
 
     def settle_subscription(self, subscription):
-        """Create a payment for the full balance so remaining == 0."""
-        from subscriptions.services import subscription_remaining_balance
+        """Create a payment for the full balance so remaining == 0.
+
+        Also derives the denormalized ``paid`` flag, because the payment is
+        created straight through the ORM and so never reaches
+        PaymentSerializer.create, which is what calls sync_subscription_paid
+        in production. Without this a settled subscription kept ``paid=False``
+        in the database, and a test that read the flag afterwards was
+        asserting a state the real payment path never produces.
+        """
+        from subscriptions.services import (
+            subscription_remaining_balance,
+            sync_subscription_paid,
+        )
 
         remaining = subscription_remaining_balance(subscription)["remaining"]
         if remaining > 0:
@@ -109,6 +120,10 @@ class BaseAPITest(APITestCase):
                 member_name=str(subscription.member),
                 plan_name=subscription.plan.name,
             )
+
+        # Unconditional, not inside the ``if``: even with nothing left to pay
+        # the flag may be stale, and that is exactly what it is here to fix.
+        sync_subscription_paid(subscription)
 
     @staticmethod
     def last_month_period():
