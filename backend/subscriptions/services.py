@@ -525,6 +525,24 @@ def consume_member_credit(member, subscription):
     recorded in ``applied_to``. A fully consumed credit moves whole rather
     than leaving a copy behind, so no cent is ever counted twice.
 
+    Concurrency: the open credit rows are exactly the resource two
+    applications compete for, so they are locked here, inside a transaction
+    of this function's own. Without the lock two overlapping applications
+    read the same row at the same amount, each computes its leftover from
+    that same stale read, and each leaves a slice behind: three rows adding
+    up to more than was ever paid in. Locking the rows is what makes the
+    "counted once" promise above true. Postgres re-checks the predicate after
+    the wait, so a credit the other side consumed whole drops out of the
+    queryset, and one it only partly used comes back at its new amount. The
+    ``order_by`` is what keeps both sides taking the rows in the same order,
+    so the two cannot deadlock against each other.
+
+    This used to lean on the caller instead. Its only caller sits inside the
+    renewal transaction, where ``open_subscription`` already holds a row lock
+    over the member's subscriptions for the duration, which happened to
+    serialize this too. That was call-site geography, not a guarantee, so the
+    protection now lives with the code that needs it.
+
     Returns:
         The Decimal actually consumed (0 when there was nothing to use).
     """
@@ -538,61 +556,62 @@ def consume_member_credit(member, subscription):
     if remaining_to_cover <= 0:
         return Decimal("0")
 
-    consumed = Decimal("0")
-    open_credits = Payment.objects.filter(
-        member=member,
-        concept="credit",
-        applied_to__isnull=True,
-    ).order_by("paid_at", "id")
+    with transaction.atomic():
+        consumed = Decimal("0")
+        open_credits = Payment.objects.select_for_update().filter(
+            member=member,
+            concept="credit",
+            applied_to__isnull=True,
+        ).order_by("paid_at", "id")
 
-    for credit in open_credits:
-        if remaining_to_cover <= 0:
-            break
+        for credit in open_credits:
+            if remaining_to_cover <= 0:
+                break
 
-        available = -credit.amount
-        to_consume = min(available, remaining_to_cover)
-        leftover = available - to_consume
-        origin = credit.subscription
+            available = -credit.amount
+            to_consume = min(available, remaining_to_cover)
+            leftover = available - to_consume
+            origin = credit.subscription
 
-        if leftover > 0:
-            # Partial use: the leftover stays open on its origin and this
-            # slice moves, so no cent is counted as available twice.
-            credit.amount = -leftover
-            credit.save(update_fields=["amount"])
-            credit = Payment.objects.create(
-                gym=subscription.gym,
-                subscription=subscription,
-                applied_to=origin,
-                member=member,
-                concept="credit",
-                amount=-to_consume,
-                member_name=credit.member_name,
-                plan_name="Saldo a favor aplicado",
-                notes=(
-                    f"Saldo a favor aplicado al período "
-                    f"{subscription.start_date} → {subscription.end_date}."
-                ),
-            )
-        else:
-            # Full use: the credit moves whole onto the new period and keeps
-            # its origin in applied_to, so the period that generated it
-            # stays credited and never looks like unaccounted overpayment.
-            credit.subscription = subscription
-            credit.applied_to = origin
-            credit.plan_name = "Saldo a favor aplicado"
-            credit.save(
-                update_fields=["subscription", "applied_to", "plan_name"]
-            )
+            if leftover > 0:
+                # Partial use: the leftover stays open on its origin and this
+                # slice moves, so no cent is counted as available twice.
+                credit.amount = -leftover
+                credit.save(update_fields=["amount"])
+                credit = Payment.objects.create(
+                    gym=subscription.gym,
+                    subscription=subscription,
+                    applied_to=origin,
+                    member=member,
+                    concept="credit",
+                    amount=-to_consume,
+                    member_name=credit.member_name,
+                    plan_name="Saldo a favor aplicado",
+                    notes=(
+                        f"Saldo a favor aplicado al período "
+                        f"{subscription.start_date} → {subscription.end_date}."
+                    ),
+                )
+            else:
+                # Full use: the credit moves whole onto the new period and keeps
+                # its origin in applied_to, so the period that generated it
+                # stays credited and never looks like unaccounted overpayment.
+                credit.subscription = subscription
+                credit.applied_to = origin
+                credit.plan_name = "Saldo a favor aplicado"
+                credit.save(
+                    update_fields=["subscription", "applied_to", "plan_name"]
+                )
 
-        consumed += to_consume
-        remaining_to_cover -= to_consume
+            consumed += to_consume
+            remaining_to_cover -= to_consume
 
-    if consumed > 0:
-        # El credit rows no pasan por el serializer de pagos, así que el flag
-        # denormalizado queda desfasado: se re-sincroniza con el saldo real.
-        sync_subscription_paid(subscription)
+        if consumed > 0:
+            # El credit rows no pasan por el serializer de pagos, así que el flag
+            # denormalizado queda desfasado: se re-sincroniza con el saldo real.
+            sync_subscription_paid(subscription)
 
-    return consumed
+        return consumed
 
 
 def sync_subscription_paid(subscription):

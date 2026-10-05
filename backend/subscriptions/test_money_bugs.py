@@ -36,22 +36,23 @@ from datetime import date, time as _time
 from decimal import Decimal
 from unittest import mock
 
-from django.db import connection, connections
+from django.db import connection, connections, transaction
+from django.db.models import Sum
 from django.test import TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from activities.models import Activity, ActivitySchedule, Enrollment
 from core.testing import BaseAPITest
-from gyms.models import Discount
-from members.models import HealthInsurance
+from gyms.models import Discount, Gym
+from members.models import HealthInsurance, Member
 from outings.models import Outing, OutingEnrollment, OutingSchedule
 from payments.models import Payment
 from personal_training.models import (
     PersonalTrainingAssignment,
     PersonalTrainingService,
 )
-from plans.models import Service
+from plans.models import MembershipPlan, Service
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import (
     PlanChangeRequest,
@@ -65,6 +66,7 @@ from subscriptions.services import (
     _task_interval_seconds,
     auto_renew_subscriptions,
     calculate_subscription_total,
+    consume_member_credit,
     create_next_subscription,
     get_last_day_of_month,
     get_subscription_payment_status,
@@ -1921,6 +1923,67 @@ class MemberCreditBalanceTests(_MoneyBugBase):
             resp.data["member_credit_balance"], "30000.00"
         )
 
+    def test_credit_is_conserved_when_it_spans_two_periods(self):
+        """El crédito se reparte entre dos períodos sin perder ni inventar un
+        centavo.
+
+        Invariante de Fase 7 (P4) y red permanente del fix de concurrencia:
+        30.000 de crédito sobre dos períodos de 20.000. El primero se lleva
+        20.000 y deja 10.000 abiertos en el origen; el segundo se lleva ese
+        resto y lo mueve entero. Sea como sea el reparto, todas las filas de
+        crédito del socio —aplicadas o todavía abiertas— siguen sumando
+        -30.000. Ese total es exactamente lo que falla si dos aplicaciones
+        leen el mismo crédito al mismo tiempo.
+        """
+        member = self.create_member(self.gym)
+        # Un plan más barato que el de la clase: el crédito tiene que quedar
+        # entre medio período y un período entero para que el uso sea parcial.
+        cheap = self.create_plan(
+            self.gym, name="Plan Chico", price=Decimal("20000.00")
+        )
+        sub = self.open_month_subscription(
+            member,
+            cheap,
+            start_date=self.PERIOD_START,
+            end_date=self.PERIOD_END,
+        )
+        self.settle_subscription(sub)
+
+        Payment.objects.create(
+            gym=self.gym,
+            member=member,
+            subscription=sub,
+            amount=Decimal("30000.00"),
+            payment_method="cash",
+            member_name=str(member),
+            plan_name=cheap.name,
+        )
+        sync_subscription_paid(sub)
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+
+        october = create_next_subscription(sub)
+        # Parcial: 20.000 aplicados, 10.000 todavía abiertos en el origen.
+        self.assertEqual(member_credit_balance(member), Decimal("10000.00"))
+        self.assertEqual(
+            subscription_remaining_balance(october)["remaining"],
+            Decimal("0.00"),
+        )
+
+        november = create_next_subscription(october)
+        # El resto se aplica entero: el origen pasa a ser el período nuevo.
+        self.assertEqual(member_credit_balance(member), Decimal("0.00"))
+        self.assertEqual(
+            subscription_remaining_balance(november)["remaining"],
+            Decimal("0.00"),
+        )
+
+        self.assertEqual(
+            Payment.objects.filter(
+                member=member, concept="credit"
+            ).aggregate(total=Sum("amount"))["total"],
+            Decimal("-30000.00"),
+        )
+
 
 class SubscriptionListQueryCountTests(_MoneyBugBase):
     """El listado de suscripciones no puede costar más según cuántas haya.
@@ -2157,3 +2220,151 @@ class ScheduledTaskClaimTests(TransactionTestCase):
 
         run = TaskRun.objects.get(name=TASK_NAME)
         self.assertEqual(run.last_status, "ok")
+
+
+class CreditConsumptionConcurrencyTests(TransactionTestCase):
+    """Dos aplicaciones del mismo crédito se serializan sobre la fila.
+
+    Deliberadamente determinista. La versión ingenua de este test sería poner
+    dos hilos a cruzar el crédito al mismo tiempo y esperar que choquen en la
+    ventana entre el SELECT y el UPDATE, pero esa ventana es de microsegundos
+    y en CI no se hitpea siempre: el test pasa sin ejercitar nada. Así que acá
+    el hilo principal hace de primera aplicación y deja la fila escrita pero
+    sin commitear, que es justo lo que hace la rama de uso parcial.
+
+    Sin el lock: la segunda lee el monto viejo (-30.000), calcula 20.000 de
+    consumo contra un crédito al que ya le sacaron 20.000, y deja el período
+    cuadrado con plata que no existe. Con el lock: se clava en el SELECT FOR
+    UPDATE, espera al commit, y lee el -10.000 real, consumiendo 10.000.
+
+    La diferencia es observable en el ``consumed`` que devuelve, así que el
+    assert no depende de timing.
+    """
+
+    BARRIER_TIMEOUT = 10
+    JOIN_TIMEOUT = 30
+    # Margen para confirmar que el worker sigue bloqueado. Al revés del
+    # JOIN_TIMEOUT, acá que el hilo demore en arrancar no rompe nada: sólo se
+    # pide que NO haya terminado.
+    BLOCK_PROBE = 1.5
+
+    PLAN_PRICE = Decimal("20000.00")
+    CREDIT = Decimal("30000.00")
+    # Lo que la primera aplicación (el hilo principal) ya se llevó, dejando
+    # este resto abierto en el origin.
+    LEFT_OPEN = Decimal("10000.00")
+
+    def _fixtures(self):
+        """Un socio con 30.000 de crédito abierto y un período de 20.000."""
+        gym = Gym.objects.create(name="Test Gym", slug="test-gym")
+        service = Service.get_default_for_gym(gym)
+        plan = MembershipPlan.objects.create(
+            gym=gym,
+            service=service,
+            name="Plan",
+            price=self.PLAN_PRICE,
+            duration_days=30,
+            is_base=False,
+        )
+        member = Member.objects.create(
+            gym=gym, first_name="Ana", last_name="Gomez", phone="11-ana"
+        )
+        september = SubscriptionDomain.open_subscription(
+            member=member,
+            plan=plan,
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 9, 30),
+        )
+        # Se paga el total más el sobrepago: el crédito es la diferencia.
+        Payment.objects.create(
+            gym=gym,
+            member=member,
+            subscription=september,
+            amount=self.PLAN_PRICE + self.CREDIT,
+            payment_method="cash",
+            member_name=str(member),
+            plan_name=plan.name,
+        )
+        sync_subscription_paid(september)
+
+        october = SubscriptionDomain.open_subscription(
+            member=member,
+            plan=plan,
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 31),
+        )
+        self.assertEqual(
+            member_credit_balance(member), self.CREDIT
+        )
+        return member, october
+
+    def test_second_application_waits_and_sees_the_committed_amount(self):
+        member, october = self._fixtures()
+        member_pk, october_pk = member.pk, october.pk
+
+        started = threading.Event()
+        finished = threading.Event()
+        consumed = []
+        errors = []
+
+        def worker():
+            try:
+                started.set()
+                consumed.append(
+                    consume_member_credit(
+                        Member.objects.get(pk=member_pk),
+                        Subscription.objects.get(pk=october_pk),
+                    )
+                )
+            except Exception as exc:  # pragma: no cover - defensivo
+                errors.append(exc)
+            finally:
+                # Sin esto el teardown dropea test_neondb con la sesión del
+                # worker viva y Postgres responde ObjectInUse.
+                connections.close_all()
+                finished.set()
+
+        with transaction.atomic():
+            credit = Payment.objects.select_for_update().filter(
+                member_id=member_pk,
+                concept="credit",
+                applied_to__isnull=True,
+            ).get()
+            # Exactamente lo que escribe la rama de uso parcial: el origin
+            # queda en el leftover, todavía abierto.
+            credit.amount = -self.LEFT_OPEN
+            credit.save(update_fields=["amount"])
+
+            t = threading.Thread(target=worker)
+            t.start()
+            started.wait(timeout=self.BARRIER_TIMEOUT)
+
+            self.assertFalse(
+                finished.wait(timeout=self.BLOCK_PROBE),
+                "consume_member_credit no esperó al lock de la fila de crédito",
+            )
+
+        # Salir del atomic commitea y libera el lock.
+        self.assertTrue(
+            finished.wait(timeout=self.JOIN_TIMEOUT),
+            "el worker no terminó después de liberar el lock",
+        )
+        t.join(timeout=self.JOIN_TIMEOUT)
+        self.assertFalse(t.is_alive(), "el worker quedó vivo")
+
+        self.assertEqual(errors, [])
+
+        # El assert que separa el fix de la carrera: 10.000, no 20.000.
+        self.assertEqual(consumed, [self.LEFT_OPEN])
+
+        rows = Payment.objects.filter(
+            member_id=member_pk, concept="credit"
+        )
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(
+            rows.aggregate(total=Sum("amount"))["total"], -self.LEFT_OPEN
+        )
+        self.assertEqual(
+            member_credit_balance(Member.objects.get(pk=member_pk)),
+            Decimal("0.00"),
+        )
