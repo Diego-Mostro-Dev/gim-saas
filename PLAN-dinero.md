@@ -19,6 +19,10 @@ Estado: **Fases 0-7 commiteadas en `development`. La 7 cierra el 2026-10-02** co
 estaban en el alcance original, P17 y P18, que aparecieron al escribir la matriz de tests del
 toggle de cortesía (detalle en "P17 en detalle" y "P18 en detalle").
 
+> **Los bugs post-Fase 7 (P19-P28) viven en `BUG-Pagos.md`** (registro agregado 2026-10-06).
+> De esta lista, **P16 está cerrado** (`35262ad`), **P14 escaló a P21** de ese registro y P13
+> quedó diferido a su Fase 7. Todo lo demás sigue abierto allá.
+
 **El gate cambió de base el 2026-10-01** (`ab56e53`). Antes era SQLite; ahora el gate de la Fase 7
 corre contra **Postgres real**, que es lo que hace CI (`.github/workflows/backend-tests.yml`
 levanta un `postgres:16` y corre `manage.py test subscriptions`). SQLite ya no sirve como
