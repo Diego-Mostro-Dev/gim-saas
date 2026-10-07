@@ -366,7 +366,7 @@ prometer estos comportamientos en el manual.
   `backend/subscriptions/services.py:1333-1432`.
 - P22/P23: `backend/subscriptions/services.py:1314` y
   `backend/subscriptions/services.py:1418` (escritura manual de `paid`), más
-  `backend/subscriptions/serializers.py:215-220`.
+  `backend/subscriptions/serializers.py:286`.
 - Efecto inmediato sin PT: `backend/subscriptions/views.py:362-364` vs
   `backend/subscriptions/services.py:1800-1803`.
 - Cortesía re-prende la renovación: `backend/subscriptions/domain.py:193-194`.
