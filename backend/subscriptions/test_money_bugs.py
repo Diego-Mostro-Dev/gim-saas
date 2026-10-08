@@ -1972,9 +1972,13 @@ class MemberCreditBalanceTests(_MoneyBugBase):
         november = create_next_subscription(october)
         # El resto se aplica entero: el origen pasa a ser el período nuevo.
         self.assertEqual(member_credit_balance(member), Decimal("0.00"))
+        # Y ese resto no alcanza para el mes: noviembre vale 20.000 y sólo
+        # recibe 10.000 de crédito, así que sigue debiendo 10.000. Mismo
+        # criterio que test_renewal_consumes_the_credit_and_lands_on_zero,
+        # donde un crédito menor al total deja remaining = total - crédito.
         self.assertEqual(
             subscription_remaining_balance(november)["remaining"],
-            Decimal("0.00"),
+            Decimal("10000.00"),
         )
 
         self.assertEqual(
