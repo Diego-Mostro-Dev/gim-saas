@@ -48,7 +48,7 @@ function CurrentPlanCard({ subscription }) {
             ${Number(
               hasDiscount
                 ? subscription.total ?? subscription.plan_price
-                : subscription.plan_price,
+                : subscription.plan_period_price ?? subscription.plan_price,
             ).toLocaleString("es-AR")}
           </p>
           {hasDiscount && (

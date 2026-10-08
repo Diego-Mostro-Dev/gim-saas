@@ -524,6 +524,13 @@ class PublicRoutineView(APIView):
                 item for item in sub.items.all()
                 if item.status == "active" and item.item_type == "activity"
             ]
+            plan_item = next(
+                (
+                    item for item in sub.items.all()
+                    if item.status == "active" and item.item_type == "plan"
+                ),
+                None,
+            )
             total = calculate_subscription_total(sub)
 
             return {
@@ -531,6 +538,14 @@ class PublicRoutineView(APIView):
                 "plan_id": plan.id,
                 "plan": display_plan_name(plan, sub.member),
                 "plan_price": str(plan.price),
+                # Precio del plan tal como se emitió en este período (snapshot).
+                # Si es un período prorrateado, acá está el importe proporcional;
+                # "plan_price" sigue siendo el de lista para el tachado de
+                # descuentos. Sin ítem plan (filas viejas) cae al precio de lista.
+                "plan_period_price": (
+                    str(plan_item.price_snapshot) if plan_item
+                    else str(plan.price)
+                ),
                 "plan_duration_days": plan.duration_days,
                 "plan_weekly_visits": plan.weekly_visits,
                 "start_date": sub.start_date,

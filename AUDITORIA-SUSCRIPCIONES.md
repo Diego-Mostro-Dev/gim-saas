@@ -226,8 +226,11 @@ Detalles:
   - Al **desactivarla** hay que elegir un plan, y se prorratea **por los días
     que quedan** del mes: el socio queda debiendo justo lo que falta del
     período.
-- **Ese prorrateo es el único que existe.** No se prorratea al inscribirse ni
-  al cambiar de plan (ver AUDITORIA-PAGOS §7).
+- **Ese no es el único prorrateo.** También se prorratea el **primer ciclo de
+  un alta posterior al día de vencimiento** del gimnasio: los ítems del
+  período (plan, actividades, PT mensual y salidas mensuales) se emiten con el
+  precio de los días que quedan (ver AUDITORIA-PAGOS §1). No se prorratea al
+  cambiar de plan ni en las renovaciones (AUDITORIA-PAGOS §7).
 - **Descuentos:** el gimnasio crea descuentos porcentuales desde
   Configuración y se los asigna a un socio. El porcentaje **se congela al
   emitir cada período**: desactivar el descuento después **no cambia** lo ya
@@ -257,6 +260,11 @@ Detalles:
   `frontend/src/components/members/MemberForm.jsx:441-459` (al desactivarlo
   avisa que se le pedirá un plan), etiqueta
   `frontend/src/components/subscriptions/MemberSubscriptionCard.jsx:66`.
+- Prorrateo de alta (primer ciclo posterior al vencimiento):
+  `backend/subscriptions/domain.py:117-127` (flag),
+  `backend/subscriptions/services.py:52-72` (`prorated_price_for`),
+  tests `backend/subscriptions/test_proration.py`, y en el portal del socio
+  `plan_period_price` de `backend/routines/views.py` (`_build_sub_data`).
 
 ---
 
@@ -316,8 +324,9 @@ Detalles:
   apagable es la renovación automática, y la apaga el propio socio.
 - **No deja que el staff apague o prenda la renovación** de un socio desde la
   pantalla (por API es de solo lectura).
-- **No prorratea** al inscribirse ni al cambiar de plan (solo al activar o
-  quitar una cortesía).
+- **No prorratea** al cambiar de plan ni en las renovaciones. Además de la
+  cortesía, lo único proporcional es el primer ciclo de un alta posterior al
+  día de vencimiento (AUDITORIA-PAGOS §1).
 - **No permite elegir la fecha** en que rige un cambio de plan: es hoy o el 1°
   del mes, nada intermedio.
 - **No admite dos pedidos de cambio de plan** a la vez, ni cambiar al mismo plan

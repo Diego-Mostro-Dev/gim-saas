@@ -53,6 +53,10 @@ class SubscriptionDomain:
         All subscription creation MUST eventually call this method.
         Dates must be pre-calculated by the caller.
 
+        Sets the ``prorated`` flag for onboarding sign-ups after the gym's
+        ``payment_due_day``: only that first cycle bills the remaining days
+        of the month. Every other origin bills the whole month.
+
         Validates:
         1. No overlapping subscription exists for this member.
 
@@ -109,6 +113,18 @@ class SubscriptionDomain:
             # Fase 7 (P5): el descuento se congela una vez por período, en el
             # mismo punto donde la Fase 5 puso sus guards. Así desactivar el
             # descuento después no altera un período ya facturado.
+            #
+            # Prorrateo de primer mes: solo un alta (origin="onboarding")
+            # posterior al día de vencimiento del gimnasio factura la parte
+            # proporcional del mes. El flag se decide UNA vez aquí para que
+            # un cambio posterior de payment_due_day no modifique
+            # retroactivamente el precio de un período ya facturado.
+            # Recovery, renovaciones y plan_change quedan fuera por diseño
+            # (origin != "onboarding").
+            prorated = (
+                origin == "onboarding"
+                and start_date.day > member.gym.payment_due_day
+            )
             sub = Subscription.objects.create(
                 gym=member.gym,
                 member=member,
@@ -119,6 +135,7 @@ class SubscriptionDomain:
                 auto_renew=auto_renew,
                 origin=origin,
                 discount_percent_snapshot=member_discount_percent(member),
+                prorated=prorated,
             )
 
             ensure_subscription_item(sub)

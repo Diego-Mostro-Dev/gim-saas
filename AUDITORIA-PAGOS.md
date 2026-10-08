@@ -12,9 +12,12 @@
 - Cuando un socio se registra, su mes (ciclo) empieza **el mismo día en que se
   inscribe** y termina **el último día del mes**. El 1° del mes siguiente arranca
   su próximo ciclo.
-- Al inscribirse se le cobra **el precio completo del plan**, sin descuento
-  proporcional por entrar a mitad de mes. Si entra el día 20, igual paga el mes
-  completo por los días que quedan.
+- Al inscribirse se le cobra **el precio completo del plan**, con una única
+  excepción: si el alta es **después del día de vencimiento** del gimnasio
+  (por defecto el 10), paga **sólo los días que le quedan** del mes. Entra el
+  día 10 o antes, y paga el mes entero; entra el día 20 de un mes de 31 días
+  y paga 12/31 del precio. Ese primer ciclo queda marcado como prorrateado y
+  la renovación siguiente se cobra completa.
 - El precio queda **congelado en ese ciclo**: si el gimnasio cambia el precio del
   plan después, el mes ya emitido no se modifica.
 - Si el socio tiene un **descuento asignado**, se aplica y también queda
@@ -28,7 +31,14 @@
 
 ### Referencia
 - Alta: `backend/members/services.py:151-179` — ciclo hoy → último día del mes.
-- Precio completo al entrar, sin prorrateo: `backend/subscriptions/services.py:22-43` (`_item_price` devuelve el precio del plan tal cual).
+- Prorrateo del primer ciclo: la regla se decide una sola vez al abrir la
+  suscripción, `backend/subscriptions/domain.py:117-127` (sólo
+  `origin="onboarding"` y `start_date.day > payment_due_day`), y factura con
+  `backend/subscriptions/services.py:52-72` (`prorated_price_for`, días
+  restantes / días del mes, redondeo half-up a centavos) vía
+  `backend/subscriptions/services.py:36-49` (`_item_price`, en $0 para
+  `is_comp`). Flag en `backend/subscriptions/models.py:57` (`Subscription.prorated`,
+  sin backfill: los socios existentes no se tocan).
 - Descuento congelado por ciclo: `backend/subscriptions/domain.py:109-111` y campo `discount_percent_snapshot`.
 - Renovación automática: `backend/subscriptions/services.py:1284-1327` (`create_next_subscription`).
 - Recalculos y el disparador del cron: `backend/config/api/tasks.py` + `.github/workflows/scheduled-tasks.yml` (cada 6 h) + middleware perezoso `backend/config/api/middleware.py`.
@@ -213,7 +223,9 @@ UI del socio bloqueado (pestañas ocultas y banner): `frontend/src/pages/member/
 
 ## 7. Lo que el sistema NO hace hoy (para no prometerlo en el manual)
 
-- **No prorratea** al inscribirse a mitad de mes: se cobra el mes completo.
+- **Prorratea sólo el primer ciclo de un alta posterior al día de vencimiento**
+  (ver §1). No prorratea cambios de plan, recuperaciones ni renovaciones, y no
+  reparte ningún otro movimiento por días.
 - **No tiene cobro online** (ni tarjeta desde el portal del socio ni pasarela).
 - **No manda recordatorios ni emails** de vencimiento (solo restablecimiento de contraseña).
 - **No cobra intereses ni recargos** por atraso.

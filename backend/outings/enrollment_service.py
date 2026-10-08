@@ -5,7 +5,7 @@ from django.db import transaction
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import sync_subscription_paid
+from subscriptions.services import prorated_price_for, sync_subscription_paid
 
 from .models import OutingEnrollment, OutingSchedule
 
@@ -252,8 +252,9 @@ def _ensure_outing_item(subscription, outing, price=None):
     """Create a SubscriptionItem for an outing in the given subscription.
 
     Returns the existing or newly created SubscriptionItem. When price is
-    None the outing's current monthly price is used; courtesy-pass members
-    are billed at 0.
+    None the outing's monthly price is used for the cycle (proportionally
+    if the subscription's signup was prorated); courtesy-pass members are
+    billed at 0.
     """
     outing_item = SubscriptionItem.objects.filter(
         subscription=subscription,
@@ -273,7 +274,9 @@ def _ensure_outing_item(subscription, outing, price=None):
         plan=None,
         outing=outing,
         name_snapshot=outing.name,
-        price_snapshot=price if price is not None else outing.monthly_price,
+        price_snapshot=price if price is not None else prorated_price_for(
+            subscription, outing.monthly_price
+        ),
         status="active",
         start_date=subscription.start_date,
         end_date=subscription.end_date,

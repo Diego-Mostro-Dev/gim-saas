@@ -7,7 +7,7 @@ from gyms.labels import msg
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import sync_subscription_paid
+from subscriptions.services import prorated_price_for, sync_subscription_paid
 from profiles.models import UserProfile
 
 from .models import PersonalTrainingAssignment, PersonalTrainingService
@@ -304,7 +304,9 @@ def _ensure_pt_item(subscription, pt_service, price=None):
     """Create a SubscriptionItem for a PT service in the given subscription.
 
     Returns the existing or newly created SubscriptionItem. Multiple active
-    assignments of the same service share a single item.
+    assignments of the same service share a single item. When price is None
+    the service's monthly price is used for the cycle (proportionally if
+    the subscription's signup was prorated).
     """
     pt_item = SubscriptionItem.objects.filter(
         subscription=subscription,
@@ -324,7 +326,9 @@ def _ensure_pt_item(subscription, pt_service, price=None):
         plan=None,
         personal_training=pt_service,
         name_snapshot=pt_service.name,
-        price_snapshot=price if price is not None else pt_service.monthly_price,
+        price_snapshot=price if price is not None else prorated_price_for(
+            subscription, pt_service.monthly_price
+        ),
         status="active",
         start_date=subscription.start_date,
         end_date=subscription.end_date,

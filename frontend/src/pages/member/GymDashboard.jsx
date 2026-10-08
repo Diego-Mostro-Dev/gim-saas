@@ -246,7 +246,7 @@ function GymDashboard() {
                   ${Number(
                     subscription.discount_percent > 0
                       ? subscription.total ?? subscription.plan_price
-                      : subscription.plan_price,
+                      : subscription.plan_period_price ?? subscription.plan_price,
                   ).toLocaleString("es-AR")}
                 </span>
               </div>
@@ -281,7 +281,7 @@ function GymDashboard() {
                 </div>
               )}
 
-              {subscription.total && Number(subscription.total) > Number(subscription.plan_price) && (
+              {subscription.total && Number(subscription.total) !== Number(subscription.plan_price) && (
                 <div className="flex items-center justify-between border-t border-border pt-3">
                   <span className="text-sm font-semibold text-text-secondary">Total mensual</span>
                   <span className="text-sm font-bold text-info-text dark:text-info">

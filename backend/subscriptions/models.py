@@ -54,6 +54,17 @@ class Subscription(models.Model):
         ),
     )
 
+    prorated = models.BooleanField(
+        default=False,
+        verbose_name="Primer mes prorrateado",
+        help_text=(
+            "Alta posterior al día de vencimiento del gimnasio: el primer "
+            "período se facturó solo por los días restantes del mes. Se decide "
+            "una sola vez al abrir la suscripción; sin backfill, las filas "
+            "anteriores a esta regla quedan en False (se facturaron completas)."
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
 
     class Meta:

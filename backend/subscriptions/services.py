@@ -39,8 +39,37 @@ def _item_price(subscription, monthly_price):
     Un socio ``is_comp`` no se factura: su ítem se escribe en 0, sin importar
     la vía de alta. Así el total queda en 0 aunque un resto de precio se haya
     colado en un snapshot previo.
+
+    Un alta prorrateada (``Subscription.prorated``) factura solo la parte
+    proporcional del mes vía :func:`prorated_price_for`; el resto de orígenes
+    paga el mes completo.
     """
-    return Decimal("0") if subscription.member.is_comp else monthly_price
+    if subscription.member.is_comp:
+        return Decimal("0")
+    return prorated_price_for(subscription, monthly_price)
+
+
+def prorated_price_for(subscription, monthly_price):
+    """Precio del primer mes: proporcional si el ciclo es un alta prorrateada.
+
+    El factor es ``días restantes del mes / días del mes`` sobre la fecha de
+    inicio, con half-up a centavos (vía ``_prorate``): ``remaining == 0`` es
+    una comparación exacta, así que un centavo sin redondear dejaría al socio
+    bloqueado en ``initial_pending``.
+
+    Devuelve ``monthly_price`` sin tocar cuando el ciclo no es prorrateado,
+    de modo que los writers que hoy delegan en este cálculo (plan, copias de
+    renovación, add-ons) conservan su comportamiento byte a byte.
+    """
+    if not subscription.prorated:
+        return monthly_price
+
+    start = subscription.start_date
+    month_days = monthrange(start.year, start.month)[1]
+    # Un ciclo de alta termina siempre en fin de mes, así que los días
+    # facturables del primer ciclo coinciden con la duración del período.
+    billable = month_days - start.day + 1
+    return SubscriptionDomain._prorate(monthly_price, billable, month_days)
 
 
 def _copy_activity_items(from_subscription, to_subscription):
