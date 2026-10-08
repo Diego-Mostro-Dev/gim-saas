@@ -148,6 +148,13 @@ UI del socio bloqueado (pestañas ocultas y banner): `frontend/src/pages/member/
   todos sus items, pero cada pago se registra por separado.
 - **No se puede cobrar de más** que el saldo pendiente de ese item. Si ya está
   saldado y se intenta cobrar igual, el sistema lo rechaza.
+- **El saldo ya viene prorrateado:** el importe no lo calcula quien registra el
+  pago. El formulario de cobro toma el saldo de la suscripción
+  (`/subscriptions/member/<id>/outstanding/`) y ese saldo ya refleja el
+  prorrateo del primer ciclo (ver §1): una alta posterior al día de vencimiento
+  se cobra sólo por los días que quedan del mes, y el día de vencimiento
+  inclusive paga el mes completo. Las renovaciones, los cambios de plan y las
+  recuperaciones no se prorratean (§7).
 - **Aviso de pago duplicado:** si en las últimas 24 horas ya se registró un pago
   en efectivo para esa misma suscripción, el sistema pide confirmación antes de
   guardar el segundo.
@@ -165,6 +172,8 @@ UI del socio bloqueado (pestañas ocultas y banner): `frontend/src/pages/member/
 - Conceptos y métodos: `backend/payments/models.py:8-23`.
 - Un pago = un target (FKs `subscription`, `applied_to`, `enrollment`, `personal_training_assignment`, `outing_enrollment`).
 - Validación de monto (no pagar más que el saldo): `backend/payments/serializers.py:117-141` (`_validate_amount`) y `:143+` (`_validate_package_amount`).
+- Saldo por socio (el que muestra el form de cobro): `backend/subscriptions/views.py:179-187` (`member_outstanding`) sobre `backend/subscriptions/services.py:680` (`subscription_remaining_balance`) y `:287` (`calculate_subscription_total`), con el prorrateo en `services.py:52` (`prorated_price_for`).
+- El form no recalcula nada: `frontend/src/components/payments/PaymentForm.jsx:78-99` (muestra "Total" y "Restan", y prefiulla `subscription.remaining`) vía `frontend/src/services/subscriptions.service.js:14-16` (`getMemberOutstanding`).
 - Sellado: `backend/activities/models.py:193-203`, cobro exacto y único en `backend/payments/serializers.py:185-197`; el sellado **vuelve a quedar pendiente al regenerar/agregar sesiones de un paquete** en `backend/activities/session_service.py:118` y `backend/personal_training/session_service.py:93`.
 - No se renueva un paquete con sesiones sin cobrar: `activities/session_service.py:112`, `personal_training/session_service.py:87`, `outings/session_service.py:111`.
 - Coseguro según obra social: `backend/members/models.py:22-33` (`HealthInsurance.session_price`).

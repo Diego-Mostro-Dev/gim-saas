@@ -62,8 +62,12 @@ Detalles:
 - Si es "solo actividades" (sin gimnasio), nace con el plan base en $0.
 - Las actividades, el entrenamiento y las salidas del período anterior **se
   copian** al ciclo nuevo: el socio no los pierde al renovar.
-- **No se prorratea al inscribirse:** quien entra el día 20 paga el mes
-  completo (ver AUDITORIA-PAGOS §1 y §7).
+- **El prorrateo es sólo del primer ciclo:** si el alta cae después del día de
+  vencimiento del gimnasio, el primer período (plan, actividades, PT mensual y
+  salidas mensuales) se cobra por los días que quedan del mes; el día de
+  vencimiento inclusive paga el mes completo. En las renovaciones, en los
+  cambios de plan y en las recuperaciones no se prorratea (ver AUDITORIA-PAGOS
+  §1 y §7).
 
 ### Referencia
 - Alta por staff: `backend/members/services.py:148-182` (con plan `:148-157`,
