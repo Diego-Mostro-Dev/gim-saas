@@ -158,6 +158,7 @@ class _ProrationBase(BaseAPITest):
             gym=self.gym,
             service=Service.get_default_for_gym(self.gym),
             name=f"Salida {price}",
+            monthly_price=price,
         )
         schedule = OutingSchedule.objects.create(
             outing=outing,
