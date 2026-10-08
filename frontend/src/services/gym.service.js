@@ -1,10 +1,23 @@
 import { apiFetch } from "./api";
 import { setCached } from "../utils/cache";
 
+// Up to five components mount with useGym() in the same render flush
+// (TopBar, useGymTitle, Dashboard, InstallBanner, FeatureProvider), so share
+// one in-flight request instead of firing five identical GETs.
+let inflightGym = null;
+
 export async function getGym() {
-  const data = await apiFetch("/api/gyms/me/");
-  setCached("gym", data);
-  return data;
+  if (!inflightGym) {
+    inflightGym = apiFetch("/api/gyms/me/")
+      .then((data) => {
+        setCached("gym", data);
+        return data;
+      })
+      .finally(() => {
+        inflightGym = null;
+      });
+  }
+  return inflightGym;
 }
 
 export async function getPublicGym(gymCode) {
@@ -23,6 +36,9 @@ export async function updateGym(data) {
           "Content-Type": "application/json",
         },
   });
+  // Refresh the cache before the event: FeatureProvider reads getCached("gym")
+  // on features:updated and would otherwise pick up the pre-PATCH payload.
+  setCached("gym", result);
   window.dispatchEvent(new Event("features:updated"));
   return result;
 }

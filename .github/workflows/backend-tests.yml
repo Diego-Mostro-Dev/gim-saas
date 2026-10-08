@@ -59,7 +59,10 @@ jobs:
       # de core/testing.py que deriva el flag paid como hace el camino real de
       # la API. Con la suite limitada a subscriptions, un cambio a ese helper
       # llegaba a producción sin que nadie corriera los dos call sites que lo
-      # comparten.
-      - name: Run subscriptions, members and attendance tests
+      # comparten. payments entra por el mismo motivo: su suite fija el
+      # guard de saldo que consume settle_subscription (P27 de BUG-Pagos).
+      # plans entra porque ahí vive el default de Service al crear un plan:
+      # sin esa paquete, plans/tests.py nunca corrió en ningún lado.
+      - name: Run subscriptions, members, attendance, payments and plans tests
         working-directory: backend
-        run: python manage.py test subscriptions members attendance
+        run: python manage.py test subscriptions members attendance payments plans

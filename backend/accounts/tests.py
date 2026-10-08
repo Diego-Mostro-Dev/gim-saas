@@ -54,6 +54,46 @@ class LoginTests(BaseAPITest):
         self.assertEqual(me.data["gym_id"], gym.id)
         self.assertEqual(me.data["role"], UserProfile.ROLE_OWNER)
 
+    def test_me_returns_gym_features(self):
+        gym = self.create_gym()
+        gym.features = {"activities": True, "personal_training": False}
+        gym.save(update_fields=["features"])
+        self.create_user(gym)
+
+        resp = self.client.post(
+            "/api/auth/login/",
+            {"username": "owner", "password": "pass12345"},
+            format="json",
+        )
+
+        me = self.client.get(
+            "/api/auth/me/",
+            HTTP_AUTHORIZATION=f"Token {resp.data['token']}",
+        )
+
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(
+            me.data["features"],
+            {"activities": True, "personal_training": False},
+        )
+
+    def test_me_returns_empty_features_without_gym(self):
+        self.create_user(None, username="nogym")
+
+        resp = self.client.post(
+            "/api/auth/login/",
+            {"username": "nogym", "password": "pass12345"},
+            format="json",
+        )
+
+        me = self.client.get(
+            "/api/auth/me/",
+            HTTP_AUTHORIZATION=f"Token {resp.data['token']}",
+        )
+
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.data["features"], {})
+
     def test_change_password_rotates_token(self):
         gym = self.create_gym()
         self.create_user(gym)

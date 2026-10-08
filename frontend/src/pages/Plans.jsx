@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 import { Plus } from "lucide-react";
+import toast from "react-hot-toast";
 
 import PlanCard from "../components/plans/PlanCard";
 import PlanForm from "../components/plans/PlanForm";
@@ -68,6 +69,7 @@ function Plans() {
       handleCloseForm();
     } catch (error) {
       console.error(error);
+      toast.error(error.message || "No se pudo guardar el plan");
     } finally {
       setIsSubmitting(false);
     }
@@ -80,8 +82,10 @@ function Plans() {
 
     try {
       await handleDeletePlan(id);
+      toast.success("Plan eliminado");
     } catch (error) {
       console.error(error);
+      toast.error(error.message || "No se pudo eliminar el plan");
     }
   }
 

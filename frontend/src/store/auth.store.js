@@ -5,6 +5,9 @@ const useAuthStore = create((set, get) => ({
   token: localStorage.getItem("token") || null,
   user: null,
   gym: null,
+  // Gym feature flags straight from /api/auth/me/: lets FeatureProvider
+  // paint gated nav items on the first frame, before /api/gyms/me/ resolves.
+  features: null,
   role: null,
   isSuperuser: false,
 
@@ -32,6 +35,7 @@ const useAuthStore = create((set, get) => ({
       set({
         user: { username: data.username },
         gym: data.gym ? { name: data.gym, id: data.gym_id } : null,
+        features: data.features || {},
         role: data.role || "staff",
         isSuperuser: data.is_superuser || false,
         must_change_password: data.must_change_password || false,
@@ -44,6 +48,7 @@ const useAuthStore = create((set, get) => ({
         token: null,
         user: null,
         gym: null,
+        features: null,
         role: null,
         isSuperuser: false,
         must_change_password: false,
@@ -73,6 +78,7 @@ const useAuthStore = create((set, get) => ({
           token: data.token,
           user: { username: me.username },
           gym: me.gym ? { name: me.gym, id: me.gym_id } : null,
+          features: me.features || {},
           role: me.role || "staff",
           isSuperuser: me.is_superuser || false,
           must_change_password:
@@ -86,6 +92,7 @@ const useAuthStore = create((set, get) => ({
           token: null,
           user: null,
           gym: null,
+          features: null,
           role: null,
           isSuperuser: false,
           must_change_password: false,
@@ -113,6 +120,7 @@ const useAuthStore = create((set, get) => ({
       token: null,
       user: null,
       gym: null,
+      features: null,
       role: null,
       isSuperuser: false,
       must_change_password: false,

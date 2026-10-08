@@ -14,14 +14,12 @@ export function useGym({ skip = false } = {}) {
   }, [skip]);
 
   async function loadGym() {
+    // Fresh cache: serve it and skip the network. Previously every mount
+    // revalidated anyway, which meant a GET /api/gyms/me/ per page; the
+    // background refresh now comes from FeatureProvider's focus/visibility
+    // listeners plus this TTL.
     if (isCacheFresh(CACHE_KEY, TTL)) {
       setGym(getCached(CACHE_KEY));
-      try {
-        const data = await getGym();
-        setGym(data);
-      } catch (error) {
-        console.error(error);
-      }
       return;
     }
     try {
