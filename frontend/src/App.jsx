@@ -61,6 +61,7 @@ import ScheduleChangesFlow from "./dev/ScheduleChangesFlow";
 import AttendanceFlow from "./dev/AttendanceFlow";
 import SubscriptionsFlow from "./dev/SubscriptionsFlow";
 import PlansFlow from "./dev/PlansFlow";
+import PlanChangesFlow from "./dev/PlanChangesFlow";
 import SettingsFlow from "./dev/SettingsFlow";
 
 const PAYMENTS_FLOW_ENABLED = import.meta.env.DEV;
@@ -68,6 +69,7 @@ const SCHEDULE_CHANGES_FLOW_ENABLED = import.meta.env.DEV;
 const ATTENDANCE_FLOW_ENABLED = import.meta.env.DEV;
 const SUBSCRIPTIONS_FLOW_ENABLED = import.meta.env.DEV;
 const PLANS_FLOW_ENABLED = import.meta.env.DEV;
+const PLAN_CHANGES_FLOW_ENABLED = import.meta.env.DEV;
 const SETTINGS_FLOW_ENABLED = import.meta.env.DEV;
 
 function HomeRedirect() {
@@ -133,6 +135,9 @@ function App() {
         <Route path="/subscriptions-flow" element={<SubscriptionsFlow />} />
       )}
       {PLANS_FLOW_ENABLED && <Route path="/plans-flow" element={<PlansFlow />} />}
+      {PLAN_CHANGES_FLOW_ENABLED && (
+        <Route path="/plan-changes-flow" element={<PlanChangesFlow />} />
+      )}
       {SETTINGS_FLOW_ENABLED && <Route path="/settings-flow" element={<SettingsFlow />} />}
 
       {/* protected layout */}
