@@ -56,6 +56,19 @@ import NotFound from "./pages/NotFound";
 import ProtectedFeature from "./features/ProtectedFeature";
 import { useFeature } from "./features/FeatureProvider";
 import useAuthStore from "./store/auth.store";
+import PaymentsFlow from "./dev/PaymentsFlow";
+import ScheduleChangesFlow from "./dev/ScheduleChangesFlow";
+import AttendanceFlow from "./dev/AttendanceFlow";
+import SubscriptionsFlow from "./dev/SubscriptionsFlow";
+import PlansFlow from "./dev/PlansFlow";
+import SettingsFlow from "./dev/SettingsFlow";
+
+const PAYMENTS_FLOW_ENABLED = import.meta.env.DEV;
+const SCHEDULE_CHANGES_FLOW_ENABLED = import.meta.env.DEV;
+const ATTENDANCE_FLOW_ENABLED = import.meta.env.DEV;
+const SUBSCRIPTIONS_FLOW_ENABLED = import.meta.env.DEV;
+const PLANS_FLOW_ENABLED = import.meta.env.DEV;
+const SETTINGS_FLOW_ENABLED = import.meta.env.DEV;
 
 function HomeRedirect() {
   const isSuperuser = useAuthStore((state) => state.isSuperuser);
@@ -109,6 +122,18 @@ function App() {
       <Route path="/comunidad/:token" element={<CommunityPublicPage />} />
       <Route path="/checkin/:gymCode" element={<Checkin />} />
       <Route path="/onboarding/:gymCode" element={<GymSetup />} />
+
+      {/* dev-only: flujo de pagos (local, sin login) */}
+      {PAYMENTS_FLOW_ENABLED && <Route path="/payments-flow" element={<PaymentsFlow />} />}
+      {SCHEDULE_CHANGES_FLOW_ENABLED && (
+        <Route path="/schedule-changes-flow" element={<ScheduleChangesFlow />} />
+      )}
+      {ATTENDANCE_FLOW_ENABLED && <Route path="/attendance-flow" element={<AttendanceFlow />} />}
+      {SUBSCRIPTIONS_FLOW_ENABLED && (
+        <Route path="/subscriptions-flow" element={<SubscriptionsFlow />} />
+      )}
+      {PLANS_FLOW_ENABLED && <Route path="/plans-flow" element={<PlansFlow />} />}
+      {SETTINGS_FLOW_ENABLED && <Route path="/settings-flow" element={<SettingsFlow />} />}
 
       {/* protected layout */}
       <Route
