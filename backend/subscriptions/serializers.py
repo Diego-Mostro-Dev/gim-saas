@@ -283,13 +283,19 @@ class MemberOutstandingSubscriptionSerializer(serializers.Serializer):
     end_date = serializers.DateField(source="subscription.end_date")
     plan_name = serializers.SerializerMethodField()
     items = SubscriptionItemSerializer(many=True, read_only=True, source="subscription.items")
-    paid = serializers.BooleanField(source="subscription.paid")
+    paid = serializers.SerializerMethodField()
     total = serializers.DecimalField(max_digits=10, decimal_places=2)
     paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     remaining = serializers.DecimalField(max_digits=10, decimal_places=2)
 
     def get_plan_name(self, obj):
         return public_plan_name(obj["subscription"].plan)
+
+    def get_paid(self, obj):
+        # P23: la lista sólo trae filas con ``remaining > 0``. Derivar el flag
+        # del saldo (en vez de copiar ``subscription.paid``) hace imposible
+        # devolver ``paid=True`` junto a una deuda.
+        return obj["remaining"] <= 0
 
 
 class SelladoDebtSerializer(serializers.Serializer):

@@ -1,7 +1,7 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-14 — 7 abiertos (P22-P26, P28, P12), 6 cerrados (P19, P20, P21, P27, P29,
-P16), P14 escalado a P21, P13 diferido. Fases 0, 1 y 2 cerradas.
+Estado: 2026-10-14 — 5 abiertos (P24-P26, P28, P12), 8 cerrados (P19, P20, P21, P22,
+P23, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2 y 3 cerradas.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -17,8 +17,8 @@ ahí, no a staging). Ver nota de entorno al final.
 | P19 | ALTO | revisión 2026-10-05 | 1 | ✅ **cerrado** (Fase 1) | `concept`/`applied_to` escribibles por la API: `PaymentSerializer` no los protege | POST falsificado → 400, cero `Payment`, `member_credit_balance == 0` |
 | P20 | ALTO | revisión 2026-10-05 | 1 | ✅ **cerrado** (Fase 1) | re-tipado de crédito a `subscription` evade la validación (hoy no hay ninguna sobre `concept`) | PATCH de un crédito con `concept:"subscription"` → 400, conserva `concept="credit"` |
 | P21 | ALTO | escalado de P14 | 2 | ✅ **cerrado** (Fase 2) | `apply_plan_change` reprecia sin `sync_subscription_paid` | reprecio a la baja → crédito acuñado; a la alta → `paid=False`; pago sobre período sin saldo → 400 "ya no tiene saldo pendiente" |
-| P22 | MEDIO | revisión 2026-10-05 | 3 | ⬜ abierto | `paid=` escrito a mano en `create_next_subscription` (`services.py:1314`) y `recover_member` (`services.py:1418`) | total 0 → `paid` y `payment_status` coinciden |
-| P23 | MEDIO | revisión 2026-10-05 | 3 | ⬜ abierto | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
+| P22 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | `paid=` escrito a mano en `create_next_subscription` (`services.py:1341`) y `recover_member` (`services.py:1446`) | total 0 → `paid` y `payment_status` coinciden |
+| P23 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
 | P24 | MEDIO | revisión 2026-10-05 | 4 | ⬜ abierto | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
 | P25 | MEDIO | revisión 2026-10-05 | 5 | ⬜ abierto | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
 | P26 | BAJO | revisión 2026-10-05 | 6 | ⬜ abierto | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
@@ -211,31 +211,48 @@ Postgres 16 descartable → 129 tests, `OK (expected failures=2)` (sólo P21a/P2
 
 ---
 
-### Fase 3 — Que el flag `paid` no mienta
+### Fase 3 — Que el flag `paid` no mienta — ✅ **hecha** (2026-10-14)
 
-⬜ **pendiente.** P22, P23. Un commit. Son el mismo tema: el flag desnormalizado
-contando cosas que no son suyas.
+P22, P23. **Un commit.** El flag desnormalizado contaba cosas que no son suyas.
 
-**Archivos:** `subscriptions/services.py`, `subscriptions/serializers.py`.
+**Archivos:** `subscriptions/services.py`, `subscriptions/serializers.py`,
+`subscriptions/test_money_bugs.py`.
 
 **P22 — dejar de escribirlo a mano**
 
-- `create_next_subscription` (`services.py:1314`): `paid=is_comp` → derivarlo.
-- `recover_member` (`services.py:1418`): `paid=False` → derivarlo.
+- `create_next_subscription` (`services.py`): se quitó `paid=is_comp` (y la variable
+  local `is_comp`); al final de la transacción, tras copiar ítems, consumir crédito y
+  aplicar el PCR, se llama `sync_subscription_paid(new_sub)`.
+- `recover_member` (`services.py`): se quitó `paid=False`; al final, tras
+  `_finalize_plan_change`, se llama `sync_subscription_paid(new_sub)`.
 
-El test `test_toggle_delegates_paid_and_never_writes_it_by_hand` ya afirma la invariante
-para `mutate_membership`; estas dos rutas la violan en silencio.
+En ambas el lock es innecesario: la fila la crea la misma transacción (INSERT), así que ya
+está tomada hasta el commit. Es el mismo patrón que `mutate_membership`
+(`domain.py:282-285`: "``paid`` es derivado, nunca escrito acá").
 
 **P23 — no exponerlo donde no puede ser cierto**
-`subscriptions/serializers.py:286`: `paid = serializers.BooleanField(source="subscription.paid")`.
-El queryset que lo alimenta descarta `remaining <= 0` (`services.py:1052-1054`), así que
-toda fila devuelta tiene `remaining > 0` y el flag, por definición, debería ser `False`.
-Derivar de `remaining` hace la contradicción imposible en vez de improbable.
 
-**Tests:** total 0 (descuento 100% o plan base) → `paid` y `payment_status` coinciden,
-por las dos rutas. Toda fila de `/outstanding` con `remaining > 0` devuelve `paid=False`.
+`MemberOutstandingSubscriptionSerializer.paid` (`serializers.py:286`) pasa de
+`BooleanField(source="subscription.paid")` a un `SerializerMethodField` que devuelve
+`obj["remaining"] <= 0`. El queryset que lo alimenta (`member_total_outstanding_debt`)
+sólo trae filas con `remaining > 0`, así que derivarlo del saldo vuelve imposible la
+contradicción `paid=True` con deuda.
 
-**Gate:** gate global + esos asserts.
+> **Fuera de alcance (nota).** Quedan dos escritores manuales de `paid` sin tocar, por
+> decisión de alcance de esta fase: `mutate_membership` rama "sin suscripción vigente"
+> (`domain.py:308`, `paid=comp`) — mismo bug de fondo con descuento 100%, pero en un
+> branch que el toggle no ejercita — y el alta de socios (`members/services.py:167`,
+> `paid=True` para comp), que es correcto por construcción porque comp fuerza
+> `remaining = 0`. Si alguna vez se retoma "paid nunca se escribe", empezar por ahí.
+
+**Tests:** `PaidFlagDerivationTests` (`subscriptions/test_money_bugs.py`, 3 tests):
+renovación con total 0 (descuento 100%) → `paid` y `payment_status` coinciden; recovery
+con total 0 → ídem; fila de `/api/subscriptions/member/<id>/outstanding/` con el flag
+stale en `True` → devuelve `paid=False` con `remaining > 0`. Se escribieron como
+`expectedFailure` (rojos sobre el código viejo) y se les quitó la marca al arreglar.
+
+**Gate:** ✅ `manage.py test subscriptions members attendance payments plans` contra
+Postgres 16 descartable → 133 tests, `OK` (0 expected failures).
 
 **Commit:** `fix(subscriptions): paid se deriva, nunca se escribe ni se expone donde es falso`.
 

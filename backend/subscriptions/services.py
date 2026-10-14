@@ -1338,13 +1338,11 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
     plan, approved_pcr = _resolve_plan(expired_sub.member, expired_sub, target_start)
 
     with transaction.atomic():
-        is_comp = expired_sub.member.is_comp
         new_sub = SubscriptionDomain.open_subscription(
             member=expired_sub.member,
             plan=plan,
             start_date=target_start,
             end_date=target_end,
-            paid=is_comp,
             auto_renew=expired_sub.auto_renew,
             origin=origin,
         )
@@ -1359,6 +1357,10 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
 
         if approved_pcr is not None:
             apply_plan_change(approved_pcr)
+
+        # P22: ``paid`` es derivado, nunca escrito a mano. Se sincroniza al
+        # final para que refleje los ítems ya copiados y el crédito consumido.
+        sync_subscription_paid(new_sub)
 
     return new_sub
 
@@ -1389,7 +1391,7 @@ def recover_member(member):
     5. Active activity items are copied from the latest subscription and the
        auto_renew flag is inherited.
     6. The new subscription starts today, ends on the last day of the current
-       month, is unpaid, and has origin="recovery".
+       month, has ``paid`` derived from its balance, and has origin="recovery".
 
     When an approved plan change is used, it is fully executed inside the same
     transaction: linked to the new subscription, marked as executed, schedules
@@ -1448,7 +1450,6 @@ def recover_member(member):
             plan=plan,
             start_date=today,
             end_date=month_end,
-            paid=False,
             auto_renew=latest_sub.auto_renew,
             origin="recovery",
         )
@@ -1458,6 +1459,10 @@ def recover_member(member):
 
         if approved_pcr is not None:
             _finalize_plan_change(approved_pcr, new_sub)
+
+        # P22: ``paid`` es derivado, nunca escrito a mano. Un socio con total
+        # 0 (comp o descuento 100%) queda pagado; el resto, pendiente.
+        sync_subscription_paid(new_sub)
 
         member.active = True
         member.save(update_fields=["active"])

@@ -2479,3 +2479,102 @@ class ConsumedCreditRepricingTests(_MoneyBugBase):
         self._repriced(member, october, Decimal("20000.00"))
 
         self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+
+
+class PaidFlagDerivationTests(_MoneyBugBase):
+    """P22/P23 — el flag ``paid`` es derivado, nunca escrito ni expuesto falso.
+
+    P22: ``create_next_subscription`` (``services.py:1347``) y ``recover_member``
+    (``services.py:1451``) escribían ``paid`` a mano (``paid=is_comp`` y
+    ``paid=False``). Con un total en 0 (descuento 100% o plan base), el flag
+    quedaba en ``False`` mientras ``payment_status`` ya decía ``paid``.
+
+    P23: ``MemberOutstandingSubscriptionSerializer.paid`` copiaba el flag del
+    queryset, que sólo trae filas con ``remaining > 0``: una fila podía salir
+    ``paid=True`` con deuda. Derivarlo de ``remaining`` hace la contradicción
+    imposible.
+
+    Repros de la Fase 3, ya invertidos: verdes sobre el código corregido.
+    """
+
+    def _zero_total_member(self, gym):
+        """Socio con descuento 100%: plan y actividades facturan 0."""
+        discount = Discount.objects.create(
+            gym=gym, name="Beca total", discount_percent=100
+        )
+        member = self.create_member(gym)
+        member.discount = discount
+        member.save(update_fields=["discount"])
+        return member
+
+    def test_renewal_derives_paid_when_total_is_zero(self):
+        p = self._periods()
+        gym = self.create_gym()
+        plan = self.create_plan(gym)
+        member = self._zero_total_member(gym)
+
+        expired = self.open_month_subscription(
+            member,
+            plan,
+            start_date=p["prev_start"],
+            end_date=p["prev_end"],
+            paid=False,
+        )
+        self.assertEqual(calculate_subscription_total(expired), Decimal("0.00"))
+
+        new_sub = create_next_subscription(expired)
+
+        self.assertEqual(new_sub.start_date, p["month_start"])
+        self.assertEqual(calculate_subscription_total(new_sub), Decimal("0.00"))
+        self.assertTrue(new_sub.paid)
+        self.assertEqual(get_subscription_payment_status(new_sub), "paid")
+
+    def test_recovery_derives_paid_when_total_is_zero(self):
+        p = self._periods()
+        gym = self.create_gym()
+        plan = self.create_plan(gym)
+        member = self._zero_total_member(gym)
+
+        self.open_month_subscription(
+            member,
+            plan,
+            start_date=p["prev_start"],
+            end_date=p["prev_end"],
+            paid=False,
+        )
+        member.active = False
+        member.save(update_fields=["active"])
+
+        new_sub = recover_member(member)
+
+        self.assertEqual(new_sub.origin, "recovery")
+        self.assertEqual(calculate_subscription_total(new_sub), Decimal("0.00"))
+        self.assertTrue(new_sub.paid)
+        self.assertEqual(get_subscription_payment_status(new_sub), "paid")
+
+    def test_outstanding_never_exposes_paid_true(self):
+        p = self._periods()
+        gym = self.create_gym()
+        user = self.create_user(gym)
+        self.client.force_authenticate(user=user)
+        plan = self.create_plan(gym)
+        member = self.create_member(gym)
+
+        # Flag stale a propósito: marcado pagado sin un solo pago.
+        self.open_month_subscription(
+            member,
+            plan,
+            start_date=p["month_start"],
+            end_date=p["target_end"],
+            paid=True,
+        )
+
+        resp = self.client.get(
+            f"/api/subscriptions/member/{member.id}/outstanding/"
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data["subscriptions"]), 1)
+        row = resp.data["subscriptions"][0]
+        self.assertGreater(Decimal(row["remaining"]), Decimal("0"))
+        self.assertFalse(row["paid"])
