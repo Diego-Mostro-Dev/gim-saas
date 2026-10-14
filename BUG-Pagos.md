@@ -1,8 +1,8 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-14 — 9 abiertos (P21-P26, P28, P29, P12), 4 cerrados (P19, P20, P27, P16),
+Estado: 2026-10-14 — 8 abiertos (P21-P26, P28, P12), 5 cerrados (P19, P20, P27, P29, P16),
 P14 escalado a P21, P13 diferido. Fase 0 (repro) y Fase 1 (integridad de la API de pagos)
-cerradas.
+cerradas. Fase 2 partida: P29 (B2) resuelto; P21 pendiente.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -25,7 +25,7 @@ ahí, no a staging). Ver nota de entorno al final.
 | P26 | BAJO | revisión 2026-10-05 | 6 | ⬜ abierto | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
 | P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
 | P28 | BAJO | revisión 2026-10-05 | 7 | ⬜ abierto | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count |
-| P29 | ALTO | repro 2026-10-14 | 2 | ⬜ abierto (repro listo) | `ensure_overpayment_credit` (`services.py:486`) mide lo ya acuñado con `credit_recorded_for` (`services.py:438`), que suma también el crédito **consumido** del período (`applied_to`). Con un reprecio a la baja posterior, cree que el exceso ya se devolvió y no acuña: el socio pierde la diferencia | crédito consumido + reprecio a la baja → `member_credit_balance` devuelve el exceso |
+| P29 | ALTO | repro 2026-10-14 | 2 | ✅ **cerrado** (Fase 2a) | `ensure_overpayment_credit` (`services.py:486`) medía lo ya acuñado con `credit_recorded_for` (`services.py:438`), que sumaba también el crédito **consumido** del período (`applied_to`). Con un reprecio a la baja posterior, creía que el exceso ya se devolvió y no acuñaba: el socio perdía la diferencia | crédito consumido + reprecio a la baja → `member_credit_balance` devuelve el exceso |
 | P12 | MEDIO | PLAN-dinero | fuera de este plan | ⬜ abierto | borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` | — (no tiene fase asignada) |
 | P14 | BAJO | PLAN-dinero → escalado | → P21 | ✅ escalado | `subscription.paid` desincronizado cuando el total cambia | su descripción no capturaba que el período queda impagable; el fix real es P21 |
 | P13 | BAJO | PLAN-dinero | 7 | ⬜ diferido | el fallback `total += subscription.plan.price` reintroduce el precio vigente | — |
@@ -147,7 +147,8 @@ Postgres 16 descartable → 129 tests, `OK` (los 5 nuevos sin marca + los 4 pree
 
 ### Fase 2 — `apply_plan_change`: el sobrepago que no se acuña
 
-⬜ **pendiente.** P21 + P29. Un commit. El bug de plata real más grande que queda.
+⬜ **pendiente (P21).** P29 resuelto por separado como **Fase 2a**. P21 queda como el bug
+de plata real más grande que resta.
 
 **Archivos:** `subscriptions/services.py`, `subscriptions/test_money_bugs.py`.
 
@@ -166,26 +167,16 @@ Tres consecuencias que el fix cierra de una:
 **Tests** — en `subscriptions/test_money_bugs.py`, siguiendo el patrón de las clases que
 ya existen (`MoneyBugRenewalTests`, `CourtesyCreditFrozenDiscountTests`):
 
-> P21 (a) y (b) existen como `PlanChangeRepricingTests` y P29 como
-> `ConsumedCreditRepricingTests` desde la Fase 0 (repro), `expectedFailure`. En esta fase
-> se les quita la marca. El (c) "pago rechazado" depende de la decisión sobre
-> `_validate_amount` (ver Fase 0, decisión abierta): el fix de `sync` **no** alcanza
-> porque ese cálculo no clampea el saldo.
+> P21 (a) y (b) existen como `PlanChangeRepricingTests` desde la Fase 0 (repro),
+> `expectedFailure`. En esta fase se les quita la marca. El (c) "pago rechazado" depende de
+> la decisión sobre `_validate_amount` (ver Fase 0, decisión abierta): el fix de `sync`
+> **no** alcanza porque ese cálculo no clampea el saldo.
 
 1. Período pagado, se reprecia a la baja → crédito acuñado por la diferencia,
    `member_credit_balance` sube.
 2. Período pagado, se reprecia a la alta → `paid` pasa a `False`.
 3. Repricing a la baja y luego un pago nuevo por el saldo → aceptado (no 400 con saldo
    negativo). **Pendiente de decisión.**
-
-**P29 (B2) — el crédito consumido suprime el reembolso.** El fix no puede ser sólo
-`sync`: `ensure_overpayment_credit` (`services.py:486-521`) compara el sobrepago contra
-`credit_recorded_for` (`services.py:438-459`), que suma las filas con
-`Q(subscription=período)|Q(applied_to=período)`. Cuando un sobrepago se consumió en el
-período (fila con `subscription=período`, `applied_to=origen`), ya aparece como
-"registrado" y el exceso posterior nunca se acuña. Decisión a tomar con el repro a la
-vista: ¿comparar sólo contra los créditos **abiertos** acuñados en el período, o sumar el
-crédito consumido al monto a reembolsar?
 
 **Qué NO incluye:** los otros tres escritores sin sync — `mutate_membership` ya llama
 `sync_subscription_paid` (`domain.py:268`); `create_next_subscription` y `recover_member`
@@ -196,6 +187,38 @@ Postgres, y los tests de `PlanChangeRepricingTests` y `ConsumedCreditRepricingTe
 pasando (sin marca).
 
 **Commit:** `fix(subscriptions): apply_plan_change sincroniza paid y acuña el sobrepago`.
+
+#### Fase 2a — P29 (B2): el crédito consumido suprime el reembolso — ✅ **hecha** (2026-10-14)
+
+**Un commit**, independiente de P21.
+
+**El bug.** `ensure_overpayment_credit` (`services.py:486-521`) compara el sobrepago contra
+`credit_recorded_for` (`services.py:438`), que sumaba las filas con
+`Q(subscription=período)|Q(applied_to=período)`. Cuando un sobrepago se consumía en el
+período (fila con `subscription=período`, `applied_to=origen`), ya aparecía como
+"registrado" y un exceso posterior (reprecio a la baja del período destino) nunca se acuñaba.
+
+**El fix.** `credit_recorded_for` pasa a medir el crédito **originado** por el período:
+
+```
+Q(applied_to=período) | Q(subscription=período, applied_to__isnull=True)
+```
+
+Una fila abierta cuenta por `subscription` (origen); una fila consumida cuenta por
+`applied_to` (origen) y **deja** de contar por `subscription` (destino). Único llamador:
+`services.py:512`. Mantiene la idempotencia del origen (una fila movida sigue contando en
+`applied_to=origen`) y no duplica cuando `sync` corre dos veces (el crédito recién acuñado
+queda abierto en el período y se cuenta).
+
+**Test.** `ConsumedCreditRepricingTests` (`subscriptions/test_money_bugs.py`, 1 test) — se
+le quitó la marca `expectedFailure` de la Fase 0 y queda verde: septiembre pagado de más
+(50.000) → reprecial a 0 → crédito abierto de 50.000; octubre (50.000) lo consume entero;
+reprecio de octubre a 20.000 → `member_credit_balance == 30000.00`.
+
+**Gate:** ✅ `manage.py test subscriptions members attendance payments plans` contra
+Postgres 16 descartable → 129 tests, `OK (expected failures=2)` (sólo P21a/P21b).
+
+**Commit:** `fix(subscriptions): credit_recorded_for mide el crédito originado, no el tocado`.
 
 ---
 

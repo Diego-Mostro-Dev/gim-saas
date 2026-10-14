@@ -2445,17 +2445,17 @@ class PlanChangeRepricingTests(_MoneyBugBase):
 
 
 class ConsumedCreditRepricingTests(_MoneyBugBase):
-    """B2 — un crédito consumido hace que el reembolso se suprima.
+    """B2/P29 — un crédito consumido hacía que el reembolso se suprimiera.
 
-    Reproducción de Fase 0 (marcada ``expectedFailure``). Un sobrepago real se
-    acuña como crédito abierto y la renovación lo consume apuntándolo al período
-    nuevo (``applied_to``). Si ese período se reprecia a la baja, el socio
-    queda con saldo a favor, pero ``ensure_overpayment_credit`` lo calcula con
-    ``credit_recorded_for`` (``services.py:438-459``), que suma también el
-    crédito **ya consumido** del período y por eso cree que ya se acuñó todo.
+    Un sobrepago real se acuña como crédito abierto y la renovación lo consume
+    apuntándolo al período nuevo (``applied_to``). Si ese período se reprecia a
+    la baja, el socio queda con saldo a favor; ``ensure_overpayment_credit`` lo
+    calcula con ``credit_recorded_for`` (``services.py:438-463``), que antes
+    sumaba también el crédito **ya consumido** del período y por eso creía que
+    ya se había acuñado todo. Corregido en Fase 2: ahora cuenta sólo el crédito
+    **originado** por el período.
     """
 
-    @expectedFailure
     def test_reprice_below_consumed_credit_returns_the_difference(self):
         gym = self.create_gym()
         plan = self.create_plan(gym, price=Decimal("50000.00"))

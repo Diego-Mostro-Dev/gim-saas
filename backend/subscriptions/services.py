@@ -436,22 +436,26 @@ def consumed_credit_by_subscription(subscription_ids):
 
 
 def credit_recorded_for(subscription):
-    """Total credit already accounted to a subscription, as a positive Decimal.
+    """Credit **originated** by a subscription, as a positive Decimal (P29).
 
-    Fase 7 (P4): a credit counts for a period on both ends of its journey.
-    The row parked on the period that generated it (``subscription``) is the
-    historical record of the overpayment, and the same row once consumed
-    points at that period through ``applied_to``. Summing both sides is what
-    makes the creation of credits idempotent: a period that already has its
-    overpayment credited never gets credited twice, no matter how many times
-    ``sync`` runs or how the credit was later split.
+    A period generates credit only when its own overpayment is turned into a
+    credit row. The origin is tracked on both ends of the row's journey: while
+    the row is open it is parked on the period (``subscription``), and once
+    consumed it points back at the period through ``applied_to``. Counting
+    only those rows is what makes the creation of credits idempotent.
+
+    Credits merely **spent** on the period (originated elsewhere, consumed
+    here) must not count: they are not a historical record of this period's
+    overpayment. Counting them suppressed the credit a downward reprice on
+    the destination period should mint (B2/P29).
     """
     from payments.models import Payment
 
     total = (
         Payment.objects.filter(concept="credit")
         .filter(
-            Q(subscription=subscription) | Q(applied_to=subscription)
+            Q(applied_to=subscription)
+            | Q(subscription=subscription, applied_to__isnull=True)
         )
         .aggregate(credit=Sum("amount"))["credit"]
         or Decimal("0")
