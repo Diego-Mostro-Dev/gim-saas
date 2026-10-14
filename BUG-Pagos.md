@@ -1,7 +1,7 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-14 — 5 abiertos (P24-P26, P28, P12), 8 cerrados (P19, P20, P21, P22,
-P23, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2 y 3 cerradas.
+Estado: 2026-10-14 — 4 abiertos (P25, P26, P28, P12), 9 cerrados (P19, P20, P21, P22,
+P23, P24, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2, 3 y 4 cerradas.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -19,7 +19,7 @@ ahí, no a staging). Ver nota de entorno al final.
 | P21 | ALTO | escalado de P14 | 2 | ✅ **cerrado** (Fase 2) | `apply_plan_change` reprecia sin `sync_subscription_paid` | reprecio a la baja → crédito acuñado; a la alta → `paid=False`; pago sobre período sin saldo → 400 "ya no tiene saldo pendiente" |
 | P22 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | `paid=` escrito a mano en `create_next_subscription` (`services.py:1341`) y `recover_member` (`services.py:1446`) | total 0 → `paid` y `payment_status` coinciden |
 | P23 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
-| P24 | MEDIO | revisión 2026-10-05 | 4 | ⬜ abierto | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
+| P24 | MEDIO | revisión 2026-10-05 | 4 | ✅ **cerrado** (Fase 4) | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
 | P25 | MEDIO | revisión 2026-10-05 | 5 | ⬜ abierto | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
 | P26 | BAJO | revisión 2026-10-05 | 6 | ⬜ abierto | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
 | P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
@@ -258,34 +258,49 @@ Postgres 16 descartable → 133 tests, `OK` (0 expected failures).
 
 ---
 
-### Fase 4 — Una sola regla de deuda
+### Fase 4 — Una sola regla de deuda — ✅ **hecha** (2026-10-14)
 
-⬜ **pendiente.** P24. Un commit.
+P24. **Un commit.**
 
 **Archivos:** `members/serializers.py`, `members/tests.py`.
 
-`get_is_recoverable` (`members/serializers.py:258-408`) recorre `activity_enrollments` y
-`personal_training_assignments` pero no `outing_enrollments`. `recover_member` valida
-contra `member_total_outstanding_debt`, que sí incluye `member_outing_package_debt`
-(`services.py:1073`). Resultado: botón visible que responde 400.
+`get_is_recoverable` reimplementaba en memoria las precondiciones de
+`recover_member` y se había desincronizado en tres puntos:
 
-El fix de raíz es que `get_is_recoverable` derive de `member_total_outstanding_debt` y de
-`_resolve_plan`, en vez de mantener una segunda implementación. Eso también cierra las
-otras dos divergencias: la precedencia `has_future`/`has_current` está invertida respecto
-de `recover_member`, y el serializer usa `latest_sub.plan.is_base` donde `recover_member`
-honra un PCR aprobado.
+1. **Omisión de outings (B3).** Recorría `activity_enrollments` y
+   `personal_training_assignments` pero no `outing_enrollments`.
+   `recover_member` valida contra `member_total_outstanding_debt`, que sí suma
+   `member_outing_package_debt` (`services.py:1106`). → botón visible que
+   responde 400 "deuda pendiente".
+2. **Precedencia `has_future`/`has_current` invertida.** El serializer cortaba
+   por `has_future` antes de resolver el caso "hay suscripción vigente";
+   `recover_member` chequea `current_sub` primero (Case A, `services.py:1428`) y
+   recién después la futura (`:1435`). → un socio con período vigente + futuro
+   podía recuperarse por el POST y el badge lo ocultaba.
+3. **Plan base.** El serializer usaba `latest_sub.plan.is_base`; `recover_member`
+   usa el plan resuelto por `_resolve_plan` (`:1440`), que honra un PCR aprobado.
+   → con PCR aprobado a un plan no-base el POST procedía y el badge no.
 
-> Parcial ya tocado: `70374fe` (2026-10-05) hizo que el método reste el crédito
-> realizado. La omisión de outings y las dos divergencias siguen.
+El fix de raíz es que `get_is_recoverable` **derive** de
+`member_total_outstanding_debt` y `_resolve_plan`, en vez de mantener una
+segunda implementación. El método ahora espeja el orden de `recover_member`:
+comp → sin historial → deuda (`total > 0`) → período vigente (Case A:
+`return not obj.active`) → futura → `_resolve_plan` y rechazo del base. Se
+eliminó todo el cálculo manual de deuda (sellados, paquetes, `total - paid`).
 
-**Tests:** socio con sólo deuda de outings → `is_recoverable=False`; socio con PCR
-aprobado y `has_future` + `has_current` → el badge y el POST coinciden.
+> `is_comp → False` se preserva (regla de UI; `recover_member` no la tiene).
+> Costo aceptado: las dos llamadas a helpers pegan a la base **por socio**; el
+> listado (`MemberViewSet`, sin paginación) ya no es query-constante.
 
-**Qué NO incluye:** la divergencia "vivo vs congelado" del `discount_percent` entre portal
-y suscripción — es cosmética y de otro archivo.
+**Tests:** `members/tests.py`, clase `RecoveryEndpointTests`, 3 tests que
+afirman badge **y** POST juntos (se escribieron como `expectedFailure`, rojos
+sobre el código viejo): sólo deuda de un paquete de salidas → `is_recoverable`
+False y POST 400 "deuda pendiente"; inactivo con período vigente + futuro → True
+y POST 201 (reactiva); base expirada + PCR aprobado a plan no-base → True y POST
+201 con el plan pedido.
 
-**Gate:** gate global + esos asserts, y que el POST de `recover_member` coincida con el
-flag en los mismos fixtures.
+**Gate:** ✅ `manage.py test subscriptions members attendance payments plans`
+contra Postgres 16 descartable → 136 tests, `OK` (0 expected failures).
 
 **Commit:** `fix(members): is_recoverable deriva de member_total_outstanding_debt`.
 

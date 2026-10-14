@@ -7,7 +7,11 @@ from rest_framework import serializers
 
 from subscriptions.models import MembershipPlan
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
-from subscriptions.services import discounted_amount, member_discount_percent
+from subscriptions.services import (
+    _resolve_plan,
+    member_discount_percent,
+    member_total_outstanding_debt,
+)
 from plans.services import public_plan_name
 from members.eligibility import MemberEligibility
 from gyms.models import Discount
@@ -256,158 +260,57 @@ class MemberSerializer(serializers.ModelSerializer):
         ).count()
 
     def get_is_recoverable(self, obj):
-        """Replicate recover_member's preconditions in read-only mode.
+        """Whether the member needs recovery, by recover_member's own rule.
 
-        A member is recoverable only when recover_member() would actually
-        proceed today. This mirrors subscriptions.services.recover_member
-        WITHOUT mutating data (it never opens subscriptions nor sets
-        active=True) and WITHOUT additional queries: it relies on the
-        prefetched relations (subscription_set__plan/items/payments) so the
-        whole member list is serialized in constant queries, not N+1.
+        A member is recoverable only when recover_member() would proceed
+        today. To guarantee both agree forever, this derives from the very
+        same helpers instead of keeping a second implementation:
 
-        Rules (same as recover_member):
-        - Only a member without a live subscription can be a candidate.
-        - Any subscription with a remaining balance means debt -> not recoverable.
-        - Must have at least one previous subscription.
-        - No future subscription.
-        - A base plan is only rejected when there is no current subscription.
+        - ``member_total_outstanding_debt`` is the single source of truth for
+          debt (subscriptions, activity/PT/outing packages and sellados), so
+          the outing omission and the manual total/credit arithmetic are gone.
+        - ``_resolve_plan`` picks the plan exactly like recover_member does,
+          honouring an approved plan change rather than reading
+          ``latest_sub.plan``.
+
+        This is read-only (it never opens subscriptions nor sets active=True)
+        and returns False for comp members. The two helper calls hit the
+        database per member; ``has_current``/``has_future`` still come from the
+        prefetched ``subscription_set``.
         """
         today = timezone.localdate()
 
         if obj.is_comp:
             return False
 
-        pending_sellados = any(
-            e.active
-            and e.modality == "package"
-            and e.sellado_amount is not None
-            and not e.sellado_paid
-            for e in obj.activity_enrollments.all()
-        ) or any(
-            a.active
-            and a.modality == "package"
-            and a.sellado_amount is not None
-            and not a.sellado_paid
-            for a in obj.personal_training_assignments.all()
+        subs = list(obj.subscription_set.all())
+        if not subs:
+            return False
+
+        latest_sub = max(subs, key=lambda s: (s.start_date, s.created_at))
+
+        if member_total_outstanding_debt(obj)["total"] > 0:
+            return False
+
+        has_current = any(
+            sub.start_date <= today <= sub.end_date for sub in subs
         )
-        if pending_sellados:
+        if has_current:
+            # Case A: recover_member reactivates and returns the current
+            # subscription, before looking at any future one. A healthy
+            # (active) member has nothing to recover; an inactive one with a
+            # live period does.
+            return not obj.active
+
+        # The "limbo" member (active=True but with an expired subscription and
+        # no current one) has nothing to recover yet: recover_member() DOES
+        # handle them (Case B creates the new subscription), so the UI badge
+        # must agree and not hide them.
+        if any(sub.start_date > today for sub in subs):
             return False
 
-        has_debt = False
-        has_current = False
-        has_future = False
-        latest_sub = None
-
-        for package in obj.activity_enrollments.all():
-            if (
-                not package.active
-                or package.modality != "package"
-                or package.session_price is None
-            ):
-                continue
-            remaining = package.remaining_amount
-            if remaining and remaining > 0:
-                has_debt = True
-                break
-
-        if not has_debt:
-            for package in obj.personal_training_assignments.all():
-                if (
-                    not package.active
-                    or package.modality != "package"
-                    or package.session_price is None
-                ):
-                    continue
-                remaining = package.remaining_amount
-                if remaining and remaining > 0:
-                    has_debt = True
-                    break
-
-        if not has_debt:
-            for sub in obj.subscription_set.all():
-                if latest_sub is None or (
-                    sub.start_date,
-                    sub.created_at,
-                ) > (latest_sub.start_date, latest_sub.created_at):
-                    latest_sub = sub
-
-                if sub.start_date > today:
-                    has_future = True
-                elif sub.start_date <= today <= sub.end_date:
-                    has_current = True
-
-                if has_debt:
-                    continue
-
-                # Mirrors calculate_subscription_total, which is the single
-                # source of truth for the billed total, so a discount makes
-                # the member look settled exactly like recover_member() (via
-                # member_total_outstanding_debt) sees it. The member's own
-                # discount is applied instead of subscription.member to stay
-                # query-free in the list view (discount is selected_related).
-                items = list(sub.items.all())
-                total = sum(
-                    item.price_snapshot
-                    for item in items
-                    if item.status == "active"
-                )
-                has_plan_item = any(
-                    item.item_type == "plan" for item in items
-                )
-                if not has_plan_item and sub.plan is not None:
-                    total += sub.plan.price
-
-                # Fase 7 (P5): el descuento congelado del período, para que
-                # el badge de deuda no contradiga al total facturado.
-                total = discounted_amount(
-                    total,
-                    member_discount_percent(
-                        obj,
-                        snapshot=sub.discount_percent_snapshot,
-                    ),
-                )
-                # Fase 7 (P4): el crédito ya consumido por este período cuenta
-                # como pagado. Sin este término el socio aparece con deuda
-                # ficticia y el botón "recuperar" no aparece, aunque
-                # recover_member() sí lo aceptaría (member_total_outstanding_
-                # debt sí resta el crédito).
-                #
-                # Replica credit_realized_for() en memoria: suma solo créditos
-                # con applied_to puesto y los niega, porque esas filas tienen
-                # amount negativo. Los créditos abiertos quedan afuera. Da igual
-                # que la versión con query porque la fila consumida queda con
-                # subscription = período que la consumió y applied_to =
-                # período que la originó, o sea que está en sub.payments.
-                #
-                # Todo con .all() a propósito: .exclude() descartaba el
-                # prefetch y pagaba una query por suscripción, al revés de lo
-                # que promete el docstring de este método.
-                paid = sum(
-                    p.amount if p.concept != "credit" else -p.amount
-                    for p in sub.payments.all()
-                    if p.concept != "credit" or p.applied_to_id is not None
-                )
-
-                if total - paid > 0:
-                    has_debt = True
-
-        if has_debt:
-            return False
-        if latest_sub is None:
-            return False
-        if has_future:
-            return False
-        # A healthy member (active + live subscription) has nothing to recover.
-        # The key case is the "limbo" member: active=True because nothing ever
-        # flips the flag, but with an expired subscription and no current one.
-        # recover_member() DOES handle them (Case B creates the new
-        # subscription), so the UI badge/filter must agree and not hide them.
-        if obj.active and has_current:
-            return False
-        if not has_current and latest_sub.plan.is_base:
-            return False
-
-        return True
+        plan, _ = _resolve_plan(obj, latest_sub, today)
+        return not plan.is_base
 
     def validate_insurance(self, value):
         if value is None:
