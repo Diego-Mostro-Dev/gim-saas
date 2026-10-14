@@ -34,7 +34,7 @@ porque eso sí termina borrando los datos.
 import threading
 from datetime import date, time as _time
 from decimal import Decimal
-from unittest import mock
+from unittest import expectedFailure, mock
 
 from django.db import connection, connections, transaction
 from django.db.models import Sum
@@ -64,6 +64,7 @@ from subscriptions.serializers import SubscriptionSerializer
 from subscriptions.services import (
     TASK_NAME,
     _task_interval_seconds,
+    apply_plan_change,
     auto_renew_subscriptions,
     calculate_subscription_total,
     consume_member_credit,
@@ -2372,3 +2373,111 @@ class CreditConsumptionConcurrencyTests(TransactionTestCase):
             member_credit_balance(Member.objects.get(pk=member_pk)),
             Decimal("0.00"),
         )
+
+
+class PlanChangeRepricingTests(_MoneyBugBase):
+    """P21 — ``apply_plan_change`` reprecia un período ya pagado sin sincronizar.
+
+    Reproducciones de Fase 0 (marcadas ``expectedFailure``), invertidas en
+    Fase 1/2. La rama "el período ya existe" de ``apply_plan_change``
+    (``services.py:1833-1843``) cambia el plan, cancela el ítem viejo y crea el
+    nuevo con ``ensure_subscription_item``. Ese cambio de total **no** llama a
+    ``sync_subscription_paid``, así que ni el flag ``paid`` ni el crédito por
+    sobrepago se recalculan.
+    """
+
+    def _approved_change(self, gym, member, requested_plan, effective_date):
+        return PlanChangeRequest.objects.create(
+            gym=gym,
+            member=member,
+            requested_plan=requested_plan,
+            current_schedules_snapshot=[],
+            target_schedules_snapshot=[],
+            status="approved",
+            effective_date=effective_date,
+        )
+
+    # a. Bajar de plan sobre un período ya pagado debe acuñar el sobrepago como
+    #    crédito a favor. Hoy no lo hace: el socio pierde la diferencia.
+    @expectedFailure
+    def test_downward_plan_change_mints_overpayment_credit(self):
+        p = self._periods()
+        gym = self.create_gym()
+        expensive = self.create_plan(gym, name="Caro", price=Decimal("50000.00"))
+        cheap = self.create_plan(gym, name="Barato", price=Decimal("20000.00"))
+        member = self.create_member(gym)
+
+        sub = self._settled_sub(member, expensive, p["month_start"], p["target_end"])
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("0.00")
+        )
+
+        pcr = self._approved_change(gym, member, cheap, p["month_start"])
+        apply_plan_change(pcr)
+
+        # Pagó 50.000 por un período que ahora vale 20.000: 30.000 a favor.
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
+        self.assertEqual(
+            subscription_remaining_balance(sub)["overpayment"], Decimal("30000.00")
+        )
+
+    # b. Subir de plan sobre un período ya pagado deja el flag ``paid``
+    #    adelantado: el período vuelve a deber y hoy sigue figurando pagado.
+    @expectedFailure
+    def test_upward_plan_change_recomputes_paid_flag(self):
+        p = self._periods()
+        gym = self.create_gym()
+        cheap = self.create_plan(gym, name="Barato", price=Decimal("20000.00"))
+        expensive = self.create_plan(gym, name="Caro", price=Decimal("50000.00"))
+        member = self.create_member(gym)
+
+        sub = self._settled_sub(member, cheap, p["month_start"], p["target_end"])
+        self.assertTrue(sub.paid)
+
+        pcr = self._approved_change(gym, member, expensive, p["month_start"])
+        apply_plan_change(pcr)
+
+        sub.refresh_from_db()
+        self.assertFalse(sub.paid)
+        self.assertEqual(
+            subscription_remaining_balance(sub)["remaining"], Decimal("30000.00")
+        )
+
+
+class ConsumedCreditRepricingTests(_MoneyBugBase):
+    """B2 — un crédito consumido hace que el reembolso se suprima.
+
+    Reproducción de Fase 0 (marcada ``expectedFailure``). Un sobrepago real se
+    acuña como crédito abierto y la renovación lo consume apuntándolo al período
+    nuevo (``applied_to``). Si ese período se reprecia a la baja, el socio
+    queda con saldo a favor, pero ``ensure_overpayment_credit`` lo calcula con
+    ``credit_recorded_for`` (``services.py:438-459``), que suma también el
+    crédito **ya consumido** del período y por eso cree que ya se acuñó todo.
+    """
+
+    @expectedFailure
+    def test_reprice_below_consumed_credit_returns_the_difference(self):
+        gym = self.create_gym()
+        plan = self.create_plan(gym, price=Decimal("50000.00"))
+        member = self.create_member(gym)
+
+        # Septiembre pagado de más: queda un crédito abierto de 50.000.
+        sep = self._settled_sub(member, plan, date(2026, 9, 1), date(2026, 9, 30))
+        self._repriced(member, sep, Decimal("0.00"))
+        self.assertEqual(member_credit_balance(member), Decimal("50000.00"))
+
+        # La renovación de octubre consume el crédito entero: el período de
+        # 50.000 queda cubierto y el saldo a favor vuelve a cero.
+        october = create_next_subscription(sep)
+        self.assertEqual(october.start_date, date(2026, 10, 1))
+        self.assertEqual(member_credit_balance(member), Decimal("0.00"))
+        self.assertEqual(
+            subscription_remaining_balance(october)["remaining"], Decimal("0.00")
+        )
+
+        # A mitad de octubre el gimnasio reprecia el período a 20.000 (pase de
+        # cortesía / descuento). El socio adelantó 50.000 por algo que ahora
+        # vale 20.000: debe recuperar 30.000.
+        self._repriced(member, october, Decimal("20000.00"))
+
+        self.assertEqual(member_credit_balance(member), Decimal("30000.00"))
