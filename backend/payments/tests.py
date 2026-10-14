@@ -12,6 +12,7 @@ from subscriptions.services import (
     get_last_day_of_month,
     member_credit_balance,
     subscription_remaining_balance,
+    sync_subscription_paid,
 )
 
 
@@ -272,3 +273,66 @@ class PaymentConceptIntegrityTests(BaseAPITest):
         self.assertEqual(resp.status_code, 400)
         enrollment.refresh_from_db()
         self.assertEqual(enrollment.amount_paid, Decimal("6000.00"))
+
+
+class SubscriptionOverpaidPeriodTests(BaseAPITest):
+    """P21c — un período sobrepagado no debe recibir un pago nuevo.
+
+    Tras un reprecio a la baja, ``_validate_amount`` calculaba el saldo sin
+    clamp: ``total - cobrado - crédito consumido`` quedaba negativo y todo pago
+    positivo se rechazaba con un saldo pendiente con signo ("-$30,000.00").
+    Ahora un período sin saldo (``remaining <= 0``) se rechaza con un mensaje
+    limpio, sin exponer el número negativo.
+    """
+
+    PLAN_PRICE = Decimal("50000.00")
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+
+        self.plan = self.create_plan(self.gym, price=self.PLAN_PRICE)
+        self.member = self.create_member(self.gym)
+
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        self.sub = self.open_month_subscription(
+            self.member,
+            self.plan,
+            start_date=month_start,
+            end_date=get_last_day_of_month(month_start),
+        )
+        self.settle_subscription(self.sub)
+
+    def _reprice(self, new_price):
+        """Baja el total del período ya pagado, como el toggle de cortesía."""
+        self.sub.items.filter(item_type="plan").update(price_snapshot=new_price)
+        sync_subscription_paid(self.sub)
+        self.sub.refresh_from_db()
+
+    def test_payment_on_overpaid_period_is_rejected_without_negative_amount(self):
+        self._reprice(Decimal("20000.00"))
+        # Pagó 50.000 contra un período que ahora vale 20.000: 30.000 a favor.
+        self.assertEqual(member_credit_balance(self.member), Decimal("30000.00"))
+        before = Payment.objects.filter(subscription=self.sub).count()
+
+        resp = self.client.post(
+            "/api/payments/",
+            {
+                "subscription": self.sub.id,
+                "amount": "1000.00",
+                "payment_method": "cash",
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        message = resp.data["amount"][0]
+        self.assertIn("no tiene saldo pendiente", message)
+        self.assertNotIn("-$", message)
+        self.assertNotIn("superar", message)
+        self.assertEqual(
+            Payment.objects.filter(subscription=self.sub).count(), before
+        )
+

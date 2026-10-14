@@ -1835,6 +1835,14 @@ def apply_plan_change(plan_change_request):
                 _copy_personal_training_items(current_sub, period_sub)
                 _copy_outing_items(current_sub, period_sub)
         else:
+            # P21: el reprecio cambia el total del período, así que hay que
+            # reconciliar el flag ``paid`` y acuñar el sobrepago, igual que
+            # cualquier otro cambio de total. Se bloquea la fila (ya estamos
+            # en un ``atomic()``) para que la comparación de plan y la
+            # mutación se lean sobre el mismo estado.
+            period_sub = Subscription.objects.select_for_update().get(
+                pk=period_sub.pk
+            )
             if period_sub.plan != plan_change_request.requested_plan:
                 period_sub.plan = plan_change_request.requested_plan
                 period_sub.save(update_fields=["plan"])
@@ -1845,6 +1853,7 @@ def apply_plan_change(plan_change_request):
                 ).update(status="cancelled")
 
                 ensure_subscription_item(period_sub)
+                sync_subscription_paid(period_sub)
 
         _finalize_plan_change(plan_change_request, period_sub)
 

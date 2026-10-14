@@ -34,7 +34,7 @@ porque eso sí termina borrando los datos.
 import threading
 from datetime import date, time as _time
 from decimal import Decimal
-from unittest import expectedFailure, mock
+from unittest import mock
 
 from django.db import connection, connections, transaction
 from django.db.models import Sum
@@ -2378,11 +2378,11 @@ class CreditConsumptionConcurrencyTests(TransactionTestCase):
 class PlanChangeRepricingTests(_MoneyBugBase):
     """P21 — ``apply_plan_change`` reprecia un período ya pagado sin sincronizar.
 
-    Reproducciones de Fase 0 (marcadas ``expectedFailure``), invertidas en
-    Fase 1/2. La rama "el período ya existe" de ``apply_plan_change``
-    (``services.py:1833-1843``) cambia el plan, cancela el ítem viejo y crea el
-    nuevo con ``ensure_subscription_item``. Ese cambio de total **no** llama a
-    ``sync_subscription_paid``, así que ni el flag ``paid`` ni el crédito por
+    Reproducciones de Fase 0 (``expectedFailure``), invertidas en Fase 2. La rama
+    "el período ya existe" de ``apply_plan_change`` (``services.py:1837``) cambia
+    el plan, cancela el ítem viejo y crea el nuevo con
+    ``ensure_subscription_item``; ahora toma el lock y llama a
+    ``sync_subscription_paid``, así que el flag ``paid`` y el crédito por
     sobrepago se recalculan.
     """
 
@@ -2398,8 +2398,7 @@ class PlanChangeRepricingTests(_MoneyBugBase):
         )
 
     # a. Bajar de plan sobre un período ya pagado debe acuñar el sobrepago como
-    #    crédito a favor. Hoy no lo hace: el socio pierde la diferencia.
-    @expectedFailure
+    #    crédito a favor.
     def test_downward_plan_change_mints_overpayment_credit(self):
         p = self._periods()
         gym = self.create_gym()
@@ -2421,9 +2420,8 @@ class PlanChangeRepricingTests(_MoneyBugBase):
             subscription_remaining_balance(sub)["overpayment"], Decimal("30000.00")
         )
 
-    # b. Subir de plan sobre un período ya pagado deja el flag ``paid``
-    #    adelantado: el período vuelve a deber y hoy sigue figurando pagado.
-    @expectedFailure
+    # b. Subir de plan sobre un período ya pagado debe bajar el flag ``paid``:
+    #    el período vuelve a deber.
     def test_upward_plan_change_recomputes_paid_flag(self):
         p = self._periods()
         gym = self.create_gym()

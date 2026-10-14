@@ -1,8 +1,7 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-14 — 8 abiertos (P21-P26, P28, P12), 5 cerrados (P19, P20, P27, P29, P16),
-P14 escalado a P21, P13 diferido. Fase 0 (repro) y Fase 1 (integridad de la API de pagos)
-cerradas. Fase 2 partida: P29 (B2) resuelto; P21 pendiente.
+Estado: 2026-10-14 — 7 abiertos (P22-P26, P28, P12), 6 cerrados (P19, P20, P21, P27, P29,
+P16), P14 escalado a P21, P13 diferido. Fases 0, 1 y 2 cerradas.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -17,7 +16,7 @@ ahí, no a staging). Ver nota de entorno al final.
 |---|---|---|---|---|---|---|
 | P19 | ALTO | revisión 2026-10-05 | 1 | ✅ **cerrado** (Fase 1) | `concept`/`applied_to` escribibles por la API: `PaymentSerializer` no los protege | POST falsificado → 400, cero `Payment`, `member_credit_balance == 0` |
 | P20 | ALTO | revisión 2026-10-05 | 1 | ✅ **cerrado** (Fase 1) | re-tipado de crédito a `subscription` evade la validación (hoy no hay ninguna sobre `concept`) | PATCH de un crédito con `concept:"subscription"` → 400, conserva `concept="credit"` |
-| P21 | ALTO | escalado de P14 | 2 | ⬜ abierto (repro listo) | `apply_plan_change` reprecia sin `sync_subscription_paid` | reprecio a la baja de un período pagado → crédito acuñado; a la alta → `paid=False`; y un pago nuevo ya no se rechaza |
+| P21 | ALTO | escalado de P14 | 2 | ✅ **cerrado** (Fase 2) | `apply_plan_change` reprecia sin `sync_subscription_paid` | reprecio a la baja → crédito acuñado; a la alta → `paid=False`; pago sobre período sin saldo → 400 "ya no tiene saldo pendiente" |
 | P22 | MEDIO | revisión 2026-10-05 | 3 | ⬜ abierto | `paid=` escrito a mano en `create_next_subscription` (`services.py:1314`) y `recover_member` (`services.py:1418`) | total 0 → `paid` y `payment_status` coinciden |
 | P23 | MEDIO | revisión 2026-10-05 | 3 | ⬜ abierto | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
 | P24 | MEDIO | revisión 2026-10-05 | 4 | ⬜ abierto | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
@@ -75,15 +74,12 @@ criterio de aceptación de su fase (se le quita la marca al arreglar).
   test): sobrepago real → renovación consume el crédito → reprecio a la baja del período
   nuevo; hoy el socio no recupera el exceso.
 
-**Decisión abierta (para Fase 2):** el plan asumía que llamar `sync_subscription_paid`
-en la rama "el período ya existe" hacía que `_validate_amount` volviera a aceptar pagos
-sobre ese período. **No es así:** `_validate_amount` (`payments/serializers.py:117-131`)
-calcula el saldo **sin clamp** y tampoco descuenta el sobrepago, así que un período
-repreciado a la baja sigue teniendo `remaining` negativo y todo pago positivo se rechaza,
-aun después del fix. Hay que decidir la forma: ¿`_validate_amount` compara contra el saldo
-clampeado a 0 (y rechaza con "ya saldado" en vez de un saldo negativo), o el reprecio no
-debe dejar el período sobrepagado? El repro de P21 (b) cubre `paid`; el (c) "pago
-rechazado" queda pendiente de esa decisión.
+**Decisión (resuelta en Fase 2):** llamar `sync_subscription_paid` en la rama "el período ya
+existe" **no** alcanzaba para que `_validate_amount` volviera a aceptar pagos sobre ese
+período: ese cálculo (`payments/serializers.py`) no clampea el saldo y tampoco descuenta el
+sobrepago, así que un período repreciado a la baja seguía con `remaining` negativo. Se
+resolvió clampeando: un período con `remaining <= 0` se rechaza con un 400 limpio ("Este
+período ya no tiene saldo pendiente."), sin exponer el número negativo (es P21c).
 
 **Gate:** `manage.py test subscriptions members attendance payments plans` contra
 Postgres 16 descartable → 129 tests, `OK (expected failures=8)`.
@@ -145,48 +141,41 @@ Postgres 16 descartable → 129 tests, `OK` (los 5 nuevos sin marca + los 4 pree
 
 ---
 
-### Fase 2 — `apply_plan_change`: el sobrepago que no se acuña
+### Fase 2 — `apply_plan_change`: el sobrepago que no se acuña — ✅ **hecha** (2026-10-14)
 
-⬜ **pendiente (P21).** P29 resuelto por separado como **Fase 2a**. P21 queda como el bug
-de plata real más grande que resta.
+P21 (a/b) + P21c. **Un commit.** P29 se resolvió por separado como **Fase 2a**.
 
-**Archivos:** `subscriptions/services.py`, `subscriptions/test_money_bugs.py`.
+**Archivos:** `subscriptions/services.py`, `payments/serializers.py`,
+`subscriptions/test_money_bugs.py`, `payments/tests.py`.
 
-**El fix** — `subscriptions/services.py:1804-1814`, rama "el período ya existe": tras
-`ensure_subscription_item(period_sub)`, llamar `sync_subscription_paid` con la
-suscripción bloqueada. La rama está dentro de un `atomic()` (`:1773`), así que sólo hay
-que tomar el lock.
-
-Tres consecuencias que el fix cierra de una:
+**El fix** — `subscriptions/services.py`, rama "el período ya existe" de `apply_plan_change`:
+se re-consulta la suscripción con `select_for_update()` (la rama ya está dentro de un
+`atomic()`) y, cuando el plan cambió, tras cancelar el ítem viejo y crear el nuevo con
+`ensure_subscription_item`, se llama a `sync_subscription_paid(period_sub)`. Con eso:
 
 - el sobrepago de un reprecio a la baja se acuña como crédito;
-- `paid` se recalcula en un reprecio a la alta;
-- `remaining` deja de ser negativo, y con eso `_validate_amount`
-  (`payments/serializers.py:117,133`) vuelve a aceptar pagos sobre ese período.
+- `paid` se recalcula en un reprecio a la alta.
 
-**Tests** — en `subscriptions/test_money_bugs.py`, siguiendo el patrón de las clases que
-ya existen (`MoneyBugRenewalTests`, `CourtesyCreditFrozenDiscountTests`):
+**P21c** — `_validate_amount` (`payments/serializers.py:136`): si `remaining <= 0` (período ya
+cubierto por lo cobrado) se responde 400 "Este período ya no tiene saldo pendiente.", sin el
+saldo negativo que antes aparecía en el mensaje.
 
-> P21 (a) y (b) existen como `PlanChangeRepricingTests` desde la Fase 0 (repro),
-> `expectedFailure`. En esta fase se les quita la marca. El (c) "pago rechazado" depende de
-> la decisión sobre `_validate_amount` (ver Fase 0, decisión abierta): el fix de `sync`
-> **no** alcanza porque ese cálculo no clampea el saldo.
+**Tests:**
 
-1. Período pagado, se reprecia a la baja → crédito acuñado por la diferencia,
-   `member_credit_balance` sube.
-2. Período pagado, se reprecia a la alta → `paid` pasa a `False`.
-3. Repricing a la baja y luego un pago nuevo por el saldo → aceptado (no 400 con saldo
-   negativo). **Pendiente de decisión.**
+1. `PlanChangeRepricingTests` (`subscriptions/test_money_bugs.py`): se le quitó
+   `expectedFailure` a los 2 tests de la Fase 0 — a la baja acuña el crédito, a la alta deja
+   `paid=False`.
+2. `SubscriptionOverpaidPeriodTests` (`payments/tests.py`, nuevo): período pagado y
+   repreciado a la baja → POST → 400 con "no tiene saldo pendiente" y sin `-$`.
 
 **Qué NO incluye:** los otros tres escritores sin sync — `mutate_membership` ya llama
 `sync_subscription_paid` (`domain.py:268`); `create_next_subscription` y `recover_member`
 son Fase 3.
 
-**Gate:** `manage.py test subscriptions members attendance payments` verde contra
-Postgres, y los tests de `PlanChangeRepricingTests` y `ConsumedCreditRepricingTests`
-pasando (sin marca).
+**Gate:** ✅ `manage.py test subscriptions members attendance payments plans` contra
+Postgres 16 descartable → 130 tests, `OK` (0 expected failures).
 
-**Commit:** `fix(subscriptions): apply_plan_change sincroniza paid y acuña el sobrepago`.
+**Commit:** `fix(subscriptions): apply_plan_change sincroniza e idempotencia de crédito`.
 
 #### Fase 2a — P29 (B2): el crédito consumido suprime el reembolso — ✅ **hecha** (2026-10-14)
 

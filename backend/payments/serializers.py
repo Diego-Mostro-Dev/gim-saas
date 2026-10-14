@@ -149,6 +149,14 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             - credit_realized_for(subscription)
         )
 
+        # P21c: un período cuyo total quedó por debajo de lo ya cobrado (un
+        # reprecio a la baja) no tiene saldo pendiente. Se rechaza acá para no
+        # exponer el ``remaining`` negativo en el mensaje.
+        if remaining <= 0:
+            raise serializers.ValidationError(
+                {"amount": "Este período ya no tiene saldo pendiente."}
+            )
+
         if amount > remaining:
             raise serializers.ValidationError(
                 {
