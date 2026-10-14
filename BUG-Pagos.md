@@ -1,8 +1,8 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-14 — 12 abiertos (P19-P29, P12), 3 cerrados (P14, P16, P13 → diferido),
-0 en curso. Fase 0 (repro) cerrada: los tests de P19/P20/P21/P29 ya existen marcados
-`expectedFailure` y los 4 `PaymentDebtTests` preexistentes quedaron verdes.
+Estado: 2026-10-14 — 9 abiertos (P21-P26, P28, P29, P12), 4 cerrados (P19, P20, P27, P16),
+P14 escalado a P21, P13 diferido. Fase 0 (repro) y Fase 1 (integridad de la API de pagos)
+cerradas.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -15,15 +15,15 @@ ahí, no a staging). Ver nota de entorno al final.
 
 | # | Sev | Origen | Fase | Estado | Bug | Gate |
 |---|---|---|---|---|---|---|
-| P19 | ALTO | revisión 2026-10-05 | 1 | ⬜ abierto (repro listo) | `concept`/`applied_to` escribibles por la API: `PaymentSerializer` no los protege | POST falsificado → 400, cero `Payment`, `member_credit_balance == 0` |
-| P20 | ALTO | revisión 2026-10-05 | 1 | ⬜ abierto (repro listo) | re-tipado de crédito a `subscription` evade la validación (hoy no hay ninguna sobre `concept`) | PATCH de un crédito con `concept:"subscription"` → 400, conserva `concept="credit"` |
+| P19 | ALTO | revisión 2026-10-05 | 1 | ✅ **cerrado** (Fase 1) | `concept`/`applied_to` escribibles por la API: `PaymentSerializer` no los protege | POST falsificado → 400, cero `Payment`, `member_credit_balance == 0` |
+| P20 | ALTO | revisión 2026-10-05 | 1 | ✅ **cerrado** (Fase 1) | re-tipado de crédito a `subscription` evade la validación (hoy no hay ninguna sobre `concept`) | PATCH de un crédito con `concept:"subscription"` → 400, conserva `concept="credit"` |
 | P21 | ALTO | escalado de P14 | 2 | ⬜ abierto (repro listo) | `apply_plan_change` reprecia sin `sync_subscription_paid` | reprecio a la baja de un período pagado → crédito acuñado; a la alta → `paid=False`; y un pago nuevo ya no se rechaza |
 | P22 | MEDIO | revisión 2026-10-05 | 3 | ⬜ abierto | `paid=` escrito a mano en `create_next_subscription` (`services.py:1314`) y `recover_member` (`services.py:1418`) | total 0 → `paid` y `payment_status` coinciden |
 | P23 | MEDIO | revisión 2026-10-05 | 3 | ⬜ abierto | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
 | P24 | MEDIO | revisión 2026-10-05 | 4 | ⬜ abierto | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
 | P25 | MEDIO | revisión 2026-10-05 | 5 | ⬜ abierto | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
 | P26 | BAJO | revisión 2026-10-05 | 6 | ⬜ abierto | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
-| P27 | BAJO | revisión 2026-10-05 | 1 | ⬜ abierto | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
+| P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
 | P28 | BAJO | revisión 2026-10-05 | 7 | ⬜ abierto | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count |
 | P29 | ALTO | repro 2026-10-14 | 2 | ⬜ abierto (repro listo) | `ensure_overpayment_credit` (`services.py:486`) mide lo ya acuñado con `credit_recorded_for` (`services.py:438`), que suma también el crédito **consumido** del período (`applied_to`). Con un reprecio a la baja posterior, cree que el exceso ya se devolvió y no acuña: el socio pierde la diferencia | crédito consumido + reprecio a la baja → `member_credit_balance` devuelve el exceso |
 | P12 | MEDIO | PLAN-dinero | fuera de este plan | ⬜ abierto | borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` | — (no tiene fase asignada) |
@@ -94,63 +94,54 @@ Postgres 16 descartable → 129 tests, `OK (expected failures=8)`.
 
 ### Fase 1 — Integridad de la API de pagos
 
-⬜ **pendiente.** P19, P20, P27. **Dos commits**, deliberadamente separados: si los 4
-tests preexistentes de `payments` fallan al entrar a CI, hay que poder atribuirlo al
-harness y no al fix.
+✅ **hecha** (2026-10-14). P19, P20, P27. **Un commit:** el del CI (P27) ya estaba hecho
+desde antes (`068e59b` ya incluye `payments` en el comando del job y lo justifica citando
+P27), así que sólo quedó el fix y desmarcar los repros.
 
-**Archivos:** `payments/serializers.py`, `payments/tests.py`,
-`.github/workflows/backend-tests.yml`.
+**Archivos:** `payments/serializers.py`, `payments/tests.py`.
 
-**Commit 1.1 — CI**
-`.github/workflows/backend-tests.yml:65`: agregar `payments` al comando del job y
-justificarlo en el comentario existente.
+**Commit 1.1 — CI** ✅ ya estaba (no requirió cambio).
+`.github/workflows/backend-tests.yml:68`: el comando ya es
+`python manage.py test subscriptions members attendance payments plans` (desde `068e59b`).
 
-Riesgo: es la primera corrida de esos 4 tests (`PaymentDebtTests` son los únicos en
-`payments/tests.py`). Usan helpers que existen en `core/testing.py` y se ven sanos. Si
-alguno falla, es preexistente.
-
-**Commit 1.2 — el fix**
-`payments/serializers.py:38`: `read_only_fields = ["gym"]` → `["gym", "applied_to"]`.
+**Commit 1.2 — el fix** ✅ hecho.
+`payments/serializers.py`: `read_only_fields = ["gym", "applied_to"]`.
 
 Nuevo `validate_concept` junto a los demás `validate_*`:
 
 - rechaza `value == "credit"` — es un artefacto contable interno, lo acuña
-  `ensure_overpayment_credit` (`services.py:457`) y lo parte `consume_member_credit`
-  (`services.py:514`), ninguno por la API. Permitirlo invierte el signo del que dependen
-  `member_credit_balance`, `credit_recorded_for` y `credit_realized_for`;
+  `ensure_overpayment_credit` y lo parte `consume_member_credit`, ninguno por la API.
+  Permitirlo invierte el signo del que dependen `member_credit_balance`,
+  `credit_recorded_for` y `credit_realized_for`;
 - si `self.instance` es un crédito, rechaza **cualquier** cambio de `concept`.
 
 Por ser validadores de campo, DRF sólo los invoca si el campo viene en el payload: un
 PATCH de `notes` sobre un crédito sigue funcionando, y el chequeo dispara exactamente
 cuando alguien toca `concept`. Eso es lo que cubre P20, que `read_only_fields` no cubre.
 
-**Tests** — `payments/tests.py`, clase nueva sobre `BaseAPITest`:
-
-> Ya existen como `PaymentConceptIntegrityTests` desde la Fase 0 (repro), marcados
-> `expectedFailure`. En esta fase sólo se les quita la marca y se hace pasar la suite.
+**Tests** — `payments/tests.py`, `PaymentConceptIntegrityTests` sobre `BaseAPITest`
+(existían como repro `expectedFailure` desde la Fase 0; en esta fase se les quitó la
+marca y quedaron verdes):
 
 1. `POST {subscription, concept:"credit", amount:"50000.00"}` → 400, cero `Payment`.
-2. **La amplificadora.** Reproceso el período a la baja vía ORM (patrón de
-   `test_lowered_total_creates_credit_for_the_member`) para generar un sobrepago real,
-   luego el POST falsificado → 400 y `member_credit_balance == 0`. Sin el fix acuña
-   `sobrepago + 50.000` en el mismo request.
-3. `applied_to` falsificado: creo un crédito abierto legítimo, PATCH con
-   `applied_to=<otro período>` → el saldo del socio y `credit_realized_for` no se mueven.
+2. **La amplificadora.** Con un sobrepago real ya registrado, el POST falsificado → 400 y
+   el saldo del socio intacto. Sin el fix acuñaba `sobrepago + 50.000` en el mismo request.
+3. `applied_to` falsificado: PATCH con `applied_to=<otro período>` → 200 que lo ignora
+   (read-only); el saldo del socio y el del período ajeno no se mueven.
 4. Re-tipado: PATCH de un crédito con `concept:"subscription"` → 400, conserva
    `concept="credit"`.
 5. `POST {enrollment, concept:"credit", amount:"-999999.00"}` → 400. En `validate()` no
-   entra ninguna rama para `credit`, así que hoy no hay validación de monto alguna; sin
-   esto, un `amount_paid` negativo borra la deuda del paquete.
+   entra ninguna rama para `credit`; sin esto, un `amount_paid` negativo borraba la deuda
+   del paquete.
 
 **Qué NO incluye:** `CheckConstraint` en el modelo (descartado), y el 400 explícito para
 `applied_to` (queda como `read_only_fields`: 200 que ignora en silencio — micro-decisión
 cerrada el 2026-10-06).
 
-**Gate:** los 5 tests nuevos + los 4 preexistentes de `payments` verdes, y el workflow
-mostrando `payments` en la corrida.
+**Gate:** ✅ `manage.py test subscriptions members attendance payments plans` contra
+Postgres 16 descartable → 129 tests, `OK` (los 5 nuevos sin marca + los 4 preexistentes).
 
-**Commit:** `fix(payments): concept y applied_to no se escriben por la API` (+ el commit
-previo del CI).
+**Commit:** `fix(payments): concept y applied_to no se escriben por la API`.
 
 ---
 

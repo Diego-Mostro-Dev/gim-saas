@@ -35,7 +35,7 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = "__all__"
-        read_only_fields = ["gym"]
+        read_only_fields = ["gym", "applied_to"]
 
     def validate_member(self, member):
         if member is None:
@@ -101,6 +101,25 @@ class PaymentSerializer(MemberIdentityMixin, serializers.ModelSerializer):
             )
 
         return enrollment
+
+    def validate_concept(self, value):
+        # El crédito a favor es un artefacto contable interno: lo acuña
+        # ensure_overpayment_credit y lo parte consume_member_credit, ninguno
+        # por la API. Permitir que el cliente lo escriba (o que re-tipe un
+        # crédito existente) invierte el signo del que dependen
+        # member_credit_balance, credit_recorded_for y credit_realized_for.
+        # P19/P20.
+        if value == "credit":
+            raise serializers.ValidationError(
+                "El concepto Crédito a favor es interno y no se carga a mano."
+            )
+
+        if self.instance is not None and self.instance.concept == "credit":
+            raise serializers.ValidationError(
+                "Un crédito a favor no puede cambiar de concepto."
+            )
+
+        return value
 
     def _paid_total_excluding(self, subscription, exclude_pk=None):
         # Fase 7 (P4): los créditos a favor no son cobrado; los cuenta

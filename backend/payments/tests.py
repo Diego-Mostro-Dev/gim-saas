@@ -1,6 +1,5 @@
 from datetime import date, time as _time
 from decimal import Decimal
-import unittest
 
 from django.utils import timezone
 
@@ -112,8 +111,7 @@ class PaymentDebtTests(BaseAPITest):
 class PaymentConceptIntegrityTests(BaseAPITest):
     """P19/P20 — ``concept`` y ``applied_to`` no deben escribirse por la API.
 
-    Reproducciones de Fase 0 (marcadas ``expectedFailure``), invertidas en
-    Fase 1. Un ``Payment`` con ``concept="credit"`` es un artefacto contable
+    Un ``Payment`` con ``concept="credit"`` es un artefacto contable
     interno: lo acuña ``ensure_overpayment_credit`` y lo parte
     ``consume_member_credit``. Permitir que el cliente lo escriba, o que
     re-tipe un crédito, invierte el signo del que dependen
@@ -174,7 +172,6 @@ class PaymentConceptIntegrityTests(BaseAPITest):
         )
 
     # 1. Escritura directa de un crédito por la API.
-    @unittest.expectedFailure
     def test_posted_credit_is_rejected(self):
         resp = self.client.post(
             "/api/payments/",
@@ -193,7 +190,6 @@ class PaymentConceptIntegrityTests(BaseAPITest):
 
     # 2. La amplificadora: con un sobrepago real en la mano, el POST falsificado
     #    ya no crea un crédito. Hoy corrompe el saldo a favor del socio.
-    @unittest.expectedFailure
     def test_forged_credit_does_not_corrupt_the_member_balance(self):
         self._open_credit(self.member, self.sub, Decimal("-30000.00"))
         self.assertEqual(member_credit_balance(self.member), Decimal("30000.00"))
@@ -219,7 +215,6 @@ class PaymentConceptIntegrityTests(BaseAPITest):
 
     # 3. ``applied_to`` falsificado: apuntar un crédito abierto a otro período no
     #    debe borrarle la deuda a ese período ni consumir el saldo del socio.
-    @unittest.expectedFailure
     def test_forged_applied_to_does_not_move_credit(self):
         other_member = self.create_member(self.gym, first_name="Beto")
         today = timezone.localdate()
@@ -247,7 +242,6 @@ class PaymentConceptIntegrityTests(BaseAPITest):
         )
 
     # 4. Re-tipado: un crédito no puede convertirse en pago de suscripción.
-    @unittest.expectedFailure
     def test_credit_cannot_be_retyped_as_subscription(self):
         credit = self._open_credit(self.member, self.sub, Decimal("-30000.00"))
 
@@ -262,7 +256,6 @@ class PaymentConceptIntegrityTests(BaseAPITest):
         self.assertEqual(credit.concept, "credit")
 
     # 5. Monto negativo sobre un paquete sin rama de validación: borra la deuda.
-    @unittest.expectedFailure
     def test_negative_amount_on_enrollment_is_rejected(self):
         enrollment = self._activity_enrollment(self.member)
 
