@@ -329,10 +329,13 @@ class PublicEnrollmentSerializer(serializers.ModelSerializer):
         return obj.package_total_sessions or 0
 
     def get_sessions_used(self, obj):
-        return obj.used_sessions
+        used = getattr(obj, "used_sessions_count", None)
+        if used is None:
+            used = obj.used_sessions
+        return used
 
     def get_exhausted(self, obj):
         if obj.modality != "package":
             return False
         total = obj.package_total_sessions
-        return total is not None and obj.used_sessions >= total
+        return total is not None and self.get_sessions_used(obj) >= total

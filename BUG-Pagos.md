@@ -1,7 +1,8 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-15 — 2 abiertos (P28, P12), 11 cerrados (P19, P20, P21, P22,
-P23, P24, P25, P26, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2, 3, 4, 5 y 6 cerradas.
+Estado: 2026-10-15 — 1 abierto (P12), 12 cerrados (P19, P20, P21, P22,
+P23, P24, P25, P26, P27, P29, P16, P28), P14 escalado a P21, P13 diferido (hallazgo
+documentado en Fase 7). Fases 0, 1, 2, 3, 4, 5, 6 y 7 cerradas (la 7 con gate en CI).
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -23,7 +24,7 @@ apuntando ahí, no a staging). Ver nota de entorno al final.
 | P25 | MEDIO | revisión 2026-10-05 | 5 | ✅ **cerrado** (Fase 5) | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
 | P26 | BAJO | revisión 2026-10-05 | 6 | ✅ **cerrado** (Fase 6) | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
 | P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
-| P28 | BAJO | revisión 2026-10-05 | 7 | ⬜ abierto | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count |
+| P28 | BAJO | revisión 2026-10-05 | 7 | ✅ **cerrado** (Fase 7, gate en CI) | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count (CI) |
 | P29 | ALTO | repro 2026-10-14 | 2 | ✅ **cerrado** (Fase 2a) | `ensure_overpayment_credit` (`services.py:486`) medía lo ya acuñado con `credit_recorded_for` (`services.py:438`), que sumaba también el crédito **consumido** del período (`applied_to`). Con un reprecio a la baja posterior, creía que el exceso ya se devolvió y no acuñaba: el socio perdía la diferencia | crédito consumido + reprecio a la baja → `member_credit_balance` devuelve el exceso |
 | P12 | MEDIO | PLAN-dinero | fuera de este plan | ⬜ abierto | borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` | — (no tiene fase asignada) |
 | P14 | BAJO | PLAN-dinero → escalado | → P21 | ✅ escalado | `subscription.paid` desincronizado cuando el total cambia | su descripción no capturaba que el período queda impagable; el fix real es P21 |
@@ -376,9 +377,13 @@ que devuelve `backup.py:230`; roja desde `479b78f` y jamás ejecutada).
 
 ---
 
-### Fase 7 — Higiene (diferible)
+### Fase 7 — Higiene (diferible) — ✅ **cerrada** (2026-10-15)
 
-⬜ **pendiente.** P28, más P13 de `PLAN-dinero.md`. Encaja en un commit o en ninguno.
+P28 completo (N+1 en `members/views.py`, `activities/public_views.py`, `outings/public_views.py`,
+`PublicEnrollmentSerializer` con anotación, `select_related("member")` en `package_debt`,
+admin `readonly_fields`) + P13 documentado en BUG-Pagos.md como diferido (fallback
+intencional, `Subscription` sin `price_snapshot`). Commit único. **Gate: CI** (local Postgres
+sin CREATEDB/trust; Neon staging sin permiso para `test_neondb`).
 
 **Archivos:** `members/views.py`, `activities/serializers.py`, `activities/public_views.py`,
 `subscriptions/services.py`, `subscriptions/admin.py`.
@@ -398,6 +403,11 @@ que devuelve `backup.py:230`; roja desde `479b78f` y jamás ejecutada).
 - **Consultas de dinero sin filtro de gym:** `member_credit_balance`, `credit_recorded_for`,
   `consume_member_credit`, `_member_open_credit_subquery`. Inocuas mientras `Member.gym`
   sea inmutable, pero esa invariante está en un comentario, no en el esquema.
+- **P13 (PLAN-dinero.md):** `calculate_subscription_total` mantiene fallback a `subscription.plan.price`
+  cuando no hay `SubscriptionItem` de tipo "plan" activo (`subscriptions/services.py:312-314, 326-328`).
+  `Subscription` no tiene `price_snapshot`; ese fallback es defensivo para filas legacy
+  (anterior al backfill de `SubscriptionItem`). Eliminarlo rompería totales. Mantener diferido:
+  considerar `DeprecationWarning`/log en futuro si se migra legacy. No se modifica ahora.
 
 **Gate:** gate global + query count sin regresión en los tests que ya lo miden.
 

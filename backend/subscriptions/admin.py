@@ -22,7 +22,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
         "member__last_name",
     )
 
-    readonly_fields = ("end_date",)
+    readonly_fields = ("end_date", "paid")
 
 
 @admin.register(PlanChangeRequest)
@@ -78,4 +78,4 @@ class SubscriptionItemAdmin(admin.ModelAdmin):
         "activity__name",
     )
 
-    readonly_fields = ("created_at",)
+    readonly_fields = ("created_at", "price_snapshot")

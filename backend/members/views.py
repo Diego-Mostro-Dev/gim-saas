@@ -12,9 +12,9 @@ from rest_framework.permissions import AllowAny
 from django.db import models
 from django.shortcuts import get_object_or_404
 from django.http import Http404
-from django.db.models import Prefetch
+from django.db.models import Count, Prefetch
 
-from activities.models import Activity, Enrollment
+from activities.models import Activity, ActivitySchedule, Enrollment
 from activities.overlap import validate_gym_activity_overlap
 from attendance.models import ScheduleSlot
 from core.viewsets import GymModelViewSet
@@ -233,10 +233,15 @@ class MemberViewSet(GymModelViewSet):
         gym = self.get_gym()
         require_activities(gym)
 
-        activities = Activity.objects.filter(
+        activities_qs = Activity.objects.filter(
             service__gym=gym,
             active=True,
-        ).prefetch_related("schedules")
+        ).prefetch_related(
+            Prefetch(
+                "schedules",
+                queryset=ActivitySchedule.objects.filter(active=True),
+            )
+        )
 
         member_id = request.GET.get("member")
         if member_id:
@@ -245,16 +250,34 @@ class MemberViewSet(GymModelViewSet):
                     gym=gym, member_id=member_id, active=True
                 ).values_list("schedule__activity_id", flat=True)
             )
-            activities = activities.filter(id__in=enrolled_activity_ids)
+            activities_qs = activities_qs.filter(id__in=enrolled_activity_ids)
+
+        activities = list(activities_qs)
+
+        all_schedule_ids = [
+            schedule.id
+            for activity in activities
+            for schedule in activity.schedules.all()
+        ]
+        enrolled_counts = (
+            {
+                row["schedule_id"]: row["c"]
+                for row in Enrollment.objects.filter(
+                    schedule_id__in=all_schedule_ids,
+                    active=True,
+                )
+                .values("schedule_id")
+                .annotate(c=Count("id"))
+            }
+            if all_schedule_ids
+            else {}
+        )
 
         result = []
         for activity in activities:
             schedules = []
-            for schedule in activity.schedules.filter(active=True):
-                enrolled_count = Enrollment.objects.filter(
-                    schedule=schedule,
-                    active=True,
-                ).count()
+            for schedule in activity.schedules.all():
+                enrolled_count = enrolled_counts.get(schedule.id, 0)
                 available = schedule.capacity - enrolled_count
                 if available > 0:
                     schedules.append({

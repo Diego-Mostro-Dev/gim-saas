@@ -788,7 +788,7 @@ def member_activity_package_debt(member):
             modality="package",
             session_price__isnull=False,
         )
-        .select_related("schedule__activity")
+        .select_related("member", "schedule__activity")
     )
     return _package_debt_entries(pending_enrollments)
 
@@ -866,7 +866,7 @@ def member_outing_package_debt(member):
             modality="package",
             session_price__isnull=False,
         )
-        .select_related("schedule__outing")
+        .select_related("member", "schedule__outing")
     )
     return _outing_package_debt_entries(pending_enrollments)
 

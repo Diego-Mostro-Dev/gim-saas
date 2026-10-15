@@ -1,3 +1,4 @@
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -175,21 +176,47 @@ def _available_outings(gym, member):
             active=True,
         )
         .exclude(billing_mode="sessions")
-        .prefetch_related("schedules")
+        .prefetch_related(
+            Prefetch(
+                "schedules",
+                queryset=OutingSchedule.objects.filter(active=True),
+            )
+        )
         .order_by("name")
+    )
+
+    outings = list(outings)
+
+    candidate_schedule_ids = [
+        schedule.id
+        for outing in outings
+        for schedule in outing.schedules.all()
+        if schedule.id not in enrolled_schedule_ids
+        and schedule.id not in requested_schedule_ids
+    ]
+    enrolled_counts = (
+        {
+            row["schedule_id"]: row["c"]
+            for row in OutingEnrollment.objects.filter(
+                schedule_id__in=candidate_schedule_ids,
+                active=True,
+            )
+            .values("schedule_id")
+            .annotate(c=Count("id"))
+        }
+        if candidate_schedule_ids
+        else {}
     )
 
     result = []
     for outing in outings:
         schedules = []
-        for schedule in outing.schedules.filter(active=True):
+        for schedule in outing.schedules.all():
             if schedule.id in enrolled_schedule_ids:
                 continue
             if schedule.id in requested_schedule_ids:
                 continue
-            enrolled_count = OutingEnrollment.objects.filter(
-                schedule=schedule, active=True
-            ).count()
+            enrolled_count = enrolled_counts.get(schedule.id, 0)
             available = schedule.capacity - enrolled_count
             if available > 0:
                 schedules.append({
