@@ -1,14 +1,14 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-15 — 3 abiertos (P26, P28, P12), 10 cerrados (P19, P20, P21, P22,
-P23, P24, P25, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2, 3, 4 y 5 cerradas.
+Estado: 2026-10-15 — 2 abiertos (P28, P12), 11 cerrados (P19, P20, P21, P22,
+P23, P24, P25, P26, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2, 3, 4, 5 y 6 cerradas.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
 
 Gate global de cada fase: `cd backend && .venv/bin/python manage.py test subscriptions
-members attendance payments` contra Postgres 16 descartable (`DATABASE_URL` apuntando
-ahí, no a staging). Ver nota de entorno al final.
+members attendance payments plans config` contra Postgres 16 descartable (`DATABASE_URL`
+apuntando ahí, no a staging). Ver nota de entorno al final.
 
 ## Tabla maestra
 
@@ -21,7 +21,7 @@ ahí, no a staging). Ver nota de entorno al final.
 | P23 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
 | P24 | MEDIO | revisión 2026-10-05 | 4 | ✅ **cerrado** (Fase 4) | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
 | P25 | MEDIO | revisión 2026-10-05 | 5 | ✅ **cerrado** (Fase 5) | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
-| P26 | BAJO | revisión 2026-10-05 | 6 | ⬜ abierto | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
+| P26 | BAJO | revisión 2026-10-05 | 6 | ✅ **cerrado** (Fase 6) | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
 | P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
 | P28 | BAJO | revisión 2026-10-05 | 7 | ⬜ abierto | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count |
 | P29 | ALTO | repro 2026-10-14 | 2 | ✅ **cerrado** (Fase 2a) | `ensure_overpayment_credit` (`services.py:486`) medía lo ya acuñado con `credit_recorded_for` (`services.py:438`), que sumaba también el crédito **consumido** del período (`applied_to`). Con un reprecio a la baja posterior, creía que el exceso ya se devolvió y no acuñaba: el socio perdía la diferencia | crédito consumido + reprecio a la baja → `member_credit_balance` devuelve el exceso |
@@ -336,29 +336,41 @@ fallan sobre el código previo.
 
 ### Fase 6 — La frontera de serialización
 
-⬜ **pendiente.** P26. Un commit. Display-only, pero es lo único que muestra un número
-directamente incorrecto.
+✅ **cerrado** (2026-10-15). P26. Un commit. Display-only, pero era lo único que mostraba un
+número directamente incorrecto.
 
-**Archivos:** `config/api/dashboard.py`, tests.
+**Archivos:** `config/api/dashboard.py`, `config/api/tests.py`, `config/api/__init__.py`.
 
-`dashboard.py:117`: `f"${float(pay.amount):,.0f}"` descarta centavos — un pago de $12,50
-se muestra **$12**. Más seis `float()` sobre `remaining` (`:193, :217, :236, :255`) y
-sobre ingresos (`:309-310`).
+`dashboard.py:117`: `f"${float(pay.amount):,.0f}"` descartaba centavos — un pago de $12,50
+se mostraba **$12**. Quedó `f"${pay.amount:,.2f}"`, igual que `payments/serializers.py`
+(`f"${remaining:,.2f}"`): conserva centavos y el separador de miles. Los otros seis
+`float()` — sobre `remaining` (`:193, :217, :236, :255`, suscripción, paquete de actividad,
+PT y salidas) y sobre ingresos (`:309-310`) — pasaron a `str(...)`. `current_month_revenue`
+y `previous_month_revenue` caen a `Decimal("0.00")` en vez de `0` para que el string sea
+siempre decimal (`"0.00"`, no `"0"`).
 
 El diagnóstico: el motor de cálculo está sano — cero `FloatField` monetarios, cero
-`round()` sobre importes, las dos divisiones cuantizan con `ROUND_HALF_UP`. El defecto es
-que `dashboard.py` (`members/views.py:296` y `routines/views.py` también) arman el JSON a
-mano y saltan el `DecimalField` de DRF, que es lo que evita la coerción a `float`. Una
+`round()` sobre importes, las dos divisiones cuantizan con `ROUND_HALF_UP`. El defecto era
+que `dashboard.py` (`members/views.py:296` y `routines/views.py` también) arma el JSON a
+mano y salta el `DecimalField` de DRF, que es lo que evita la coerción a `float`. Una
 causa raíz, siete sitios.
 
-**Tests:** un test que afirme que todo `amount` y `remaining` de la respuesta del
-dashboard es `str`. Es el test que hoy falta y es el punto de entrada más barato para
-blindar la frontera.
+**Tests:** `DashboardSerializationTests` afirma que `currentMonthRevenue` y
+`previousMonthRevenue` son `str` con el valor exacto (`"5000.00"`), que **toda** fila de
+`pendingPayments` trae `remaining` `str` y no vacío, y que la descripción de pago muestra
+`$5,000.00`. Los tres fallan sobre el código previo.
+
+**Extras que aparecieron al agregar `config` al gate** (nunca corrió, ver abajo): se agregó
+`config/api/__init__.py` (faltaba, así que `manage.py test config` descubría 0 tests por no
+poder recursar en un namespace package) y se corrigió una aserción stale en
+`BackupEndpointTests.test_backup_failure_returns_500` (`'error'` → `'detail'`, que es lo
+que devuelve `backup.py:230`; roja desde `479b78f` y jamás ejecutada).
 
 **Qué NO incluye:** `members/views.py:296` y `routines/views.py` — están en la app
 `routines`, que no tiene archivo de tests. Quedan anotados en P28.
 
-**Gate:** gate global + el assert de `str`.
+**Gate:** `subscriptions members attendance payments plans config` (149 tests, 0
+`expectedFailure`), con `config` agregado al gate global y al CI.
 
 **Commit:** `fix(config): dashboard serializa importes como string, no float`.
 

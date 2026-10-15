@@ -1,5 +1,6 @@
 from collections import Counter
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
 from django.utils.timezone import now
@@ -68,8 +69,8 @@ class DashboardSummaryView(APIView):
             ),
         )
 
-        current_month_revenue = revenues["current_month"] or 0
-        previous_month_revenue = revenues["previous_month"] or 0
+        current_month_revenue = revenues["current_month"] or Decimal("0.00")
+        previous_month_revenue = revenues["previous_month"] or Decimal("0.00")
 
         # -------------------------
         # Subscriptions
@@ -114,7 +115,7 @@ class DashboardSummaryView(APIView):
                 pay.paid_at,
                 {
                     "id": f"payment-{pay.id}",
-                    "description": f"Pago registrado — {member_name} — ${float(pay.amount):,.0f}",
+                    "description": f"Pago registrado — {member_name} — ${pay.amount:,.2f}",
                     "created_at": pay.paid_at.strftime("%d/%m/%Y"),
                 },
             ))
@@ -190,7 +191,7 @@ class DashboardSummaryView(APIView):
                 "member_name": f"{sub.member.first_name} {sub.member.last_name}",
                 "member_photo": sub.member.photo.url if sub.member.photo else None,
                 "plan_name": public_plan_name(sub.plan),
-                "remaining": float(item["remaining"]),
+                "remaining": str(item["remaining"]),
                 "end_date": sub.end_date.strftime("%d/%m/%Y"),
             })
 
@@ -214,7 +215,7 @@ class DashboardSummaryView(APIView):
                     f"{enrollment.schedule.activity.name} · "
                     f"paquete de sesiones"
                 ),
-                "remaining": float(entry["remaining"]),
+                "remaining": str(entry["remaining"]),
                 "end_date": None,
             })
         for entry in gym_personal_training_package_debt(gym):
@@ -233,7 +234,7 @@ class DashboardSummaryView(APIView):
                     f"{assignment.service.name} · "
                     f"paquete de sesiones"
                 ),
-                "remaining": float(entry["remaining"]),
+                "remaining": str(entry["remaining"]),
                 "end_date": None,
             })
         for entry in gym_outing_package_debt(gym):
@@ -252,7 +253,7 @@ class DashboardSummaryView(APIView):
                     f"{outing_enrollment.schedule.outing.name} · "
                     f"paquete de sesiones"
                 ),
-                "remaining": float(entry["remaining"]),
+                "remaining": str(entry["remaining"]),
                 "end_date": None,
             })
         package_rows.sort(key=lambda row: row["member_name"])
@@ -306,8 +307,8 @@ class DashboardSummaryView(APIView):
 
         return Response({
             "activeMembers": active_members,
-            "currentMonthRevenue": float(current_month_revenue),
-            "previousMonthRevenue": float(previous_month_revenue),
+            "currentMonthRevenue": str(current_month_revenue),
+            "previousMonthRevenue": str(previous_month_revenue),
             "expiringSoon": expiring_soon,
             "overdueCount": overdue_count,
             "blockedCount": blocked_count,
