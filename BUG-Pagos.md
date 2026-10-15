@@ -1,7 +1,7 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-14 — 4 abiertos (P25, P26, P28, P12), 9 cerrados (P19, P20, P21, P22,
-P23, P24, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2, 3 y 4 cerradas.
+Estado: 2026-10-15 — 3 abiertos (P26, P28, P12), 10 cerrados (P19, P20, P21, P22,
+P23, P24, P25, P27, P29, P16), P14 escalado a P21, P13 diferido. Fases 0, 1, 2, 3, 4 y 5 cerradas.
 
 Método: un commit por fase. Al terminar cada fase se corre su gate; si no coincide, se
 frena y se reporta. No se arranca la fase N+1 sin cerrar la N.
@@ -20,7 +20,7 @@ ahí, no a staging). Ver nota de entorno al final.
 | P22 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | `paid=` escrito a mano en `create_next_subscription` (`services.py:1341`) y `recover_member` (`services.py:1446`) | total 0 → `paid` y `payment_status` coinciden |
 | P23 | MEDIO | revisión 2026-10-05 | 3 | ✅ **cerrado** (Fase 3) | el serializer de outstanding expone el flag en un queryset con `remaining > 0` | toda fila devuelta tiene `paid=False` |
 | P24 | MEDIO | revisión 2026-10-05 | 4 | ✅ **cerrado** (Fase 4) | `get_is_recoverable` omite `outing_enrollments` (y dos divergencias más con `recover_member`) | socio con solo deuda de outings → no recuperable, y el POST coincide |
-| P25 | MEDIO | revisión 2026-10-05 | 5 | ⬜ abierto | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
+| P25 | MEDIO | revisión 2026-10-05 | 5 | ✅ **cerrado** (Fase 5) | `/outstanding` pagina y después anexa todo el gym a `data` | `len(results) <= count`, y `sum(remaining)` de una página no excede el total |
 | P26 | BAJO | revisión 2026-10-05 | 6 | ⬜ abierto | `float()` sobre importes en `config/api/dashboard.py` | todo `amount`/`remaining` de la respuesta es `str` |
 | P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
 | P28 | BAJO | revisión 2026-10-05 | 7 | ⬜ abierto | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count |
@@ -308,23 +308,27 @@ contra Postgres 16 descartable → 136 tests, `OK` (0 expected failures).
 
 ### Fase 5 — `/outstanding`: la paginación
 
-⬜ **pendiente.** P25. Un commit.
+✅ **cerrado** (2026-10-15). P25. Un commit.
 
-**Archivos:** `subscriptions/views.py`, tests.
+**Archivos:** `subscriptions/views.py`, `subscriptions/test_money_bugs.py`.
 
-`subscriptions/views.py:196-265`: `data = serializer.data` es la página, y después se le
-anexan **todas** las filas de paquetes y sellados del gym. `count` viene de
-`len(subscriptions)`. Un cliente que sume `remaining` sobre `results` sobre-reporta la
-deuda del gym.
+`subscriptions/views.py:189-266`: `data = serializer.data` era la página, y después se le
+anexaban **todas** las filas de paquetes y sellados del gym. `count` venía de
+`len(subscriptions)`. Un cliente que sumara `remaining` sobre `results` sobre-reportaba la
+deuda del gym y, siguiendo `next`, recibía las filas no-suscripción repetidas en cada
+página.
 
-El fix tiene dos caminos: paginar sobre una lista unificada de filas, o devolver lo
-no-suscripción en una clave aparte sin tocar `data`. Recomendado: la segunda — no cambia
-el contrato de las filas y elimina la mutación del payload paginado.
+**Fix:** se arma una lista unificada (suscripciones + paquetes + sellados) y se pagina
+entera, así que las páginas particionan el total. Se conserva la forma de cada fila, así
+que `fetchAllPages` (frontend) sigue funcionando y deja de duplicar.
 
-**Tests:** con más filas que el page size, `len(results) <= count`; `sum(remaining)` de la
-primera página no excede el total del gym; el filtro por gym sigue cerrando.
+**Tests** (`OutstandingPaginationTests`): con page size 2 y 5 filas, `len(results) <= count`
+y `<= page_size`; la suma de `remaining` de una página no excede el total y la de todas las
+páginas lo iguala; las filas no-suscripción aparecen una sola vez; el filtro por gym sigue
+cerrando.
 
-**Gate:** gate global + esos asserts.
+**Gate:** gate global (140 tests, 0 `expectedFailure`) + los cuatro casos nuevos, que
+fallan sobre el código previo.
 
 **Commit:** `fix(subscriptions): outstanding no muta la página con filas de todo el gym`.
 

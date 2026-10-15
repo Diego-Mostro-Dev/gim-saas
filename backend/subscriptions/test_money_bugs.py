@@ -42,6 +42,8 @@ from django.test import TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
+from rest_framework.pagination import PageNumberPagination
+
 from activities.models import Activity, ActivitySchedule, Enrollment
 from core.testing import BaseAPITest
 from gyms.models import Discount, Gym
@@ -2578,3 +2580,180 @@ class PaidFlagDerivationTests(_MoneyBugBase):
         row = resp.data["subscriptions"][0]
         self.assertGreater(Decimal(row["remaining"]), Decimal("0"))
         self.assertFalse(row["paid"])
+
+
+class OutstandingPaginationTests(_MoneyBugBase):
+    """P25 — /outstanding pagina la lista unificada, sin mutar la página.
+
+    El endpoint paginaba sólo ``gym_outstanding_subscriptions`` y después
+    anexaba TODAS las filas de paquetes y sellados del gym a ``results`` en
+    cada página. El ``count`` contaba sólo suscripciones, las filas
+    no-suscripción se repetían en cada página y un cliente que siguiera
+    ``next`` (``fetchAllPages``) sobre-reportaba la deuda del gym: la suma de
+    una página podía exceder el total.
+
+    Ahora se arma una lista unificada (suscripciones + paquetes + sellados) y
+    se pagina entera, así que las páginas particionan el total.
+    """
+
+    PAGE_SIZE = 2
+
+    ACTIVITY_SESSION_PRICE = Decimal("2500.00")
+    ACTIVITY_SESSIONS = 10
+    SELLADO_AMOUNT = Decimal("1000.00")
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+        self.plan = self.create_plan(self.gym)
+        self.period = self._periods()
+
+    def _outstanding_sub(self, index):
+        member = self.create_member(
+            self.gym,
+            first_name=f"Socio{index}",
+            last_name="Deudor",
+            phone=f"11-deudor-{index}",
+        )
+        return self.open_month_subscription(
+            member,
+            self.plan,
+            start_date=self.period["month_start"],
+            end_date=self.period["target_end"],
+            paid=False,
+        )
+
+    @staticmethod
+    def _activity_schedule(gym, name):
+        activity = Activity.objects.create(
+            service=Service.get_default_for_gym(gym),
+            name=name,
+            billing_mode="sessions",
+        )
+        return ActivitySchedule.objects.create(
+            activity=activity,
+            day="monday",
+            start_time=_time(9, 0),
+            end_time=_time(10, 0),
+            capacity=10,
+        )
+
+    def _activity_package_debt(self, member):
+        schedule = self._activity_schedule(self.gym, "Kinesio")
+        return Enrollment.objects.create(
+            gym=self.gym,
+            member=member,
+            schedule=schedule,
+            modality="package",
+            package_total_sessions=self.ACTIVITY_SESSIONS,
+            session_price=self.ACTIVITY_SESSION_PRICE,
+            amount_paid=Decimal("0"),
+        )
+
+    def _sellado_debt(self, member):
+        # session_price=0: no genera deuda de paquete, sólo el sellado.
+        schedule = self._activity_schedule(self.gym, "Pilates")
+        return Enrollment.objects.create(
+            gym=self.gym,
+            member=member,
+            schedule=schedule,
+            modality="package",
+            package_total_sessions=10,
+            session_price=Decimal("0"),
+            amount_paid=Decimal("0"),
+            sellado_amount=self.SELLADO_AMOUNT,
+            sellado_paid=False,
+            active=True,
+        )
+
+    def _fixture(self):
+        """3 suscripciones + 1 paquete de actividad + 1 sellado = 5 filas."""
+        subs = [self._outstanding_sub(i) for i in range(3)]
+        packaged = self.create_member(
+            self.gym, first_name="Paquete", last_name="Actividad", phone="11-pkg"
+        )
+        soldado = self.create_member(
+            self.gym, first_name="Sellado", last_name="Socio", phone="11-sel"
+        )
+        self._activity_package_debt(packaged)
+        self._sellado_debt(soldado)
+        return subs
+
+    def _walk_pages(self):
+        """Sigue ``next`` y devuelve (filas, count) de todas las páginas."""
+        rows = []
+        count = None
+        url = "/api/subscriptions/outstanding/"
+        while url:
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 200)
+            count = resp.data["count"]
+            rows.extend(resp.data["results"])
+            url = resp.data["next"]
+        return rows, count
+
+    def test_page_never_exceeds_count_nor_page_size(self):
+        self._fixture()
+
+        with mock.patch.object(PageNumberPagination, "page_size", self.PAGE_SIZE):
+            resp = self.client.get("/api/subscriptions/outstanding/")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertLessEqual(len(resp.data["results"]), resp.data["count"])
+        self.assertLessEqual(len(resp.data["results"]), self.PAGE_SIZE)
+
+    def test_all_pages_partition_every_row_exactly_once(self):
+        self._fixture()
+
+        with mock.patch.object(PageNumberPagination, "page_size", self.PAGE_SIZE):
+            rows, count = self._walk_pages()
+
+        self.assertEqual(len(rows), count)
+        non_subscription = [row for row in rows if row["subscription_id"] is None]
+        # El paquete de actividad y el sellado, una sola vez cada uno.
+        self.assertEqual(len(non_subscription), 2)
+
+    def test_page_sum_never_exceeds_gym_total(self):
+        subs = self._fixture()
+        expected = sum(
+            (subscription_remaining_balance(sub)["remaining"] for sub in subs),
+            Decimal("0"),
+        ) + (self.ACTIVITY_SESSION_PRICE * self.ACTIVITY_SESSIONS) + self.SELLADO_AMOUNT
+
+        with mock.patch.object(PageNumberPagination, "page_size", self.PAGE_SIZE):
+            first = self.client.get("/api/subscriptions/outstanding/")
+            first_sum = sum(
+                (Decimal(row["remaining"]) for row in first.data["results"]),
+                Decimal("0"),
+            )
+            rows, _ = self._walk_pages()
+
+        gym_sum = sum(
+            (Decimal(row["remaining"]) for row in rows), Decimal("0")
+        )
+        self.assertLessEqual(first_sum, expected)
+        self.assertEqual(gym_sum, expected)
+
+    def test_outstanding_is_gym_scoped(self):
+        self._fixture()
+        other_gym = self.create_gym(name="Otro Gym")
+        other_plan = self.create_plan(other_gym, name="Plan Otro")
+        other_member = self.create_member(
+            other_gym, first_name="Ajeno", last_name="Otro", phone="11-ajeno"
+        )
+        self.open_month_subscription(
+            other_member,
+            other_plan,
+            start_date=self.period["month_start"],
+            end_date=self.period["target_end"],
+            paid=False,
+        )
+
+        with mock.patch.object(PageNumberPagination, "page_size", self.PAGE_SIZE):
+            rows, _ = self._walk_pages()
+
+        member_ids = {row["member_id"] for row in rows}
+        self.assertNotIn(other_member.id, member_ids)
+        self.assertEqual(len(rows), 5)

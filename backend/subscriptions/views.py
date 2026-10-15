@@ -190,80 +190,74 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
     def outstanding(self, request):
         gym = request.user.profile.gym
 
-        subscriptions = gym_outstanding_subscriptions(gym)
+        rows = list(
+            OutstandingSubscriptionSerializer(
+                gym_outstanding_subscriptions(gym), many=True
+            ).data
+        )
+
+        def _debt_row(member, plan_name, total, paid_amount, remaining):
+            return {
+                "subscription_id": None,
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "plan_name": plan_name,
+                "payment_status": "pending",
+                "items": [],
+                "total": str(total),
+                "paid_amount": str(paid_amount),
+                "remaining": str(remaining),
+            }
+
+        for pkg in gym_activity_package_debt(gym):
+            rows.append(
+                _debt_row(
+                    pkg["member"],
+                    f"{pkg['name']} · paquete de sesiones",
+                    pkg["total"],
+                    pkg["paid_amount"],
+                    pkg["remaining"],
+                )
+            )
+
+        for pkg in gym_personal_training_package_debt(gym):
+            rows.append(
+                _debt_row(
+                    pkg["member"],
+                    f"{pkg['name']} · paquete de sesiones",
+                    pkg["total"],
+                    pkg["paid_amount"],
+                    pkg["remaining"],
+                )
+            )
+
+        for pkg in gym_outing_package_debt(gym):
+            rows.append(
+                _debt_row(
+                    pkg["member"],
+                    f"{pkg['name']} · paquete de sesiones",
+                    pkg["total"],
+                    pkg["paid_amount"],
+                    pkg["remaining"],
+                )
+            )
+
+        for sellado in gym_sellado_debt(gym):
+            rows.append(
+                _debt_row(
+                    sellado["member"],
+                    f"Sellado · {sellado['name']}",
+                    sellado["amount"],
+                    "0.00",
+                    sellado["amount"],
+                )
+            )
 
         paginator = PageNumberPagination()
-        page = paginator.paginate_queryset(subscriptions, request, view=self)
-        if page is not None:
-            serializer = OutstandingSubscriptionSerializer(page, many=True)
-            data = serializer.data
-        else:
-            serializer = OutstandingSubscriptionSerializer(subscriptions, many=True)
-            data = serializer.data
-
-        packages = gym_activity_package_debt(gym)
-        for pkg in packages:
-            member = pkg["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"{pkg['name']} · paquete de sesiones",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(pkg["total"]),
-                "paid_amount": str(pkg["paid_amount"]),
-                "remaining": str(pkg["remaining"]),
-            })
-
-        pt_packages = gym_personal_training_package_debt(gym)
-        for pkg in pt_packages:
-            member = pkg["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"{pkg['name']} · paquete de sesiones",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(pkg["total"]),
-                "paid_amount": str(pkg["paid_amount"]),
-                "remaining": str(pkg["remaining"]),
-            })
-
-        outing_packages = gym_outing_package_debt(gym)
-        for pkg in outing_packages:
-            member = pkg["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"{pkg['name']} · paquete de sesiones",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(pkg["total"]),
-                "paid_amount": str(pkg["paid_amount"]),
-                "remaining": str(pkg["remaining"]),
-            })
-
-        sellados = gym_sellado_debt(gym)
-        for sellado in sellados:
-            member = sellado["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"Sellado · {sellado['name']}",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(sellado["amount"]),
-                "paid_amount": "0.00",
-                "remaining": str(sellado["amount"]),
-            })
-
-        if page is not None:
-            return paginator.get_paginated_response(data)
-        return Response(data)
+        page = paginator.paginate_queryset(rows, request, view=self)
+        if page is None:
+            return Response(rows)
+        return paginator.get_paginated_response(page)
 
 
 class PlanChangeRequestViewSet(GymModelViewSet):
