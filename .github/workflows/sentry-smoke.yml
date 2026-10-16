@@ -1,0 +1,41 @@
+name: Sentry smoke test
+
+# Dispara /api/system/sentry-test/ (lanza una excepcion a proposito) para
+# verificar que Sentry esta vivo y envia alertas. Usa el mismo secret que
+# scheduled-tasks.yml. Se ejecuta al cambiar este archivo o a mano.
+
+on:
+  push:
+    paths:
+      - ".github/workflows/sentry-smoke.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/system/sentry-test/
+        env:
+          TASK_KEY: ${{ secrets.SCHEDULED_TASKS_KEY }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          if [ -z "$TASK_KEY" ]; then
+            echo "::error::Secret SCHEDULED_TASKS_KEY is not set"
+            exit 1
+          fi
+          URL="${BACKEND_URL:-https://gim-saas.onrender.com}"
+          code=$(curl -s -o /tmp/body -w '%{http_code}' \
+            --max-time 300 \
+            -X POST "$URL/api/system/sentry-test/" \
+            -H "X-Task-Key: $TASK_KEY" || echo 000)
+          echo "HTTP $code"
+          echo "--- body ---"
+          cat /tmp/body || true
+          if [ "$code" = "500" ]; then
+            echo "OK: 500 esperado; el evento deberia estar en Sentry."
+          else
+            echo "::warning::Se esperaba HTTP 500, se obtuvo $code"
+          fi
