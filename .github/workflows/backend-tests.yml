@@ -65,9 +65,12 @@ jobs:
       # sin esa paquete, plans/tests.py nunca corrió en ningún lado.
       # config entra por P26 (BUG-Pagos): el dashboard serializaba importes con
       # float(); su suite (health/backup/sentry/dashboard) no corría en ningún lado.
-      - name: Run subscriptions, members, attendance, payments, plans and config tests
+      # activities y outings entran en Fase A3 del release: concentran las
+      # reglas de consumo de sesiones (no-show, recuperos) y el cálculo de
+      # cupos del portal público, que hasta ahora no tenían red de seguridad.
+      - name: Run subscriptions, members, attendance, payments, plans, config, activities and outings tests
         working-directory: backend
-        run: python manage.py test subscriptions members attendance payments plans config
+        run: python manage.py test subscriptions members attendance payments plans config activities outings
       - name: Run restore_db round-trip tests
         working-directory: backend
         env:
