@@ -3,6 +3,8 @@ import json
 from datetime import date, time, timedelta
 from decimal import Decimal
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from rest_framework.authtoken.models import Token
@@ -607,3 +609,81 @@ class MemberDestroyProtectionTests(BaseAPITest):
 
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(Member.objects.filter(pk=self.member.pk).exists())
+
+
+class MemberListQueryBudgetTests(BaseAPITest):
+    """Regresión anti-N+1 para GET /api/members/.
+
+    El listado no debe emitir queries proporcionales al número de socios:
+    ``get_is_recoverable`` se resuelve con precomputación bulk vía contexto
+    (``gym_debtor_member_ids`` + ``gym_approved_plan_change_plan``).
+    """
+
+    def _build_gym(self, member_count):
+        gym = self.create_gym(name=f"Gym {member_count}")
+        user = self.create_user(gym, username=f"owner{member_count}")
+        plan = self.create_plan(gym)
+        prev_start, prev_end = self.last_month_period()
+        for i in range(member_count):
+            member = self.create_member(gym, phone=f"1{i:07d}")
+            sub = self.open_month_subscription(
+                member,
+                plan,
+                start_date=prev_start,
+                end_date=prev_end,
+                origin="onboarding",
+            )
+            self.settle_subscription(sub)
+        return gym, user
+
+    def test_member_list_query_count_does_not_scale_with_members(self):
+        gym_small, user_small = self._build_gym(5)
+        gym_big, user_big = self._build_gym(25)
+
+        self.client.force_authenticate(user=user_small)
+        with CaptureQueriesContext(connection) as small_ctx:
+            resp_small = self.client.get("/api/members/")
+        self.assertEqual(resp_small.status_code, 200)
+        self.assertEqual(len(resp_small.data), 5)
+
+        self.client.force_authenticate(user=user_big)
+        with CaptureQueriesContext(connection) as big_ctx:
+            resp_big = self.client.get("/api/members/")
+        self.assertEqual(resp_big.status_code, 200)
+        self.assertEqual(len(resp_big.data), 25)
+
+        small_queries = len(small_ctx.captured_queries)
+        big_queries = len(big_ctx.captured_queries)
+        # Tolerancia mínima: los helpers bulk usan #queries fijo, no por socio.
+        self.assertLessEqual(
+            abs(big_queries - small_queries),
+            2,
+            f"El listado emitió {small_queries} q para 5 socios y "
+            f"{big_queries} q para 25: hay un N+1.",
+        )
+        # Umbral razonable absoluto para el listado completo.
+        self.assertLessEqual(
+            big_queries,
+            35,
+            f"El listado emitió {big_queries} queries: esperaba un presupuesto fijo.",
+        )
+
+    def test_member_list_is_recoverable_matches_fallback(self):
+        """Paridad: la ruta bulk (vista) == la ruta por-socio (fallback)."""
+        from members.serializers import MemberSerializer
+
+        gym, user = self._build_gym(3)
+
+        self.client.force_authenticate(user=user)
+        resp = self.client.get("/api/members/")
+        self.assertEqual(resp.status_code, 200)
+
+        by_id = {row["id"]: row["is_recoverable"] for row in resp.data}
+        members = Member.objects.filter(gym=gym)
+        for member in members:
+            fallback = MemberSerializer(member, context={"gym": gym})
+            self.assertEqual(
+                by_id[member.id],
+                fallback.data["is_recoverable"],
+                f"is_recoverable diverge para miembro {member.id}",
+            )
