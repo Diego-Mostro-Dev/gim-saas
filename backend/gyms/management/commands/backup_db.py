@@ -18,7 +18,6 @@ class Command(BaseCommand):
             )
         ))
         self.stdout.write(f"Public ID: {result['public_id']}")
-        self.stdout.write(f"URL firma: {result['download_url']}")
         self.stdout.write(
             f"Retención: {result['retention_kept']} guardados, "
             f"{result['retention_deleted'] or 0} eliminados"

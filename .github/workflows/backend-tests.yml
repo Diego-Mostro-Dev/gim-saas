@@ -68,3 +68,12 @@ jobs:
       - name: Run subscriptions, members, attendance, payments, plans and config tests
         working-directory: backend
         run: python manage.py test subscriptions members attendance payments plans config
+      - name: Run restore_db round-trip tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://gim_test:gim_test@localhost:5432/neondb
+          SECRET_KEY: ci-only-not-a-real-secret
+          ENVIRONMENT: ""
+          SECURE_SSL_REDIRECT: "false"
+          DB_SSLMODE: "disable"
+        run: python manage.py test gyms.tests_restore
