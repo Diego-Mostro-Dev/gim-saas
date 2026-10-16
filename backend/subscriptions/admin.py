@@ -24,6 +24,9 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
     readonly_fields = ("end_date", "paid")
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(PlanChangeRequest)
 class PlanChangeRequestAdmin(admin.ModelAdmin):

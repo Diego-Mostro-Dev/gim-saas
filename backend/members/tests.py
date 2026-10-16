@@ -3,6 +3,8 @@ import json
 from datetime import date, time, timedelta
 from decimal import Decimal
 
+from django.utils import timezone
+
 from rest_framework.authtoken.models import Token
 
 from core.testing import BaseAPITest
@@ -557,3 +559,51 @@ class PublicRegisterSecurityTests(BaseAPITest):
             self.assertEqual(resp.status_code, 201)
             member = Member.objects.get(phone=phone)
             self.assertIsNone(member.discount)
+
+
+class MemberDestroyProtectionTests(BaseAPITest):
+    """P12 — borrar un socio con pagos responde 409, nunca 500.
+
+    ``Payment.subscription`` es ``PROTECT``: borrar el socio cascadea a sus
+    suscripciones, y una con pagos levanta ``ProtectedError``. El viewset lo
+    traduce a 409 para no devolver un 500 sin cuerpo.
+    """
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+        self.plan = self.create_plan(self.gym)
+        self.member = self.create_member(self.gym)
+
+    def _member_with_payment(self):
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        sub = self.open_month_subscription(
+            self.member,
+            self.plan,
+            start_date=month_start,
+            end_date=get_last_day_of_month(month_start),
+        )
+        self.settle_subscription(sub)
+        return sub
+
+    def test_delete_member_with_payments_returns_409(self):
+        self._member_with_payment()
+
+        resp = self.client.delete(
+            f"/api/members/{self.member.id}/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 409)
+        self.assertTrue(Member.objects.filter(pk=self.member.pk).exists())
+
+    def test_delete_member_without_payments_succeeds(self):
+        resp = self.client.delete(
+            f"/api/members/{self.member.id}/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(Member.objects.filter(pk=self.member.pk).exists())

@@ -1,6 +1,8 @@
 from datetime import date, time as _time
 from decimal import Decimal
 
+from django.contrib import admin as django_admin
+from django.db.models import ProtectedError
 from django.utils import timezone
 
 from activities.models import Activity, ActivitySchedule, Enrollment
@@ -8,6 +10,8 @@ from core.testing import BaseAPITest
 
 from payments.models import Payment
 from plans.models import Service
+from subscriptions.admin import SubscriptionAdmin
+from subscriptions.models import Subscription
 from subscriptions.services import (
     get_last_day_of_month,
     member_credit_balance,
@@ -334,5 +338,60 @@ class SubscriptionOverpaidPeriodTests(BaseAPITest):
         self.assertNotIn("superar", message)
         self.assertEqual(
             Payment.objects.filter(subscription=self.sub).count(), before
+        )
+
+
+class PaymentSubscriptionProtectionTests(BaseAPITest):
+    """P12 — ``Payment.subscription`` protege a la suscripción con ``PROTECT``.
+
+    El FK pasó de ``SET_NULL`` (dejaba pagos huérfanos al borrar la
+    suscripción) a ``PROTECT``. El ORM es la garantía; el admin rehúsa el
+    borrado y ``MemberViewSet`` traduce el ``ProtectedError`` a 409.
+    """
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.plan = self.create_plan(self.gym)
+        self.member = self.create_member(self.gym)
+
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        self.sub = self.open_month_subscription(
+            self.member,
+            self.plan,
+            start_date=month_start,
+            end_date=get_last_day_of_month(month_start),
+        )
+
+    def test_delete_subscription_with_payments_is_protected(self):
+        self.settle_subscription(self.sub)
+        payment = Payment.objects.get(subscription=self.sub)
+
+        with self.assertRaises(ProtectedError):
+            self.sub.delete()
+
+        self.assertTrue(
+            Subscription.objects.filter(pk=self.sub.pk).exists()
+        )
+        payment.refresh_from_db()
+        self.assertEqual(payment.subscription_id, self.sub.pk)
+
+    def test_delete_subscription_without_payments_succeeds(self):
+        self.assertEqual(
+            Payment.objects.filter(subscription=self.sub).count(), 0
+        )
+
+        self.sub.delete()
+
+        self.assertFalse(
+            Subscription.objects.filter(pk=self.sub.pk).exists()
+        )
+
+    def test_subscription_admin_refuses_delete(self):
+        model_admin = SubscriptionAdmin(Subscription, django_admin.site)
+
+        self.assertFalse(
+            model_admin.has_delete_permission(request=None, obj=self.sub)
         )
 

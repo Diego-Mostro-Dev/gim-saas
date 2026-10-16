@@ -1,6 +1,6 @@
 # BUG-Pagos — bugs de dinero post-Fase 7
 
-Estado: 2026-10-15 — 1 abierto (P12), 12 cerrados (P19, P20, P21, P22,
+Estado: 2026-10-16 — 0 abiertos, 13 cerrados (P12, P19, P20, P21, P22,
 P23, P24, P25, P26, P27, P29, P16, P28), P14 escalado a P21, P13 diferido (hallazgo
 documentado en Fase 7). Fases 0, 1, 2, 3, 4, 5, 6 y 7 cerradas (la 7 con gate en CI).
 
@@ -26,14 +26,17 @@ apuntando ahí, no a staging). Ver nota de entorno al final.
 | P27 | BAJO | revisión 2026-10-05 | 1 | ✅ **cerrado** (`068e59b`) | CI no corre `payments` | el workflow lista `payments` y sus tests corren |
 | P28 | BAJO | revisión 2026-10-05 | 7 | ✅ **cerrado** (Fase 7, gate en CI) | higiene: N+1, admin sin scope, consultas sin filtro de gym | sin regresión de query count (CI) |
 | P29 | ALTO | repro 2026-10-14 | 2 | ✅ **cerrado** (Fase 2a) | `ensure_overpayment_credit` (`services.py:486`) medía lo ya acuñado con `credit_recorded_for` (`services.py:438`), que sumaba también el crédito **consumido** del período (`applied_to`). Con un reprecio a la baja posterior, creía que el exceso ya se devolvió y no acuñaba: el socio perdía la diferencia | crédito consumido + reprecio a la baja → `member_credit_balance` devuelve el exceso |
-| P12 | MEDIO | PLAN-dinero | fuera de este plan | ⬜ abierto | borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` | — (no tiene fase asignada) |
+| P12 | MEDIO | PLAN-dinero | pre-merge | ✅ **cerrado** (2026-10-16) | borrar una suscripción dejaba sus `Payment` con `subscription=NULL` | `Payment.subscription` a `PROTECT` + `SubscriptionAdmin.has_delete_permission=False` + `MemberViewSet` traduce `ProtectedError` a 409; suscripción con pagos → `ProtectedError`, los pagos conservan `subscription` |
 | P14 | BAJO | PLAN-dinero → escalado | → P21 | ✅ escalado | `subscription.paid` desincronizado cuando el total cambia | su descripción no capturaba que el período queda impagable; el fix real es P21 |
 | P13 | BAJO | PLAN-dinero | 7 | ⬜ diferido | el fallback `total += subscription.plan.price` reintroduce el precio vigente | — |
 | P16 | MEDIO | PLAN-dinero | — | ✅ **cerrado** (`35262ad`) | el bulk de créditos de la renovación no filtraba `applied_to__isnull=False` | — |
 
 ### Hallazgos heredados de PLAN-dinero.md
 
-P12 abierto · P13 diferido a Fase 7 · **P16 cerrado** (`35262ad`, 2026-10-05: el bulk de
+P12 cerrado (2026-10-16: `PROTECT` en el FK + bloqueo en el admin + 409 en
+`MemberViewSet.destroy`; los pagos de coseguro/outing/PT mantienen `subscription=NULL`
+por diseño, así que el chequeo de huérfanos es sobre `concept` monetario de suscripción,
+no sobre `null` a secas) · P13 diferido a Fase 7 · **P16 cerrado** (`35262ad`, 2026-10-05: el bulk de
 `_collect_renewal_candidates` ahora delega en `consumed_credit_by_subscription`, que sí
 filtra) · P14 escalado → P21.
 
@@ -419,8 +422,8 @@ sin CREATEDB/trust; Neon staging sin permiso para `test_neondb`).
 
 Al cerrar cada fase: `cd backend && .venv/bin/python manage.py test subscriptions members
 attendance payments` contra Postgres 16, más el gate propio de la fase. Al terminar todo,
-esta tabla con las 10 filas P19-P28 en cerrado, P16 ya cerrado desde `35262ad` y P12 con
-decisión tomada (o explícitamente fuera de alcance).
+esta tabla con las 10 filas P19-P28 en cerrado, P16 ya cerrado desde `35262ad` y P12
+cerrado (2026-10-16, `PROTECT` + admin + 409).
 
 ## Nota de entorno (actualizada 2026-10-06)
 
@@ -430,3 +433,28 @@ local **es posible**: falta sólo un Postgres descartable, porque `backend/.env`
 `DATABASE_URL` a Neon staging y contra staging no se puede crear `test_neondb` (rol sin
 CREATEDB — lo mismo que obligó a `ab56e53` a mover el gate a CI). El Postgres local de la
 máquina acepta conexiones en `/var/run/postgresql:5432` pero no tiene el rol `gim_app`.
+
+### Cluster descartable sin sudo (2026-10-16)
+
+Los binarios de Postgres 16 están en `/usr/lib/postgresql/16/bin`, así que se puede
+levantar un cluster propio en `/tmp` sin tocar el servicio del sistema:
+
+```bash
+export PGBIN=/usr/lib/postgresql/16/bin
+$PGBIN/initdb -D /tmp/opencode/pgtest -U postgres -A trust
+$PGBIN/pg_ctl -D /tmp/opencode/pgtest \
+  -o "-p 55432 -k /tmp/opencode/pgsock -c listen_addresses=127.0.0.1" \
+  -l /tmp/opencode/pgtest.log start
+```
+
+Y correr el gate apuntando ahí (`DB_SSLMODE=disable` porque el cluster no trae TLS):
+
+```bash
+cd backend
+DATABASE_URL="postgres://postgres@127.0.0.1:55432/postgres" \
+DB_SSLMODE=disable ENVIRONMENT=development \
+.venv/bin/python manage.py test subscriptions members attendance payments plans config
+```
+
+`postgres` es superusuario del cluster, así que Django crea y dropea `test_postgres` sin
+problema.

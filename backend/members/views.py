@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
-from django.db import models
+from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.db.models import Count, Prefetch
@@ -224,6 +224,25 @@ class MemberViewSet(GymModelViewSet):
             *args,
             **kwargs,
         )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        try:
+            with transaction.atomic():
+                instance.delete()
+        except models.ProtectedError:
+            return Response(
+                {
+                    "detail": (
+                        "No se puede eliminar: el socio tiene pagos "
+                        "o suscripciones con dependencias vinculadas."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=False,
