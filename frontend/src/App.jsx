@@ -58,19 +58,33 @@ import { useFeature } from "./features/FeatureProvider";
 import useAuthStore from "./store/auth.store";
 import PaymentsFlow from "./dev/PaymentsFlow";
 import ScheduleChangesFlow from "./dev/ScheduleChangesFlow";
+import ScheduleSwapsFlow from "./dev/ScheduleSwapsFlow";
 import AttendanceFlow from "./dev/AttendanceFlow";
 import SubscriptionsFlow from "./dev/SubscriptionsFlow";
 import PlansFlow from "./dev/PlansFlow";
 import PlanChangesFlow from "./dev/PlanChangesFlow";
 import SettingsFlow from "./dev/SettingsFlow";
+import ActivitiesFlow from "./dev/ActivitiesFlow";
+import OutingsFlow from "./dev/OutingsFlow";
+import MembersFlow from "./dev/MembersFlow";
+import RecoveryFlow from "./dev/RecoveryFlow";
+import RoutinesFlow from "./dev/RoutinesFlow";
+import PersonalTrainingFlow from "./dev/PersonalTrainingFlow";
 
 const PAYMENTS_FLOW_ENABLED = import.meta.env.DEV;
 const SCHEDULE_CHANGES_FLOW_ENABLED = import.meta.env.DEV;
+const SCHEDULE_SWAPS_FLOW_ENABLED = import.meta.env.DEV;
 const ATTENDANCE_FLOW_ENABLED = import.meta.env.DEV;
 const SUBSCRIPTIONS_FLOW_ENABLED = import.meta.env.DEV;
 const PLANS_FLOW_ENABLED = import.meta.env.DEV;
 const PLAN_CHANGES_FLOW_ENABLED = import.meta.env.DEV;
 const SETTINGS_FLOW_ENABLED = import.meta.env.DEV;
+const ACTIVITIES_FLOW_ENABLED = import.meta.env.DEV;
+const OUTINGS_FLOW_ENABLED = import.meta.env.DEV;
+const MEMBERS_FLOW_ENABLED = import.meta.env.DEV;
+const RECOVERY_FLOW_ENABLED = import.meta.env.DEV;
+const ROUTINES_FLOW_ENABLED = import.meta.env.DEV;
+const PERSONAL_TRAINING_FLOW_ENABLED = import.meta.env.DEV;
 
 function HomeRedirect() {
   const isSuperuser = useAuthStore((state) => state.isSuperuser);
@@ -130,6 +144,9 @@ function App() {
       {SCHEDULE_CHANGES_FLOW_ENABLED && (
         <Route path="/schedule-changes-flow" element={<ScheduleChangesFlow />} />
       )}
+      {SCHEDULE_SWAPS_FLOW_ENABLED && (
+        <Route path="/schedule-swaps-flow" element={<ScheduleSwapsFlow />} />
+      )}
       {ATTENDANCE_FLOW_ENABLED && <Route path="/attendance-flow" element={<AttendanceFlow />} />}
       {SUBSCRIPTIONS_FLOW_ENABLED && (
         <Route path="/subscriptions-flow" element={<SubscriptionsFlow />} />
@@ -139,6 +156,24 @@ function App() {
         <Route path="/plan-changes-flow" element={<PlanChangesFlow />} />
       )}
       {SETTINGS_FLOW_ENABLED && <Route path="/settings-flow" element={<SettingsFlow />} />}
+      {ACTIVITIES_FLOW_ENABLED && (
+        <Route path="/activities-flow" element={<ActivitiesFlow />} />
+      )}
+      {OUTINGS_FLOW_ENABLED && (
+        <Route path="/outings-flow" element={<OutingsFlow />} />
+      )}
+      {MEMBERS_FLOW_ENABLED && (
+        <Route path="/members-flow" element={<MembersFlow />} />
+      )}
+      {RECOVERY_FLOW_ENABLED && (
+        <Route path="/recovery-flow" element={<RecoveryFlow />} />
+      )}
+      {ROUTINES_FLOW_ENABLED && (
+        <Route path="/routines-flow" element={<RoutinesFlow />} />
+      )}
+      {PERSONAL_TRAINING_FLOW_ENABLED && (
+        <Route path="/personal-training-flow" element={<PersonalTrainingFlow />} />
+      )}
 
       {/* protected layout */}
       <Route

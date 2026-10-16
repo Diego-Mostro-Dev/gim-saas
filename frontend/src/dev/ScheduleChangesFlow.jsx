@@ -1,22 +1,23 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
+  ArrowLeftRight,
   ArrowRight,
   ArrowDown,
   CalendarClock,
-  Check,
+  CalendarRange,
   CheckCircle2,
   Clock,
   FileWarning,
   Info,
+  Repeat,
+  RotateCcw,
   ShieldAlert,
+  Sparkles,
   UserRoundCheck,
   Users,
   X,
   XCircle,
-  RotateCcw,
-  Sparkles,
-  Repeat,
-  CalendarRange,
 } from "lucide-react";
 
 const ESTADOS = {
@@ -44,20 +45,6 @@ const ESTADOS = {
     comoSale:
       "Es el estado final de un cambio permanente aprobado. No se revierte solo.",
     exception: true,
-  },
-  approved: {
-    key: "approved",
-    nombre: "Aprobado (solo intercambios)",
-    color: "muted",
-    icono: Check,
-    resumen: "Estado que NO usan los cambios permanentes.",
-    detalle:
-      "En los cambios permanentes el estado 'aprobado' no existe en la práctica: aprobar deja la solicitud en 'ejecutado'. En los intercambios puntuales sí se usa: significa aprobado pero todavía no concretado.",
-    acciones: [
-      "Cambio permanente: nunca queda 'approved' (salta directo a ejecutado)",
-      "Intercambio: 'approved' = aprobado, se concreta en el check-in",
-    ],
-    comoSale: "Para permanente: no aplica. Para intercambio: se concreta al hacer check-in el día acordado.",
   },
   rejected: {
     key: "rejected",
@@ -116,8 +103,8 @@ const PROBLEMAS = [
     titulo: "La espera de 7 días cuenta hasta los rechazados",
     icono: Clock,
     impacto:
-      "Una solicitud rechazada o cancelada por el staff igual bloquea al socio 7 días. Los intercambios no disparan esta espera: es asimétrico y puede confundir.",
-    origen: "El cooldown se calcula sobre la última solicitud de cualquier estado; los swaps lo ignoran.",
+      "Una solicitud rechazada o cancelada por el staff igual bloquea al socio 7 días antes de pedir otro cambio. En cambio, los intercambios puntuales no disparan esa espera (ver flujo del cambio por única vez).",
+    origen: "El cooldown se calcula sobre la última solicitud de cualquier estado.",
     evidencia: "backend/attendance/serializers.py:653-663",
   },
   {
@@ -167,7 +154,7 @@ const CICLO = [
     titulo: "Socio pide",
     icono: CalendarRange,
     descripcion:
-      "Desde su portal elige un horario de la misma actividad. Validan anticipación 24 h, espera 7 días, límite del mes y capacidad.",
+      "Desde su portal elige un horario (día + hora) del gimnasio. Validan anticipación 24 h, espera 7 días, límite del mes y capacidad.",
   },
   {
     titulo: "Pendiente",
@@ -179,13 +166,13 @@ const CICLO = [
     titulo: "Staff aprueba o rechaza",
     icono: UserRoundCheck,
     descripcion:
-      "La aprueba (cambio permanente → ejecutado; intercambio → aprobado) o la rechaza con nota. Al aprobar re-chequea capacidad.",
+      "La aprueba (el cambio permanente pasa a ejecutado) o la rechaza con nota. Al aprobar re-chequea capacidad.",
   },
   {
     titulo: "Se aplica",
     icono: CheckCircle2,
     descripcion:
-      "Permanente: horario nuevo activo el mismo día. Intercambio: recién en el check-in del día acordado se registra esa asistencia.",
+      "El horario nuevo queda activo el mismo día: no espera una fecha futura. El horario viejo se desactiva.",
   },
   {
     titulo: "Queda registrado",
@@ -193,6 +180,17 @@ const CICLO = [
     descripcion:
       "El socio lo ve en su portal y el staff en el historial. El contador mensual de cambios usados ya lo cuenta.",
   },
+];
+
+const SITUACIONES = [
+  "El gimnasio tiene los cambios de horario habilitados (`allow_schedule_changes`).",
+  "El socio está al día de pago (si está suspendido, recibe 403 'Acceso suspendido por falta de pago').",
+  "Pasó la anticipación mínima (24 h por defecto) respecto de la próxima clase del horario pedido.",
+  "Pasó la espera entre solicitudes (7 días por defecto) desde su última solicitud, sea cual sea el estado.",
+  "No superó el máximo mensual (4 por defecto): cuenta cambios permanentes e intercambios pedidos desde el día 1.",
+  "El horario pedido tiene capacidad libre (por slot o la capacidad general del gimnasio).",
+  "El horario pedido no es el mismo que ya tiene ni uno que ya tenga asignado.",
+  "El horario de origen es del socio y está activo.",
 ];
 
 function Card({ children, className = "" }) {
@@ -435,8 +433,8 @@ function EstadosDetalle() {
         <h2 className="text-lg font-bold text-text-primary">Estados de una solicitud</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Tocá cada estado para ver su detalle. Cambio permanente: Pendiente → Ejecutado (el "Aprobado" no se usa).
-        Intercambio: Pendiente → Aprobado (se concreta en el check-in).
+        Tocá cada estado para ver su detalle. El cambio permanente va de Pendiente a Ejecutado: el
+        estado "Aprobado" no se usa en este flujo (sí en los intercambios).
       </p>
       <div className="mt-4 space-y-2">
         {Object.values(ESTADOS).map((s) => {
@@ -495,10 +493,10 @@ function DiagramaCiclo() {
     <Card>
       <div className="flex items-center gap-2">
         <RotateCcw size={18} className="text-info-text dark:text-info" />
-        <h2 className="text-lg font-bold text-text-primary">El recorrido del cambio de horario</h2>
+        <h2 className="text-lg font-bold text-text-primary">El recorrido del cambio permanente</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Del pedido del socio al registro final. Distintas reglas actúan al pedir y recién la capacidad se re-chequea al aprobar.
+        Del pedido del socio a la aplicación inmediata. Distintas reglas actúan al pedir y recién la capacidad se re-chequea al aprobar.
       </p>
 
       <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-stretch">
@@ -529,6 +527,53 @@ function DiagramaCiclo() {
   );
 }
 
+function EnQueSituaciones() {
+  return (
+    <Card>
+      <div className="flex items-center gap-2">
+        <CheckCircle2 size={18} className="text-info-text dark:text-info" />
+        <h2 className="text-lg font-bold text-text-primary">En qué situaciones puede cambiar</h2>
+      </div>
+      <p className="mt-1 text-sm text-text-secondary">
+        El pedido se guarda sólo si pasa todas estas condiciones. Si alguna falla, el sistema lo rechaza.
+      </p>
+      <ul className="mt-4 grid gap-2 text-sm text-text-secondary sm:grid-cols-2">
+        {SITUACIONES.map((s) => (
+          <li
+            key={s}
+            className="flex items-start gap-2 rounded-lg border border-border bg-surface p-3"
+          >
+            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success-text dark:text-success" />
+            <span>{s}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function SobreActividades() {
+  return (
+    <Card>
+      <div className="flex items-center gap-2">
+        <Info size={18} className="text-info-text dark:text-info" />
+        <h2 className="text-lg font-bold text-text-primary">Sobre las actividades</h2>
+      </div>
+      <div className="mt-3 space-y-2 text-sm text-text-secondary">
+        <p>
+          Los horarios de asistencia son <span className="font-medium text-text-primary">slots fijos del gimnasio (día + hora)</span>,
+          sin actividad asociada. El cambio permanente (y también el intercambio) elige entre esos
+          slots: no filtra por actividad.
+        </p>
+        <p>
+          El cambio de horario <span className="font-medium text-text-primary">de una actividad</span> (enrollments) es un
+          sistema aparte: el socio lo hace desde el portal en <span className="font-medium text-text-primary">Actividades → “Elegir otro horario”</span>.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 function QuienAprueba() {
   return (
     <Card>
@@ -541,49 +586,20 @@ function QuienAprueba() {
         gimnasio puede aprobar por API; la restricción de pantalla es solo del frontend.
       </p>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-            <CalendarRange size={16} className="text-info-text dark:text-info" />
-            Cambio permanente
-          </p>
-          <ul className="mt-3 space-y-2 text-xs text-text-secondary">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success-text dark:text-success" />
-              Aprueba un usuario del gym → queda Ejecutado ya
-            </li>
-            <li className="flex items-start gap-2">
-              <XCircle size={14} className="mt-0.5 shrink-0 text-danger-text dark:text-danger" />
-              No valida cooldown ni límite del mes (solo capacidad)
-            </li>
-            <li className="flex items-start gap-2">
-              <XCircle size={14} className="mt-0.5 shrink-0 text-danger-text dark:text-danger" />
-              Se puede borrar por la API (sin trazabilidad)
-            </li>
-          </ul>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-            <Repeat size={16} className="text-info-text dark:text-info" />
-            Intercambio puntual
-          </p>
-          <ul className="mt-3 space-y-2 text-xs text-text-secondary">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success-text dark:text-success" />
-              Aprueba un usuario del gym → queda Aprobado (no ejecutado)
-            </li>
-            <li className="flex items-start gap-2">
-              <Info size={14} className="mt-0.5 shrink-0 text-info-text dark:text-info" />
-              Se concreta recién en el check-in del día acordado
-            </li>
-            <li className="flex items-start gap-2">
-              <Info size={14} className="mt-0.5 shrink-0 text-info-text dark:text-info" />
-              El día del chequeo respeta la capacidad efectiva
-            </li>
-          </ul>
-        </div>
-      </div>
+      <ul className="mt-4 space-y-2 text-sm text-text-secondary">
+        <li className="flex items-start gap-2">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success-text dark:text-success" />
+          Aprueba un usuario del gym → el cambio queda Ejecutado ya.
+        </li>
+        <li className="flex items-start gap-2">
+          <XCircle size={16} className="mt-0.5 shrink-0 text-danger-text dark:text-danger" />
+          Al aprobar no se valida cooldown ni límite del mes: solo capacidad.
+        </li>
+        <li className="flex items-start gap-2">
+          <XCircle size={16} className="mt-0.5 shrink-0 text-danger-text dark:text-danger" />
+          La solicitud se puede borrar por la API (sin trazabilidad).
+        </li>
+      </ul>
     </Card>
   );
 }
@@ -675,7 +691,7 @@ export default function ScheduleChangesFlow() {
     <div className="min-h-screen bg-surface px-4 py-6 text-text-primary">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="rounded-xl border border-border bg-surface-elevated p-5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Pill className="bg-danger-bg text-danger-text dark:bg-danger/15 dark:text-danger">
               Solo desarrollo · no visible en producción
             </Pill>
@@ -683,18 +699,30 @@ export default function ScheduleChangesFlow() {
               Fuente: AUDITORIA-HORARIOS.md
             </Pill>
           </div>
-          <h1 className="mt-3 text-3xl font-bold">Cambios de horario</h1>
+          <h1 className="mt-3 text-3xl font-bold">Cambio de horario permanente</h1>
           <p className="mt-2 max-w-3xl text-sm text-text-secondary">
-            Cómo funciona el flujo de cambios de horario hoy, en forma visual e interactiva: quién los aprueba,
-            cómo se piden, qué reglas se aplican y qué problemas pueden aparecer.
+            Cómo funciona el cambio de horario permanente hoy, en forma visual e interactiva: en qué
+            situaciones se puede pedir, quién lo aprueba, qué reglas se aplican y qué problemas pueden
+            aparecer.
           </p>
+          <Link
+            to="/schedule-swaps-flow"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-info-text transition hover:bg-surface-input dark:text-info"
+          >
+            <ArrowLeftRight size={16} />
+            Ver el flujo del cambio por única vez (intercambio)
+          </Link>
         </div>
 
         <SimuladorReglas />
 
+        <EnQueSituaciones />
+
         <DiagramaCiclo />
 
         <EstadosDetalle />
+
+        <SobreActividades />
 
         <QuienAprueba />
 

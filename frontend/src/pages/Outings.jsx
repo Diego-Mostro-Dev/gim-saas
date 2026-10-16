@@ -13,6 +13,8 @@ import { useFeature } from "../features/FeatureProvider";
 import { getInactiveOutings, getOutingTrainers } from "../services/outings.service";
 import { txt } from "../utils/labels";
 
+const OUTINGS_FLOW_ENABLED = import.meta.env.DEV;
+
 function Outings() {
   const navigate = useNavigate();
   const { gym } = useGym();
@@ -306,19 +308,29 @@ function Outings() {
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            if (showForm) {
-              handleCloseForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-        >
-          <Plus size={18} />
-          {showForm ? "Cerrar" : "Nueva"}
-        </button>
+        <div className="flex items-center gap-2">
+          {OUTINGS_FLOW_ENABLED && (
+            <button
+              onClick={() => navigate("/outings-flow")}
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+            >
+              Ver flujo
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (showForm) {
+                handleCloseForm();
+              } else {
+                setShowForm(true);
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            <Plus size={18} />
+            {showForm ? "Cerrar" : "Nueva"}
+          </button>
+        </div>
       </div>
 
       {/* SOLICITUDES DE SOCIOS */}

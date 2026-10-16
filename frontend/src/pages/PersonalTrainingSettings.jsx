@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   CalendarDays,
@@ -55,8 +56,11 @@ const STATUS_LABELS = {
   cancelled_by_staff: "Cancelada",
 };
 
+const PERSONAL_TRAINING_FLOW_ENABLED = import.meta.env.DEV;
+
 function PersonalTrainingSettings() {
   const [activeTab, setActiveTab] = useState("services");
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-4">
@@ -64,7 +68,7 @@ function PersonalTrainingSettings() {
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
           <Dumbbell size={20} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-text-primary">
             Entrenamiento personal
           </h2>
@@ -73,6 +77,14 @@ function PersonalTrainingSettings() {
             cambio de horario.
           </p>
         </div>
+        {PERSONAL_TRAINING_FLOW_ENABLED && (
+          <button
+            onClick={() => navigate("/personal-training-flow")}
+            className="shrink-0 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+          >
+            Ver flujo
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-1 rounded-xl border border-border bg-surface-elevated p-1">

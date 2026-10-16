@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { Search, User } from "lucide-react";
@@ -18,6 +19,8 @@ import { formatCurrency } from "../utils/currency.utils";
 import { findRecentCashPayment } from "../utils/paymentAlerts";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import MemberIdentity from "../components/common/MemberIdentity";
+
+const RECOVERY_FLOW_ENABLED = import.meta.env.DEV;
 
 function formatPeriod(dateStr) {
   const date = new Date(dateStr);
@@ -46,6 +49,7 @@ function selladoKey(sellado) {
 
 function RecoverMembers() {
   const { members, loading, error, reload } = useMembers();
+  const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all"); // "all" | "debt" | "recoverable"
@@ -322,12 +326,24 @@ function RecoverMembers() {
   return (
     <div className="min-h-screen bg-surface px-4 pb-28 pt-6 text-text-primary">
       {/* HEADER */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Recuperar socios</h1>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">Recuperar socios</h1>
 
-        <p className="mt-1 text-sm text-text-secondary">
-          Buscar un socio y consultar su deuda
-        </p>
+          <p className="mt-1 text-sm text-text-secondary">
+            Buscar un socio y consultar su deuda
+          </p>
+        </div>
+
+        {RECOVERY_FLOW_ENABLED && (
+          <button
+            type="button"
+            onClick={() => navigate("/recovery-flow")}
+            className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+          >
+            Ver flujo
+          </button>
+        )}
       </div>
 
       {/* ERROR */}

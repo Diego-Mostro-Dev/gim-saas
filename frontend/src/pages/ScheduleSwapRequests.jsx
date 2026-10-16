@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, X, ArrowLeftRight, Search } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -34,6 +35,8 @@ const TIME_FILTERS = [
   { key: "month", label: "Este mes" },
 ];
 
+const SCHEDULE_SWAPS_FLOW_ENABLED = import.meta.env.DEV;
+
 function startOfWeek() {
   const d = new Date();
   const day = d.getDay();
@@ -63,6 +66,7 @@ function isThisMonth(dateStr) {
 }
 
 function ScheduleSwapRequests() {
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("swap_status") || "all");
@@ -273,11 +277,21 @@ function ScheduleSwapRequests() {
 
   return (
     <div className="min-h-screen bg-surface pb-28 pt-6 text-text-primary">
-      <div className="mb-6 px-4">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Intercambios por única vez</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Solicitudes de intercambio por única vez entre días disponibles.
-        </p>
+      <div className="mb-6 flex flex-col items-start gap-3 px-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Intercambios por única vez</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Solicitudes de intercambio por única vez entre días disponibles.
+          </p>
+        </div>
+        {SCHEDULE_SWAPS_FLOW_ENABLED && (
+          <button
+            onClick={() => navigate("/schedule-swaps-flow")}
+            className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+          >
+            Ver flujo
+          </button>
+        )}
       </div>
 
       {/* Stats cards */}

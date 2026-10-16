@@ -17,6 +17,8 @@ import ActiveRoutines from "../components/routines/ActiveRoutines";
 
 import RoutineBuilder from "../components/routines/RoutineBuilder";
 
+const ROUTINES_FLOW_ENABLED = import.meta.env.DEV;
+
 function Routines() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("exercises");
@@ -71,22 +73,34 @@ function Routines() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
-        >
-          <ArrowLeft size={18} />
-          Volver al inicio
-        </button>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:bg-surface-input"
+          >
+            <ArrowLeft size={18} />
+            Volver al inicio
+          </button>
 
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Rutinas</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-text-primary">Rutinas</h1>
 
-          <p className="mt-1 text-sm text-text-secondary">
-            Gestiona ejercicios, rutinas y asignaciones.
-          </p>
+            <p className="mt-1 text-sm text-text-secondary">
+              Gestiona ejercicios, rutinas y asignaciones.
+            </p>
+          </div>
         </div>
+
+        {ROUTINES_FLOW_ENABLED && (
+          <button
+            type="button"
+            onClick={() => navigate("/routines-flow")}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+          >
+            Ver flujo
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
