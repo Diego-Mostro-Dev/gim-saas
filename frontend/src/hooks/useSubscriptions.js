@@ -57,30 +57,40 @@ export function useSubscriptions() {
     }
     try {
       setLoading(true);
-
       setError(null);
 
-      const [
-        subscriptionsData,
-        membersData,
-        plansData,
-      ] = await Promise.all([
+      const [subscriptionsRes, membersRes, plansRes] = await Promise.allSettled([
         getSubscriptions(),
         getMembers(),
         getPlans(),
       ]);
 
-      setSubscriptions(subscriptionsData);
+      const parts = [];
+      if (subscriptionsRes.status === "fulfilled") {
+        setSubscriptions(subscriptionsRes.value);
+      } else {
+        console.error(subscriptionsRes.reason);
+        parts.push("suscripciones");
+      }
+      if (membersRes.status === "fulfilled") {
+        setMembers(membersRes.value);
+      } else {
+        console.error(membersRes.reason);
+        parts.push("miembros");
+      }
+      if (plansRes.status === "fulfilled") {
+        setPlans(plansRes.value);
+      } else {
+        console.error(plansRes.reason);
+        parts.push("planes");
+      }
 
-      setMembers(membersData);
-
-      setPlans(plansData);
+      if (parts.length > 0) {
+        setError(`Error al cargar: ${parts.join(", ")}`);
+      }
     } catch (error) {
       console.error(error);
-
-      setError(
-        "Error al cargar subscriptions",
-      );
+      setError("Error al cargar subscriptions");
     } finally {
       setLoading(false);
     }

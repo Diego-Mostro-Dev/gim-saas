@@ -9,6 +9,8 @@ from subscriptions.models import MembershipPlan
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
 from subscriptions.services import (
     _resolve_plan,
+    gym_approved_plan_change_plan,
+    gym_debtor_member_ids,
     member_discount_percent,
     member_total_outstanding_debt,
 )
@@ -262,21 +264,9 @@ class MemberSerializer(serializers.ModelSerializer):
     def get_is_recoverable(self, obj):
         """Whether the member needs recovery, by recover_member's own rule.
 
-        A member is recoverable only when recover_member() would proceed
-        today. To guarantee both agree forever, this derives from the very
-        same helpers instead of keeping a second implementation:
-
-        - ``member_total_outstanding_debt`` is the single source of truth for
-          debt (subscriptions, activity/PT/outing packages and sellados), so
-          the outing omission and the manual total/credit arithmetic are gone.
-        - ``_resolve_plan`` picks the plan exactly like recover_member does,
-          honouring an approved plan change rather than reading
-          ``latest_sub.plan``.
-
-        This is read-only (it never opens subscriptions nor sets active=True)
-        and returns False for comp members. The two helper calls hit the
-        database per member; ``has_current``/``has_future`` still come from the
-        prefetched ``subscription_set``.
+        Prefer bulk precomputation from serializer context (fixed number of
+        queries for the whole list). If not present, fall back to the
+        per-member helpers to preserve existing behaviour (detail view, tests).
         """
         today = timezone.localdate()
 
@@ -289,27 +279,29 @@ class MemberSerializer(serializers.ModelSerializer):
 
         latest_sub = max(subs, key=lambda s: (s.start_date, s.created_at))
 
-        if member_total_outstanding_debt(obj)["total"] > 0:
+        context = self.context or {}
+        debtor_member_ids = context.get("debtor_member_ids")
+        approved_plan_by_member = context.get("approved_plan_by_member")
+
+        if debtor_member_ids is not None:
+            if obj.id in debtor_member_ids:
+                return False
+        elif member_total_outstanding_debt(obj)["total"] > 0:
             return False
 
         has_current = any(
             sub.start_date <= today <= sub.end_date for sub in subs
         )
         if has_current:
-            # Case A: recover_member reactivates and returns the current
-            # subscription, before looking at any future one. A healthy
-            # (active) member has nothing to recover; an inactive one with a
-            # live period does.
             return not obj.active
 
-        # The "limbo" member (active=True but with an expired subscription and
-        # no current one) has nothing to recover yet: recover_member() DOES
-        # handle them (Case B creates the new subscription), so the UI badge
-        # must agree and not hide them.
         if any(sub.start_date > today for sub in subs):
             return False
 
-        plan, _ = _resolve_plan(obj, latest_sub, today)
+        if approved_plan_by_member is not None:
+            plan = approved_plan_by_member.get(obj.id) or latest_sub.plan
+        else:
+            plan, _ = _resolve_plan(obj, latest_sub, today)
         return not plan.is_base
 
     def validate_insurance(self, value):

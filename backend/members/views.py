@@ -1,4 +1,5 @@
 import json
+import logging
 
 from datetime import time
 
@@ -13,6 +14,7 @@ from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.db.models import Count, Prefetch
+from django.utils import timezone
 
 from activities.models import Activity, ActivitySchedule, Enrollment
 from activities.overlap import validate_gym_activity_overlap
@@ -31,6 +33,10 @@ from config.api.throttles import (
 from members.eligibility import MemberEligibility
 from plans.models import MembershipPlan
 from plans.services import public_plan_name_from_snapshot
+from subscriptions.services import (
+    gym_approved_plan_change_plan,
+    gym_debtor_member_ids,
+)
 
 from .models import HealthInsurance, Member, MemberAttachment, resolve_public_portal_member
 from .serializers import (
@@ -41,6 +47,9 @@ from .serializers import (
     MemberAttachmentSerializer,
 )
 from .services import RegistrationError, RegistrationService, validate_activity_schedules
+
+
+logger = logging.getLogger(__name__)
 
 
 class MemberViewSet(GymModelViewSet):
@@ -224,6 +233,23 @@ class MemberViewSet(GymModelViewSet):
             *args,
             **kwargs,
         )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.action == "list":
+            try:
+                gym = self.get_gym()
+                today = timezone.localdate()
+                context["gym"] = gym
+                context["debtor_member_ids"] = gym_debtor_member_ids(gym)
+                context["approved_plan_by_member"] = gym_approved_plan_change_plan(
+                    gym, today
+                )
+            except Exception:
+                # Si la precomputación bulk falla, el serializer cae al
+                # cálculo por socio (correcto, más lento) en vez de un 500.
+                logger.exception("No se pudo precomputar is_recoverable")
+        return context
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

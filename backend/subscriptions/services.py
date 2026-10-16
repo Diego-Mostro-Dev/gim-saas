@@ -2107,3 +2107,57 @@ def run_scheduled_tasks(force=False):
 
 
 
+
+def gym_debtor_member_ids(gym):
+    """Return a set of member ids with any outstanding debt in the gym.
+
+    Replicates member_total_outstanding_debt's membership test using the same
+    bulk gym-wide helpers for performance (fixed number of queries).
+    """
+    debtor_ids = set()
+
+    for entry in gym_outstanding_subscriptions(gym):
+        sub = entry.get("subscription")
+        if sub is not None:
+            debtor_ids.add(sub.member_id)
+
+    for entry in gym_activity_package_debt(gym):
+        debtor_ids.add(entry["member"].id)
+
+    for entry in gym_personal_training_package_debt(gym):
+        debtor_ids.add(entry["member"].id)
+
+    for entry in gym_outing_package_debt(gym):
+        debtor_ids.add(entry["member"].id)
+
+    for entry in gym_sellado_debt(gym):
+        debtor_ids.add(entry["member"].id)
+
+    return debtor_ids
+
+
+def gym_approved_plan_change_plan(gym, today):
+    """Return a mapping of member_id -> requested_plan for approved PCRs.
+
+    Mirrors _resolve_plan's rule: honour the latest approved PlanChangeRequest
+    with effective_date <= today.
+    """
+    from .models import PlanChangeRequest
+
+    approved_pcr_by_member = {}
+
+    pcrs = list(
+        PlanChangeRequest.objects.filter(
+            gym=gym,
+            status="approved",
+            effective_date__lte=today,
+        )
+        .select_related("requested_plan")
+        .order_by("member", "-requested_at", "-id")
+    )
+
+    for pcr in pcrs:
+        if pcr.member_id not in approved_pcr_by_member:
+            approved_pcr_by_member[pcr.member_id] = pcr.requested_plan
+
+    return approved_pcr_by_member
