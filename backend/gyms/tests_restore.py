@@ -1,4 +1,4 @@
-from django.test import TransactionTestCase
+from django.test import TestCase, TransactionTestCase
 from django.contrib.auth.models import User
 from django.db import connection, transaction
 from django.apps import apps
@@ -106,3 +106,56 @@ class SignalSafetyTest(TransactionTestCase):
                 os.unlink(f.name)
             except Exception:
                 pass
+
+
+class RestoreCommandTest(TestCase):
+    """Cubre el comando `restore_db --restore` con la descarga simulada.
+
+    Regresión: la rama `--restore` se limitó a reusar el código inline de
+    `download_to()` sin importar `cloudinary`, por lo que siempre moría con
+    NameError y jamás llamaba al helper. Aquí todo lo que toca la red y la
+    DB se parchea, y lo que se valida es que el camino sea el correcto.
+    """
+
+    def test_restore_db_restore_mode_uses_download_to(self):
+        from io import StringIO
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from django.core.management import call_command
+
+        from gyms.management.commands import restore_db as cmd_mod
+
+        with connection.cursor() as c:
+            c.execute("SELECT current_database()")
+            cur_db = c.fetchone()[0]
+
+        info = SimpleNamespace(public_id="gym_saas_backups/latest", filename="backup.json.gz")
+        out = StringIO()
+
+        with mock.patch.object(restore, "ensure_empty_database") as empty, \
+                mock.patch.object(restore, "resolve_backup", return_value=info) as resolve, \
+                mock.patch.object(cmd_mod, "download_to", return_value="/tmp/fake.json.gz") as dl, \
+                mock.patch.object(restore, "verify_fixture") as verify, \
+                mock.patch.object(restore, "restore_fixture") as do_restore, \
+                mock.patch.object(restore, "check_sequences_report", return_value={"risks": []}):
+            call_command(
+                "restore_db",
+                "--restore",
+                "--latest",
+                "--confirm-db",
+                cur_db,
+                "--allow-production",
+                stdout=out,
+                no_color=True,
+            )
+
+        # La rama --restore pasa por download_to(): nada de descarga inline.
+        dl.assert_called_once()
+        self.assertEqual(dl.call_args.args[0], info)
+        empty.assert_called_once()
+        resolve.assert_called_once_with(None, True)
+        verify.assert_called_once_with("/tmp/fake.json.gz")
+        do_restore.assert_called_once_with("/tmp/fake.json.gz", using=None)
+        self.assertIn("Restored from gym_saas_backups/latest", out.getvalue())
+        self.assertIn(cur_db, out.getvalue())

@@ -1,6 +1,3 @@
-import os
-import sys
-
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, connections
@@ -45,8 +42,6 @@ class Command(BaseCommand):
             if not opts["confirm_db"] or opts["confirm_db"] != cur_db:
                 raise CommandError(f"--confirm-db must exactly match current_database(): {cur_db}")
             hrole = neon_endpoint_role(host)
-            if (hrole == "production") or ("neon" in str(host).lower() and "production" in str(settings.ENVIRONMENT or "").lower()) or (hrole == "production" and not opts["allow-production"]):
-                pass
             if hrole == "production" and not opts["allow-production"]:
                 raise CommandError("Production destination requires --allow-production and explicit confirmation")
             restore.ensure_empty_database()
@@ -54,24 +49,13 @@ class Command(BaseCommand):
             import tempfile as _tmp
 
             d = opts["temp_dir"] or _tmp.mkdtemp(prefix="gym_saas_restore_")
-            path = os.path.join(d, info.filename or "backup.json.gz")
             try:
-                from config.api import restore as r
-
-                # download via private_download_url
-                url = cloudinary.utils.private_download_url(
-                    info.public_id, "", resource_type="raw", type="private"
-                )
-                import urllib.request
-
-                req = urllib.request.Request(url, headers={"User-Agent": "gym-restore-cli"})
-                with urllib.request.urlopen(req, timeout=120) as resp, open(path, "wb") as out:
-                    out.write(resp.read())
+                path = download_to(info, d)
             except Exception as e:
                 raise CommandError(f"Download failed: {e}")
-            r.verify_fixture(path)
+            restore.verify_fixture(path)
             try:
-                r.restore_fixture(path, using=None)
+                restore.restore_fixture(path, using=None)
             finally:
                 if not opts["keep_temp"]:
                     import shutil
@@ -80,7 +64,7 @@ class Command(BaseCommand):
                         shutil.rmtree(d, ignore_errors=True)
                     except Exception:
                         pass
-            seqs = r.check_sequences_report()
+            seqs = restore.check_sequences_report()
             self.stdout.write(self.style.SUCCESS(f"Restored from {info.public_id} into {cur_db}. sequences_risks={len(seqs['risks'])}"))
             return
 
