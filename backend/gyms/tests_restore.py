@@ -13,8 +13,11 @@ class RestoreRoundTripTest(TransactionTestCase):
     reset_sequences = True
 
     def test_roundtrip_dump_and_restore_synthetic(self):
+        import gzip
+        import os
+        from io import StringIO
         from tempfile import NamedTemporaryFile
-        import gzip, json
+        from django.core.management import call_command
 
         api = BaseAPITest()
         api.setUp()
@@ -27,20 +30,17 @@ class RestoreRoundTripTest(TransactionTestCase):
         buf = NamedTemporaryFile(delete=False, suffix=".json.gz")
         buf.close()
         try:
+            out = StringIO()
+            # In-process: dumpdata lee la DB de test (test_*). Antes corría en
+            # subproceso y se conectaba a la DB configurada (vacía en CI).
+            call_command(
+                "dumpdata",
+                "--natural-foreign",
+                "--natural-primary",
+                stdout=out,
+            )
             with gzip.open(buf.name, "wt", encoding="utf-8") as f:
-                import subprocess, sys, os as _os
-
-                manage = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "manage.py")
-                manage = _os.path.abspath(manage)
-                res = subprocess.run(
-                    [sys.executable, manage, "dumpdata", "--natural-foreign", "--natural-primary"],
-                    cwd=_os.path.dirname(manage),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env={**_os.environ, "ENVIRONMENT": "", "DB_SSLMODE": "disable"},
-                )
-                self.assertEqual(res.returncode, 0)
-                f.write(res.stdout.decode("utf-8"))
+                f.write(out.getvalue())
             # verify
             v = restore.verify_fixture(buf.name)
             self.assertTrue(v["total"] > 0)
@@ -49,16 +49,12 @@ class RestoreRoundTripTest(TransactionTestCase):
             # but loaddata will insert/update; TransactionTestCase flushes at end
             restore._disconnect_signal()
             try:
-                from django.core.management import call_command
-
                 call_command("loaddata", buf.name, verbosity=0)
             finally:
                 restore._reconnect_signal()
             seqs = restore.check_sequences_report()
             self.assertIsInstance(seqs["risks"], list)
         finally:
-            import os
-
             try:
                 os.unlink(buf.name)
             except Exception:
@@ -69,7 +65,7 @@ class SignalSafetyTest(TransactionTestCase):
     def test_signal_safe_roundtrip(self):
         sync, async_ = post_save._live_receivers(sender=User)
         self.assertIn(create_user_profile, sync)
-        self.assertNotIn(async_, create_user_profile)
+        self.assertNotIn(create_user_profile, async_)
 
         class Dummy:
             pass
