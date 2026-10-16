@@ -18,5 +18,8 @@ build/
 
 # OS
 .DS_Store
+
+# Tokens locales de scripts de monitoreo
+scripts/prod_token.txt
 # Local AI context
 .local/
