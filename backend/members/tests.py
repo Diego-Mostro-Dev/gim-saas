@@ -1,5 +1,9 @@
+import hashlib
 import json
-from datetime import date
+from datetime import date, time, timedelta
+from decimal import Decimal
+
+from django.utils import timezone
 
 from rest_framework.authtoken.models import Token
 
@@ -8,8 +12,40 @@ from core.testing import BaseAPITest
 from gyms.models import Discount
 from members.models import Member
 from members.serializers import MemberSerializer
-from subscriptions.models import Subscription
+from outings.models import Outing, OutingEnrollment, OutingSchedule
+from plans.models import MembershipPlan, Service
+from subscriptions.models import PlanChangeRequest, Subscription
 from subscriptions.services import get_first_day_of_next_month, get_last_day_of_month
+
+
+def _create_outing_package_debt(gym, member):
+    """Paquete de salidas con saldo pendiente: deuda que no es suscripción.
+
+    Espeja lo que ``member_total_outstanding_debt`` suma vía
+    ``member_outing_package_debt``: activo, modality="package", con
+    ``session_price`` y ``amount_paid < total``.
+    """
+    outing = Outing.objects.create(
+        gym=gym,
+        service=Service.get_default_for_gym(gym),
+        name="Trail",
+    )
+    schedule = OutingSchedule.objects.create(
+        outing=outing,
+        day="monday",
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        capacity=10,
+    )
+    return OutingEnrollment.objects.create(
+        gym=gym,
+        member=member,
+        schedule=schedule,
+        modality="package",
+        package_total_sessions=10,
+        session_price=Decimal("2500.00"),
+        amount_paid=Decimal("0"),
+    )
 
 
 class MemberCreateTests(BaseAPITest):
@@ -29,6 +65,8 @@ class MemberCreateTests(BaseAPITest):
                 "first_name": "Ana",
                 "last_name": "Gomez",
                 "phone": "112233",
+                "document_number": "12345678",
+                "date_of_birth": "1990-05-04",
                 "services": json.dumps(["gym"]),
                 "schedules": json.dumps(
                     [{"day": self.slot.day, "hour": "10:00"}]
@@ -92,6 +130,67 @@ class IsRecoverableTests(BaseAPITest):
         self.settle_subscription(sub)
 
         self.assertTrue(member.active)
+
+        serializer = MemberSerializer(member, context={"gym": gym})
+        self.assertTrue(serializer.data["is_recoverable"])
+
+    def test_limbo_member_settled_with_credit_is_recoverable(self):
+        """El crédito consumido por el período es pagado, no deuda.
+
+        Regresión de get_is_recoverable: no restaba el crédito ya realizado,
+        así que un socio que saldó el mes con saldo a favor quedaba con deuda
+        ficticia y sin botón "recuperar", mientras recover_member() lo
+        aceptaba. El primer assert ancla el invariante real —el badge no puede
+        contradecir al servicio de deuda— para que la regresión no vuelva a
+        colarse por el camino de una de las dos copias de la regla.
+        """
+        # Imports locales como en core/testing.py: payments <-> subscriptions
+        # se importan uno al otro y así se evita el ciclo a nivel de módulo.
+        from payments.models import Payment
+        from subscriptions.services import (
+            calculate_subscription_total,
+            consume_member_credit,
+            member_total_outstanding_debt,
+            sync_subscription_paid,
+        )
+
+        gym = self.create_gym()
+        member = self.create_member(gym)
+        plan = self.create_plan(gym)
+
+        # Dos meses atrás pagado de más: así queda saldo a favor abierto.
+        prev_start, prev_end = self.last_month_period()
+        anteprev_end = prev_start.replace(day=1) - timedelta(days=1)
+        old_sub = self.open_month_subscription(
+            member, plan,
+            start_date=anteprev_end.replace(day=1),
+            end_date=anteprev_end,
+            origin="onboarding",
+        )
+        total = calculate_subscription_total(old_sub)
+        Payment.objects.create(
+            gym=gym,
+            member=member,
+            subscription=old_sub,
+            amount=total + Decimal("10000.00"),
+            payment_method="cash",
+            member_name=str(member),
+            plan_name=plan.name,
+        )
+        sync_subscription_paid(old_sub)
+
+        # El mes pasado consume ese saldo: su período queda saldado sin un
+        # solo peso en pagos directos, solo con crédito.
+        sub = self.open_month_subscription(
+            member, plan,
+            start_date=prev_start,
+            end_date=prev_end,
+            origin="renewal",
+        )
+        consumed = consume_member_credit(member, sub)
+        self.assertEqual(consumed, calculate_subscription_total(sub))
+
+        self.assertFalse(member_total_outstanding_debt(member)["total"] > 0)
 
         serializer = MemberSerializer(member, context={"gym": gym})
         self.assertTrue(serializer.data["is_recoverable"])
@@ -228,6 +327,138 @@ class RecoveryEndpointTests(BaseAPITest):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("futura", resp.data["detail"])
 
+    def test_member_with_only_outing_debt_is_not_recoverable(self):
+        """P24: la deuda de salidas cuenta. Badge y POST coinciden.
+
+        ``get_is_recoverable`` omitía ``outing_enrollments``, así que un socio
+        cuyo único pendiente era un paquete de salidas mostraba el botón
+        "recuperar" y el POST respondía 400 "deuda pendiente".
+        """
+        gym = self.create_gym()
+        user = self.create_user(gym)
+        member = self.create_member(gym)
+        plan = self.create_plan(gym)
+
+        prev_start, prev_end = self.last_month_period()
+        expired = self.open_month_subscription(
+            member, plan,
+            start_date=prev_start,
+            end_date=prev_end,
+            origin="onboarding",
+        )
+        self.settle_subscription(expired)
+        _create_outing_package_debt(gym, member)
+
+        serializer = MemberSerializer(member, context={"gym": gym})
+        self.assertFalse(serializer.data["is_recoverable"])
+
+        self.client.force_authenticate(user=user)
+        resp = self.client.post(
+            "/api/subscriptions/reopen/",
+            {"member_id": member.id},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("deuda pendiente", resp.data["detail"])
+
+    def test_inactive_member_with_current_and_future_is_recoverable(self):
+        """P24: la precedencia vigente/futura se invierte como recover_member.
+
+        Con un período vigente saldado y otro futuro saldado, ``recover_member``
+        reactiva al socio (Case A) antes de mirar el futuro. El serializer
+        cortaba por ``has_future`` y ocultaba el botón.
+        """
+        gym = self.create_gym()
+        user = self.create_user(gym)
+        member = self.create_member(gym)
+        plan = self.create_plan(gym)
+
+        current = self.open_month_subscription(member, plan)
+        self.settle_subscription(current)
+
+        this_month = date.today().replace(day=1)
+        future_start = get_first_day_of_next_month(this_month)
+        future_end = get_last_day_of_month(future_start)
+        future = self.open_month_subscription(
+            member, plan,
+            start_date=future_start,
+            end_date=future_end,
+            origin="onboarding",
+        )
+        self.settle_subscription(future)
+
+        member.active = False
+        member.save(update_fields=["active"])
+
+        serializer = MemberSerializer(member, context={"gym": gym})
+        self.assertTrue(serializer.data["is_recoverable"])
+
+        self.client.force_authenticate(user=user)
+        resp = self.client.post(
+            "/api/subscriptions/reopen/",
+            {"member_id": member.id},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        member.refresh_from_db()
+        self.assertTrue(member.active)
+
+    def test_member_with_approved_plan_change_is_recoverable(self):
+        """P24: el plan se resuelve con _resolve_plan, no con latest_sub.plan.
+
+        El serializer miraba ``latest_sub.plan.is_base``; ``recover_member``
+        honra un PCR aprobado. Con base expirada + PCR a un plan no-base, el
+        POST procede y el badge no.
+        """
+        gym = self.create_gym()
+        user = self.create_user(gym)
+        member = self.create_member(gym)
+
+        base = MembershipPlan.objects.create(
+            gym=gym,
+            service=Service.get_default_for_gym(gym),
+            name="Base",
+            price=Decimal("0.00"),
+            duration_days=30,
+            is_base=True,
+        )
+        target = self.create_plan(gym, name="Premium")
+
+        prev_start, prev_end = self.last_month_period()
+        expired = self.open_month_subscription(
+            member, base,
+            start_date=prev_start,
+            end_date=prev_end,
+            origin="onboarding",
+        )
+        self.settle_subscription(expired)
+
+        PlanChangeRequest.objects.create(
+            gym=gym,
+            member=member,
+            requested_plan=target,
+            current_schedules_snapshot=[],
+            target_schedules_snapshot=[],
+            status="approved",
+            effective_date=date.today(),
+        )
+
+        serializer = MemberSerializer(member, context={"gym": gym})
+        self.assertTrue(serializer.data["is_recoverable"])
+
+        self.client.force_authenticate(user=user)
+        resp = self.client.post(
+            "/api/subscriptions/reopen/",
+            {"member_id": member.id},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        new_sub = Subscription.objects.get(member=member, origin="recovery")
+        self.assertEqual(new_sub.plan, target)
+
 
 class PublicRegisterSecurityTests(BaseAPITest):
     """P0-1: el registro público no puede auto-otorgarse beneficios.
@@ -236,11 +467,25 @@ class PublicRegisterSecurityTests(BaseAPITest):
     después del alta; el onboarding anónimo debe ignorarlos/forzarlos.
     """
 
+    def _phone(self, suffix=""):
+        """Teléfono válido para el test en curso, único por método.
+
+        Antes era f"11-{self._testMethodName}", que con el nombre más largo
+        de esta clase daba 48 caracteres y reventaba contra el max_length=30
+        de Member.phone. Peor: el 400 que devolvía era indistinguible del que
+        estos tests assertan, así que la regresión de campos obligatorios
+        quedó escondida detrás de un error de fixture.
+        """
+        digest = hashlib.md5(self._testMethodName.encode()).hexdigest()[:12]
+        return f"11-{digest}{suffix}"
+
     def _register_payload(self, gym, plan_id=None, **overrides):
         payload = {
             "first_name": "Luz",
             "last_name": "Pérez",
-            "phone": f"11-{self._testMethodName}",
+            "phone": self._phone(),
+            "document_number": "12345678",
+            "date_of_birth": "1990-05-04",
             "services": ["gym"],
             "schedules": [{"day": self.weekday_name(), "hour": "10:00"}],
         }
@@ -275,7 +520,7 @@ class PublicRegisterSecurityTests(BaseAPITest):
 
         self.assertEqual(resp.status_code, 201)
         self.assertFalse(resp.data["is_comp"])
-        member = Member.objects.get(phone=f"11-{self._testMethodName}")
+        member = Member.objects.get(phone=self._phone())
         self.assertFalse(member.is_comp)
         self.assertTrue(member.active)
         self.assertEqual(Subscription.objects.get(member=member).plan, plan)
@@ -296,14 +541,69 @@ class PublicRegisterSecurityTests(BaseAPITest):
             discount_percent=10,
         )
 
+        # El teléfono va por override en vez de quedar fijo en el payload: el
+        # assert busca al socio con el sufijo del descuento, y además cada
+        # iteración necesita uno distinto o la segunda rebota con 400 por
+        # teléfono duplicado. Antes el assert y el payload armaban cadenas
+        # distintas, algo que solo se vio al destapar el 400 de max_length.
         for discount_id in [discount.id, foreign_discount.id]:
+            phone = self._phone(f"-{discount_id}")
             resp = self.client.post(
                 f"/api/public/register/{gym.onboarding_code}/",
                 self._register_payload(
-                    gym, plan_id=plan.id, discount_id=discount_id,
+                    gym, plan_id=plan.id, phone=phone,
+                    discount_id=discount_id,
                 ),
                 format="json",
             )
             self.assertEqual(resp.status_code, 201)
-            member = Member.objects.get(phone=f"11-{self._testMethodName}-{discount_id}")
+            member = Member.objects.get(phone=phone)
             self.assertIsNone(member.discount)
+
+
+class MemberDestroyProtectionTests(BaseAPITest):
+    """P12 — borrar un socio con pagos responde 409, nunca 500.
+
+    ``Payment.subscription`` es ``PROTECT``: borrar el socio cascadea a sus
+    suscripciones, y una con pagos levanta ``ProtectedError``. El viewset lo
+    traduce a 409 para no devolver un 500 sin cuerpo.
+    """
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+        self.plan = self.create_plan(self.gym)
+        self.member = self.create_member(self.gym)
+
+    def _member_with_payment(self):
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        sub = self.open_month_subscription(
+            self.member,
+            self.plan,
+            start_date=month_start,
+            end_date=get_last_day_of_month(month_start),
+        )
+        self.settle_subscription(sub)
+        return sub
+
+    def test_delete_member_with_payments_returns_409(self):
+        self._member_with_payment()
+
+        resp = self.client.delete(
+            f"/api/members/{self.member.id}/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 409)
+        self.assertTrue(Member.objects.filter(pk=self.member.pk).exists())
+
+    def test_delete_member_without_payments_succeeds(self):
+        resp = self.client.delete(
+            f"/api/members/{self.member.id}/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(Member.objects.filter(pk=self.member.pk).exists())

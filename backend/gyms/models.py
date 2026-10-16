@@ -240,7 +240,9 @@ class Discount(models.Model):
         verbose_name="Activo",
         help_text=(
             "Inactivar desvincula el descuento de los socios asignados: "
-            "pasaron a pagar el precio completo."
+            "pasaron a pagar el precio completo. No altera los períodos que "
+            "ya se emitieron con este descuento: cada suscripción guarda el "
+            "porcentaje con el que se facturó."
         ),
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")

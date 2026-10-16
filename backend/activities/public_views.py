@@ -1,3 +1,4 @@
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -31,6 +32,8 @@ class PublicMemberEnrollmentsView(APIView):
             active=True,
         ).select_related(
             "schedule__activity",
+        ).annotate(
+            used_sessions_count=Count("session_records"),
         ).order_by("-enrolled_at")
 
         serializer = PublicEnrollmentSerializer(enrollments, many=True)
@@ -96,16 +99,39 @@ class PublicGymActivitiesView(APIView):
             active=True,
         ).exclude(
             billing_mode="sessions",
-        ).prefetch_related("schedules")
+        ).prefetch_related(
+            Prefetch(
+                "schedules",
+                queryset=ActivitySchedule.objects.filter(active=True),
+            )
+        )
+
+        activities = list(activities)
+
+        all_schedule_ids = [
+            schedule.id
+            for activity in activities
+            for schedule in activity.schedules.all()
+        ]
+        enrolled_counts = (
+            {
+                row["schedule_id"]: row["c"]
+                for row in Enrollment.objects.filter(
+                    schedule_id__in=all_schedule_ids,
+                    active=True,
+                )
+                .values("schedule_id")
+                .annotate(c=Count("id"))
+            }
+            if all_schedule_ids
+            else {}
+        )
 
         result = []
         for activity in activities:
             schedules = []
-            for schedule in activity.schedules.filter(active=True):
-                enrolled_count = Enrollment.objects.filter(
-                    schedule=schedule,
-                    active=True,
-                ).count()
+            for schedule in activity.schedules.all():
+                enrolled_count = enrolled_counts.get(schedule.id, 0)
                 available = schedule.capacity - enrolled_count
                 if available > 0:
                     schedules.append({
@@ -154,19 +180,42 @@ class PublicAvailableActivitiesView(APIView):
             active=True,
         ).exclude(
             billing_mode="sessions",
-        ).prefetch_related("schedules")
+        ).prefetch_related(
+            Prefetch(
+                "schedules",
+                queryset=ActivitySchedule.objects.filter(active=True),
+            )
+        )
 
         if activity_id:
             activities = activities.filter(id=activity_id)
 
+        activities = list(activities)
+
+        all_schedule_ids = [
+            schedule.id
+            for activity in activities
+            for schedule in activity.schedules.all()
+        ]
+        enrolled_counts = (
+            {
+                row["schedule_id"]: row["c"]
+                for row in Enrollment.objects.filter(
+                    schedule_id__in=all_schedule_ids,
+                    active=True,
+                )
+                .values("schedule_id")
+                .annotate(c=Count("id"))
+            }
+            if all_schedule_ids
+            else {}
+        )
+
         result = []
         for activity in activities:
             schedules = []
-            for schedule in activity.schedules.filter(active=True):
-                enrolled_count = Enrollment.objects.filter(
-                    schedule=schedule,
-                    active=True,
-                ).count()
+            for schedule in activity.schedules.all():
+                enrolled_count = enrolled_counts.get(schedule.id, 0)
                 available = schedule.capacity - enrolled_count
                 if available > 0:
                     schedules.append({

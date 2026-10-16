@@ -14,3 +14,11 @@ class MembershipPlanViewSet(GymModelViewSet):
     queryset = MembershipPlan.objects.filter(is_base=False)
     serializer_class = MembershipPlanSerializer
     pagination_class = None
+
+    def perform_create(self, serializer):
+        gym = self.get_gym()
+        # Plans created from the UI don't send a service; default to the
+        # gym's "gym" service, the same one the service-field backfill and
+        # ensure_base_plan_for_gym use.
+        service = serializer.validated_data.get("service") or Service.get_default_for_gym(gym)
+        serializer.save(gym=gym, service=service)

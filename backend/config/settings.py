@@ -13,6 +13,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Se usa para detectar mezclas de base entre entornos.
 ENVIRONMENT = os.getenv("ENVIRONMENT", "").strip().lower()
 
+# Fragmentos del endpoint Neon que identifican la branch de cada entorno.
+# Configurables por si cambian; los defaults son los de este proyecto.
+NEON_ENDPOINT_STAGING = os.getenv("NEON_ENDPOINT_STAGING", "green-sea-aqmezbmg").strip()
+NEON_ENDPOINT_PRODUCTION = os.getenv("NEON_ENDPOINT_PRODUCTION", "round-sunset-aq8oo16v").strip()
+
 
 # =========================
 # SENTRY (monitoreo)
@@ -309,10 +314,18 @@ _db_config = dj_database_url.parse(
     conn_health_checks=True,
 )
 
-# Forzar TLS solo cuando el backend es PostgreSQL (Neon/Render). No aplicar
-# sslmode al backend sqlite (pruebas/dev local) porque no lo soporta.
+# Forzar TLS cuando el backend es PostgreSQL. No aplicar sslmode al backend
+# sqlite porque no lo soporta.
+#
+# El default "require" es lo que necesitan Neon y Render, así que no cambia
+# el comportamiento de ningún servicio existente. DB_SSLMODE lo baja a
+# "disable" para Postgres sin TLS: el container postgres:16 del CI tiene
+# ssl = off y sin esta variable no conecta con "server does not support SSL,
+# but SSL was required". Sirve igual para un Postgres local sin certificados.
 if _db_config["ENGINE"].endswith("postgresql"):
-    _db_config.setdefault("OPTIONS", {})["sslmode"] = "require"
+    _db_config.setdefault("OPTIONS", {})["sslmode"] = (
+        os.getenv("DB_SSLMODE", "require").strip() or "require"
+    )
 
 # Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
 # Resolve the hostname once at startup and inject hostaddr so libpq skips
@@ -343,21 +356,38 @@ _env_log = _env_logging.getLogger("environment")
 _DB_HOST = _db_config.get("HOST", "")
 _DB_NAME = _db_config.get("NAME", "")
 
+from config.neon import neon_endpoint_role as _neon_endpoint_role  # noqa: E402
+
+_DB_HOST_ROLE = _neon_endpoint_role(_DB_HOST)
+
 if ENVIRONMENT:
-    # Neon pooler endpoints: ep-<name>-pooler.c-<id>.<region>.aws.neon.tech
-    # Los endpoint IDs son únicos por branch.
     _env_log.warning(
         "ENVIRONMENT=%s  |  DB host=%s  |  DB name=%s",
         ENVIRONMENT, _DB_HOST, _DB_NAME,
     )
 
-    if ENVIRONMENT == "staging" and _DB_NAME == "neondb":
+    # Antes esto comparaba ENVIRONMENT == "staging" con _DB_NAME == "neondb",
+    # que no distingue nada: toda branch de Neon se llama neondb, así que el
+    # aviso salía siempre y también habría salido en el caso que debía
+    # detectar. Ahora se compara el endpoint, que sí es único por branch.
+    if _DB_HOST_ROLE is None:
         _env_log.warning(
-            "STAGING CHECK: DATABASE_URL apunta a '%s' (neondb). "
-            "Si esta branch es la de producción, staging y producción "
-            "comparten la misma base. Actualizá DATABASE_URL en Render "
-            "para apuntar a la branch 'staging' de Neon.",
+            "No pude identificar la branch de Neon desde el host '%s' "
+            "(no contiene '%s' ni '%s'). Si ENVIRONMENT=%s, revisá que "
+            "DATABASE_URL apunte a la branch correcta: con este check no "
+            "hay forma de detectar una mezcla con producción.",
+            _DB_HOST, NEON_ENDPOINT_STAGING, NEON_ENDPOINT_PRODUCTION, ENVIRONMENT,
+        )
+    elif _DB_HOST_ROLE != ENVIRONMENT:
+        _env_log.warning(
+            "MIX DE BASE: ENVIRONMENT=%s pero DATABASE_URL apunta a la branch "
+            "de %s ('%s'). %s y %s comparten la misma base: los cambios de un "
+            "entorno aparecen en el otro. Corregí DATABASE_URL en Render.",
+            ENVIRONMENT,
+            _DB_HOST_ROLE,
             _DB_HOST,
+            ENVIRONMENT,
+            _DB_HOST_ROLE,
         )
 else:
     _env_log.warning(

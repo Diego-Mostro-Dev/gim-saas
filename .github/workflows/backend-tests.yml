@@ -1,0 +1,82 @@
+name: Backend tests
+
+on:
+  pull_request:
+  push:
+    branches: [development, main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  subscriptions:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gim_test
+          POSTGRES_PASSWORD: gim_test
+          POSTGRES_DB: neondb
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U gim_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://gim_test:gim_test@localhost:5432/neondb
+      SECRET_KEY: ci-only-not-a-real-secret
+      # Vacío a propósito: silencia el aviso de mezcla de base de settings.py,
+      # que no aplica a un Postgres efímero del runner.
+      ENVIRONMENT: ""
+      # settings.py:60 activa SECURE_SSL_REDIRECT (y cookies seguras) cuando
+      # DEBUG es False, que es el default. Los APITestCase de esta suite
+      # requisan por HTTP, así que con el redirect cada request recibía un 301
+      # y ningún test llegaba a ejecutarse. En local no pasaba porque el .env
+      # del dev tiene DEBUG=True y el bloque ni se entra.
+      SECURE_SSL_REDIRECT: "false"
+      # El container postgres:16 viene con ssl = off y settings.py exige
+      # "require" por defecto, así que sin esto el CI no conecta:
+      # "server does not support SSL, but SSL was required".
+      DB_SSLMODE: "disable"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      # gim_test es superusuario del Postgres del runner, así que tiene
+      # CREATEDB y Django crea y dropea test_neondb sin --keepdb. Por eso
+      # esta suite puede correr contra Postgres real en vez de SQLite: los
+      # locks de fila que fija ScheduledTaskClaimTests existen de verdad acá.
+      # members y attendance entran porque usan settle_subscription, el helper
+      # de core/testing.py que deriva el flag paid como hace el camino real de
+      # la API. Con la suite limitada a subscriptions, un cambio a ese helper
+      # llegaba a producción sin que nadie corriera los dos call sites que lo
+      # comparten. payments entra por el mismo motivo: su suite fija el
+      # guard de saldo que consume settle_subscription (P27 de BUG-Pagos).
+      # plans entra porque ahí vive el default de Service al crear un plan:
+      # sin esa paquete, plans/tests.py nunca corrió en ningún lado.
+      # config entra por P26 (BUG-Pagos): el dashboard serializaba importes con
+      # float(); su suite (health/backup/sentry/dashboard) no corría en ningún lado.
+      # activities y outings entran en Fase A3 del release: concentran las
+      # reglas de consumo de sesiones (no-show, recuperos) y el cálculo de
+      # cupos del portal público, que hasta ahora no tenían red de seguridad.
+      - name: Run subscriptions, members, attendance, payments, plans, config, activities and outings tests
+        working-directory: backend
+        run: python manage.py test subscriptions members attendance payments plans config activities outings
+      - name: Run restore_db round-trip tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://gim_test:gim_test@localhost:5432/neondb
+          SECRET_KEY: ci-only-not-a-real-secret
+          ENVIRONMENT: ""
+          SECURE_SSL_REDIRECT: "false"
+          DB_SSLMODE: "disable"
+        run: python manage.py test gyms.tests_restore

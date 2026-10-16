@@ -60,7 +60,10 @@ function Register() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [availablePlans, setAvailablePlans] = useState([]);
   const [availableActivities, setAvailableActivities] = useState([]);
-  const [activitiesAvailable, setActivitiesAvailable] = useState(false);
+
+  // "loading" | "ok" | "no-contracted" | "error"
+  const [activitiesStatus, setActivitiesStatus] = useState("loading");
+  const [hasLoadFailure, setHasLoadFailure] = useState(false);
 
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [services, setServices] = useState({ gym: true, activities: false });
@@ -70,33 +73,86 @@ function Register() {
   const [validationMessage, setValidationMessage] = useState(null);
   const [portalToken, setPortalToken] = useState(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [slots, plans, gymData] = await Promise.all([
-          getPublicSlots(gymCode),
-          getPublicPlans(gymCode),
-          getPublicGym(gymCode),
-        ]);
-        setAvailableSlots(slots);
-        setAvailablePlans(plans);
-        setGym(gymData);
+  const [reloadKey, setReloadKey] = useState(0);
 
-        try {
-          const activities = await getPublicActivities(gymCode);
-          setAvailableActivities(activities);
-          setActivitiesAvailable(true);
-        } catch {
-          setActivitiesAvailable(false);
-        }
-      } catch {
-        toast.error("Error al cargar datos disponibles");
-      } finally {
-        setLoadingData(false);
+  useEffect(() => {
+    let cancelled = false;
+
+    // allSettled y no all: un fallo de planes no puede llevarse también los
+    // horarios y el gym. Y las actividades entran al lote paralelo: antes
+    // estaban después del Promise.all, así que nunca se pedían.
+    async function fetchAll() {
+      const [slots, plans, activities, gymData] = await Promise.allSettled([
+        getPublicSlots(gymCode),
+        getPublicPlans(gymCode),
+        getPublicActivities(gymCode),
+        getPublicGym(gymCode),
+      ]);
+
+      if (cancelled) return;
+
+      // Sólo se adopta la respuesta si es una lista. apiFetch devuelve null
+      // cuando la respuesta no es JSON, y un null acá rompe
+      // GymStep/ReviewStep.
+      const asList = (result) =>
+        result.status === "fulfilled" && Array.isArray(result.value)
+          ? result.value
+          : null;
+
+      const nextSlots = asList(slots);
+      const nextPlans = asList(plans);
+      const nextActivities = asList(activities);
+
+      if (nextSlots) setAvailableSlots(nextSlots);
+      if (nextPlans) setAvailablePlans(nextPlans);
+      if (nextActivities) setAvailableActivities(nextActivities);
+
+      // El gym es un objeto, no una lista.
+      if (gymData.status === "fulfilled" && gymData.value) {
+        setGym(gymData.value);
       }
+
+      if (
+        activities.status === "rejected" &&
+        activities.reason?.code === "FEATURE_DISABLED"
+      ) {
+        // El gym no contrató el addon: "No disponible para este gimnasio" es
+        // la respuesta correcta, no un error.
+        setActivitiesStatus("no-contracted");
+      } else if (nextActivities) {
+        setActivitiesStatus("ok");
+      } else {
+        setActivitiesStatus("error");
+      }
+
+      const failed = [
+        ["horarios", slots],
+        ["planes", plans],
+        ["actividades", activities],
+        ["datos del gimnasio", gymData],
+      ]
+        .filter(([, result]) => result.status === "rejected")
+        .map(([label]) => label);
+
+      setHasLoadFailure(failed.length > 0);
+      if (failed.length) {
+        toast.error(`No se pudo cargar: ${failed.join(", ")}. Reintentá.`);
+      }
+
+      setLoadingData(false);
     }
-    load();
-  }, [gymCode]);
+
+    fetchAll();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gymCode, reloadKey]);
+
+  function handleRetryLoad() {
+    setLoadingData(true);
+    setReloadKey((key) => key + 1);
+  }
 
   useEffect(() => {
     queueMicrotask(() => setValidationMessage(null));
@@ -409,7 +465,7 @@ function Register() {
       <ServiceStep
         services={services}
         onChange={setServices}
-        activitiesAvailable={activitiesAvailable && availableActivities.length > 0}
+        activitiesAvailable={activitiesStatus === "ok"}
         gym={gym}
       />
     );
@@ -515,6 +571,19 @@ function Register() {
               style={{ width: `${progressPct}%` }}
             />
           </div>
+
+          {/* Sin esto el flujo queda sin salida: si los planes no cargan,
+              canProceed() exige un plan que nunca llega y "Siguiente"
+              queda deshabilitado para siempre. */}
+          {hasLoadFailure && (
+            <button
+              type="button"
+              onClick={handleRetryLoad}
+              className="mt-4 w-full rounded-xl border border-border bg-surface-input px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-elevated"
+            >
+              Reintentar carga
+            </button>
+          )}
         </div>
 
         {/* Step content */}

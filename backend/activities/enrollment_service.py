@@ -6,7 +6,7 @@ from django.db import transaction
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import sync_subscription_paid
+from subscriptions.services import prorated_price_for, sync_subscription_paid
 
 from .models import ActivitySchedule, Enrollment
 from .overlap import validate_enrollment
@@ -269,7 +269,8 @@ def _ensure_activity_item(subscription, activity, price=None):
         activity: The Activity instance.
         price: Optional Decimal override for price_snapshot (used for
             courtesy-pass members, billed at 0). When None, the activity's
-            current monthly price is used.
+            current monthly price is used for the cycle (proportionally
+            if the subscription's signup was prorated).
     """
     activity_item = SubscriptionItem.objects.filter(
         subscription=subscription,
@@ -289,7 +290,9 @@ def _ensure_activity_item(subscription, activity, price=None):
         plan=None,
         activity=activity,
         name_snapshot=activity.name,
-        price_snapshot=price if price is not None else activity.monthly_price,
+        price_snapshot=price if price is not None else prorated_price_for(
+            subscription, activity.monthly_price
+        ),
         status="active",
         start_date=subscription.start_date,
         end_date=subscription.end_date,

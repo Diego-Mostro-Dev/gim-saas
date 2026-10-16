@@ -12,11 +12,11 @@ const DAYS = [
 ];
 
 function GymStep({
-  plans,
-  slots,
+  plans = [],
+  slots = [],
   selectedPlanId,
   onSelectPlan,
-  schedules,
+  schedules = [],
   onToggleDay,
   onHourChange,
   gym,

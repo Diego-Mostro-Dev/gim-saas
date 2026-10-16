@@ -16,6 +16,11 @@ class MembershipPlanSerializer(serializers.ModelSerializer):
         model = MembershipPlan
         fields = "__all__"
         read_only_fields = ["gym", "is_base"]
+        # The service FK used to be optional in the UI: clients that don't
+        # send it get the gym's default service in MembershipPlanViewSet.
+        # It must be optional here, otherwise DRF fails in to_internal_value
+        # and validate() never runs.
+        extra_kwargs = {"service": {"required": False}}
 
     def validate_weekly_visits(self, value):
         if value is not None and value < 1:

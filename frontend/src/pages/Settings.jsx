@@ -762,9 +762,24 @@ function Settings() {
         Volver
       </button>
 
-      <h1 className="mb-2 text-3xl font-bold text-text-primary">Configuración</h1>
+      <div className="mb-4 flex flex-col items-start gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="mb-2 text-3xl font-bold text-text-primary">Configuración</h1>
 
-      <p className="mb-4 text-text-secondary">{txt(gym, "staff.settings.basic_info")}</p>
+          <p className="mb-4 text-text-secondary">{txt(gym, "staff.settings.basic_info")}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {import.meta.env.DEV && (
+            <button
+              onClick={() => navigate("/settings-flow")}
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+            >
+              Ver flujo
+            </button>
+          )}
+        </div>
+      </div>
 
       <div
         role="tablist"

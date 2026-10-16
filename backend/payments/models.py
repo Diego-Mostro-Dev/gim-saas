@@ -19,6 +19,7 @@ class Payment(models.Model):
         ("coseguro", "Coseguro por sesiones"),
         ("personal_training", "Entrenamiento personal"),
         ("outing", "Salida por sesiones"),
+        ("credit", "Saldo a favor"),
     ]
 
     gym = models.ForeignKey(
@@ -30,11 +31,24 @@ class Payment(models.Model):
 
     subscription = models.ForeignKey(
     Subscription,
-    on_delete=models.SET_NULL,
+    on_delete=models.PROTECT,
     null=True,
     blank=True,
     related_name="payments",
     verbose_name="Suscripción",
+    )
+
+    applied_to = models.ForeignKey(
+        Subscription,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Consumido en suscripción",
+        help_text=(
+            "Suscripción en la que este saldo a favor fue consumido. Nulo "
+            "significa saldo a favor abierto (no consumido todavía)."
+        ),
     )
 
     enrollment = models.ForeignKey(

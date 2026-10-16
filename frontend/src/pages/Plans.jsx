@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { Plus } from "lucide-react";
+import toast from "react-hot-toast";
 
 import PlanCard from "../components/plans/PlanCard";
 import PlanForm from "../components/plans/PlanForm";
@@ -9,7 +11,10 @@ import { usePlans } from "../hooks/usePlans";
 import { useGym } from "../hooks/useGym";
 import { txt } from "../utils/labels";
 
+const PLANS_FLOW_ENABLED = import.meta.env.DEV;
+
 function Plans() {
+  const navigate = useNavigate();
   const { gym } = useGym();
   const {
     plans,
@@ -68,6 +73,7 @@ function Plans() {
       handleCloseForm();
     } catch (error) {
       console.error(error);
+      toast.error(error.message || "No se pudo guardar el plan");
     } finally {
       setIsSubmitting(false);
     }
@@ -80,8 +86,10 @@ function Plans() {
 
     try {
       await handleDeletePlan(id);
+      toast.success("Plan eliminado");
     } catch (error) {
       console.error(error);
+      toast.error(error.message || "No se pudo eliminar el plan");
     }
   }
 
@@ -134,19 +142,30 @@ function Plans() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (showForm) {
-              handleCloseForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
-        >
-          <Plus size={18} />
-          Nuevo
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {PLANS_FLOW_ENABLED && (
+            <button
+              onClick={() => navigate("/plans-flow")}
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+            >
+              Ver flujo
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              if (showForm) {
+                handleCloseForm();
+              } else {
+                setShowForm(true);
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white"
+          >
+            <Plus size={18} />
+            Nuevo
+          </button>
+        </div>
       </div>
 
       {showForm && (

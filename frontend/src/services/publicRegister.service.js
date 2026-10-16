@@ -1,76 +1,26 @@
-import { ApiError, extractApiErrorMessage } from "./api";
+import { apiFetch } from "./api";
 
-const API_PUBLIC =
-  `${import.meta.env.VITE_API_URL}/api/public`;
+// El registro público es el único consumidor sin sesión: skipAuth evita mandar
+// un token de socio o admin. apiFetch fuerza Accept: application/json, que es
+// lo que hace que estos endpoints devuelvan JSON y no la Browsable API en HTML
+// cuando el backend corre con DEBUG=True.
 
-const TIMEOUT_MS = 30000;
-
-async function fetchWithTimeout(url, options = {}) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-export async function registerPublicMember(
-  gymCode,
-  formData
-) {
-  const response = await fetchWithTimeout(
-    `${API_PUBLIC}/register/${gymCode}/`,
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new ApiError(
-      extractApiErrorMessage(data) || "Error al registrarse",
-      response.status,
-    );
-  }
-
-  return data;
+export async function registerPublicMember(gymCode, formData) {
+  return apiFetch(`/api/public/register/${gymCode}/`, {
+    method: "POST",
+    body: formData,
+    skipAuth: true,
+  });
 }
 
 export async function getPublicSlots(gymCode) {
-  const response = await fetchWithTimeout(
-    `${API_PUBLIC}/slots/${gymCode}/`,
-  );
-
-  if (!response.ok) {
-    throw new Error("Error al cargar horarios disponibles");
-  }
-
-  return response.json();
+  return apiFetch(`/api/public/slots/${gymCode}/`, { skipAuth: true });
 }
 
 export async function getPublicPlans(gymCode) {
-  const response = await fetchWithTimeout(
-    `${API_PUBLIC}/plans/${gymCode}/`,
-  );
-
-  if (!response.ok) {
-    throw new Error("Error al cargar planes disponibles");
-  }
-
-  return response.json();
+  return apiFetch(`/api/public/plans/${gymCode}/`, { skipAuth: true });
 }
 
 export async function getPublicActivities(gymCode) {
-  const response = await fetchWithTimeout(
-    `${API_PUBLIC}/activities/${gymCode}/`,
-  );
-
-  if (!response.ok) {
-    throw new Error("Error al cargar actividades disponibles");
-  }
-
-  return response.json();
+  return apiFetch(`/api/public/activities/${gymCode}/`, { skipAuth: true });
 }

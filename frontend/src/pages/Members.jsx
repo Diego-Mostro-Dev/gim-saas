@@ -41,6 +41,8 @@ import {
 } from "../services/attachments.service";
 import { getCached, isCacheFresh } from "../utils/cache";
 
+const MEMBERS_FLOW_ENABLED = import.meta.env.DEV;
+
 const RECOVERY_FILTERS = [
   { key: "all", label: "Todas" },
   { key: "scheduled", label: "Programadas" },
@@ -725,6 +727,15 @@ function Members() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {MEMBERS_FLOW_ENABLED && (
+            <button
+              onClick={() => navigate("/members-flow")}
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+            >
+              Ver flujo
+            </button>
+          )}
+
           <button
             onClick={handleExportCsv}
             className="flex items-center gap-1.5 rounded-xl bg-surface-elevated px-3 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"

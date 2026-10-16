@@ -208,7 +208,9 @@ function ActivityDashboard() {
             <div className="flex items-center justify-between mt-1">
               <span className="text-sm text-text-secondary">Precio del plan</span>
               <span className="text-sm text-text-primary">
-                ${Number(routine.subscription.plan_price).toLocaleString("es-AR")}
+                ${Number(
+                  routine.subscription.plan_period_price ?? routine.subscription.plan_price,
+                ).toLocaleString("es-AR")}
               </span>
             </div>
 
@@ -233,7 +235,7 @@ function ActivityDashboard() {
               </div>
             )}
 
-            {routine.subscription.total && Number(routine.subscription.total) > Number(routine.subscription.plan_price) && (
+            {routine.subscription.total && Number(routine.subscription.total) !== Number(routine.subscription.plan_price) && (
               <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
                 <span className="text-sm font-semibold text-text-secondary">Total mensual</span>
                 <span className="text-sm font-bold text-info-text dark:text-info">

@@ -104,6 +104,15 @@ class MeView(APIView):
                     if profile and profile.gym
                     else None
                 ),
+                # Staff navigation (BottomNav) gates items on these flags;
+                # shipping them here lets the client paint them on the very
+                # first frame instead of waiting for a second /api/gyms/me/.
+                "features": (
+                    profile.gym.features
+                    if profile and profile.gym
+                    else None
+                )
+                or {},
                 "must_change_password": (
                     profile.must_change_password
                     if profile

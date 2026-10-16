@@ -46,20 +46,71 @@ from .services import (
 class SubscriptionView(viewsets.ReadOnlyModelViewSet):
     lookup_value_regex = r"[0-9]+"
 
+    # Fase 7 (P4): los créditos a favor se restan aparte (credit_realized_for),
+    # así que quedan fuera del agregado de cobrado.
     _paid_amount_subquery = Subquery(
         Payment.objects.filter(
             subscription=OuterRef("pk"),
         )
+        .exclude(concept="credit")
         .order_by()
         .values("subscription")
         .annotate(paid=Sum("amount"))
         .values("paid")
     )
 
+    # El mismo filtro que credit_realized_for, pero resuelto para las N filas
+    # del listado en una sola query. Sin esto el serializer caía al default
+    # (credit_realized=None -> una query por suscripción) y el endpoint costaba
+    # 226 queries para un gym mediano. Negado para cumplir el mismo contrato
+    # que el service: Decimal positivo.
+    _credit_realized_subquery = Subquery(
+        Payment.objects.filter(
+            subscription=OuterRef("pk"),
+            concept="credit",
+            applied_to__isnull=False,
+        )
+        .order_by()
+        .values("subscription")
+        .annotate(credit=-Sum("amount"))
+        .values("credit")
+    )
+
+    # Equivalente bulk de member_credit_balance: el saldo abierto del socio.
+    # Va por member_id y no por una caché en la instancia porque
+    # select_related crea un Member distinto por fila de suscripción, así que
+    # la caché por instancia nunca acierta y la consulta se repetía N veces.
+    _member_open_credit_subquery = Subquery(
+        Payment.objects.filter(
+            member_id=OuterRef("member_id"),
+            concept="credit",
+            applied_to__isnull=True,
+        )
+        .order_by()
+        .values("member")
+        .annotate(credit=-Sum("amount"))
+        .values("credit")
+    )
+
+    # Primer período del socio, para derivar is_first sin el exists() por
+    # suscripción de get_subscription_payment_status. Sin filtro de gym a
+    # propósito: es lo que hace hoy ese exists(), y el socio pertenece a un
+    # solo gym igual.
+    _member_first_created_subquery = Subquery(
+        Subscription.objects.filter(member_id=OuterRef("member_id"))
+        .order_by("created_at")
+        .values("created_at")[:1]
+    )
+
     queryset = (
         Subscription.objects.all()
         .select_related("member__insurance", "member__discount", "plan", "gym")
-        .annotate(_paid_amount=_paid_amount_subquery)
+        .annotate(
+            _paid_amount=_paid_amount_subquery,
+            _credit_realized=_credit_realized_subquery,
+            _member_open_credit=_member_open_credit_subquery,
+            _member_first_created=_member_first_created_subquery,
+        )
         .prefetch_related(
             Prefetch(
                 "items",
@@ -139,80 +190,74 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
     def outstanding(self, request):
         gym = request.user.profile.gym
 
-        subscriptions = gym_outstanding_subscriptions(gym)
+        rows = list(
+            OutstandingSubscriptionSerializer(
+                gym_outstanding_subscriptions(gym), many=True
+            ).data
+        )
+
+        def _debt_row(member, plan_name, total, paid_amount, remaining):
+            return {
+                "subscription_id": None,
+                "member_id": member.id,
+                "member_name": f"{member.first_name} {member.last_name}",
+                "plan_name": plan_name,
+                "payment_status": "pending",
+                "items": [],
+                "total": str(total),
+                "paid_amount": str(paid_amount),
+                "remaining": str(remaining),
+            }
+
+        for pkg in gym_activity_package_debt(gym):
+            rows.append(
+                _debt_row(
+                    pkg["member"],
+                    f"{pkg['name']} · paquete de sesiones",
+                    pkg["total"],
+                    pkg["paid_amount"],
+                    pkg["remaining"],
+                )
+            )
+
+        for pkg in gym_personal_training_package_debt(gym):
+            rows.append(
+                _debt_row(
+                    pkg["member"],
+                    f"{pkg['name']} · paquete de sesiones",
+                    pkg["total"],
+                    pkg["paid_amount"],
+                    pkg["remaining"],
+                )
+            )
+
+        for pkg in gym_outing_package_debt(gym):
+            rows.append(
+                _debt_row(
+                    pkg["member"],
+                    f"{pkg['name']} · paquete de sesiones",
+                    pkg["total"],
+                    pkg["paid_amount"],
+                    pkg["remaining"],
+                )
+            )
+
+        for sellado in gym_sellado_debt(gym):
+            rows.append(
+                _debt_row(
+                    sellado["member"],
+                    f"Sellado · {sellado['name']}",
+                    sellado["amount"],
+                    "0.00",
+                    sellado["amount"],
+                )
+            )
 
         paginator = PageNumberPagination()
-        page = paginator.paginate_queryset(subscriptions, request, view=self)
-        if page is not None:
-            serializer = OutstandingSubscriptionSerializer(page, many=True)
-            data = serializer.data
-        else:
-            serializer = OutstandingSubscriptionSerializer(subscriptions, many=True)
-            data = serializer.data
-
-        packages = gym_activity_package_debt(gym)
-        for pkg in packages:
-            member = pkg["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"{pkg['name']} · paquete de sesiones",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(pkg["total"]),
-                "paid_amount": str(pkg["paid_amount"]),
-                "remaining": str(pkg["remaining"]),
-            })
-
-        pt_packages = gym_personal_training_package_debt(gym)
-        for pkg in pt_packages:
-            member = pkg["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"{pkg['name']} · paquete de sesiones",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(pkg["total"]),
-                "paid_amount": str(pkg["paid_amount"]),
-                "remaining": str(pkg["remaining"]),
-            })
-
-        outing_packages = gym_outing_package_debt(gym)
-        for pkg in outing_packages:
-            member = pkg["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"{pkg['name']} · paquete de sesiones",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(pkg["total"]),
-                "paid_amount": str(pkg["paid_amount"]),
-                "remaining": str(pkg["remaining"]),
-            })
-
-        sellados = gym_sellado_debt(gym)
-        for sellado in sellados:
-            member = sellado["member"]
-            data.append({
-                "subscription_id": None,
-                "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}",
-                "plan_name": f"Sellado · {sellado['name']}",
-                "payment_status": "pending",
-                "items": [],
-                "total": str(sellado["amount"]),
-                "paid_amount": "0.00",
-                "remaining": str(sellado["amount"]),
-            })
-
-        if page is not None:
-            return paginator.get_paginated_response(data)
-        return Response(data)
+        page = paginator.paginate_queryset(rows, request, view=self)
+        if page is None:
+            return Response(rows)
+        return paginator.get_paginated_response(page)
 
 
 class PlanChangeRequestViewSet(GymModelViewSet):
