@@ -227,6 +227,7 @@ UI del socio bloqueado (pestañas ocultas y banner): `frontend/src/pages/member/
 ### Referencia
 - `backend/subscriptions/services.py:1333-1410` (`recover_member`): exige deuda total $0 (`member_total_outstanding_debt`), sin ciclo vigente ni futuro, y crea el ciclo `origin="recovery"` hasta fin de mes.
 - El "es recuperable" en la lista de socios: `backend/members/serializers.py:258-410` (mismas condiciones, en modo lectura).
+- Detalle completo del flujo (dos casos, deuda, desajustes conocidos): **`AUDITORIA-RECUPERACION.md`**.
 
 ---
 
