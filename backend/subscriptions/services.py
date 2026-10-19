@@ -681,6 +681,41 @@ def sync_subscription_paid(subscription):
     return subscription
 
 
+def cancel_addon_items(member_ids, *, today=None, **item_filters):
+    """Corta el cobro de un add-on para los socios dados (Fase D).
+
+    Cancela los ``SubscriptionItem`` activos que matcheen ``item_filters``
+    (por ejemplo ``activity=obj``) en las suscripciones **no vencidas** — el
+    período en curso y los períodos futuros ya generados — y resincroniza el
+    saldo de cada suscripción afectada, de modo que desactivar una oferta se
+    comporte igual que desinscribir socio por socio: deja de facturarse y, si
+    el período ya estaba pago, la diferencia queda como saldo a favor.
+
+    Es la pieza compartida por actividades, salidas y PT. Debe llamarse
+    dentro de ``transaction.atomic``: toma lock de las suscripciones con
+    ``select_for_update``.
+    """
+    member_ids = list(member_ids)
+    if not member_ids:
+        return
+    if today is None:
+        today = timezone.localdate()
+
+    SubscriptionItem.objects.filter(
+        subscription__member_id__in=member_ids,
+        status="active",
+        subscription__end_date__gte=today,
+        **item_filters,
+    ).update(status="cancelled")
+
+    affected = Subscription.objects.select_for_update().filter(
+        member_id__in=member_ids,
+        end_date__gte=today,
+    )
+    for subscription in affected:
+        sync_subscription_paid(subscription)
+
+
 def subscription_remaining_balance(subscription, paid_amount=None, credit_realized=None):
     """Return the pending balance of a subscription.
 

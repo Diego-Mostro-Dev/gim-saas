@@ -147,6 +147,11 @@ class Outing(models.Model):
             if old is not None and old.active and not self.active:
                 super().save(*args, **kwargs)
                 self.schedules.filter(active=True).update(active=False)
+                # ADD-09 (Fase D): desactivar la oferta corta el cobro de sus
+                # inscriptos. Va en la transición para cubrir todos los bajas.
+                from .enrollment_service import cut_outing_billing
+
+                cut_outing_billing(self)
                 return
         super().save(*args, **kwargs)
 

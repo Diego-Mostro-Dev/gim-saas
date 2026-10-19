@@ -6,7 +6,11 @@ from django.db import transaction
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import prorated_price_for, sync_subscription_paid
+from subscriptions.services import (
+    cancel_addon_items,
+    prorated_price_for,
+    sync_subscription_paid,
+)
 
 from .models import ActivitySchedule, Enrollment
 from .overlap import validate_enrollment
@@ -318,3 +322,30 @@ def _cancel_activity_items(member, activity):
         status="active",
         subscription__end_date__gte=today,
     ).update(status="cancelled")
+
+
+def cut_activity_billing(activity):
+    """Corta el cobro recurrente de una actividad desactivada (ADD-01, Fase D).
+
+    Equivalente masivo de :meth:`EnrollmentService.unenroll_member`: da de
+    baja las inscripciones activas da la actividad y cancela sus ítems en las
+    suscripciones no vencidas, resincronizando el saldo. Al desactivar la
+    oferta, los inscriptos dejan de pagarla en el período en curso y en los
+    futuros ya generados.
+    """
+    with transaction.atomic():
+        member_ids = list(
+            Enrollment.objects.filter(
+                schedule__activity=activity, active=True
+            )
+            .values_list("member_id", flat=True)
+            .distinct()
+        )
+        if not member_ids:
+            return
+
+        Enrollment.objects.filter(
+            schedule__activity=activity, active=True
+        ).update(active=False)
+
+        cancel_addon_items(member_ids, activity=activity)

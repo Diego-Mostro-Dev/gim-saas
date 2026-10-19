@@ -30,6 +30,8 @@ class PublicMemberEnrollmentsView(APIView):
         enrollments = Enrollment.objects.filter(
             member=member,
             active=True,
+            schedule__active=True,
+            schedule__activity__active=True,
         ).select_related(
             "schedule__activity",
         ).annotate(

@@ -101,6 +101,29 @@ class PersonalTrainingService(models.Model):
         unique_together = ("gym", "name")
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        creating = self.pk is None
+        if creating:
+            super().save(*args, **kwargs)
+            return
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or "active" in update_fields:
+            try:
+                old = PersonalTrainingService.objects.only("active").get(
+                    pk=self.pk
+                )
+            except PersonalTrainingService.DoesNotExist:
+                old = None
+            if old is not None and old.active and not self.active:
+                super().save(*args, **kwargs)
+                # Fase D: desactivar la oferta corta el cobro de sus
+                # asignaciones activas (baja asignaciones y cancela ítems).
+                from .assignment_service import cut_service_billing
+
+                cut_service_billing(self)
+                return
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.name} ({self.gym.name})"
 

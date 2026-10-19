@@ -50,7 +50,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **A. Registro + triage** | Crear `BUGS.md`; volcar los hallazgos de las 12 auditorías + `BUG-Pagos`; re-verificar cada uno contra `development`. | Cada hallazgo con estado real y repro | ✅ **hecha** (2026-10-19) |
 | **B. Arnés de invariantes de dinero** | Suite que recorre el ciclo real por API (alta → pago → renovación → cambio de plan → add-ons → recuperación → sobrepago) y afirma invariantes de dinero. Extiende el patrón read-only de `audit_money_bugs`. | Verde sobre el código actual; los rojos nuevos entran a `BUGS.md` | ✅ **hecha** (2026-10-19; 11 tests verdes, sin rojos nuevos) |
 | **C. Configuración a prueba de balas** | Validaciones: precio > 0 (planes y add-ons), `access_block_day > payment_due_day` (ya está), visitas semanales en alta y cambio de plan, asimetría de `monthly_price` en modo sesiones, unidades horas/días, `community.discount`. | Una validación, un test | ✅ **hecha** (2026-10-19; 22 tests nuevos, 10 rojos sin fix) |
-| **D. Cobro de add-ons y ciclo de baja** | Que desactivar una actividad/salida/PT corte o alinee su línea de facturación; unenroll sin huérfanos; sellado al renovar paquete. | "Desactivar ⇒ no se cobra el add-on" | ⬜ |
+| **D. Cobro de add-ons y ciclo de baja** | Que desactivar una actividad/salida/PT corte o alinee su línea de facturación; unenroll sin huérfanos; sellado al renovar paquete. | "Desactivar ⇒ no se cobra el add-on" | ✅ **hecha** (2026-10-19; 11 tests nuevos, 8 rojos sin fix) |
 | **E. Acceso y portal** | Los rompe-flujo de `ACC` + 500s con lock: cupo que se rechaza a sí mismo, throttle por IP, cooldown con rechazados, filtro "Aprobadas", render de actividades, link mágico, doble registro/pedido. | Un socio válido nunca recibe 429/400/500 indebido | ⬜ |
 | **F. Suscripción y recuperación** | `DIN-04` a `DIN-15`: crédito no consumido, cortesía vs auto-renew, impago inicial que renueva, lock de recovery, 201 siempre. | Matrices de cambio de plan / cortesía / recuperación | ⬜ |
 | **G. Sesiones y faltas** | No-show en fechas sin clase (`ADD-07`), faltas/recuperación de PT (`ADD-21`), salidas sin no-show (`ADD-11`), descuento fuera de ventana (`ACC-08`). | Invariante de paquete: sesiones consumidas = asistidas + faltas justificadas | ⬜ |
@@ -118,6 +118,38 @@ Todo a nivel **serializer** (sin `CheckConstraint` ni migraciones), por decisió
 - `gyms/views.py`: cargar feriados sin `year` usa el año actual (`CFG-15`, detectado por el gate).
 - Gate (apps): `subscriptions members attendance payments plans config activities outings
   personal_training gyms community admins` → **263/263 verde**.
+
+### Fase D — cobro de add-ons y ciclo de baja
+
+Cierra `ADD-01`, `ADD-09`, `ADD-02`, `ADD-10` y `DIN-18`. Dos decisiones de producto
+(aprobadas antes de programar):
+
+1. **Baja de add-on = "cortar ya":** desactivar una actividad/salida/oferta de PT da de baja las
+   inscripciones activas y cancela los `SubscriptionItem` de la oferta en las suscripciones **no
+   vencidas** (período en curso y futuros ya generados), resincronizando el saldo. Es equivalente
+   a desinscribir socio por socio; si el período ya estaba pago, saldo a favor.
+2. **Sellado al ampliar paquete = "no re-cobrar":** `renew_package` deja de resetear
+   `sellado_paid` (una vez por inscripción).
+
+- `subscriptions/services.py` → `cancel_addon_items(member_ids, **item_filters)`: pieza
+  compartida (cancela ítems no vencidos + `sync_subscription_paid` con lock).
+- `activities/enrollment_service.py` → `cut_activity_billing`; `outings/enrollment_service.py` →
+  `cut_outing_billing`; `personal_training/assignment_service.py` → `cut_service_billing`
+  (dan de baja inscripciones/asignaciones activas y llaman a `cancel_addon_items`).
+- Disparo en la transición activo→inactivo: `Activity.save()` / `Outing.save()` y nuevo
+  `PersonalTrainingService.save()` (cubre todos los caminos de baja, no sólo el `destroy`).
+- Portal: `activities/public_views.py` y `outings/public_views.py` filtran
+  `schedule.active` + `activity.active`/`outing.active` (no más huérfanas).
+- `renew_package` (actividades y PT): se quita `sellado_paid = False`.
+- **Consecuencia documentada:** dar de baja inscripciones borra el sellado/paquete pendiente de
+  esos socios (`gym_sellado_debt`/`member_activity_package_debt` filtran `active=True`); se
+  prioriza no cobrar de más al socio.
+- **Hallazgo nuevo del gate:** `ACC-25` (login con contraseña incorrecta → 500; Axes sin
+  `request`) — rojo preexistente, fuera del alcance de D, registrado para la Fase E.
+- Tests: `activities/tests_deactivation.py`, `outings/tests_deactivation.py`,
+  `personal_training/tests_deactivation.py` (11 tests; 8 rojos antes del fix).
+- Gate (apps): `subscriptions members attendance payments plans config activities outings
+  personal_training gyms community admins routines` → **274/274 verde**.
 
 ---
 

@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-19** — Fases A y B hechas; Fase C (configuración a prueba de balas)
-cerrada. Total: **97 hallazgos** — 5 `CRÍTICO`, 28 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos
-**22 ya están cerrados**, **6 son decisiones de negocio** y quedan **55 abiertos** + 14 a
+Estado: **2026-10-19** — Fases A, B y C hechas; Fase D (cobro de add-ons y ciclo de baja)
+cerrada. Total: **98 hallazgos** — 5 `CRÍTICO`, 29 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos
+**27 ya están cerrados**, **6 son decisiones de negocio** y quedan **51 abiertos** + 14 a
 verificar (los 🟡). Fichas de los abiertos con explicación, ejemplo de impacto y criterio de
 aceptación.
 
@@ -35,14 +35,14 @@ aceptación.
 
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones |
 |---|---|---|---|---|---|---|
-| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 6 | 3 |
+| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 7 | 3 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 |
-| Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 3 | 1 |
-| Acceso/portal (`ACC`) | 1 | 10 | 11 | 0 | 1 | 0 |
+| Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 7 | 1 |
+| Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 1 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 1 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
 | Robustez/CI (`REF`) | 0 | 0 | 3 | 2 | 1 | 0 |
-| **Total** | **5** | **28** | **47** | **17** | **22** | **6** |
+| **Total** | **5** | **29** | **47** | **17** | **27** | **6** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -69,7 +69,7 @@ aceptación.
 | DIN-15 | MEDIO | 🔴 | `recover_member` no toma lock; la carrera la resuelve el constraint con 500 | Doble click → 500 en vez de error controlado (no duplica ciclo) |
 | DIN-16 | ALTO | ⚪ | Recuperar no prorratea | Recuperar el día 25 cobra el mes completo por 5 días |
 | DIN-17 | BAJO | 🔴 | `calculate_subscription_total` reintroduce el precio vigente (fallback P13) | Una fila legacy sin ítem de plan se factura al precio actual del plan |
-| DIN-18 | ALTO | 🔴 | Agregar sesiones a un paquete vuelve a dejar el sellado pendiente | Se cobra el sellado de nuevo aunque ya se pagó por el paquete |
+| DIN-18 | ALTO | 🟢 | Agregar sesiones a un paquete vuelve a dejar el sellado pendiente | Cerrado Fase D: `renew_package` ya no resetea `sellado_paid` |
 | CFG-01 | MEDIO | 🟢 | Unidades horas/días mezcladas entre pantallas | Cerrado Fase C: ambas UIs en horas, entero ≥ 0 (backend ya era entero) |
 | CFG-02 | BAJO | ⚪ | `allow_member_schedule_changes` legacy | Campo que ya no gobierna ninguna regla |
 | CFG-03 | MEDIO | ⚪ | `initial_pending` bloquea desde el día 1 | Socio nuevo sin primer pago no puede entrar aunque haya pagado el día 2 |
@@ -82,10 +82,10 @@ aceptación.
 | CFG-13 | BAJO | 🟢 | PT en modo sesiones fuerza `monthly_price = 0` | Ya cubierto por validación + tests |
 | CFG-14 | CRÍTICO | 🟢 | Actividades y salidas en modo sesiones **no** fuerzan `monthly_price = 0` | Cerrado Fase C: `BillingPriceMixin` fuerza `monthly_price = 0` en modo sesiones |
 | CFG-15 | MEDIO | 🟢 | Cargar feriados sin `year` devuelve 400 en vez de usar el año actual | Cerrado Fase C: default = año actual (`gyms/views.py`); detectado por el gate de Fase C |
-| ADD-01 | CRÍTICO | 🔴 | Desactivar una actividad no corta el cobro | Sigue facturando la actividad hasta desinscribir socio por socio |
-| ADD-09 | CRÍTICO | 🔴 | Desactivar una salida no corta el cobro | Idem actividades |
-| ADD-02 | MEDIO | 🔴 | Huérfanas: el portal muestra la actividad/horario desactivado | El socio ve y no puede usar lo que ya no existe |
-| ADD-10 | MEDIO | 🔴 | Huérfanas: idem salidas | Idem |
+| ADD-01 | CRÍTICO | 🟢 | Desactivar una actividad no corta el cobro | Cerrado Fase D: la baja corta inscripciones y cancela los ítems del período en curso/futuros |
+| ADD-09 | CRÍTICO | 🟢 | Desactivar una salida no corta el cobro | Cerrado Fase D: idem actividades (`cut_outing_billing`) |
+| ADD-02 | MEDIO | 🟢 | Huérfanas: el portal muestra la actividad/horario desactivado | Cerrado Fase D: el portal filtra `schedule.active` y `activity.active` |
+| ADD-10 | MEDIO | 🟢 | Huérfanas: idem salidas | Cerrado Fase D: idem actividades |
 | ADD-03 | ALTO | 🔴 | Cambiar de horario puede dejar al socio sin ninguno | Si falla la reinscripción queda sin horario |
 | ADD-04 | MEDIO | 🟡 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Reactiva horarios que el staff había apagado |
 | ADD-05 | MEDIO | 🔴 | El choque con el gimnasio se calcula como "hora + 1 h" | Bloques de más de 1 hora pueden no detectarse |
@@ -130,6 +130,7 @@ aceptación.
 | ACC-22 | MEDIO | 🟡 | Quitar la cortesía exige elegir un plan de pago | El cambio falla si no se elige plan |
 | ACC-23 | ALTO | 🔴 | Obra social sin match → texto libre sin precio | No se cobra el coseguro; el gimnasio pierde plata |
 | ACC-24 | ALTO | 🟢 | 500 al pedir cambio de horario de PT | Cerrado `f27bc67` (bug real no documentado en ninguna auditoría) |
+| ACC-25 | ALTO | 🔴 | Login con contraseña incorrecta → 500 y Axes no registra el intento | `authenticate()` sin `request` rompe el `AxesStandaloneBackend`: error 500 en vez de 401 y sin bloqueo por fuerza bruta |
 | RUT-01 | ALTO | 🔴 | Sin control de rol en rutinas | Cualquier usuario del gym gestiona catálogo y asigna rutinas |
 | RUT-02 | MEDIO | 🔴 | Asignación con hard DELETE | Se borra la fila; sin soft delete ni historial |
 | RUT-03 | MEDIO | 🔴 | Sin unicidad de rutina activa; bulk-assign no atómico | Doble submit deja dos rutinas activas o estados a medias |
@@ -227,11 +228,16 @@ aceptación.
 - **Dónde:** `backend/subscriptions/services.py:326-327`.
 
 ### DIN-18 · Agregar sesiones vuelve a pedir el sellado
-- **Severidad:** ALTO · **Estado:** 🔴
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase D)
 - **Explicación:** `renew_package` setea `sellado_paid = False` en actividades (documentado
   como intencional) y en PT (sin justificación).
 - **Ejemplo de impacto:** se cobra el sellado de nuevo al ampliar el paquete.
-- **Dónde:** `backend/activities/session_service.py:118`, `backend/personal_training/session_service.py:93`.
+- **Dónde:** `backend/activities/session_service.py`, `backend/personal_training/session_service.py`.
+- **Resolución Fase D (decisión "no re-cobrar"):** `renew_package` ya **no** resetea
+  `sellado_paid` (se quita de `update_fields`): el sellado se cobra una vez por inscripción.
+  Aplica a actividades y PT. Cubierto por `activities/tests_deactivation.py`
+  (`ActivitySelladoRenewalTests`) y `personal_training/tests_deactivation.py`
+  (`PTSelladoRenewalTests`).
 
 ---
 
@@ -316,7 +322,7 @@ aceptación.
 ## Fichas — Add-ons (`ADD`)
 
 ### ADD-01 / ADD-09 · Desactivar una actividad/salida no corta el cobro
-- **Severidad:** CRÍTICO · **Estado:** 🔴
+- **Severidad:** CRÍTICO · **Estado:** 🟢 (Fase D)
 - **Explicación:** desactivar sólo apaga los horarios; las inscripciones y sus líneas de
   facturación siguen activas hasta desinscribir socio por socio.
 - **Ejemplo de impacto:** el staff desactiva "Yoga" porque ya no se dicta; los 30 inscriptos
@@ -325,12 +331,25 @@ aceptación.
   `backend/outings/models.py:135-150`, `backend/outings/enrollment_service.py:146,286`.
 - **Criterio de aceptación:** desactivar la oferta alinea o corta la facturación de sus
   inscriptos (decisión de negocio sobre cómo: cortar o migrar a fin de mes).
+- **Resolución Fase D (decisión "cortar ya"):** la transición activo→inactivo en
+  `Activity.save()`/`Outing.save()` llama a `cut_activity_billing`/`cut_outing_billing`, que dan
+  de baja las inscripciones activas y cancelan los `SubscriptionItem` de la oferta en las
+  suscripciones **no vencidas** (período en curso y futuros ya generados), resincronizando el
+  saldo (`cancel_addon_items` en `subscriptions/services.py`). Equivale a desinscribir socio por
+  socio; si el período ya estaba pago queda saldo a favor. **Consecuencia documentada:** al dar
+  de baja las inscripciones, el sellado/paquete pendiente de esos socios también desaparece
+  (`gym_sellado_debt`/`member_activity_package_debt` filtran `active=True`); se prioriza no
+  cobrar de más al socio. Cubierto por `activities/tests_deactivation.py` y
+  `outings/tests_deactivation.py`.
 
 ### ADD-02 / ADD-10 · Inscripciones huérfanas en el portal
-- **Severidad:** MEDIO · **Estado:** 🔴
-- **Explicación:** el portal lista por `member + active` sin filtrar que el horario/actividad
-  sigan activos.
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase D)
+- **Explicación:** el portal listaba por `member + active` sin filtrar que el horario/actividad
+  siguieran activos.
 - **Dónde:** `backend/activities/public_views.py:29-33`, `backend/outings/public_views.py:35-40`.
+- **Resolución Fase D:** los listados públicos agregan `schedule__active=True` y
+  `schedule__activity__active=True` (actividades) / `schedule__outing__active=True` (salidas).
+  Cubierto por `ActivityPortalOrphanTests` y `OutingPortalOrphanTests`.
 
 ### ADD-03 · Cambiar de horario puede dejar sin ninguno
 - **Severidad:** ALTO · **Estado:** 🔴
@@ -392,6 +411,25 @@ Hallazgos de las auditorías de actividades/salidas/PT sin re-verificar aún. De
 ---
 
 ## Fichas — Acceso / portal (`ACC`)
+
+### ACC-25 · Login con contraseña incorrecta → 500 (Axes sin `request`)
+- **Severidad:** ALTO · **Estado:** 🔴 (detectado por el gate de Fase D)
+- **Explicación:** `LoginSerializer.validate` llama a
+  `django.contrib.auth.authenticate(username=..., password=...)` **sin `request`**, y
+  `LoginView` no le pasa `context`. Con la contraseña correcta `ModelBackend` (primero en
+  `AUTHENTICATION_BACKENDS`) resuelve antes; con la incorrecta se llega a
+  `AxesStandaloneBackend`, que exige `request` y lanza
+  `AxesBackendRequestParameterRequired` → **500**.
+- **Ejemplo de impacto:** un usuario que se equivoca de contraseña ve un error de servidor en
+  vez de "usuario o contraseña inválidos", y **Axes nunca registra los intentos fallidos**, así
+  que el bloqueo por fuerza bruta del login API queda inoperante.
+- **Dónde:** `backend/accounts/serializers.py:14-26`, `backend/accounts/views.py:43-45`,
+  `backend/config/settings.py:117-120`.
+- **Criterio de aceptación:** contraseña incorrecta devuelve 401 controlado (nunca 500) y Axes
+  cuenta/limita el intento. Fix esperado: `LoginSerializer(data=request.data,
+  context={"request": request})` y `authenticate(request=..., ...)`.
+- **Detectado por:** `accounts.tests.LoginTests.test_login_wrong_password_rejected` (rojo
+  preexistente; `accounts` no corre en CI — ver REF-02/Fase J).
 
 ### ACC-01 · El cupo se cuenta a sí mismo
 - **Severidad:** CRÍTICO · **Estado:** 🔴

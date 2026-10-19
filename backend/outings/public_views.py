@@ -35,6 +35,8 @@ class PublicMemberOutingsView(APIView):
         enrollments = OutingEnrollment.objects.filter(
             member=member,
             active=True,
+            schedule__active=True,
+            schedule__outing__active=True,
         ).select_related(
             "schedule__outing",
             "schedule__outing__trainer__profile",

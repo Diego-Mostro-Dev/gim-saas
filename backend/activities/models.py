@@ -90,6 +90,12 @@ class Activity(models.Model):
             if old is not None and old.active and not self.active:
                 super().save(*args, **kwargs)
                 self.schedules.filter(active=True).update(active=False)
+                # ADD-01 (Fase D): desactivar la oferta corta el cobro de sus
+                # inscriptos (baja inscripciones y cancela los ítems). Va acá,
+                # en la transición, para cubrir todos los caminos de baja.
+                from .enrollment_service import cut_activity_billing
+
+                cut_activity_billing(self)
                 return
         super().save(*args, **kwargs)
 
