@@ -32,6 +32,26 @@ class GymSerializer(serializers.ModelSerializer):
     app_icon_favicon_url = serializers.SerializerMethodField()
     labels = serializers.SerializerMethodField()
 
+    # Los dos valores de tiempo se guardan en horas; se les da un mensaje de
+    # dominio para que una fracción ("2.5 días" convertidos) no caiga en el
+    # genérico "A valid integer is required." (Fase C / CFG-01).
+    schedule_change_notice_hours = serializers.IntegerField(
+        min_value=0,
+        required=False,
+        error_messages={
+            "invalid": "Las horas de aviso deben ser un número entero (sin fracciones).",
+            "min_value": "Las horas de aviso no pueden ser negativas.",
+        },
+    )
+    schedule_change_cooldown_hours = serializers.IntegerField(
+        min_value=0,
+        required=False,
+        error_messages={
+            "invalid": "El cooldown debe ser un número entero de horas (sin fracciones).",
+            "min_value": "El cooldown no puede ser negativo.",
+        },
+    )
+
     class Meta:
         model = Gym
         fields = [

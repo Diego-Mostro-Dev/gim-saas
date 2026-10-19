@@ -26,7 +26,12 @@ from .serializers import (
     MemberOutstandingDebtSerializer,
     OutstandingSubscriptionSerializer,
 )
-from .domain import SubscriptionConflictError, SubscriptionDomain
+from .domain import (
+    ScheduleDomain,
+    ScheduleError,
+    SubscriptionConflictError,
+    SubscriptionDomain,
+)
 from .services import (
     _copy_activity_items,
     _copy_outing_items,
@@ -322,9 +327,25 @@ class PlanChangeRequestViewSet(GymModelViewSet):
 
         now_value = now()
 
+        # Se lee y se valida antes de transar: ejecutar el cambio abre la nueva
+        # suscripción y reescribe los horarios, así que el límite de visitas del
+        # plan pedido tiene que frenarlo antes de que haya nada que deshacer.
+        effective_date = calculate_effective_date(instance.member)
+        if new_status == "approved":
+            try:
+                ScheduleDomain.enforce_weekly_visits(
+                    member=instance.member,
+                    target_count=len(instance.target_schedules_snapshot or []),
+                    limit=instance.requested_plan.weekly_visits,
+                )
+            except ScheduleError as e:
+                return Response(
+                    {"detail": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         with transaction.atomic():
             if new_status == "approved":
-                effective_date = calculate_effective_date(instance.member)
                 instance.effective_date = effective_date
 
                 if effective_date > now().date():

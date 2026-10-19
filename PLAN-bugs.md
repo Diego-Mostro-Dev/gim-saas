@@ -49,7 +49,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 |---|---|---|---|
 | **A. Registro + triage** | Crear `BUGS.md`; volcar los hallazgos de las 12 auditorías + `BUG-Pagos`; re-verificar cada uno contra `development`. | Cada hallazgo con estado real y repro | ✅ **hecha** (2026-10-19) |
 | **B. Arnés de invariantes de dinero** | Suite que recorre el ciclo real por API (alta → pago → renovación → cambio de plan → add-ons → recuperación → sobrepago) y afirma invariantes de dinero. Extiende el patrón read-only de `audit_money_bugs`. | Verde sobre el código actual; los rojos nuevos entran a `BUGS.md` | ✅ **hecha** (2026-10-19; 11 tests verdes, sin rojos nuevos) |
-| **C. Configuración a prueba de balas** | Validaciones: precio > 0 (planes y add-ons), `access_block_day > payment_due_day` (ya está), visitas semanales en alta y cambio de plan, asimetría de `monthly_price` en modo sesiones, unidades horas/días, `community.discount`. | Una validación, un test | ⬜ |
+| **C. Configuración a prueba de balas** | Validaciones: precio > 0 (planes y add-ons), `access_block_day > payment_due_day` (ya está), visitas semanales en alta y cambio de plan, asimetría de `monthly_price` en modo sesiones, unidades horas/días, `community.discount`. | Una validación, un test | ✅ **hecha** (2026-10-19; 22 tests nuevos, 10 rojos sin fix) |
 | **D. Cobro de add-ons y ciclo de baja** | Que desactivar una actividad/salida/PT corte o alinee su línea de facturación; unenroll sin huérfanos; sellado al renovar paquete. | "Desactivar ⇒ no se cobra el add-on" | ⬜ |
 | **E. Acceso y portal** | Los rompe-flujo de `ACC` + 500s con lock: cupo que se rechaza a sí mismo, throttle por IP, cooldown con rechazados, filtro "Aprobadas", render de actividades, link mágico, doble registro/pedido. | Un socio válido nunca recibe 429/400/500 indebido | ⬜ |
 | **F. Suscripción y recuperación** | `DIN-04` a `DIN-15`: crédito no consumido, cortesía vs auto-renew, impago inicial que renueva, lock de recovery, 201 siempre. | Matrices de cambio de plan / cortesía / recuperación | ⬜ |
@@ -97,6 +97,27 @@ activities outings personal_training routines community
   (`X-Task-Key`) con `SCHEDULED_TASKS_ENABLED=False` para no dispararse en cada escritura.
 - Si un invariante se rompe de verdad, el caso se marca `@unittest.expectedFailure` citando
   el ID de `BUGS.md`; el fix de la fase que corresponda lo desmarca.
+
+### Fase C — configuración a prueba de balas
+
+Cierra `CFG-09`, `CFG-12`, `CFG-14`, `CFG-01` (backend + frontend) y la validación de `COM-02`.
+Todo a nivel **serializer** (sin `CheckConstraint` ni migraciones), por decisión de la fase.
+
+- `core/mixins.py` → `BillingPriceMixin.apply_billing_price_rules`: fuerza `monthly_price = 0`
+  en `billing_mode == "sessions"` (también al editar) y exige `> 0` en `"monthly"`. Lo usan
+  Activity, Outing y PT.
+- `plans/serializers.py` y `admins/serializers.py`: `price > 0` (excepto `is_base` en planes);
+  el wizard no puede crear planes a $0.
+- `ScheduleDomain.enforce_weekly_visits` (en `subscriptions/domain.py`): aplicado en el alta
+  (`members/services.py`) y en la aprobación de cambio de plan (`subscriptions/views.py`),
+  antes de escribir nada.
+- `gyms/serializers.py`: `schedule_change_{notice,cooldown}_hours` como `IntegerField(min_value=0)`
+  con mensajes en español; frontend unificado a **horas** en ambas UIs.
+- `community/serializers.py`: `discount` obligatorio y no en blanco.
+- `audit_money_bugs`: nuevo chequeo F7/P6 para add-ons en modo sesiones armados.
+- `gyms/views.py`: cargar feriados sin `year` usa el año actual (`CFG-15`, detectado por el gate).
+- Gate (apps): `subscriptions members attendance payments plans config activities outings
+  personal_training gyms community admins` → **263/263 verde**.
 
 ---
 

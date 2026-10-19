@@ -246,10 +246,13 @@ class GymClosedDateHolidaysView(APIView):
         gym = profile.gym
 
         raw_year = request.data.get("year")
-        try:
-            year = int(raw_year)
-        except (TypeError, ValueError):
-            return Response({"error": "Año inválido"}, status=400)
+        if raw_year in (None, ""):
+            year = timezone.localdate().year
+        else:
+            try:
+                year = int(raw_year)
+            except (TypeError, ValueError):
+                return Response({"error": "Año inválido"}, status=400)
 
         try:
             holidays = fetch_argentina_holidays(year)

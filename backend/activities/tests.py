@@ -218,3 +218,67 @@ class NoShowPersonalTrainingTests(BaseAPITest):
 
         self.assertEqual(second["records_created"], 0)
         self.assertEqual(assignment.session_records.count(), 2)
+
+
+class ActivityPriceInvariantTests(BaseAPITest):
+    """CFG-09 + CFG-14: la cuota mensual de una actividad no puede ser $0.
+
+    Espeja ``PTServicePriceInvariantTests``: en modo sesiones la cuota se
+    fuerza a 0 (el paquete se cobra aparte); en modo mensual debe ser > 0.
+    """
+
+    URL = "/api/activities/activities/"
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.gym.features = {**self.gym.features, "activities": True}
+        self.gym.save(update_fields=["features"])
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+
+    def _create(self, name, billing_mode, monthly_price):
+        return self.client.post(
+            self.URL,
+            {
+                "name": name,
+                "billing_mode": billing_mode,
+                "monthly_price": monthly_price,
+            },
+        )
+
+    def test_sessions_activity_forces_monthly_price_to_zero(self):
+        resp = self._create("Yoga", "sessions", "5000")
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(Activity.objects.get(name="Yoga").monthly_price, Decimal("0"))
+
+    def test_monthly_activity_without_price_rejected(self):
+        resp = self._create("Pilates", "monthly", "0")
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("monthly_price", resp.data)
+        self.assertFalse(Activity.objects.filter(name="Pilates").exists())
+
+    def test_monthly_activity_keeps_its_price(self):
+        resp = self._create("Pilates", "monthly", "5000")
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(
+            Activity.objects.get(name="Pilates").monthly_price, Decimal("5000.00")
+        )
+
+    def test_editing_price_of_sessions_activity_cannot_reintroduce_it(self):
+        activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Yoga",
+            billing_mode="sessions",
+            monthly_price=Decimal("0"),
+        )
+
+        resp = self.client.patch(
+            f"{self.URL}{activity.id}/", {"monthly_price": "5000"}
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        activity.refresh_from_db()
+        self.assertEqual(activity.monthly_price, Decimal("0"))

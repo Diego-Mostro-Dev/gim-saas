@@ -76,3 +76,36 @@ class MembershipPlanServiceTests(BaseAPITest):
         plan.refresh_from_db()
         self.assertEqual(plan.name, "Plan Renombrado")
         self.assertEqual(plan.service, original_service)
+
+
+class PlanPriceValidationTests(BaseAPITest):
+    """CFG-09: un plan a $0 (o negativo) factura $0 y el gimnasio no cobra."""
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+
+    def test_zero_price_plan_rejected(self):
+        resp = self.client.post(
+            "/api/plans/", {**PLAN_PAYLOAD, "price": "0"}, format="json"
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("price", resp.data)
+        self.assertFalse(MembershipPlan.objects.filter(name="Plan Basico").exists())
+
+    def test_negative_price_plan_rejected(self):
+        resp = self.client.post(
+            "/api/plans/", {**PLAN_PAYLOAD, "price": "-100"}, format="json"
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("price", resp.data)
+
+    def test_positive_price_plan_accepted(self):
+        resp = self.client.post(
+            "/api/plans/", {**PLAN_PAYLOAD, "price": "1000"}, format="json"
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)

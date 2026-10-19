@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from django.contrib.auth import get_user_model
 
+from core.mixins import BillingPriceMixin
 from members.identity import member_identity
 from members.models import Member
 from plans.models import Service as PlanService
@@ -36,7 +37,7 @@ class MemberBasicSerializer(serializers.ModelSerializer):
         return member_identity(obj)["insurance_name"]
 
 
-class OutingSerializer(serializers.ModelSerializer):
+class OutingSerializer(BillingPriceMixin, serializers.ModelSerializer):
     service = serializers.PrimaryKeyRelatedField(
         queryset=PlanService.objects.none(),
         required=False,
@@ -100,6 +101,10 @@ class OutingSerializer(serializers.ModelSerializer):
 
     def get_schedule_count(self, obj):
         return getattr(obj, "schedule_count", 0)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        return self.apply_billing_price_rules(attrs)
 
     def get_trainer_name(self, obj):
         if obj.trainer_id is None:

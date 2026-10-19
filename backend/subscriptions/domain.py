@@ -605,6 +605,27 @@ class ScheduleDomain:
         return member.schedules.filter(active=True).count()
 
     @staticmethod
+    def enforce_weekly_visits(member, target_count, limit=None):
+        """Reject more weekly schedules than the member's plan allows.
+
+        ``limit`` overrides the plan read from the member: a plan change knows
+        the requested plan before it becomes the current one. ``None`` means
+        unlimited (both for an explicit ``limit`` and for a member whose plan
+        does not cap visits).
+
+        Raises ScheduleError so every caller funnels it through the same
+        error path (RegistrationError at sign-up, 400 at plan change).
+        """
+        if limit is None:
+            limit = ScheduleDomain.get_schedule_limit(member)
+        if limit is None or target_count <= limit:
+            return
+        raise ScheduleError(
+            f"El plan permite {limit} visita(s) por semana y se intentan "
+            f"asignar {target_count} horarios."
+        )
+
+    @staticmethod
     def validate_slot(gym, day, hour):
         """Look up a ScheduleSlot and verify capacity.
 

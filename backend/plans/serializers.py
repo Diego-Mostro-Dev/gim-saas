@@ -22,6 +22,13 @@ class MembershipPlanSerializer(serializers.ModelSerializer):
         # and validate() never runs.
         extra_kwargs = {"service": {"required": False}}
 
+    def validate_price(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError(
+                "El precio del plan debe ser mayor a 0."
+            )
+        return value
+
     def validate_weekly_visits(self, value):
         if value is not None and value < 1:
             raise serializers.ValidationError(

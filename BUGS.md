@@ -1,9 +1,10 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-19** — Fase A (registro + triage) hecha. Total: **96 hallazgos**
-— 5 `CRÍTICO`, 28 `ALTO`, 46 `MEDIO`, 17 `BAJO`. De ellos **16 ya están cerrados**, **6 son
-decisiones de negocio** y quedan **60 abiertos** + 14 a verificar (los 🟡). Fichas de los
-abiertos con explicación, ejemplo de impacto y criterio de aceptación.
+Estado: **2026-10-19** — Fases A y B hechas; Fase C (configuración a prueba de balas)
+cerrada. Total: **97 hallazgos** — 5 `CRÍTICO`, 28 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos
+**22 ya están cerrados**, **6 son decisiones de negocio** y quedan **55 abiertos** + 14 a
+verificar (los 🟡). Fichas de los abiertos con explicación, ejemplo de impacto y criterio de
+aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
 > manual descriptivo ("cómo funciona hoy"); esto es "qué está mal y qué hacemos".
@@ -35,13 +36,13 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones |
 |---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 6 | 3 |
-| Configuración (`CFG`) | 1 | 2 | 3 | 5 | 4 | 2 |
+| Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 |
 | Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 3 | 1 |
 | Acceso/portal (`ACC`) | 1 | 10 | 11 | 0 | 1 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 1 | 0 |
-| Comunidad (`COM`) | 0 | 0 | 5 | 1 | 0 | 0 |
+| Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
 | Robustez/CI (`REF`) | 0 | 0 | 3 | 2 | 1 | 0 |
-| **Total** | **5** | **28** | **46** | **17** | **16** | **6** |
+| **Total** | **5** | **28** | **47** | **17** | **22** | **6** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -69,17 +70,18 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
 | DIN-16 | ALTO | ⚪ | Recuperar no prorratea | Recuperar el día 25 cobra el mes completo por 5 días |
 | DIN-17 | BAJO | 🔴 | `calculate_subscription_total` reintroduce el precio vigente (fallback P13) | Una fila legacy sin ítem de plan se factura al precio actual del plan |
 | DIN-18 | ALTO | 🔴 | Agregar sesiones a un paquete vuelve a dejar el sellado pendiente | Se cobra el sellado de nuevo aunque ya se pagó por el paquete |
-| CFG-01 | MEDIO | 🔴 | Unidades horas/días mezcladas entre pantallas | El mismo campo se edita como "días" en Settings y "horas" en Admin; fracciones sin validar |
+| CFG-01 | MEDIO | 🟢 | Unidades horas/días mezcladas entre pantallas | Cerrado Fase C: ambas UIs en horas, entero ≥ 0 (backend ya era entero) |
 | CFG-02 | BAJO | ⚪ | `allow_member_schedule_changes` legacy | Campo que ya no gobierna ninguna regla |
 | CFG-03 | MEDIO | ⚪ | `initial_pending` bloquea desde el día 1 | Socio nuevo sin primer pago no puede entrar aunque haya pagado el día 2 |
 | CFG-04 | MEDIO | 🔴 | El staff crea cambios de horario sin cooldown ni máximo mensual | Sin el límite que sí aplica al socio |
 | CFG-05 | BAJO | 🟢 | Fallo de la API de feriados | Devuelve 502 con mensaje, no 500 (ya correcto) |
-| CFG-09 | ALTO | 🔴 | No se valida precio > 0 en planes ni add-ons | Plan o actividad a $0 factura $0 (el gimnasio no cobra) |
+| CFG-09 | ALTO | 🟢 | No se valida precio > 0 en planes ni add-ons | Cerrado Fase C: `price > 0` (excepto base) y `monthly_price > 0` en modo mensual; `session_price = 0` permitido |
 | CFG-10 | BAJO | 🟢 | Rango de descuento | Validado 1-100 (ya correcto) |
 | CFG-11 | BAJO | 🟢 | `access_block_day > payment_due_day` | Validado en API, modelo y wizard (ya correcto) |
-| CFG-12 | ALTO | 🔴 | Visitas semanales no se validan al alta ni al ejecutar un cambio de plan | Socio nuevo toma más horarios que su plan o el cambio deja exceso |
+| CFG-12 | ALTO | 🟢 | Visitas semanales no se validan al alta ni al ejecutar un cambio de plan | Cerrado Fase C: `ScheduleDomain.enforce_weekly_visits` en alta y aprobación |
 | CFG-13 | BAJO | 🟢 | PT en modo sesiones fuerza `monthly_price = 0` | Ya cubierto por validación + tests |
-| CFG-14 | CRÍTICO | 🔴 | Actividades y salidas en modo sesiones **no** fuerzan `monthly_price = 0` | Se cobra el paquete **y** la cuota mensual del add-on a la vez |
+| CFG-14 | CRÍTICO | 🟢 | Actividades y salidas en modo sesiones **no** fuerzan `monthly_price = 0` | Cerrado Fase C: `BillingPriceMixin` fuerza `monthly_price = 0` en modo sesiones |
+| CFG-15 | MEDIO | 🟢 | Cargar feriados sin `year` devuelve 400 en vez de usar el año actual | Cerrado Fase C: default = año actual (`gyms/views.py`); detectado por el gate de Fase C |
 | ADD-01 | CRÍTICO | 🔴 | Desactivar una actividad no corta el cobro | Sigue facturando la actividad hasta desinscribir socio por socio |
 | ADD-09 | CRÍTICO | 🔴 | Desactivar una salida no corta el cobro | Idem actividades |
 | ADD-02 | MEDIO | 🔴 | Huérfanas: el portal muestra la actividad/horario desactivado | El socio ve y no puede usar lo que ya no existe |
@@ -138,10 +140,10 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
 | RUT-08 | MEDIO | 🔴 | El progreso se resetea por día | Sin historial de entrenamiento |
 | RUT-09 | MEDIO | 🔴 | `/routines` no está en `ProfessorRoute` | Cualquier rol la abre |
 | COM-01 | MEDIO | 🔴 | Un socio inactivo sigue accediendo a su tarjeta pública | El endpoint público no filtra `active` ni acepta el token rotado |
-| COM-02 | MEDIO | 🔴 | `discount` es texto libre y no participa de ningún cobro | Descuentos ambiguos que nunca se aplican |
+| COM-02 | MEDIO | 🟢 | `discount` es texto libre y no participa de ningún cobro | Cerrado Fase C: `discount` obligatorio y no en blanco (mensaje de dominio). Que el descuento no se aplique a un cobro queda como decisión de negocio (Fase I) |
 | COM-03 | MEDIO | 🔴 | Sin unicidad de `name` por gimnasio → duplicados | Locales repetidos con descuentos distintos |
 | COM-04 | MEDIO | 🔴 | `business.delete()` es hard delete | Sin soft delete ni histórico |
-| COM-05 | MEDIO | 🔴 | `community` no tiene tests y no corre en CI | — |
+| COM-05 | MEDIO | 🔴 | `community` no tiene tests y no corre en CI | Tests agregados en Fase C (`community/tests.py`); falta sumarla al CI (Fase J / REF-02) |
 | COM-06 | BAJO | 🟡 | El panel de comunidad se muestra a roles que recibirán 403 | UX |
 | REF-01 | MEDIO | 🔴 | Apps sin tests: `community`, `routines`, `profiles`, `seed`, `core` | — |
 | REF-02 | MEDIO | 🔴 | El CI no corre `gyms`, `admins`, `accounts`, `personal_training`, `profiles`, `routines`, `community`, `seed`, `core` | Apps con tests no se ejecutan en CI |
@@ -236,12 +238,17 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
 ## Fichas — Configuración (`CFG`)
 
 ### CFG-01 · Unidades horas/días mezcladas
-- **Severidad:** MEDIO · **Estado:** 🔴
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase C)
 - **Explicación:** el backend guarda horas; `Settings.jsx` convierte a días, pero
   `AdminGymEdit.jsx`/`AdminGymWizard.jsx` editan el mismo campo como horas, sin validar
   fracciones.
 - **Dónde:** `backend/gyms/serializers.py:52,58`, `frontend/src/pages/Settings.jsx:72,689`,
   `frontend/src/pages/admin/AdminGymEdit.jsx:271`.
+- **Resolución Fase C:** las dos UIs editan y muestran **horas** (sin conversión a días),
+  `step=1`/`min=0` y validación de entero ≥ 0 en `Settings.jsx`. Backend: campos
+  `IntegerField(min_value=0)` con mensajes en español en `gyms/serializers.py`. Se verificó que
+  DRF ya rechazaba fracciones/negativos por el `PositiveIntegerField` del modelo: el test de
+  gyms es guarda, no repro.
 
 ### CFG-04 · El staff crea cambios de horario sin límites
 - **Severidad:** MEDIO · **Estado:** 🔴
@@ -252,7 +259,7 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
 - **Criterio de aceptación:** el cambio creado por staff respeta el límite mensual configurado.
 
 ### CFG-09 · Precio 0 permitido
-- **Severidad:** ALTO · **Estado:** 🔴
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase C)
 - **Explicación:** ni planes ni add-ons validan `price > 0`; `session_price` acepta 0.
 - **Ejemplo de impacto:** un plan o actividad mal cargado a $0 factura $0 (el gimnasio no
   cobra y no se entera).
@@ -260,17 +267,26 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
   `backend/outings/serializers.py:62,273`, `backend/personal_training/serializers.py:35`.
 - **Criterio de aceptación:** cargar precio 0 en un plan/add-on de pago da un 400 claro, salvo
   el plan base.
+- **Resolución Fase C:** `price > 0` en planes (excepto `is_base`) y en el wizard
+  (`admins/serializers.py`); `monthly_price > 0` sólo cuando `billing_mode == "monthly"`
+  (`BillingPriceMixin`). `session_price = 0` se mantiene permitido (obra social / sin cargo) y
+  se documenta como decisión de negocio. Sin `CheckConstraint` ni migraciones (decisión Fase C).
 
 ### CFG-12 · Visitas semanales sin validar
-- **Severidad:** ALTO · **Estado:** 🔴
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase C)
 - **Explicación:** capacidad y visitas se validan en edición de socio, check-in y cambio de
   plan, pero **no** en el alta (`members/services.py:199-207`) ni al ejecutar un cambio de plan
   aprobado (`subscriptions/views.py:420-438`).
 - **Ejemplo de impacto:** un socio nuevo queda con más horarios que los de su plan.
 - **Criterio de aceptación:** el alta y la ejecución del cambio respetan `weekly_visits`.
+- **Resolución Fase C:** `ScheduleDomain.enforce_weekly_visits(member, target_count, limit)`
+  centraliza la regla; se aplica en el alta (`members/services.py`) y en la aprobación del
+  cambio de plan **antes** de tocar la base (`subscriptions/views.py`), devolviendo 400 sin
+  crear suscripción ni reescribir horarios. Tests: `members/tests.py`,
+  `subscriptions/test_weekly_visits.py`.
 
 ### CFG-14 · Doble cobro de add-on en modo sesiones
-- **Severidad:** CRÍTICO · **Estado:** 🔴
+- **Severidad:** CRÍTICO · **Estado:** 🟢 (Fase C)
 - **Explicación:** PT fuerza `monthly_price = 0` cuando `billing_mode == "sessions"`, pero
   `Activity` y `Outing` **no** lo hacen. `audit_money_bugs` ya los clasifica como "armados".
 - **Ejemplo de impacto:** una actividad en modo "por sesiones" le cobra al socio la cuota
@@ -279,6 +295,21 @@ abiertos con explicación, ejemplo de impacto y criterio de aceptación.
   (comparar con `backend/personal_training/serializers.py:76,92`).
 - **Criterio de aceptación:** modo sesiones fuerza precio mensual 0 en actividades y salidas,
   con tests espejo de los de PT.
+- **Resolución Fase C:** `BillingPriceMixin.apply_billing_price_rules` en `core/mixins.py`
+  (usado por Activity, Outing y PT) fuerza `monthly_price = 0` en modo sesiones también al
+  editar, y exige `> 0` en modo mensual. `audit_money_bugs` gana la verificación F7/P6
+  (`_addon_session_offers`). Tests espejo en `activities/tests.py` y `outings/tests.py`.
+
+### CFG-15 · Cargar feriados sin `year` devuelve 400
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase C)
+- **Detectado por:** gate de Fase C (test `gyms.tests.GymClosedDateHolidaysTests.test_default_year_is_current`,
+  rojo en `development`).
+- **Explicación:** `GymClosedDateHolidaysView.post` hacía `int(request.data.get("year"))`; sin
+  `year` en el body, `int(None)` levanta `TypeError` → 400, cuando el comportamiento esperado
+  (y el que testea la suite) es usar el año actual.
+- **Resolución Fase C:** si `year` falta o viene vacío, se usa `timezone.localdate().year`;
+  un valor no numérico sigue dando 400.
+- **Dónde:** `backend/gyms/views.py:248-256`.
 
 ---
 
@@ -457,9 +488,12 @@ Soft delete de asignación (`views.py:65`), unicidad de rutina activa + bulk no 
   `backend/members/models.py:198,289`.
 
 ### COM-02 · `discount` sin validar y sin efecto
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Explicación:** `CharField` libre que no participa
-  de ningún cálculo de cobro.
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase C, validación) · **Explicación:** `CharField` libre
+  que no participa de ningún cálculo de cobro.
 - **Dónde:** `backend/community/models.py:35,45`.
+- **Resolución Fase C:** `CommunityBusinessSerializer.discount` es obligatorio y no admite vacío
+  ni sólo espacios (mensajes en español). Que el descuento no se aplique a ningún cobro queda
+  como decisión de negocio y se revisa en Fase I. Tests: `community/tests.py`.
 
 ### COM-03 · Sin unicidad de `name` por gimnasio
 - **Severidad:** MEDIO · **Estado:** 🔴 · **Dónde:** `backend/community/models.py:45-48`.

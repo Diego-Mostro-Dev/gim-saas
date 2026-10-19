@@ -269,6 +269,7 @@ export default function AdminGymEdit() {
                   className={inputCls}
                   type="number"
                   min={0}
+                  step={1}
                   value={form.schedule_change_cooldown_hours}
                   onChange={(e) => set({ schedule_change_cooldown_hours: e.target.value })}
                 />
@@ -278,6 +279,7 @@ export default function AdminGymEdit() {
                   className={inputCls}
                   type="number"
                   min={0}
+                  step={1}
                   value={form.max_schedule_changes_per_month}
                   onChange={(e) => set({ max_schedule_changes_per_month: e.target.value })}
                 />

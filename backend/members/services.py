@@ -197,6 +197,9 @@ class RegistrationService:
 
             if has_gym and raw_schedules:
                 try:
+                    ScheduleDomain.enforce_weekly_visits(
+                        member, len(raw_schedules)
+                    )
                     ScheduleDomain.create_bulk(
                         member, gym, raw_schedules, subscription=subscription,
                     )

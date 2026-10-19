@@ -11,6 +11,7 @@ from rest_framework.authtoken.models import Token
 
 from core.testing import BaseAPITest
 
+from attendance.models import AttendanceSchedule
 from gyms.models import Discount
 from members.models import Member
 from members.serializers import MemberSerializer
@@ -687,3 +688,64 @@ class MemberListQueryBudgetTests(BaseAPITest):
                 fallback.data["is_recoverable"],
                 f"is_recoverable diverge para miembro {member.id}",
             )
+
+
+class MemberWeeklyVisitsValidationTests(BaseAPITest):
+    """CFG-12: el alta no puede asignar más horarios que los del plan.
+
+    Sin esta validación un socio quedaba con más franjas que visitas
+    permitidas: el gimnasio regalaba visitas extra todo el mes.
+    """
+
+    def setUp(self):
+        self.gym = self.create_gym()
+        self.user = self.create_user(self.gym)
+        self.client.force_authenticate(user=self.user)
+        self.slot = self.create_today_slot(self.gym, hour="10:00")
+
+    def _payload(self, plan_id, schedules, phone):
+        return {
+            "first_name": "Ana",
+            "last_name": "Gomez",
+            "phone": phone,
+            "document_number": "12345678",
+            "date_of_birth": "1990-05-04",
+            "services": json.dumps(["gym"]),
+            "schedules": json.dumps(schedules),
+            "plan_id": plan_id,
+        }
+
+    def test_alta_rejects_more_schedules_than_the_plan(self):
+        plan = self.create_plan(self.gym, weekly_visits=1)
+        second = self.create_today_slot(self.gym, hour="12:00")
+        schedules = [
+            {"day": self.slot.day, "hour": "10:00"},
+            {"day": second.day, "hour": "12:00"},
+        ]
+
+        resp = self.client.post(
+            "/api/members/",
+            self._payload(plan.id, schedules, "112233"),
+            format="multipart",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("schedules", resp.data)
+        self.assertFalse(Member.objects.filter(phone="112233").exists())
+        self.assertEqual(AttendanceSchedule.objects.count(), 0)
+
+    def test_alta_accepts_schedules_up_to_the_limit(self):
+        plan = self.create_plan(self.gym, weekly_visits=1)
+        schedules = [{"day": self.slot.day, "hour": "10:00"}]
+
+        resp = self.client.post(
+            "/api/members/",
+            self._payload(plan.id, schedules, "445566"),
+            format="multipart",
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        member = Member.objects.get(phone="445566")
+        self.assertEqual(
+            AttendanceSchedule.objects.filter(member=member).count(), 1
+        )

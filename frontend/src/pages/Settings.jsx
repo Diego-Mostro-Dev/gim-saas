@@ -69,18 +69,18 @@ function buildFormDataFromGym(gym) {
     access_block_day: normalizeGymValue(gym.access_block_day ?? ""),
     allow_plan_changes: gym.allow_plan_changes ?? false,
     allow_schedule_changes: gym.allow_schedule_changes ?? false,
-    schedule_change_cooldown_days: normalizeGymValue(
+    schedule_change_cooldown_hours: normalizeGymValue(
       gym.schedule_change_cooldown_hours == null
         ? ""
-        : Number(gym.schedule_change_cooldown_hours) / 24,
+        : Number(gym.schedule_change_cooldown_hours),
     ),
     max_schedule_changes_per_month: normalizeGymValue(
       gym.max_schedule_changes_per_month ?? "",
     ),
-    schedule_change_notice_days: normalizeGymValue(
+    schedule_change_notice_hours: normalizeGymValue(
       gym.schedule_change_notice_hours == null
         ? ""
-        : Number(gym.schedule_change_notice_hours) / 24,
+        : Number(gym.schedule_change_notice_hours),
     ),
     allow_session_recovery: gym.allow_session_recovery ?? false,
     max_session_recoveries_per_month: normalizeGymValue(
@@ -115,9 +115,9 @@ function Settings() {
     access_block_day: "",
     allow_plan_changes: false,
     allow_schedule_changes: false,
-    schedule_change_cooldown_days: "",
+    schedule_change_cooldown_hours: "",
     max_schedule_changes_per_month: "",
-    schedule_change_notice_days: "",
+    schedule_change_notice_hours: "",
     allow_session_recovery: false,
     max_session_recoveries_per_month: "",
     qr_attendance_message: "",
@@ -136,9 +136,9 @@ function Settings() {
     const errs = {};
     const due = Number(formData.payment_due_day);
     const block = Number(formData.access_block_day);
-    const cooldown = Number(formData.schedule_change_cooldown_days);
+    const cooldownHours = Number(formData.schedule_change_cooldown_hours);
     const maxChanges = Number(formData.max_schedule_changes_per_month);
-    const noticeDays = Number(formData.schedule_change_notice_days);
+    const noticeHours = Number(formData.schedule_change_notice_hours);
     const maxRecoveries = Number(formData.max_session_recoveries_per_month);
 
     if (formData.payment_due_day !== "" && (isNaN(due) || due < 1)) {
@@ -154,14 +154,14 @@ function Settings() {
     ) {
       errs.access_block_day = "Debe ser mayor al día de vencimiento";
     }
-    if (formData.schedule_change_cooldown_days !== "" && (isNaN(cooldown) || cooldown < 0)) {
-      errs.schedule_change_cooldown_days = "No puede ser negativo";
+    if (formData.schedule_change_cooldown_hours !== "" && (!Number.isInteger(cooldownHours) || cooldownHours < 0)) {
+      errs.schedule_change_cooldown_hours = "Debe ser un entero mayor o igual a 0";
     }
     if (formData.max_schedule_changes_per_month !== "" && (isNaN(maxChanges) || maxChanges < 0)) {
       errs.max_schedule_changes_per_month = "No puede ser negativo";
     }
-    if (formData.schedule_change_notice_days !== "" && (isNaN(noticeDays) || noticeDays < 0)) {
-      errs.schedule_change_notice_days = "No puede ser negativo";
+    if (formData.schedule_change_notice_hours !== "" && (!Number.isInteger(noticeHours) || noticeHours < 0)) {
+      errs.schedule_change_notice_hours = "Debe ser un entero mayor o igual a 0";
     }
     if (formData.max_session_recoveries_per_month !== "" && (isNaN(maxRecoveries) || maxRecoveries < 0)) {
       errs.max_session_recoveries_per_month = "No puede ser negativo";
@@ -686,19 +686,19 @@ function Settings() {
       if (formData.access_block_day !== "") {
         data.append("access_block_day", formData.access_block_day);
       }
-      if (formData.schedule_change_cooldown_days !== "") {
+      if (formData.schedule_change_cooldown_hours !== "") {
         data.append(
           "schedule_change_cooldown_hours",
-          Number(formData.schedule_change_cooldown_days) * 24,
+          Number(formData.schedule_change_cooldown_hours),
         );
       }
       if (formData.max_schedule_changes_per_month !== "") {
         data.append("max_schedule_changes_per_month", formData.max_schedule_changes_per_month);
       }
-      if (formData.schedule_change_notice_days !== "") {
+      if (formData.schedule_change_notice_hours !== "") {
         data.append(
           "schedule_change_notice_hours",
-          Number(formData.schedule_change_notice_days) * 24,
+          Number(formData.schedule_change_notice_hours),
         );
       }
       data.append("allow_schedule_changes", formData.allow_schedule_changes);
@@ -1395,17 +1395,18 @@ function Settings() {
 
         <div className="mb-4">
           <label className="mb-2 block text-sm text-text-primary">
-            Cooldown entre cambios de horario (días)
+            Cooldown entre cambios de horario (horas)
           </label>
           <input
             type="number"
             min="0"
-            value={formData.schedule_change_cooldown_days}
-            onChange={(e) => setFormData({ ...formData, schedule_change_cooldown_days: e.target.value })}
+            step="1"
+            value={formData.schedule_change_cooldown_hours}
+            onChange={(e) => setFormData({ ...formData, schedule_change_cooldown_hours: e.target.value })}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
-          {errors.schedule_change_cooldown_days && (
-            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_cooldown_days}</p>
+          {errors.schedule_change_cooldown_hours && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_cooldown_hours}</p>
           )}
         </div>
 
@@ -1427,17 +1428,18 @@ function Settings() {
 
         <div className="mb-6">
           <label className="mb-2 block text-sm text-text-primary">
-            Anticipación requerida para cambios de horario (días)
+            Anticipación requerida para cambios de horario (horas)
           </label>
           <input
             type="number"
             min="0"
-            value={formData.schedule_change_notice_days}
-            onChange={(e) => setFormData({ ...formData, schedule_change_notice_days: e.target.value })}
+            step="1"
+            value={formData.schedule_change_notice_hours}
+            onChange={(e) => setFormData({ ...formData, schedule_change_notice_hours: e.target.value })}
             className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
           />
-          {errors.schedule_change_notice_days && (
-            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_notice_days}</p>
+          {errors.schedule_change_notice_hours && (
+            <p className="mt-1 text-xs text-danger-text dark:text-danger">{errors.schedule_change_notice_hours}</p>
           )}
         </div>
 

@@ -1,8 +1,7 @@
-from decimal import Decimal
-
 from django.db.models import Count
 from rest_framework import serializers
 
+from core.mixins import BillingPriceMixin
 from gyms.labels import msg
 from members.identity import member_identity
 from members.models import Member
@@ -17,7 +16,7 @@ from .models import (
 )
 
 
-class PersonalTrainingServiceSerializer(serializers.ModelSerializer):
+class PersonalTrainingServiceSerializer(BillingPriceMixin, serializers.ModelSerializer):
     service = serializers.PrimaryKeyRelatedField(
         queryset=PlanService.objects.none(),
         required=False,
@@ -72,25 +71,13 @@ class PersonalTrainingServiceSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        """Impone que una oferta por sesiones no tenga cuota mensual (Fase 7, #2).
+        """Impone las reglas de precio según la modalidad (Fase 7, #2 · Fase C).
 
-        Las dos modalidades se cobran por caminos distintos: la mensual como
-        ítem de cuota en cada período, el paquete por sesión con su propio
-        asiento de pago. Dejar las dos habilitadas sobre la misma oferta hacía
-        que el socio pagara el paquete y además la cuota todos los meses.
-
-        Se fuerza el precio a 0 en vez de rechazar la oferta: el rechazo deja al
-        socio con una asignación que no se puede crear y ningún mensaje útil,
-        mientras que el precio de una oferta por sesiones no se usa para nada.
+        Por sesiones se fuerza la cuota a 0 y por mensual se exige precio > 0;
+        ver ``core.mixins.BillingPriceMixin``.
         """
         attrs = super().validate(attrs)
-        billing_mode = attrs.get(
-            "billing_mode",
-            self.instance.billing_mode if self.instance else None,
-        )
-        if billing_mode == "sessions":
-            attrs["monthly_price"] = Decimal("0")
-        return attrs
+        return self.apply_billing_price_rules(attrs)
 
     def create(self, validated_data):
         gym = validated_data.pop("gym")

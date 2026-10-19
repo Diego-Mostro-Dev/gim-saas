@@ -67,6 +67,24 @@ class PTServicePriceInvariantTests(BaseAPITest):
 
         self.assertEqual(service.monthly_price, Decimal("22000.00"))
 
+    def test_monthly_offer_without_price_rejected(self):
+        """CFG-09: una oferta mensual a $0 factura $0 y el gimnasio no cobra."""
+
+        resp = self.client.post(
+            self.URL,
+            {
+                "name": "PT sin precio",
+                "billing_mode": "monthly",
+                "monthly_price": "0",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("monthly_price", resp.data)
+        self.assertFalse(
+            PersonalTrainingService.objects.filter(name="PT sin precio").exists()
+        )
+
     def test_switching_to_sessions_zeroes_existing_price(self):
         service = self._create("PT mensual", "monthly", "22000")
 
