@@ -1,6 +1,8 @@
+from datetime import time as time_type
+
 from django.utils import timezone
 
-from .models import PersonalTrainingChangeRequest
+from .models import DAY_CHOICES, PersonalTrainingChangeRequest
 from .overlap import validate_assignment
 
 
@@ -8,6 +10,22 @@ class ChangeRequestError(ValueError):
     def __init__(self, message, status_code=400):
         self.status_code = status_code
         super().__init__(message)
+
+
+def _to_time(value, label):
+    """Coerce el valor a ``time``.
+
+    El portal del socio manda strings ("07:00") y el staff pasa objetos
+    ``time`` ya validados por el serializer. Comparar un ``time`` con un
+    ``str`` lanza TypeError (500) en el chequeo de solapamiento, así que
+    todo lo que entra por acá termina normalizado acá.
+    """
+    if isinstance(value, time_type):
+        return value
+    try:
+        return time_type.fromisoformat(str(value).strip())
+    except ValueError:
+        raise ChangeRequestError(f"{label} inválida.")
 
 
 class ChangeRequestService:
@@ -20,6 +38,12 @@ class ChangeRequestService:
                 "La asignación está inactiva.",
                 status_code=404,
             )
+
+        if requested_day not in dict(DAY_CHOICES):
+            raise ChangeRequestError("Día inválido.")
+
+        requested_start_time = _to_time(requested_start_time, "La hora de inicio")
+        requested_end_time = _to_time(requested_end_time, "La hora de fin")
 
         if requested_end_time <= requested_start_time:
             raise ChangeRequestError(
