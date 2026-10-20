@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from gyms.models import Gym
@@ -243,6 +244,18 @@ class RoutineAssignment(models.Model):
     class Meta:
         verbose_name = "Asignación de rutina"
         verbose_name_plural = "Asignaciones de rutina"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["gym", "member"],
+                condition=Q(active=True),
+                name="uniq_active_routine_per_member",
+            ),
+        ]
+
+    def delete(self, using=None, keep_parents=False):
+        # RUT-02: la asignación no se borra, se desactiva (soft delete).
+        self.active = False
+        self.save(update_fields=["active"])
 
 
 class WorkoutSet(models.Model):

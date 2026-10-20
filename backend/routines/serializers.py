@@ -144,7 +144,9 @@ class MemberRoutineSerializer(serializers.ModelSerializer):
                 "rest_mode": exercise.rest_mode,
                 "next_exercise_rest_seconds": exercise.next_exercise_rest_seconds,
             }
-            for exercise in obj.routine_template.routine_exercises.all()
+            for exercise in obj.routine_template.routine_exercises.filter(
+                is_active=True
+            )
         ]
 
 

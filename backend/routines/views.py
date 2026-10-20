@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from rest_framework import viewsets, status
@@ -47,26 +48,38 @@ from .serializers import (
     MemberRoutineSerializer,
     MemberPortalSerializer,
 )
+from core.permissions import require_routine_manager
 
 
-class ExerciseViewSet(GymModelViewSet):
+class RoutineManagerMixin:
+    """Gate de rol para los endpoints de gestión de rutinas (RUT-01)."""
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        require_routine_manager(request)
+
+
+class ExerciseViewSet(RoutineManagerMixin, GymModelViewSet):
     queryset = Exercise.objects.all()
     serializer_class = ExerciseSerializer
     pagination_class = None
 
 
-class RoutineTemplateViewSet(GymModelViewSet):
+class RoutineTemplateViewSet(RoutineManagerMixin, GymModelViewSet):
     queryset = RoutineTemplate.objects.all()
     serializer_class = RoutineTemplateSerializer
     pagination_class = None
 
 
-class RoutineAssignmentViewSet(GymModelViewSet):
+class RoutineAssignmentViewSet(RoutineManagerMixin, GymModelViewSet):
     queryset = RoutineAssignment.objects.all()
     serializer_class = RoutineAssignmentSerializer
+    # RUT-02: no se permite DELETE; la asignación se desactiva (soft delete)
+    # vía PATCH active=false o la desactivación implícita del bulk-assign.
+    http_method_names = ["get", "post", "patch", "head", "options"]
 
 
-class RoutineExerciseViewSet(viewsets.ModelViewSet):
+class RoutineExerciseViewSet(RoutineManagerMixin, viewsets.ModelViewSet):
     queryset = RoutineExercise.objects.all()
     serializer_class = RoutineExerciseSerializer
     pagination_class = None
@@ -272,6 +285,8 @@ class BulkAssignRoutineView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        require_routine_manager(request)
+
         gym = request.user.profile.gym
 
         member_ids = request.data.get(
@@ -304,34 +319,43 @@ class BulkAssignRoutineView(APIView):
                 status=404,
             )
 
-        members = Member.objects.filter(
+        members = list(Member.objects.filter(
             gym=gym,
             id__in=member_ids,
-        )
+        ))
 
-        created = 0
+        # RUT-03: un solo lote atómico. Si falla cualquier alta, no queda un
+        # estado intermedio (algunos socios con la rutina nueva y otros no).
+        try:
+            with transaction.atomic():
+                for member in members:
+                    RoutineAssignment.objects.filter(
+                        gym=gym,
+                        member=member,
+                        active=True,
+                    ).update(
+                        active=False
+                    )
 
-        for member in members:
-
-            RoutineAssignment.objects.filter(
-                gym=gym,
-                member=member,
-                active=True,
-            ).update(
-                active=False
+                    RoutineAssignment.objects.create(
+                        gym=gym,
+                        member=member,
+                        routine_template=routine,
+                        active=True,
+                    )
+        except IntegrityError:
+            return Response(
+                {
+                    "detail": (
+                        "No se pudo asignar la rutina: el socio ya tiene "
+                        "una rutina activa."
+                    )
+                },
+                status=400,
             )
-
-            RoutineAssignment.objects.create(
-                gym=gym,
-                member=member,
-                routine_template=routine,
-                active=True,
-            )
-
-            created += 1
 
         return Response({
-            "assigned_members": created,
+            "assigned_members": len(members),
             "routine": routine.name,
         })
 

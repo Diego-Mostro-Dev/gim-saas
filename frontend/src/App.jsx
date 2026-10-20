@@ -110,6 +110,19 @@ function ProfessorRoute({ children }) {
   return children;
 }
 
+const ROUTINE_MANAGER_ROLES = ["owner", "staff", "professor"];
+
+function RoutineManagerRoute({ children }) {
+  const role = useAuthStore((state) => state.role);
+  if (role === "trainer") {
+    return <Navigate to="/trainer-agenda" replace />;
+  }
+  if (!ROUTINE_MANAGER_ROLES.includes(role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -196,7 +209,7 @@ function App() {
         <Route path="/personal-training" element={<ProfessorRoute><ProtectedFeature feature="personal_training"><PersonalTrainingSettings /></ProtectedFeature></ProfessorRoute>} />
         <Route path="/staff" element={<ProfessorRoute><Staff /></ProfessorRoute>} />
         <Route path="/trainer-agenda" element={<ProtectedFeature feature="personal_training"><TrainerAgenda /></ProtectedFeature>} />
-        <Route path="/routines" element={<Routines />} />
+        <Route path="/routines" element={<RoutineManagerRoute><Routines /></RoutineManagerRoute>} />
         <Route path="/attendance-qr" element={<ProfessorRoute><AttendanceQR /></ProfessorRoute>} />
         <Route path="/schedule-change-requests" element={<ProfessorRoute><ScheduleChangeRequests /></ProfessorRoute>} />
         <Route path="/schedule-swap-requests" element={<ProfessorRoute><ScheduleSwapRequests /></ProfessorRoute>} />

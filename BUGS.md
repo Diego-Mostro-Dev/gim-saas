@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-20** — Fases A, B, C, D, E, F y G hechas. Total: **99 hallazgos** — 5 `CRÍTICO`,
-29 `ALTO`, 47 `MEDIO`, 18 `BAJO`. De ellos **45 ya están cerrados**, **6 son decisiones de
-negocio** y quedan **34 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
+Estado: **2026-10-20** — Fases A, B, C, D, E, F, G y H hechas. Total: **99 hallazgos** — 5 `CRÍTICO`,
+29 `ALTO`, 47 `MEDIO`, 18 `BAJO`. De ellos **51 ya están cerrados**, **8 son decisiones de
+negocio** y quedan **26 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
@@ -38,10 +38,10 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 |
 | Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 10 | 1 |
 | Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 12 | 0 |
-| Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 1 | 0 |
+| Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
 | Robustez/CI (`REF`) | 0 | 0 | 3 | 3 | 1 | 0 |
-| **Total** | **5** | **29** | **47** | **18** | **45** | **6** |
+| **Total** | **5** | **29** | **47** | **18** | **51** | **8** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -130,15 +130,15 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ACC-23 | ALTO | 🔴 | Obra social sin match → texto libre sin precio | No se cobra el coseguro; el gimnasio pierde plata |
 | ACC-24 | ALTO | 🟢 | 500 al pedir cambio de horario de PT | Cerrado `f27bc67` (bug real no documentado en ninguna auditoría) |
 | ACC-25 | ALTO | 🟢 | Login con contraseña incorrecta → 500 y Axes no registra el intento | Cerrado Fase E: `authenticate(request=...)`; responde 400 y Axes registra el `AccessAttempt` |
-| RUT-01 | ALTO | 🔴 | Sin control de rol en rutinas | Cualquier usuario del gym gestiona catálogo y asigna rutinas |
-| RUT-02 | MEDIO | 🔴 | Asignación con hard DELETE | Se borra la fila; sin soft delete ni historial |
-| RUT-03 | MEDIO | 🔴 | Sin unicidad de rutina activa; bulk-assign no atómico | Doble submit deja dos rutinas activas o estados a medias |
-| RUT-04 | BAJO | 🔴 | Un ejercicio desactivado por PATCH sigue saliendo en la rutina | El socio ve ejercicios "borrados" |
+| RUT-01 | ALTO | 🟢 | Sin control de rol en rutinas | Cerrado Fase H: `require_routine_manager` (owner/staff/professor); el trainer recibe 403 |
+| RUT-02 | MEDIO | 🟢 | Asignación con hard DELETE | Cerrado Fase H: `RoutineAssignment.delete()` es soft delete (`active=False`) y el ViewSet no expone DELETE (405) |
+| RUT-03 | MEDIO | 🟢 | Sin unicidad de rutina activa; bulk-assign no atómico | Cerrado Fase H: índice único parcial `(gym, member) WHERE active=True` + `bulk-assign` en `transaction.atomic()` |
+| RUT-04 | BAJO | 🟢 | Un ejercicio desactivado por PATCH sigue saliendo en la rutina | Cerrado Fase H: `MemberRoutineSerializer.get_exercises` filtra `is_active=True` |
 | RUT-05 | BAJO | 🟢 | `RoutineExerciseViewSet` sin `GymModelViewSet` | No se reproduce: `RoutineExercise` no tiene campo `gym` |
-| RUT-06 | ALTO | 🔴 | Endpoints públicos exponen pagos, deuda y estado de acceso | Un token filtra la situación financiera del socio sin login |
-| RUT-07 | MEDIO | 🔴 | La app no tiene tests | Sin red de seguridad |
-| RUT-08 | MEDIO | 🔴 | El progreso se resetea por día | Sin historial de entrenamiento |
-| RUT-09 | MEDIO | 🔴 | `/routines` no está en `ProfessorRoute` | Cualquier rol la abre |
+| RUT-06 | ALTO | ⚪ | Endpoints públicos exponen pagos, deuda y estado de acceso | Decisión de negocio (Fase H): el token del portal ES la credencial del socio y el portal necesita esos datos para operar |
+| RUT-07 | MEDIO | 🟢 | La app no tiene tests | Cerrado Fase H: `routines/tests_phase_h.py` (16 tests: rol, soft delete, unicidad, atómico, ejercicio inactivo) |
+| RUT-08 | MEDIO | ⚪ | El progreso se resetea por día | Decisión de negocio (Fase H): sin historial de entrenamiento; se documenta y no se implementa |
+| RUT-09 | MEDIO | 🟢 | `/routines` no está en `ProfessorRoute` | Cerrado Fase H: guard `RoutineManagerRoute` (owner/staff/professor; trainer → `/trainer-agenda`) |
 | COM-01 | MEDIO | 🔴 | Un socio inactivo sigue accediendo a su tarjeta pública | El endpoint público no filtra `active` ni acepta el token rotado |
 | COM-02 | MEDIO | 🟢 | `discount` es texto libre y no participa de ningún cobro | Cerrado Fase C: `discount` obligatorio y no en blanco (mensaje de dominio). Que el descuento no se aplique a un cobro queda como decisión de negocio (Fase I) |
 | COM-03 | MEDIO | 🔴 | Sin unicidad de `name` por gimnasio → duplicados | Locales repetidos con descuentos distintos |
@@ -538,22 +538,58 @@ Detalle en `AUDITORIA-MIEMBROS.md §9`.
 ## Fichas — Rutinas (`RUT`)
 
 ### RUT-01 · Sin control de rol
-- **Severidad:** ALTO · **Estado:** 🔴 · **Dónde:** `backend/routines/views.py:53,59,65,70,272`.
-- **Criterio de aceptación:** catálogo y asignación exigen rol de staff/profesor.
+- **Severidad:** ALTO · **Estado:** 🟢
+- **Resolución Fase H:** `core/permissions.py` → `require_routine_manager` (owner, staff y
+  profesor). `routines/views.py` lo aplica vía `RoutineManagerMixin.initial` en los cuatro
+  ViewSets y en `BulkAssignRoutineView`. El trainer personal (cuya pantalla es su agenda)
+  recibe 403.
+- **Criterio de aceptación:** ✅ catálogo y asignación exigen rol de staff/profesor(owner).
+- **Tests:** `routines/tests_phase_h.py.RoutineRolePermissionTests` (6 tests).
 
-### RUT-06 · Endpoints públicos exponen datos financieros
-- **Severidad:** ALTO · **Estado:** 🔴 · **Explicación:** `permission_classes=[]` + throttle;
-  el payload trae `paid`, `payment_status`, `payments`, deuda y estado de acceso.
-- **Dónde:** `backend/routines/views.py:340,425,553,727,813-821`.
+### RUT-02 · Asignación con hard DELETE
+- **Severidad:** MEDIO · **Estado:** 🟢
+- **Resolución Fase H:** `RoutineAssignment.delete()` marca `active=False` (soft delete) y
+  `RoutineAssignmentViewSet` quita `delete` de `http_method_names` (405).
+- **Tests:** `routines/tests_phase_h.py.RoutineAssignmentSoftDeleteTests` (3 tests).
 
-### RUT-02 / RUT-03 / RUT-07 / RUT-08 / RUT-09 — 🔴
-Soft delete de asignación (`views.py:65`), unicidad de rutina activa + bulk no atómico
-(`views.py:313`), falta de tests, progreso por día (`views.py:356,404`), ruta sin
-`ProfessorRoute` (`frontend/src/App.jsx:199`).
+### RUT-03 · Sin unicidad de rutina activa; bulk-assign no atómico
+- **Severidad:** MEDIO · **Estado:** 🟢
+- **Resolución Fase H:** constraint `uniq_active_routine_per_member` (índice único parcial
+  `(gym, member) WHERE active=True`, migración `routines/0010`); `bulk-assign` corre en
+  `transaction.atomic()` y mapea `IntegrityError` a un 400 controlado.
+- **Tests:** `routines/tests_phase_h.py.RoutineUniquenessTests` (5 tests).
 
 ### RUT-04 · Ejercicio desactivado por PATCH
-- **Severidad:** BAJO · **Estado:** 🔴 · **Dónde:** `backend/routines/serializers.py:14-18,132`
-  (el manager filtra, pero un PATCH a `is_active` sin cascada deja el hueco).
+- **Severidad:** BAJO · **Estado:** 🟢
+- **Resolución Fase H:** `MemberRoutineSerializer.get_exercises` filtra
+  `routine_exercises.filter(is_active=True)`, así que un ejercicio desactivado por PATCH
+  ya no aparece en la rutina del socio.
+- **Tests:** `routines/tests_phase_h.py.RoutineExerciseHiddenWhenInactiveTests` (2 tests).
+
+### RUT-07 · La app no tiene tests
+- **Severidad:** MEDIO · **Estado:** 🟢
+- **Resolución Fase H:** `backend/routines/tests_phase_h.py` (16 tests). Sumar `routines` al
+  CI sigue pendiente y queda para la Fase J (`REF-02`).
+
+### RUT-09 · `/routines` no está en `ProfessorRoute`
+- **Severidad:** MEDIO · **Estado:** 🟢
+- **Resolución Fase H:** nuevo `RoutineManagerRoute` en `App.jsx` que permite
+  owner/staff/professor y manda al trainer a `/trainer-agenda`. No se usa `ProfessorRoute`
+  porque `/routines` ES la home del profesor (envolverla lo expulsaría).
+
+### RUT-06 · Endpoints públicos exponen datos financieros — ⚪ decisión de negocio
+- **Severidad:** ALTO · **Estado:** ⚪ (Fase H)
+- **Explicación:** `PublicRoutineView` (`/api/routines/public/<token>/`) es el **mismo** endpoint
+  que usa el portal del socio y devuelve su rutina, suscripción, pagos, deuda y estado de acceso.
+- **Decisión:** el token del portal ES la credencial del socio; el portal necesita esos datos
+  para operar (pagar, ver deuda, ver estado de acceso). El riesgo es el de cualquier endpoint
+  de portal si el token se filtra, no un leak entre socios. Se documenta y no se cambia.
+
+### RUT-08 · El progreso se resetea por día — ⚪ decisión de negocio
+- **Severidad:** MEDIO · **Estado:** ⚪ (Fase H)
+- **Explicación:** `WorkoutSet` sólo guarda el entrenamiento del día (`timezone.localdate()`);
+  no hay historial entre días.
+- **Decisión:** no se implementa historial de entrenamiento; se documenta.
 
 ---
 
@@ -591,7 +627,8 @@ Soft delete de asignación (`views.py:65`), unicidad de rutina activa + bulk no 
 
 ## Fichas — Robustez / CI (`REF`)
 
-- **REF-01 · Apps sin tests** 🔴 — `community`, `routines`, `profiles`, `seed`, `core`.
+- **REF-01 · Apps sin tests** 🔴 — `profiles`, `seed`, `core` (Fase H cerró `routines`;
+  `community` tiene `tests.py` desde la Fase C pero no corre en CI).
 - **REF-02 · El CI no corre esas apps** 🔴 — `.github/workflows/backend-tests.yml:73` corre
   sólo `subscriptions members attendance payments plans config activities outings` (más
   `gyms.tests_restore`). Faltan `gyms`, `admins`, `accounts`, `personal_training`, `profiles`,
@@ -617,6 +654,8 @@ Soft delete de asignación (`views.py:65`), unicidad de rutina activa + bulk no 
 | CFG-02 | `allow_member_schedule_changes` legacy | Limpieza de catálogo |
 | CFG-03 | `initial_pending` bloquea desde el día 1 | Socio nuevo que paga tarde |
 | ADD-11 | Las salidas no descuentan faltas | Ingreso del gimnasio por paquetes |
+| RUT-06 | Los endpoints públicos del portal exponen pagos/deuda/acceso | El token del portal es la credencial del socio |
+| RUT-08 | El progreso de entrenamiento se resetea por día | Sin historial de entrenamiento |
 
 Además, ya documentados como "no hace hoy" en las auditorías (no se prometen en el manual):
 sin reembolsos, sin pago online, sin recordatorios por email/WhatsApp, sin prorrateo en
