@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from core.mixins import GymQuerysetMixin
 from core.permissions import require_owner
-from members.models import Member
+from members.models import portal_member_or_404
 from profiles.models import UserProfile
 from .holidays import HolidaysAPIError, fetch_argentina_holidays
 from .labels import get_gym_labels, msg
@@ -104,7 +104,7 @@ class PwaMemberManifestView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         return JsonResponse(
             _build_pwa_manifest(member.gym, member=True),

@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 
 from .models import (
     Attendance,
@@ -25,6 +27,16 @@ from members.identity import MemberIdentityMixin
 from gyms.labels import msg
 from gyms.models import GymClosedDate
 from subscriptions.domain import SubscriptionDomain
+
+
+class ScheduleChangeConflict(APIException):
+    """Doble submit concurrente de un cambio de horario (409)."""
+
+    status_code = 409
+    default_detail = (
+        "Ya tienes una solicitud de cambio de horario pendiente."
+    )
+    default_code = "schedule_change_conflict"
 
 
 class SessionRecoverySerializer(serializers.ModelSerializer):
@@ -263,9 +275,8 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
             already_registered = Attendance.objects.filter(
                 gym=gym,
-                schedule=schedule,
+                member=schedule.member,
                 date=timezone.localdate(),
-                swap_request__isnull=True,
             ).exists()
 
             if already_registered:
@@ -278,7 +289,8 @@ class AttendanceSerializer(serializers.ModelSerializer):
         if slot is not None:
             cap = slot.capacity or gym.default_schedule_capacity
             if cap is not None:
-                effective = compute_effective_occupancy(slot, timezone.localdate())
+                member_check = schedule.member if schedule is not None else (swap_request.member if swap_request else None)
+                effective = compute_effective_occupancy(slot, timezone.localdate(), exclude_member=member_check)
                 if effective >= cap:
                     raise serializers.ValidationError(
                         "El horario está completo."
@@ -313,13 +325,19 @@ class AttendanceSerializer(serializers.ModelSerializer):
         swap_request = validated_data.get("swap_request")
         slot = validated_data.pop("_slot", None)
 
-        return Attendance.objects.create(
-            gym=gym,
-            member=schedule.member,
-            schedule=schedule,
-            swap_request=swap_request,
-            slot=slot,
-        )
+        try:
+            with transaction.atomic():
+                return Attendance.objects.create(
+                    gym=gym,
+                    member=schedule.member,
+                    schedule=schedule,
+                    swap_request=swap_request,
+                    slot=slot,
+                )
+        except IntegrityError:
+            raise serializers.ValidationError({
+                "schedule": "La asistencia ya fue registrada hoy."
+            })
 
 
 DAY_INDEX = {
@@ -527,7 +545,11 @@ class ScheduleChangeRequestSerializer(
         request = self.context["request"]
         gym = request.user.profile.gym
         validated_data["gym"] = gym
-        return super().create(validated_data)
+        try:
+            with transaction.atomic():
+                return super().create(validated_data)
+        except IntegrityError:
+            raise ScheduleChangeConflict()
 
 
 class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
@@ -653,6 +675,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         cooldown_hours = gym.schedule_change_cooldown_hours
         latest = ScheduleChangeRequest.objects.filter(
             member=member,
+            status__in=["pending", "approved", "executed"],
         ).order_by("-requested_at").first()
         if latest:
             elapsed = (timezone.now() - latest.requested_at).total_seconds()
@@ -739,7 +762,11 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         member = self.context["member"]
         validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member
-        return super().create(validated_data)
+        try:
+            with transaction.atomic():
+                return super().create(validated_data)
+        except IntegrityError:
+            raise ScheduleChangeConflict()
 
 
 class ScheduleSwapRequestSerializer(

@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 
+from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Q, Prefetch
 from django.utils import timezone
@@ -30,7 +31,7 @@ from .recovery_service import (
 )
 from members.identity import member_identity
 from members.models import Member
-from subscriptions.domain import ScheduleDomain, SubscriptionDomain
+from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
 from .serializers import (
     AttendanceScheduleSerializer,
     AttendanceSerializer,
@@ -875,40 +876,52 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
         return self._handle_action(request, pk, "cancelled_by_staff")
 
     def _handle_action(self, request, pk, new_status):
-        instance = self.get_object()
+        try:
+            with transaction.atomic():
+                instance = self.get_object()
 
-        if instance.status != "pending":
+                if instance.status != "pending":
+                    return Response(
+                        {"detail": f"No se puede modificar una solicitud con estado '{instance.status}'."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                serializer = ScheduleChangeRequestActionSerializer(
+                    instance,
+                    data={**request.data, "status": new_status},
+                    context={"request": request},
+                )
+                serializer.is_valid(raise_exception=True)
+
+                if new_status == "executed":
+                    current_schedule = instance.current_schedule
+                    requested_slot = instance.requested_slot
+
+                    current_schedule.active = False
+                    current_schedule.save(update_fields=["active"])
+
+                    subscription = SubscriptionDomain.get_current_subscription(instance.member)
+                    ScheduleDomain.activate_schedule(
+                        instance.member, instance.gym, requested_slot,
+                        subscription=subscription,
+                    )
+
+                serializer.save(
+                    reviewed_by=request.user,
+                    reviewed_at=timezone.now(),
+                )
+
+            return Response(ScheduleChangeRequestSerializer(instance).data)
+        except ScheduleError as exc:
             return Response(
-                {"detail": f"No se puede modificar una solicitud con estado '{instance.status}'."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": str(exc)},
+                status=exc.status_code,
             )
-
-        serializer = ScheduleChangeRequestActionSerializer(
-            instance,
-            data={**request.data, "status": new_status},
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-
-        if new_status == "executed":
-            current_schedule = instance.current_schedule
-            requested_slot = instance.requested_slot
-
-            current_schedule.active = False
-            current_schedule.save(update_fields=["active"])
-
-            subscription = SubscriptionDomain.get_current_subscription(instance.member)
-            ScheduleDomain.activate_schedule(
-                instance.member, instance.gym, requested_slot,
-                subscription=subscription,
+        except IntegrityError:
+            return Response(
+                {"detail": "Ya existe una solicitud de cambio de horario pendiente."},
+                status=status.HTTP_409_CONFLICT,
             )
-
-        serializer.save(
-            reviewed_by=request.user,
-            reviewed_at=timezone.now(),
-        )
-
-        return Response(ScheduleChangeRequestSerializer(instance).data)
 
 
 @api_view(["GET"])

@@ -31,6 +31,25 @@ class LoginTests(BaseAPITest):
 
         self.assertEqual(resp.status_code, 400)
 
+    def test_wrong_password_is_counted_by_axes(self):
+        """ACC-25: el login con contraseña incorrecta debe devolver 400 (no
+        500) y Axes debe registrar el intento fallido."""
+        from axes.models import AccessAttempt
+
+        gym = self.create_gym()
+        self.create_user(gym)
+
+        resp = self.client.post(
+            "/api/auth/login/",
+            {"username": "owner", "password": "incorrecta"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(
+            AccessAttempt.objects.filter(username="owner").exists()
+        )
+
     def test_me_returns_gym_and_role(self):
         from profiles.models import UserProfile
 

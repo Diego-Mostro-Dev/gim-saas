@@ -9,9 +9,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import RoutineAssignment, WorkoutSet
 from gyms.labels import get_gym_labels
-from members.models import Member, resolve_public_portal_member
+from members.models import Member, portal_member_or_404
 from django.shortcuts import get_object_or_404
-from django.http import Http404
 from .serializers import MemberRoutineSerializer, WorkoutSetSerializer
 from attendance.models import Attendance
 from subscriptions.models import Subscription
@@ -342,7 +341,7 @@ class PublicWorkoutProgressView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         assignment = RoutineAssignment.objects.filter(
             member=member, active=True
@@ -360,7 +359,7 @@ class PublicWorkoutProgressView(APIView):
         return Response(serializer.data)
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -427,9 +426,7 @@ class PublicRoutineView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = resolve_public_portal_member(token)
-        if member is None:
-            raise Http404("No Member matches the given query.")
+        member = portal_member_or_404(token)
 
         assignment = (
             RoutineAssignment.objects

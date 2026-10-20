@@ -1,10 +1,9 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-19** — Fases A, B y C hechas; Fase D (cobro de add-ons y ciclo de baja)
-cerrada. Total: **98 hallazgos** — 5 `CRÍTICO`, 29 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos
-**27 ya están cerrados**, **6 son decisiones de negocio** y quedan **51 abiertos** + 14 a
-verificar (los 🟡). Fichas de los abiertos con explicación, ejemplo de impacto y criterio de
-aceptación.
+Estado: **2026-10-20** — Fases A, B, C, D y E hechas. Total: **98 hallazgos** — 5 `CRÍTICO`,
+29 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos **37 ya están cerrados**, **6 son decisiones de
+negocio** y quedan **41 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
+explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
 > manual descriptivo ("cómo funciona hoy"); esto es "qué está mal y qué hacemos".
@@ -37,12 +36,12 @@ aceptación.
 |---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 7 | 3 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 |
-| Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 7 | 1 |
-| Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 1 | 0 |
+| Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 8 | 1 |
+| Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 11 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 1 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
 | Robustez/CI (`REF`) | 0 | 0 | 3 | 2 | 1 | 0 |
-| **Total** | **5** | **29** | **47** | **17** | **27** | **6** |
+| **Total** | **5** | **29** | **47** | **17** | **37** | **6** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -89,7 +88,7 @@ aceptación.
 | ADD-03 | ALTO | 🔴 | Cambiar de horario puede dejar al socio sin ninguno | Si falla la reinscripción queda sin horario |
 | ADD-04 | MEDIO | 🟡 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Reactiva horarios que el staff había apagado |
 | ADD-05 | MEDIO | 🔴 | El choque con el gimnasio se calcula como "hora + 1 h" | Bloques de más de 1 hora pueden no detectarse |
-| ADD-06 | ALTO | 🟡 | El portal rompe al renderizar una actividad desactivada | El socio ve un error en lugar del aviso |
+| ADD-06 | ALTO | 🟢 | El portal rompe al renderizar una actividad desactivada | Cerrado Fase E (re-verificado): `MemberActivities.jsx` segrega huérfanas/desactivadas y el serializer expone `activity_active`/`schedule_active` |
 | ADD-07 | CRÍTICO | 🔴 | El no-show descuenta sesión en fechas sin clase | Feriado no cargado o clase cancelada → el socio pierde una sesión paga |
 | ADD-08 | ALTO | 🟢 | Paquete sobre-cobrable fuera de `record_package_payment` | Cerrado: el serializer de pagos unificado valida el tope y resincroniza |
 | ADD-11 | ALTO | ⚪ | Faltar a una salida no descuenta sesión | El paquete nunca se agota; el gimnasio no cobra sesiones usadas |
@@ -108,29 +107,29 @@ aceptación.
 | ADD-24 | BAJO | 🟡 | El wizard de asignación reconcilia el horario elegido | Puede no ser el que el staff esperaba |
 | ADD-25 | BAJO | 🟡 | Estado `approved` muerto en PT | Código latente |
 | ADD-26 | MEDIO | 🔴 | PT: reasignar a otro día no se detecta como doble-booking | Solo valida mismo día + solape horario |
-| ACC-01 | CRÍTICO | 🔴 | El cupo se cuenta a sí mismo: "El horario está completo" | Un socio con lugar reservado no puede entrar a su propio horario |
+| ACC-01 | CRÍTICO | 🟢 | El cupo se cuenta a sí mismo: "El horario está completo" | Cerrado Fase E: el cupo excluye al propio socio (check-in y alta de staff) |
 | ACC-02 | MEDIO | 🔴 | No hay ventana horaria de check-in | Se puede marcar a las 03:00 |
 | ACC-03 | MEDIO | 🔴 | El staff puede marcar asistencia en un día cerrado | `GymClosedDate` no se chequea en el serializer de staff |
 | ACC-04 | MEDIO | 🔴 | "Ya entró hoy" devuelve 200 con `success:false` | El front no lo distingue de un éxito por status |
-| ACC-05 | ALTO | 🔴 | Doble registro del staff → 500 | Check-then-create sin lock; dos clicks → 500 |
-| ACC-06 | ALTO | 🔴 | Límite de 30/h por IP en el portal | Un WiFi compartido agota el límite y todos reciben 429 |
-| ACC-07 | MEDIO | 🔴 | Dos horarios el mismo día: entra una sola vez por QR | El staff podría marcarlo dos veces |
+| ACC-05 | ALTO | 🟢 | Doble registro del staff → 500 | Cerrado Fase E: pre-check + `IntegrityError` → 400 en `AttendanceSerializer.create` |
+| ACC-06 | ALTO | 🟢 | Límite de 30/h por IP en el portal | Cerrado Fase E: se quitó el throttle por IP; queda sólo el de token del portal |
+| ACC-07 | MEDIO | 🟢 | Dos horarios el mismo día: entra una sola vez por QR | Cerrado Fase E: el QR registra una sola asistencia por día |
 | ACC-08 | ALTO | 🔴 | La sesión del paquete no se descuenta si entra fuera de la ventana | Entra, entrena, y el paquete queda igual (pierde el gimnasio) |
-| ACC-09 | MEDIO | 🔴 | Panel de horarios: label `executed` y filtro "Aprobadas" vacío | El staff no ve las aprobadas; toast equivocado "cancelado" |
+| ACC-09 | MEDIO | 🟢 | Panel de horarios: label `executed` y filtro "Aprobadas" vacío | Cerrado Fase E: `executed` mapeado y "Aprobadas" matchea approved+executed |
 | ACC-10 | ALTO | 🔴 | Aprobar desactiva el horario viejo de inmediato | El socio pierde las clases de la semana en curso |
-| ACC-11 | ALTO | 🔴 | El cooldown de 7 días cuenta las rechazadas | Un rechazo lo deja 7 días sin poder pedir |
-| ACC-12 | ALTO | 🔴 | Doble pedido de horario → 500 | Constraint único sin manejo de `IntegrityError` |
+| ACC-11 | ALTO | 🟢 | El cooldown de 7 días cuenta las rechazadas | Cerrado Fase E: el cooldown ignora las solicitudes rechazadas |
+| ACC-12 | ALTO | 🟢 | Doble pedido de horario → 500 | Cerrado Fase E: `IntegrityError` del constraint → 409 (serializer y `_handle_action`) |
 | ACC-13 | MEDIO | 🔴 | Staff crea cambios sin límites (ver CFG-04) | Duplicado de CFG-04 |
 | ACC-14 | MEDIO | 🔴 | Un horario puede quedar duplicado | Editar horarios con pedido pendiente |
 | ACC-16 | MEDIO | 🔴 | Aprobar un cambio de plan cancela pedidos de horario en silencio | El socio debe volver a pedir y no se le avisa |
-| ACC-17 | ALTO | 🔴 | El alta pública descarta el descuento y fuerza `is_comp=False` en silencio | El socio que puso un descuento paga precio lleno sin aviso |
-| ACC-18 | ALTO | 🔴 | Rotación de token deja el link viejo muerto | Un link impreso de 2 rotaciones atrás no funciona; foto/adjuntos/check-in cortan al rotar |
+| ACC-17 | ALTO | 🟢 | El alta pública descarta el descuento y fuerza `is_comp=False` en silencio | Cerrado Fase E (decisión de negocio): el alta pública nunca honra `discount_id`/`is_comp` (son privilegios de staff) y deja warning en logs para asignarlos desde el panel |
+| ACC-18 | ALTO | 🟢 | Rotación de token deja el link viejo muerto | Cerrado Fase E: todos los endpoints del portal aceptan el token de una generación anterior (gracia de 1 generación; 2+ invalidado por diseño) |
 | ACC-19 | MEDIO | 🟡 | Teléfono único por gimnasio | Una familia con un solo teléfono no puede inscribir a dos |
 | ACC-20 | MEDIO | 🟡 | Borrar un socio es hard delete en cascada | Sin papelera; se pierde historial |
 | ACC-22 | MEDIO | 🟡 | Quitar la cortesía exige elegir un plan de pago | El cambio falla si no se elige plan |
 | ACC-23 | ALTO | 🔴 | Obra social sin match → texto libre sin precio | No se cobra el coseguro; el gimnasio pierde plata |
 | ACC-24 | ALTO | 🟢 | 500 al pedir cambio de horario de PT | Cerrado `f27bc67` (bug real no documentado en ninguna auditoría) |
-| ACC-25 | ALTO | 🔴 | Login con contraseña incorrecta → 500 y Axes no registra el intento | `authenticate()` sin `request` rompe el `AxesStandaloneBackend`: error 500 en vez de 401 y sin bloqueo por fuerza bruta |
+| ACC-25 | ALTO | 🟢 | Login con contraseña incorrecta → 500 y Axes no registra el intento | Cerrado Fase E: `authenticate(request=...)`; responde 400 y Axes registra el `AccessAttempt` |
 | RUT-01 | ALTO | 🔴 | Sin control de rol en rutinas | Cualquier usuario del gym gestiona catálogo y asigna rutinas |
 | RUT-02 | MEDIO | 🔴 | Asignación con hard DELETE | Se borra la fila; sin soft delete ni historial |
 | RUT-03 | MEDIO | 🔴 | Sin unicidad de rutina activa; bulk-assign no atómico | Doble submit deja dos rutinas activas o estados a medias |
@@ -465,18 +464,29 @@ Hallazgos de las auditorías de actividades/salidas/PT sin re-verificar aún. De
 - **Severidad:** ALTO · **Estado:** 🔴 · **Dónde:** `backend/attendance/serializers.py:653-662`.
 
 ### ACC-12 · Doble pedido → 500
-- **Severidad:** ALTO · **Estado:** 🔴 · **Dónde:** `backend/attendance/serializers.py:645-727`,
-  `backend/attendance/models.py:227-233`, `backend/attendance/views.py:861`.
+- **Severidad:** ALTO · **Estado:** 🟢 · **Resolución Fase E:** el serializer de cambio de
+  horario (staff y público) traduce el `IntegrityError` de `unique_pending_change_request` a
+  409; `_handle_action` dejó de usar `except Exception` y sólo captura `ScheduleError`/
+  `IntegrityError`.
+- **Dónde:** `backend/attendance/serializers.py` (`ScheduleChangeConflict`),
+  `backend/attendance/views.py:_handle_action`.
 
 ### ACC-17 · El alta pública descarta el descuento
-- **Severidad:** ALTO · **Estado:** 🔴 · **Explicación:** `pop("is_comp")` y `pop("discount_id")`
-  y `is_comp = False`, sin aviso.
-- **Ejemplo de impacto:** el socio se inscribe con un descuento; paga precio lleno y nadie le avisa.
-- **Dónde:** `backend/members/public_views.py:168-173`.
+- **Severidad:** ALTO · **Estado:** 🟢 · **Resolución Fase E (decisión de negocio).**
+- **Explicación:** `is_comp` y `discount_id` son privilegios de staff, pero el alta pública es
+  anónima y no puede validar quién elige el descuento: honrar un `discount_id` del payload deja
+  a cualquiera auto-asignarse, por ejemplo, un 50% off de por vida (el gimnasio pierde plata).
+  Se mantiene el descarte y se agrega un `logger.warning` con el gimnasio para que el staff lo
+  asigne desde el panel. El socio nunca ve un descuento aplicado que no corresponda.
+- **Dónde:** `backend/members/public_views.py`.
 
 ### ACC-18 · Rotación de token
-- **Severidad:** ALTO · **Estado:** 🔴 · **Dónde:** `backend/members/models.py:258-262,289-305`,
-  `backend/members/views.py:452-454`, `backend/attendance/public_views.py:112-114`.
+- **Severidad:** ALTO · **Estado:** 🟢 · **Resolución Fase E:** `portal_member_or_404`
+  (`resolve_public_portal_member`) es la fuente única y acepta el token vigente o el de la
+  generación anterior; adjuntos, foto y check-in también lo usan. Gracia de 1 generación: un
+  token de dos rotaciones atrás queda invalidado (por diseño/TTL de 30 días).
+- **Dónde:** `backend/members/models.py`, endpoints de portal en `attendance`, `activities`,
+  `outings`, `subscriptions`, `personal_training`, `community`, `gyms`, `routines`, `members`.
 
 ### ACC-23 · Obra social sin match
 - **Severidad:** ALTO · **Estado:** 🔴 · **Explicación:** `_autolink_insurance` normaliza
@@ -484,9 +494,10 @@ Hallazgos de las auditorías de actividades/salidas/PT sin re-verificar aún. De
 - **Dónde:** `backend/members/serializers.py:31-37,239-242,444-452`.
 - **Criterio de aceptación:** el coseguro no puede quedar en 0 por un nombre mal escrito.
 
-### ACC-02, ACC-03, ACC-04, ACC-07, ACC-09, ACC-14, ACC-16 — 🔴
+### ACC-02, ACC-03, ACC-04, ACC-14, ACC-16 — 🔴
 Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`; veredicto en la tabla
-maestra (todos re-verificados VIVO el 2026-10-19).
+maestra (todos re-verificados VIVO el 2026-10-19). Siguen abiertos y sin fase asignada: decidir
+en la Fase K.
 
 ### ACC-19, ACC-20, ACC-22 — 🟡 a verificar
 Detalle en `AUDITORIA-MIEMBROS.md §9`.

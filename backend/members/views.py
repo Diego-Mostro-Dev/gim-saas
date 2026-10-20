@@ -38,7 +38,13 @@ from subscriptions.services import (
     gym_debtor_member_ids,
 )
 
-from .models import HealthInsurance, Member, MemberAttachment, resolve_public_portal_member
+from .models import (
+    HealthInsurance,
+    Member,
+    MemberAttachment,
+    portal_member_or_404,
+    resolve_public_portal_member,
+)
 from .serializers import (
     HealthInsuranceSerializer,
     MemberSerializer,
@@ -447,10 +453,7 @@ class PublicMemberPhotoView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def patch(self, request, token):
-        member = get_object_or_404(
-            Member,
-            access_token=token,
-        )
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(

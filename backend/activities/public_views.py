@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from gyms.features import require_activities
 from gyms.models import Gym
-from members.models import Member
+from members.models import portal_member_or_404
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from config.api.params import as_error_detail, parse_int
@@ -23,7 +23,7 @@ class PublicMemberEnrollmentsView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         require_activities(gym)
 
@@ -42,7 +42,7 @@ class PublicMemberEnrollmentsView(APIView):
         return Response(serializer.data)
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         require_activities(gym)
 
@@ -161,7 +161,7 @@ class PublicAvailableActivitiesView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         require_activities(gym)
 
@@ -256,7 +256,7 @@ class PublicMemberEnrollView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         require_activities(gym)
 

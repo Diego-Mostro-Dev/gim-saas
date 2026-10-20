@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import time
 
 from django.shortcuts import get_object_or_404
@@ -22,10 +23,12 @@ from config.api.throttles import (
     PublicMemberRateThrottle,
     PublicRegisterRateThrottle,
 )
-from .models import Member, MemberAttachment
+from .models import MemberAttachment, portal_member_or_404
 
 
 VALID_SERVICES = frozenset({"gym", "activities"})
+
+logger = logging.getLogger(__name__)
 
 
 class PublicRegisterView(APIView):
@@ -166,8 +169,20 @@ class PublicRegisterView(APIView):
         member_data["entry_mode"] = entry_mode
 
         # Privilegios que el socio no puede auto-asignarse en el registro.
-        # is_comp se fuerza en False y el descuento se ignora: solo el staff
-        # puede otorgarlos luego del alta (evita membresía de cortesía gratis).
+        # is_comp y discount_id son privilegios exclusivos del staff: el alta
+        # pública es anónima y no puede validar quién elige el descuento, así
+        # que se descartan y queda registro para que el gimnasio lo asigne
+        # luego desde el panel (decisión de negocio, ver ACC-17 en BUGS.md).
+        privileged_dropped = [
+            field for field in ("is_comp", "discount_id") if field in member_data
+        ]
+        if privileged_dropped:
+            logger.warning(
+                "Alta pública descartó privilegios de staff %s "
+                "(gym=%s) - asignar desde el panel si corresponde.",
+                privileged_dropped,
+                getattr(gym, "id", None),
+            )
         member_data.pop("is_comp", None)
         member_data.pop("discount_id", None)
         member_data["is_comp"] = False
@@ -278,10 +293,7 @@ class PublicMemberAttachmentListView(APIView):
     throttle_classes = [MemberUploadThrottle]
 
     def _get_member(self, token):
-        return get_object_or_404(
-            Member,
-            access_token=token,
-        )
+        return portal_member_or_404(token)
 
     def get(self, request, token):
         member = self._get_member(token)
@@ -324,10 +336,11 @@ class PublicMemberAttachmentDetailView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def _get_attachment(self, token, attachment_id):
+        member = portal_member_or_404(token)
         return get_object_or_404(
             MemberAttachment,
             id=attachment_id,
-            member__access_token=token,
+            member=member,
         )
 
     def delete(self, request, token, attachment_id):

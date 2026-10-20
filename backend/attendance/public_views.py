@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from members.models import Member
+from members.models import Member, portal_member_or_404, portal_token_q
 from gyms.labels import msg
 from gyms.models import GymClosedDate
 from .models import (
@@ -31,10 +31,7 @@ from .serializers import (
     SessionRecoverySerializer,
 )
 from config.api.params import parse_date
-from config.api.throttles import (
-    MemberPortalTokenThrottle,
-    PublicAttendanceRateThrottle,
-)
+from config.api.throttles import MemberPortalTokenThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from .recovery_service import RecoveryError, _add_hour, use_recovery
@@ -104,7 +101,7 @@ def _count_outing_sessions_if_in_window(member, gym, now_dt, today):
 
 class PublicCheckinView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def post(self, request, token):
         with transaction.atomic():
@@ -112,7 +109,7 @@ class PublicCheckinView(APIView):
 
     def _handle_checkin(self, token):
         member = Member.objects.filter(
-            access_token=token,
+            portal_token_q(token),
             active=True,
         ).select_for_update().first()
 
@@ -312,7 +309,7 @@ class PublicCheckinView(APIView):
 
         cap = slot.capacity or gym.default_schedule_capacity
         if cap is not None:
-            effective = compute_effective_occupancy(slot, today)
+            effective = compute_effective_occupancy(slot, today, exclude_member=member)
             if effective >= cap:
                 return Response(
                     {
@@ -344,10 +341,10 @@ class PublicCheckinView(APIView):
 
 class PublicMemberSlotsView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         target_date_str = request.GET.get("date")
         target_date = None
@@ -387,10 +384,10 @@ class PublicMemberSlotsView(APIView):
 
 class PublicScheduleChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         requests = ScheduleChangeRequest.objects.filter(
             member=member,
         ).select_related(
@@ -402,7 +399,7 @@ class PublicScheduleChangeRequestView(APIView):
         )
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -422,10 +419,10 @@ class PublicScheduleChangeRequestView(APIView):
 
 class PublicCancelScheduleChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -455,10 +452,10 @@ class PublicCancelScheduleChangeRequestView(APIView):
 
 class PublicScheduleSwapRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         swaps = ScheduleSwapRequest.objects.filter(
             member=member,
         ).select_related(
@@ -470,7 +467,7 @@ class PublicScheduleSwapRequestView(APIView):
         )
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -490,10 +487,10 @@ class PublicScheduleSwapRequestView(APIView):
 
 class PublicCancelScheduleSwapRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -523,10 +520,10 @@ class PublicCancelScheduleSwapRequestView(APIView):
 
 class PublicSessionRecoveryView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         recoveries = SessionRecovery.objects.filter(
             member=member,
         ).select_related("member", "activity", "granted_by", "used_schedule", "used_slot").order_by("-created_at")
