@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-20** — Fases A, B, C, D y E hechas. Total: **98 hallazgos** — 5 `CRÍTICO`,
-29 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos **37 ya están cerrados**, **6 son decisiones de
-negocio** y quedan **41 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
+Estado: **2026-10-20** — Fases A, B, C, D, E y F hechas. Total: **98 hallazgos** — 5 `CRÍTICO`,
+29 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos **43 ya están cerrados**, **6 son decisiones de
+negocio** y quedan **35 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
@@ -34,14 +34,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
 
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones |
 |---|---|---|---|---|---|---|
-| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 7 | 3 |
+| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 13 | 3 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 |
 | Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 8 | 1 |
 | Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 11 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 1 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
 | Robustez/CI (`REF`) | 0 | 0 | 3 | 2 | 1 | 0 |
-| **Total** | **5** | **29** | **47** | **17** | **37** | **6** |
+| **Total** | **5** | **29** | **47** | **17** | **43** | **6** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -58,14 +58,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | DIN-07 | MEDIO | 🟢 | Borrar una suscripción dejaba pagos huérfanos (P12) | Cerrado (`PROTECT` + 409) |
 | DIN-08 | MEDIO | 🟢 | Deuda de salidas invisible para el badge (P24) | Cerrado Fase 4 |
 | DIN-09 | MEDIO | 🟢 | El badge ignoraba un cambio de plan aprobado (P24) | Cerrado Fase 4 |
-| DIN-04 | ALTO | 🔴 | Un cambio de plan con efecto inmediato no consume el crédito del socio | Socio con $20.000 a favor cambia de plan hoy: el período nuevo nace debiendo todo y su crédito queda dormido |
-| DIN-05 | ALTO | 🔴 | Otorgar una cortesía reenciende `auto_renew` | El socio había apagado la renovación; al darle cortesía vuelve a renovar solo |
-| DIN-06 | ALTO | 🔴 | El socio que nunca pagó el primer mes igual se auto-renueva | Se le acumula un período nuevo de deuda sin haber pagado el anterior |
-| DIN-10 | MEDIO | 🔴 | El badge rechaza socios de cortesía, pero `recover_member` los acepta | La UI oculta el botón; el POST igual funciona (inconsistencia) |
+| DIN-04 | ALTO | 🟢 | Un cambio de plan con efecto inmediato no consume el crédito del socio | Cerrado Fase F: helper `_open_period_with_credit` aplica el saldo en los 3 caminos (renovación, cambio inmediato por vista y `apply_plan_change`) |
+| DIN-05 | ALTO | 🟢 | Otorgar una cortesía reenciende `auto_renew` | Cerrado Fase F: el toggle de cortesía ya no escribe `auto_renew` (con sub previa lo hereda; sin sub previa queda en False) |
+| DIN-06 | ALTO | 🟢 | El socio que nunca pagó el primer mes igual se auto-renueva | Cerrado Fase F: `payment_blocked` frena también con `initial_pending` |
+| DIN-10 | MEDIO | 🟢 | El badge rechaza socios de cortesía, pero `recover_member` los acepta | Cerrado Fase F: `get_is_recoverable` ya no excluye a los comp; badge y acción usan la misma regla |
 | DIN-11 | ALTO | ⚪ | Recuperar a un socio no aplica su saldo a favor | Recupera con crédito disponible pero el período nace 100% impago |
-| DIN-12 | BAJO | 🔴 | El endpoint de recuperar responde 201 aunque no cree nada | En el Caso A (reactivación) informa "creado" sin crear |
+| DIN-12 | BAJO | 🟢 | El endpoint de recuperar responde 201 aunque no cree nada | Cerrado Fase F: `recover_member` devuelve `(sub, created)`; el endpoint responde 200 (reactivación) o 201 (período nuevo) |
 | DIN-13 | MEDIO | ⚪ | El chequeo de deuda corre antes que el de ciclo vigente | Inactivo con ciclo vigente + deuda residual no puede reactivarse |
-| DIN-15 | MEDIO | 🔴 | `recover_member` no toma lock; la carrera la resuelve el constraint con 500 | Doble click → 500 en vez de error controlado (no duplica ciclo) |
+| DIN-15 | MEDIO | 🟢 | `recover_member` no toma lock; la carrera la resuelve el constraint con 500 | Cerrado Fase F: el `IntegrityError` de `unique_subscription_member_period` se traduce a `SubscriptionConflictError` (400) |
 | DIN-16 | ALTO | ⚪ | Recuperar no prorratea | Recuperar el día 25 cobra el mes completo por 5 días |
 | DIN-17 | BAJO | 🔴 | `calculate_subscription_total` reintroduce el precio vigente (fallback P13) | Una fila legacy sin ítem de plan se factura al precio actual del plan |
 | DIN-18 | ALTO | 🟢 | Agregar sesiones a un paquete vuelve a dejar el sellado pendiente | Cerrado Fase D: `renew_package` ya no resetea `sellado_paid` |
@@ -156,44 +156,44 @@ explicación, ejemplo de impacto y criterio de aceptación.
 ## Fichas — Dinero / suscripción (`DIN`)
 
 ### DIN-04 · Un cambio de plan con efecto inmediato no consume el crédito
-- **Severidad:** ALTO · **Estado:** 🔴 (PARCIAL)
-- **Explicación:** el camino del día 1 (`create_next_subscription`) consume el saldo a favor
-  del socio; el camino de efecto inmediato (aprobar con fecha de efecto HOY, sin ciclo
-  vigente) no llama a `consume_member_credit`. El ítem de PT mensual **sí** quedó cubierto
-  (`open_subscription` llama `ensure_pt_items_for_active_assignments`).
-- **Ejemplo de impacto:** socio con $20.000 a favor cambia de plan con efecto inmediato: el
-  período nuevo nace debiendo todo y el crédito queda durmiendo hasta la próxima renovación.
-- **Dónde:** `backend/subscriptions/views.py:348-358`, `backend/subscriptions/services.py:1356`.
+- **Severidad:** ALTO · **Estado:** 🟢 · **Resolución Fase F.**
+- **Explicación:** el camino del día 1 (`create_next_subscription`) consumía el saldo a favor;
+  el de efecto inmediato (aprobar con fecha de efecto HOY, sin ciclo vigente) no llamaba a
+  `consume_member_credit`, ni en la vista ni en `apply_plan_change`.
+- **Fix:** se extrae `_open_period_with_credit` (abrir período → copiar ítems → consumir
+  crédito → sincronizar `paid`) y se reusa en los tres caminos: renovación, aprobación
+  inmediata por vista y `apply_plan_change`. El helper deja divergir de nuevo imposible.
 - **Criterio de aceptación:** el período creado por efecto inmediato descuenta el crédito
-  disponible de la misma forma que la renovación.
+  disponible de la misma forma que la renovación. (Cubierto en `test_money_fase_f.py`.)
 
 ### DIN-05 · La cortesía reenciende `auto_renew`
-- **Severidad:** ALTO · **Estado:** 🔴
-- **Explicación:** `mutate_membership(comp=True)` escribe `current.auto_renew = True`
-  incondicionalmente; en el branch sin ciclo vigente se abre con `auto_renew=True` fijo.
-- **Ejemplo de impacto:** el socio había apagado la renovación; al darle cortesía empieza a
-  renovar solo de nuevo.
-- **Dónde:** `backend/subscriptions/domain.py:210-211`, `:309`.
+- **Severidad:** ALTO · **Estado:** 🟢 · **Resolución Fase F.**
+- **Explicación:** `mutate_membership(comp=True)` escribía `current.auto_renew = True`
+  incondicionalmente; en el branch sin ciclo vigente se abría con `auto_renew=True` fijo.
+- **Fix:** el toggle de cortesía ya no escribe `auto_renew`. Con sub vigente lo conserva tal
+  cual; sin sub previa, `_inherit_auto_renew` toma el valor de la última sub del socio o
+  `False` si no hay ninguna (dar un beneficio no es un contrato de renovación).
 - **Criterio de aceptación:** dar/quitar cortesía no altera `auto_renew` que eligió el socio.
+  (Cubierto en `test_money_fase_f.py`.)
 
 ### DIN-06 · El impago inicial no frena la renovación
-- **Severidad:** ALTO · **Estado:** 🔴
+- **Severidad:** ALTO · **Estado:** 🟢 · **Resolución Fase F.**
 - **Explicación:** `get_subscription_payment_status` devuelve `initial_pending`, pero
-  `payment_blocked()` sólo frena con estado `blocked`; el loop de renovación no tiene guard
-  para el primer mes impago.
-- **Ejemplo de impacto:** socio que nunca pagó el primer mes recibe el segundo período con
-  deuda nueva encima.
-- **Dónde:** `backend/subscriptions/services.py:1215-1216`, `:1585-1592`, `:1634-1666`.
-- **Criterio de aceptación:** "primer mes impago" es un estado que impide la auto-renovación
-  (o decisión de negocio explícita en contrario).
+  `payment_blocked()` sólo frenaba con estado `blocked`, así que el socio que nunca pagó el
+  alta se auto-renovaba y apilaba deuda nueva sobre la vieja.
+- **Fix:** `payment_blocked` frena cuando el status es `blocked` **o** `initial_pending`.
+  `initial_pending` es la señal más fuerte de impago: el socio jamás demostró intención de
+  pagar. El guard es sobre el estado actual del período, no un flag permanente.
+- **Criterio de aceptación:** primer mes impago → no renueva; tras pagar, renueva.
+  (Cubierto en `test_money_fase_f.py`.)
 
 ### DIN-10 · El badge rechaza comp; la acción no
-- **Severidad:** MEDIO · **Estado:** 🔴
-- **Explicación:** `get_is_recoverable` devuelve `False` si `is_comp`, `recover_member` no
-  tiene ningún gate por comp.
-- **Ejemplo de impacto:** socio comp que el sistema podría recuperar no muestra el botón;
-  desde la API el POST funciona.
-- **Dónde:** `backend/members/serializers.py:272-273` vs `backend/subscriptions/services.py:1423-1433`.
+- **Severidad:** MEDIO · **Estado:** 🟢 · **Resolución Fase F.**
+- **Explicación:** `get_is_recoverable` devolvía `False` si `is_comp`, pero `recover_member`
+  no tiene ningún gate por comp: el badge y la acción decían cosas distintas.
+- **Fix:** se quita el early-return de comp en `get_is_recoverable`; ahora badge y servicio
+  usan exactamente la misma regla (deuda, plan base, sub futura/vigente). Un comp recuperable
+  muestra el botón y el POST funciona; uno con deuda sigue oculto por la regla de deuda.
 
 ### DIN-11 · Recuperar no aplica el saldo a favor
 - **Severidad:** ALTO · **Estado:** ⚪ decisión de negocio
@@ -202,8 +202,10 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Ejemplo de impacto:** socio con crédito disponible recupera y su período nace 100% impago.
 
 ### DIN-12 · El endpoint de recuperar siempre responde 201
-- **Severidad:** BAJO · **Estado:** 🔴
-- **Dónde:** `backend/subscriptions/views.py:175-176`.
+- **Severidad:** BAJO · **Estado:** 🟢 · **Resolución Fase F.**
+- **Fix:** `recover_member` devuelve `(subscription, created)`. El endpoint responde **200**
+  cuando sólo reactiva sobre un período vigente (Caso A, no crea nada) y **201** cuando abre
+  un período nuevo (Caso B).
 
 ### DIN-13 · El chequeo de deuda corre antes que el de ciclo vigente
 - **Severidad:** MEDIO · **Estado:** ⚪ (documentado como intencional)
@@ -211,11 +213,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Dónde:** `backend/subscriptions/services.py:1423` antes de `:1428-1433`.
 
 ### DIN-15 · Recuperar sin lock
-- **Severidad:** MEDIO · **Estado:** 🔴
+- **Severidad:** MEDIO · **Estado:** 🟢 · **Resolución Fase F.**
 - **Explicación:** `open_subscription` toma `select_for_update` sobre un query de overlap,
   pero en recovery no hay filas que lockear; lo que evita el ciclo duplicado es el constraint
-  `unique_subscription_member_period`, que ante doble click devuelve **500**.
-- **Criterio de aceptación:** la carrera se resuelve con un 409/400 controlado, no con 500.
+  `unique_subscription_member_period`, que ante doble click devolvía **500**.
+- **Fix:** el `IntegrityError` del constraint se traduce a `SubscriptionConflictError` (400).
+  El `except` va por fuera del `atomic()` para no dejar rota la transacción del caller.
+- **Criterio de aceptación:** la carrera se resuelve con un error controlado, no con 500.
+  (Cubierto en `test_money_fase_f.py`.)
 
 ### DIN-16 · Recuperar sin prorrateo
 - **Severidad:** ALTO · **Estado:** ⚪ decisión de negocio

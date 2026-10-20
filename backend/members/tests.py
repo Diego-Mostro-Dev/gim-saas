@@ -404,7 +404,9 @@ class RecoveryEndpointTests(BaseAPITest):
             format="json",
         )
 
-        self.assertEqual(resp.status_code, 201)
+        # Hay una suscripción vigente, así que es reactivación (Caso A):
+        # Fase F (DIN-12) responde 200, no 201, porque no crea nada.
+        self.assertEqual(resp.status_code, 200)
         member.refresh_from_db()
         self.assertTrue(member.active)
 

@@ -270,9 +270,6 @@ class MemberSerializer(serializers.ModelSerializer):
         """
         today = timezone.localdate()
 
-        if obj.is_comp:
-            return False
-
         subs = list(obj.subscription_set.all())
         if not subs:
             return False

@@ -26,6 +26,23 @@ from attendance.models import DAY_CHOICES
 DAY_LABELS = dict(DAY_CHOICES)
 
 
+def _inherit_auto_renew(member):
+    """``auto_renew`` for a subscription opened without a current one.
+
+    Fase F (DIN-05): giving a courtesy pass must never switch renewal on by
+    itself. When the member already has a subscription, its ``auto_renew`` is
+    the member's own choice and is inherited; when there is no prior
+    subscription there is nothing to inherit, so the conservative default is
+    False (a benefit granted is not a renewal contract).
+    """
+    from .models import Subscription
+
+    latest = Subscription.objects.filter(member=member).order_by(
+        "-start_date", "-created_at"
+    ).first()
+    return latest.auto_renew if latest is not None else False
+
+
 class ScheduleError(ValueError):
     """Raised when a schedule operation fails (slot not found, capacity full)."""
 
@@ -207,8 +224,7 @@ class SubscriptionDomain:
 
                     base_plan = ensure_base_plan_for_gym(member.gym)
                     current.plan = base_plan
-                    current.auto_renew = True
-                    current.save(update_fields=["plan", "auto_renew"])
+                    current.save(update_fields=["plan"])
 
                     # Only the days already served keep being billed; the rest
                     # of the period stops being charged. The price line has to
@@ -306,7 +322,7 @@ class SubscriptionDomain:
                 start_date=today,
                 end_date=get_last_day_of_month(today),
                 paid=comp,
-                auto_renew=True,
+                auto_renew=_inherit_auto_renew(member),
                 origin=origin,
             )
 

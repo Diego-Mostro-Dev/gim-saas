@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Min, Q, Sum
 from django.utils import timezone
 
@@ -1349,6 +1349,61 @@ def compute_projected_occupancy(slot, target_date, exclude_member=None):
     return compute_effective_occupancy(slot, target_date, exclude_member=exclude_member)
 
 
+def _open_period_with_credit(*, member, plan, start_date, end_date, auto_renew,
+                             origin, source_sub=None, copy_personal_training=True):
+    """Open a billing period and apply the member's open credit to it.
+
+    Fase F (DIN-04): the "open period → copy items → consume credit →
+    synchronize ``paid``" sequence used to live only in
+    ``create_next_subscription``. The immediate plan-change paths opened the
+    period without consuming the credit, so the new period was born owing
+    the whole amount while the member's credit slept until the next renewal.
+    Keeping the sequence in one place is what stops the three paths from
+    drifting apart again.
+
+    Args:
+        member: The Member the period belongs to.
+        plan: The MembershipPlan for the new period.
+        start_date: First day of the period.
+        end_date: Last day of the period.
+        auto_renew: Renewal flag, already resolved by the caller.
+        origin: Subscription.ORIGIN_CHOICES value.
+        source_sub: Subscription to copy items from. When None no items are
+            copied.
+        copy_personal_training: Whether to copy monthly PT items from
+            ``source_sub``. The immediate plan-change view intentionally
+            leaves PT to ``ensure_pt_items_for_active_assignments`` (called
+            inside ``open_subscription``), so it passes False.
+
+    Returns:
+        The newly opened Subscription.
+    """
+    new_sub = SubscriptionDomain.open_subscription(
+        member=member,
+        plan=plan,
+        start_date=start_date,
+        end_date=end_date,
+        auto_renew=auto_renew,
+        origin=origin,
+    )
+    if source_sub is not None:
+        _copy_activity_items(source_sub, new_sub)
+        if copy_personal_training:
+            _copy_personal_training_items(source_sub, new_sub)
+        _copy_outing_items(source_sub, new_sub)
+
+    # Fase 7 (P4): el saldo a favor no se queda en el mes que lo originó.
+    # Se aplica al período nuevo, topeado por su total, dentro de la
+    # misma transacción que lo emitió.
+    consume_member_credit(member, new_sub)
+
+    # P22: ``paid`` es derivado, nunca escrito a mano. Se sincroniza al
+    # final para que refleje los ítems ya copiados y el crédito consumido.
+    sync_subscription_paid(new_sub)
+
+    return new_sub
+
+
 def create_next_subscription(expired_sub, origin="auto_renewal"):
     """Create the next monthly subscription for a member.
 
@@ -1373,29 +1428,19 @@ def create_next_subscription(expired_sub, origin="auto_renewal"):
     plan, approved_pcr = _resolve_plan(expired_sub.member, expired_sub, target_start)
 
     with transaction.atomic():
-        new_sub = SubscriptionDomain.open_subscription(
+        new_sub = _open_period_with_credit(
             member=expired_sub.member,
             plan=plan,
             start_date=target_start,
             end_date=target_end,
             auto_renew=expired_sub.auto_renew,
             origin=origin,
+            source_sub=expired_sub,
         )
-        _copy_activity_items(expired_sub, new_sub)
-        _copy_personal_training_items(expired_sub, new_sub)
-        _copy_outing_items(expired_sub, new_sub)
-
-        # Fase 7 (P4): el saldo a favor no se queda en el mes que lo originó.
-        # Se aplica al período nuevo, topeado por su total, dentro de la
-        # misma transacción que lo emitió.
-        consume_member_credit(expired_sub.member, new_sub)
 
         if approved_pcr is not None:
             apply_plan_change(approved_pcr)
-
-        # P22: ``paid`` es derivado, nunca escrito a mano. Se sincroniza al
-        # final para que refleje los ítems ya copiados y el crédito consumido.
-        sync_subscription_paid(new_sub)
+            sync_subscription_paid(new_sub)
 
     return new_sub
 
@@ -1437,11 +1482,16 @@ def recover_member(member):
         member: The Member being recovered.
 
     Returns:
-        The current Subscription when reactivating (Case A), or the new
-        Subscription created for the current period (Case B).
+        A ``(subscription, created)`` tuple. ``created`` is False when the
+        member was only reactivated over a subscription that already covered
+        today (Case A) and True when a new period was opened (Case B). The
+        endpoint uses this to answer 200 vs 201 honestly.
 
     Raises:
-        SubscriptionConflictError: When a recovery precondition fails.
+        SubscriptionConflictError: When a recovery precondition fails, or when
+            a concurrent request already opened the period (the unique
+            constraint fires and the error is translated here instead of
+            surfacing as a 500).
     """
     today = timezone.localdate()
     month_end = get_last_day_of_month(today)
@@ -1465,7 +1515,7 @@ def recover_member(member):
     if current_sub is not None:
         member.active = True
         member.save(update_fields=["active"])
-        return current_sub
+        return current_sub, False
 
     if Subscription.objects.filter(member=member, start_date__gt=today).exists():
         raise SubscriptionConflictError(
@@ -1479,30 +1529,41 @@ def recover_member(member):
             "No se puede recuperar con el plan base."
         )
 
-    with transaction.atomic():
-        new_sub = SubscriptionDomain.open_subscription(
-            member=member,
-            plan=plan,
-            start_date=today,
-            end_date=month_end,
-            auto_renew=latest_sub.auto_renew,
-            origin="recovery",
-        )
-        _copy_activity_items(latest_sub, new_sub)
-        _copy_personal_training_items(latest_sub, new_sub)
-        _copy_outing_items(latest_sub, new_sub)
+    # DIN-15: en recovery no hay filas que lockear (la sub del período todavía
+    # no existe), así que la única barrera ante dos peticiones concurrentes es
+    # el constraint ``unique_subscription_member_period``. El ``except`` va por
+    # fuera del ``atomic`` a propósito: así la transacción del caller (en los
+    # tests ``APITestCase``) no queda rota cuando el constraint dispara.
+    try:
+        with transaction.atomic():
+            new_sub = SubscriptionDomain.open_subscription(
+                member=member,
+                plan=plan,
+                start_date=today,
+                end_date=month_end,
+                auto_renew=latest_sub.auto_renew,
+                origin="recovery",
+            )
+            _copy_activity_items(latest_sub, new_sub)
+            _copy_personal_training_items(latest_sub, new_sub)
+            _copy_outing_items(latest_sub, new_sub)
 
-        if approved_pcr is not None:
-            _finalize_plan_change(approved_pcr, new_sub)
+            if approved_pcr is not None:
+                _finalize_plan_change(approved_pcr, new_sub)
 
-        # P22: ``paid`` es derivado, nunca escrito a mano. Un socio con total
-        # 0 (comp o descuento 100%) queda pagado; el resto, pendiente.
-        sync_subscription_paid(new_sub)
+            # P22: ``paid`` es derivado, nunca escrito a mano. Un socio con total
+            # 0 (comp o descuento 100%) queda pagado; el resto, pendiente.
+            sync_subscription_paid(new_sub)
 
-        member.active = True
-        member.save(update_fields=["active"])
+            member.active = True
+            member.save(update_fields=["active"])
+    except IntegrityError as exc:
+        raise SubscriptionConflictError(
+            "No se puede recuperar: ya existe una suscripción para el período "
+            "actual (otra petición la creó)."
+        ) from exc
 
-    return new_sub
+    return new_sub, True
 
 
 def _precomputed_remaining(subscription, paid_amount, credit_realized=Decimal("0")):
@@ -1616,15 +1677,18 @@ def _collect_renewal_candidates(queryset):
             paid_by_sub.get(sub.pk, Decimal("0")),
             credit_by_sub.get(sub.pk, Decimal("0")),
         )
-        return (
-            get_subscription_payment_status(
-                sub,
-                at_date=sub.end_date,
-                remaining=remaining,
-                is_first=(sub.created_at == earliest_by_member.get(sub.member_id)),
-            )
-            == "blocked"
+        status = get_subscription_payment_status(
+            sub,
+            at_date=sub.end_date,
+            remaining=remaining,
+            is_first=(sub.created_at == earliest_by_member.get(sub.member_id)),
         )
+        # Fase F (DIN-06): el primer mes impago también frena la renovación.
+        # Antes solo ``blocked`` lo hacía, así que un socio que nunca pagó el
+        # alta se auto-renovaba y apilaba deuda nueva sobre la vieja.
+        # ``initial_pending`` es la señal más fuerte de impago: el socio jamás
+        # demostró intención de pagar.
+        return status in ("blocked", "initial_pending")
 
     counters = {
         "covered": 0,
@@ -1861,19 +1925,18 @@ def apply_plan_change(plan_change_request):
             current_sub = Subscription.objects.filter(
                 member=member,
             ).order_by("-created_at").first()
-            period_sub = SubscriptionDomain.open_subscription(
+            # Fase F (DIN-04): abrir el período con el mismo helper que la
+            # renovación para que el cambio inmediato también consuma el
+            # saldo a favor del socio.
+            period_sub = _open_period_with_credit(
                 member=member,
                 plan=plan_change_request.requested_plan,
                 start_date=month_start,
                 end_date=month_end,
-                paid=False,
                 auto_renew=current_sub.auto_renew if current_sub else True,
                 origin="plan_change",
+                source_sub=current_sub,
             )
-            if current_sub:
-                _copy_activity_items(current_sub, period_sub)
-                _copy_personal_training_items(current_sub, period_sub)
-                _copy_outing_items(current_sub, period_sub)
         else:
             # P21: el reprecio cambia el total del período, así que hay que
             # reconciliar el flag ``paid`` y acuñar el sobrepago, igual que

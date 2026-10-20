@@ -30,11 +30,9 @@ from .domain import (
     ScheduleDomain,
     ScheduleError,
     SubscriptionConflictError,
-    SubscriptionDomain,
 )
 from .services import (
-    _copy_activity_items,
-    _copy_outing_items,
+    _open_period_with_credit,
     calculate_effective_date,
     cancel_future_plan_change,
     get_last_day_of_month,
@@ -169,7 +167,7 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         member = get_object_or_404(Member, id=member_id, gym=gym)
 
         try:
-            sub = recover_member(member)
+            sub, created = recover_member(member)
         except SubscriptionConflictError as exc:
             return Response(
                 {"detail": str(exc)},
@@ -178,7 +176,7 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
 
         return Response(
             SubscriptionSerializer(sub).data,
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
     @action(detail=False, methods=["get"], url_path="member/(?P<member_id>[0-9]+)/outstanding")
@@ -366,17 +364,20 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     current_sub = Subscription.objects.filter(
                         member=instance.member
                     ).order_by("-created_at").first()
-                    new_subscription = SubscriptionDomain.open_subscription(
+                    # Fase F (DIN-04): mismo helper que la renovación para que
+                    # el cambio inmediato consuma el saldo a favor. PT lo cubre
+                    # ``ensure_pt_items_for_active_assignments`` dentro de
+                    # ``open_subscription``, así que no se copia acá.
+                    _open_period_with_credit(
                         member=instance.member,
                         plan=instance.requested_plan,
                         start_date=month_start,
                         end_date=month_end,
                         auto_renew=current_sub.auto_renew if current_sub else True,
                         origin="plan_change",
+                        source_sub=current_sub,
+                        copy_personal_training=False,
                     )
-                    if current_sub:
-                        _copy_activity_items(current_sub, new_subscription)
-                        _copy_outing_items(current_sub, new_subscription)
 
                     self._synchronize_schedules(instance)
             elif new_status == "cancelled_by_staff" and instance.status == "approved":
