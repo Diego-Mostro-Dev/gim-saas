@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 
 from rest_framework.permissions import IsAuthenticated
@@ -27,7 +28,8 @@ class CommunityBusinessView(CommunityGuardMixin, GymQuerysetMixin, APIView):
 
     def get(self, request):
         businesses = CommunityBusiness.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            active=True,
         ).order_by("name")
         return Response(CommunityBusinessSerializer(businesses, many=True).data)
 
@@ -36,7 +38,14 @@ class CommunityBusinessView(CommunityGuardMixin, GymQuerysetMixin, APIView):
         gym = self.get_gym()
         serializer = CommunityBusinessSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(gym=gym)
+        try:
+            with transaction.atomic():
+                serializer.save(gym=gym)
+        except IntegrityError:
+            return Response(
+                {"name": ["Ya existe un local adherido con ese nombre."]},
+                status=400,
+            )
         return Response(serializer.data, status=201)
 
 
@@ -50,6 +59,7 @@ class CommunityBusinessDetailView(CommunityGuardMixin, GymQuerysetMixin, APIView
             CommunityBusiness,
             pk=business_id,
             gym=self.get_gym(),
+            active=True,
         )
 
     def patch(self, request, business_id):
@@ -61,7 +71,14 @@ class CommunityBusinessDetailView(CommunityGuardMixin, GymQuerysetMixin, APIView
             partial=True,
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        try:
+            with transaction.atomic():
+                serializer.save()
+        except IntegrityError:
+            return Response(
+                {"name": ["Ya existe un local adherido con ese nombre."]},
+                status=400,
+            )
         return Response(serializer.data)
 
     def delete(self, request, business_id):

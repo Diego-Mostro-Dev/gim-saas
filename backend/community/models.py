@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 from gyms.models import Gym
 
@@ -41,11 +42,27 @@ class CommunityBusiness(models.Model):
         blank=True,
         verbose_name="Descripción / condiciones",
     )
+    active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+    )
 
     class Meta:
         verbose_name = "Local adherido"
         verbose_name_plural = "Locales adheridos"
         ordering = ["gym", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["gym", "name"],
+                condition=Q(active=True),
+                name="uniq_community_business_name_per_gym",
+            ),
+        ]
+
+    def delete(self, *args, **kwargs):
+        """COM-04: baja lógica; la fila se conserva para no perder histórico."""
+        self.active = False
+        self.save(update_fields=["active"])
 
     def __str__(self):
         return self.name

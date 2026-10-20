@@ -26,7 +26,8 @@ class PublicMemberCommunityView(APIView):
         require_community(gym)
 
         businesses = CommunityBusiness.objects.filter(
-            gym=gym
+            gym=gym,
+            active=True,
         ).order_by("name")
 
         return Response({

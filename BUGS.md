@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-20** — Fases A, B, C, D, E, F, G y H hechas. Total: **99 hallazgos** — 5 `CRÍTICO`,
-29 `ALTO`, 47 `MEDIO`, 18 `BAJO`. De ellos **51 ya están cerrados**, **8 son decisiones de
-negocio** y quedan **26 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
+Estado: **2026-10-20** — Fases A, B, C, D, E, F, G, H e I hechas. Total: **99 hallazgos** — 5 `CRÍTICO`,
+29 `ALTO`, 47 `MEDIO`, 18 `BAJO`. De ellos **56 ya están cerrados**, **10 son decisiones de
+negocio** y quedan **21 abiertos** + 12 a verificar (los 🟡). Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
@@ -39,9 +39,9 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 10 | 1 |
 | Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 12 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 |
-| Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
+| Comunidad (`COM`) | 0 | 0 | 5 | 1 | 5 | 2 |
 | Robustez/CI (`REF`) | 0 | 0 | 3 | 3 | 1 | 0 |
-| **Total** | **5** | **29** | **47** | **18** | **51** | **8** |
+| **Total** | **5** | **29** | **47** | **18** | **56** | **10** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -139,12 +139,12 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | RUT-07 | MEDIO | 🟢 | La app no tiene tests | Cerrado Fase H: `routines/tests_phase_h.py` (16 tests: rol, soft delete, unicidad, atómico, ejercicio inactivo) |
 | RUT-08 | MEDIO | ⚪ | El progreso se resetea por día | Decisión de negocio (Fase H): sin historial de entrenamiento; se documenta y no se implementa |
 | RUT-09 | MEDIO | 🟢 | `/routines` no está en `ProfessorRoute` | Cerrado Fase H: guard `RoutineManagerRoute` (owner/staff/professor; trainer → `/trainer-agenda`) |
-| COM-01 | MEDIO | 🔴 | Un socio inactivo sigue accediendo a su tarjeta pública | El endpoint público no filtra `active` ni acepta el token rotado |
-| COM-02 | MEDIO | 🟢 | `discount` es texto libre y no participa de ningún cobro | Cerrado Fase C: `discount` obligatorio y no en blanco (mensaje de dominio). Que el descuento no se aplique a un cobro queda como decisión de negocio (Fase I) |
-| COM-03 | MEDIO | 🔴 | Sin unicidad de `name` por gimnasio → duplicados | Locales repetidos con descuentos distintos |
-| COM-04 | MEDIO | 🔴 | `business.delete()` es hard delete | Sin soft delete ni histórico |
-| COM-05 | MEDIO | 🔴 | `community` no tiene tests y no corre en CI | Tests agregados en Fase C (`community/tests.py`); falta sumarla al CI (Fase J / REF-02) |
-| COM-06 | BAJO | 🟡 | El panel de comunidad se muestra a roles que recibirán 403 | UX |
+| COM-01 | MEDIO | ⚪ | Un socio inactivo sigue accediendo a su tarjeta pública | Decisión de negocio (Fase I): todo el portal es accesible a socios inactivos a propósito (subir comprobante para destrabar); la tarjeta no es un dato sensible |
+| COM-02 | MEDIO | ⚪ | `discount` es texto libre y no participa de ningún cobro | Cerrado Fase C (validación no vacío). El descuento del local es informativo y no toca la facturación: decisión de negocio (Fase I) |
+| COM-03 | MEDIO | 🟢 | Sin unicidad de `name` por gimnasio → duplicados | Cerrado Fase I: constraint parcial `uniq_community_business_name_per_gym` `(gym,name) WHERE active=True` + `IntegrityError` → 400 |
+| COM-04 | MEDIO | 🟢 | `business.delete()` es hard delete | Cerrado Fase I: baja lógica (`active=False`); DELETE devuelve 204 sin borrar la fila |
+| COM-05 | MEDIO | 🟢 | `community` no tiene tests | Cerrado Fase I: `community/tests.py` (15 tests: discount, soft delete, unicidad, rol, visibilidad pública). Sumar `community` al CI → Fase J (`REF-02`) |
+| COM-06 | BAJO | 🟢 | El panel de comunidad se muestra a roles que recibirán 403 | No se reproduce (Fase I): `/settings` está en `ProfessorRoute` y `Settings.jsx` redirige a no-owner a `/dashboard`; la pestaña sólo aparece con la feature activa |
 | REF-01 | MEDIO | 🔴 | Apps sin tests: `community`, `routines`, `profiles`, `seed`, `core` | — |
 | REF-02 | MEDIO | 🔴 | El CI no corre `gyms`, `admins`, `accounts`, `personal_training`, `profiles`, `routines`, `community`, `seed`, `core` | Apps con tests no se ejecutan en CI |
 | REF-03 | MEDIO | 🔴 | Consultas de dinero sin filtro de gym | La invariante `Member.gym` inmutable sólo está en un comentario |
@@ -599,36 +599,59 @@ Detalle en `AUDITORIA-MIEMBROS.md §9`.
 > gimnasio **están correctos**; el endpoint público **no** expone deuda (sólo nombre y locales).
 > Lo que sigue es lo que está mal.
 
-### COM-01 · Socio inactivo accede a la tarjeta pública
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Dónde:** `backend/community/public_views.py:26`,
-  `backend/members/models.py:198,289`.
+### COM-01 · Socio inactivo accede a la tarjeta pública — ⚪ decisión de negocio
+- **Severidad:** MEDIO · **Estado:** ⚪ (Fase I).
+- **Explicación:** `PublicMemberCommunityView` resuelve al socio con
+  `portal_member_or_404`, que no filtra `active`.
+- **Decisión:** todo el portal del socio es accesible a socios inactivos **a propósito**
+  (ej: subir un comprobante para destrabar un acceso suspendido — ver
+  `members/public_views.PublicMemberAttachmentListView`). La tarjeta de comunidad no es un
+  dato sensible y no se bloquea. Se documenta en `AUDITORIA-COMUNIDAD.md` §4.2.
+- **Test:** `community/tests.py.PublicCommunityVisibilityTests.test_inactive_member_still_sees_card`.
 
 ### COM-02 · `discount` sin validar y sin efecto
-- **Severidad:** MEDIO · **Estado:** 🟢 (Fase C, validación) · **Explicación:** `CharField` libre
-  que no participa de ningún cálculo de cobro.
-- **Dónde:** `backend/community/models.py:35,45`.
-- **Resolución Fase C:** `CommunityBusinessSerializer.discount` es obligatorio y no admite vacío
-  ni sólo espacios (mensajes en español). Que el descuento no se aplique a ningún cobro queda
-  como decisión de negocio y se revisa en Fase I. Tests: `community/tests.py`.
+- **Severidad:** MEDIO · **Estado:** ⚪ (Fase I; validación 🟢 en Fase C).
+- **Explicación:** `CharField` libre; no participa de ningún cálculo de cobro.
+- **Resolución Fase C:** `CommunityBusinessSerializer.discount` es obligatorio y no admite
+  vacío ni sólo espacios. **Decisión de negocio (Fase I):** el `discount` del local es
+  informativo (el socio lo muestra en el comercio); no toca la facturación del gimnasio,
+  así que no se convierte en descuento de cobro.
+- **Tests:** `community/tests.py.CommunityBusinessDiscountTests`.
 
 ### COM-03 · Sin unicidad de `name` por gimnasio
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Dónde:** `backend/community/models.py:45-48`.
+- **Severidad:** MEDIO · **Estado:** 🟢 · **Resolución Fase I.**
+- **Fix:** `UniqueConstraint(fields=["gym","name"], condition=Q(active=True))` (índice
+  único parcial `uniq_community_business_name_per_gym`, migración `community/0002`). Crear o
+  editar con un nombre activo repetido mapea `IntegrityError` → **400**. Un local dado de
+  baja libera su nombre.
+- **Tests:** `community/tests.py.CommunityNameUniquenessTests`.
 
 ### COM-04 · Hard delete
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Dónde:** `backend/community/views.py:70`, `models.py:6`.
+- **Severidad:** MEDIO · **Estado:** 🟢 · **Resolución Fase I.**
+- **Fix:** `CommunityBusiness.delete()` es baja lógica (`active=False`,
+  `save(update_fields=["active"])`); `DELETE` sigue devolviendo 204 pero conserva la fila.
+  El listado (staff y público) filtra `active=True`.
+- **Tests:** `community/tests.py.CommunitySoftDeleteTests`.
 
 ### COM-05 · Sin tests
-- **Severidad:** MEDIO · **Estado:** 🔴 · No existe `backend/community/tests.py`.
+- **Severidad:** MEDIO · **Estado:** 🟢 · **Resolución Fase I.**
+- `backend/community/tests.py` (15 tests: discount obligatorio, soft delete, unicidad,
+  guard de rol owner, visibilidad pública). Sumar `community` al CI queda para la Fase J
+  (`REF-02`).
 
-### COM-06 · Panel visible a roles sin permiso — 🟡
-`frontend/src/pages/Settings.jsx:843`, `frontend/src/App.jsx:195`.
+### COM-06 · Panel visible a roles sin permiso
+- **Severidad:** BAJO · **Estado:** 🟢 (Fase I, re-verificado).
+- **No se reproduce:** la pantalla Configuración está bajo `ProfessorRoute`
+  (`App.jsx:208`) y `Settings.jsx:746` redirige a cualquier rol distinto de `owner` a
+  `/dashboard`; la pestaña "Comunidad" sólo aparece con la feature activa
+  (`Settings.jsx:254,843`).
 
 ---
 
 ## Fichas — Robustez / CI (`REF`)
 
-- **REF-01 · Apps sin tests** 🔴 — `profiles`, `seed`, `core` (Fase H cerró `routines`;
-  `community` tiene `tests.py` desde la Fase C pero no corre en CI).
+- **REF-01 · Apps sin tests** 🔴 — `profiles`, `seed`, `core` (Fases H e I cerraron
+  `routines` y `community`).
 - **REF-02 · El CI no corre esas apps** 🔴 — `.github/workflows/backend-tests.yml:73` corre
   sólo `subscriptions members attendance payments plans config activities outings` (más
   `gyms.tests_restore`). Faltan `gyms`, `admins`, `accounts`, `personal_training`, `profiles`,
@@ -656,6 +679,8 @@ Detalle en `AUDITORIA-MIEMBROS.md §9`.
 | ADD-11 | Las salidas no descuentan faltas | Ingreso del gimnasio por paquetes |
 | RUT-06 | Los endpoints públicos del portal exponen pagos/deuda/acceso | El token del portal es la credencial del socio |
 | RUT-08 | El progreso de entrenamiento se resetea por día | Sin historial de entrenamiento |
+| COM-01 | Un socio inactivo sigue viendo su tarjeta de comunidad | Todo el portal es accesible a inactivos a propósito (subir comprobante) |
+| COM-02 | El `discount` del local no se aplica a ningún cobro | El beneficio es informativo (se muestra en el comercio) |
 
 Además, ya documentados como "no hace hoy" en las auditorías (no se prometen en el manual):
 sin reembolsos, sin pago online, sin recordatorios por email/WhatsApp, sin prorrateo en
