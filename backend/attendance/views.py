@@ -1128,6 +1128,7 @@ class SessionRecoveryListCreateView(APIView):
         member_id = request.data.get("member")
         kind = request.data.get("kind", "training")
         activity_id = request.data.get("activity")
+        pt_assignment_id = request.data.get("pt_assignment")
         note = request.data.get("note", "")
         date_str = request.data.get("date")
         slot_id = request.data.get("slot_id")
@@ -1180,6 +1181,19 @@ class SessionRecoveryListCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        pt_assignment = None
+        if kind == "pt":
+            from personal_training.models import PersonalTrainingAssignment
+            pt_assignment = PersonalTrainingAssignment.objects.filter(
+                gym=gym,
+                pk=pt_assignment_id,
+            ).first()
+            if pt_assignment is None:
+                return Response(
+                    {"detail": "Asignación de entrenamiento no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         slot = None
         schedule = None
         if kind == "training":
@@ -1197,7 +1211,7 @@ class SessionRecoveryListCreateView(APIView):
                     {"detail": "Horario de entrenamiento no encontrado."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        else:
+        elif kind == "activity":
             if not schedule_id:
                 return Response(
                     {"detail": "Debés elegir la clase que se recupera."},
@@ -1225,6 +1239,7 @@ class SessionRecoveryListCreateView(APIView):
                 target_date=target_date,
                 slot=slot,
                 schedule=schedule,
+                pt_assignment=pt_assignment,
             )
         except RecoveryError as exc:
             return Response(
@@ -1253,7 +1268,11 @@ class SessionRecoveryOptionsView(APIView):
 
         kind, kind_error = validate_choice(
             request.GET.get("kind", "training"),
-            [("training", "Entrenamiento"), ("activity", "Clase de actividad")],
+            [
+                ("training", "Entrenamiento"),
+                ("activity", "Clase de actividad"),
+                ("pt", "Entrenamiento personal"),
+            ],
             "kind",
         )
         if kind_error:
@@ -1265,6 +1284,13 @@ class SessionRecoveryOptionsView(APIView):
         )
         if activity_error:
             return activity_error
+
+        pt_assignment_id, pt_assignment_error = parse_int(
+            request.GET.get("pt_assignment"),
+            "pt_assignment",
+        )
+        if pt_assignment_error:
+            return pt_assignment_error
 
         date_str, date_error = parse_date(
             request.GET.get("date"),
@@ -1315,8 +1341,28 @@ class SessionRecoveryOptionsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        pt_assignment = None
+        if kind == "pt":
+            from personal_training.models import PersonalTrainingAssignment
+            pt_assignment = PersonalTrainingAssignment.objects.filter(
+                gym=gym,
+                pk=pt_assignment_id,
+            ).first()
+            if pt_assignment is None:
+                return Response(
+                    {"detail": "Asignación de entrenamiento no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
-            options = eligible_options(gym, member, kind, activity, target_date)
+            options = eligible_options(
+                gym,
+                member,
+                kind,
+                activity,
+                target_date,
+                pt_assignment=pt_assignment,
+            )
         except RecoveryError as exc:
             return Response(
                 {"detail": str(exc)},

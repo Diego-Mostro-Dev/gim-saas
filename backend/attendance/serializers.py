@@ -60,6 +60,7 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
             "kind_label",
             "activity",
             "activity_name",
+            "pt_assignment",
             "granted_by",
             "granted_by_name",
             "status",
@@ -77,6 +78,7 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
             "member",
             "kind",
             "activity",
+            "pt_assignment",
             "granted_by",
             "expires_at",
             "status",
@@ -109,6 +111,8 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
         labels = get_gym_labels(obj.gym)
         if obj.kind == "training":
             return labels.get("recovery.kind.training", "Gimnasio")
+        if obj.kind == "pt":
+            return labels.get("recovery.kind.pt", "Entrenamiento personal")
         return labels.get("recovery.kind.activity", "Clase (actividad)")
 
     def get_granted_by_name(self, obj):
@@ -127,6 +131,8 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
             return obj.used_slot.hour.strftime("%H:%M")
         if obj.used_schedule_id:
             return obj.used_schedule.start_time.strftime("%H:%M")
+        if obj.kind == "pt" and obj.pt_assignment_id:
+            return obj.pt_assignment.start_time.strftime("%H:%M")
         return None
 
 
@@ -327,7 +333,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
         try:
             with transaction.atomic():
-                return Attendance.objects.create(
+                attendance = Attendance.objects.create(
                     gym=gym,
                     member=schedule.member,
                     schedule=schedule,
@@ -338,6 +344,21 @@ class AttendanceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "schedule": "La asistencia ya fue registrada hoy."
             })
+
+        # ACC-08: el check-in del staff también descuenta el paquete cuando la
+        # asistencia es inequívoca (una sola inscripción de paquete activa
+        # hoy). Sin hora de check-in no se puede aplicar la ventana, así que
+        # con varias inscripciones no se descuenta ninguna.
+        from .checkin_discount import (
+            count_activity_sessions,
+            count_outing_sessions,
+        )
+
+        today = timezone.localdate()
+        count_activity_sessions(schedule.member, gym, None, today)
+        count_outing_sessions(schedule.member, gym, None, today)
+
+        return attendance
 
 
 DAY_INDEX = {

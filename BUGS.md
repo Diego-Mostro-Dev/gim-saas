@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-20** — Fases A, B, C, D, E y F hechas. Total: **98 hallazgos** — 5 `CRÍTICO`,
-29 `ALTO`, 47 `MEDIO`, 17 `BAJO`. De ellos **43 ya están cerrados**, **6 son decisiones de
-negocio** y quedan **35 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
+Estado: **2026-10-20** — Fases A, B, C, D, E, F y G hechas. Total: **99 hallazgos** — 5 `CRÍTICO`,
+29 `ALTO`, 47 `MEDIO`, 18 `BAJO`. De ellos **45 ya están cerrados**, **6 son decisiones de
+negocio** y quedan **34 abiertos** + 4 a verificar (los 🟡). Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
@@ -36,12 +36,12 @@ explicación, ejemplo de impacto y criterio de aceptación.
 |---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 13 | 3 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 |
-| Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 8 | 1 |
-| Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 11 | 0 |
+| Add-ons (`ADD`) | 3 | 7 | 11 | 5 | 10 | 1 |
+| Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 12 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 1 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 1 | 0 |
-| Robustez/CI (`REF`) | 0 | 0 | 3 | 2 | 1 | 0 |
-| **Total** | **5** | **29** | **47** | **17** | **43** | **6** |
+| Robustez/CI (`REF`) | 0 | 0 | 3 | 3 | 1 | 0 |
+| **Total** | **5** | **29** | **47** | **18** | **45** | **6** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -89,9 +89,9 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-04 | MEDIO | 🟡 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Reactiva horarios que el staff había apagado |
 | ADD-05 | MEDIO | 🔴 | El choque con el gimnasio se calcula como "hora + 1 h" | Bloques de más de 1 hora pueden no detectarse |
 | ADD-06 | ALTO | 🟢 | El portal rompe al renderizar una actividad desactivada | Cerrado Fase E (re-verificado): `MemberActivities.jsx` segrega huérfanas/desactivadas y el serializer expone `activity_active`/`schedule_active` |
-| ADD-07 | CRÍTICO | 🔴 | El no-show descuenta sesión en fechas sin clase | Feriado no cargado o clase cancelada → el socio pierde una sesión paga |
+| ADD-07 | CRÍTICO | 🟢 | El no-show descuenta sesión en fechas sin clase | Cerrado Fase G: watermark clampeado a la creación del horario + se saltean días cerrados (el job nunca descuenta antes de que exista la clase) |
 | ADD-08 | ALTO | 🟢 | Paquete sobre-cobrable fuera de `record_package_payment` | Cerrado: el serializer de pagos unificado valida el tope y resincroniza |
-| ADD-11 | ALTO | ⚪ | Faltar a una salida no descuenta sesión | El paquete nunca se agota; el gimnasio no cobra sesiones usadas |
+| ADD-11 | ALTO | ⚪ | Faltar a una salida no descuenta sesión | **Decisión de negocio (Fase G):** las salidas no tienen no-show ni recuperación; faltar no descuenta. Se documenta, no se implementa. |
 | ADD-12 | MEDIO | 🔴 | El conteo de salidas depende de entrar dentro de la ventana | Llegar tarde no descuenta; queda pendiente manual |
 | ADD-13 | ALTO | 🟢 | Paquete de salida sobre-cobrable | Cerrado por el mismo serializer unificado |
 | ADD-14 | MEDIO | 🟡 | Renovación de salidas bloqueada por sesiones impagas | Bloquea una acción de staff |
@@ -101,7 +101,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-18 | BAJO | 🔴 | Botón "Renovar" duplicado | Cosmético |
 | ADD-19 | BAJO | 🟡 | El PATCH directo de trainer/horario no está en la UI | Feature no alcanzable |
 | ADD-20 | MEDIO | 🟢 | `record_payment` de PT sin usar / desincroniza `amount_paid` | Cerrado: `RecoverMembers.jsx` lo usa y todo Payment resincroniza |
-| ADD-21 | ALTO | 🔴 | En PT las faltas agotan el paquete sin recuperación | El socio paga sesiones que no usó y no se le reponen |
+| ADD-21 | ALTO | 🟢 | En PT las faltas agotan el paquete sin recuperación | Cerrado Fase G: `SessionRecovery.kind="pt"` con FK a la asignación; la falta cancelada se repone (mismo invariante que actividades) |
 | ADD-22 | MEDIO | 🟡 | Renovación de PT bloqueada por saldo impago | Bloquea una acción de staff |
 | ADD-23 | MEDIO | 🔴 | Desvincular PT no toca los períodos ya generados | Intencional (inmutabilidad), pero el socio no ve la baja pasada |
 | ADD-24 | BAJO | 🟡 | El wizard de asignación reconcilia el horario elegido | Puede no ser el que el staff esperaba |
@@ -114,7 +114,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ACC-05 | ALTO | 🟢 | Doble registro del staff → 500 | Cerrado Fase E: pre-check + `IntegrityError` → 400 en `AttendanceSerializer.create` |
 | ACC-06 | ALTO | 🟢 | Límite de 30/h por IP en el portal | Cerrado Fase E: se quitó el throttle por IP; queda sólo el de token del portal |
 | ACC-07 | MEDIO | 🟢 | Dos horarios el mismo día: entra una sola vez por QR | Cerrado Fase E: el QR registra una sola asistencia por día |
-| ACC-08 | ALTO | 🔴 | La sesión del paquete no se descuenta si entra fuera de la ventana | Entra, entrena, y el paquete queda igual (pierde el gimnasio) |
+| ACC-08 | ALTO | 🟢 | La sesión del paquete no se descuenta si entra fuera de la ventana | Cerrado Fase G: descuento cuando la asistencia es inequívoca (una inscripción de paquete activa ese día); con varias, sólo las de la ventana |
 | ACC-09 | MEDIO | 🟢 | Panel de horarios: label `executed` y filtro "Aprobadas" vacío | Cerrado Fase E: `executed` mapeado y "Aprobadas" matchea approved+executed |
 | ACC-10 | ALTO | 🔴 | Aprobar desactiva el horario viejo de inmediato | El socio pierde las clases de la semana en curso |
 | ACC-11 | ALTO | 🟢 | El cooldown de 7 días cuenta las rechazadas | Cerrado Fase E: el cooldown ignora las solicitudes rechazadas |
@@ -150,6 +150,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | REF-03 | MEDIO | 🔴 | Consultas de dinero sin filtro de gym | La invariante `Member.gym` inmutable sólo está en un comentario |
 | REF-04 | BAJO | 🟢 | Admin `paid`/`price_snapshot` editables | Premisa falsa: ya están en `readonly_fields` |
 | REF-05 | BAJO | 🟡 | El frontend no tiene tests | Los bugs de render se verifican a mano |
+| REF-06 | BAJO | 🔴 | `validate_discount` es código muerto | Valida un campo `discount` inexistente; el campo real es `discount_id` y no valida nada (detectado Fase F, anotado en Fase G) |
 
 ---
 
@@ -367,20 +368,29 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Severidad:** ALTO · **Estado:** 🟡 (sin re-verificar) · **Dónde:** `frontend/src/pages/MemberActivities.jsx` (ref. auditoría `:338`).
 
 ### ADD-07 · El no-show descuenta en fechas sin clase
-- **Severidad:** CRÍTICO · **Estado:** 🔴
+- **Severidad:** CRÍTICO · **Estado:** 🟢
 - **Explicación:** toda fecha válida sin registro se marca falta; sólo se saltean
   `GymClosedDate`, no clases canceladas ni feriados no cargados.
 - **Ejemplo de impacto:** feriado que nadie cargó → el socio pierde una sesión paga sin haber
   tenido clase.
-- **Dónde:** `backend/activities/no_show_service.py:76,158-163`.
-- **Criterio de aceptación:** no se descuenta sesión en fechas sin clase dictada (feriado,
-  cancelación).
+- **Dónde:** `backend/activities/no_show_service.py`.
+- **Resolución Fase G:** el job arranca su barrido en `max(watermark, created_at del horario
+  + 1 día)`, de modo que nunca descuenta fechas previas a que la clase existiera; los días
+  cargados en `GymClosedDate` se saltean tanto en actividades como en PT. No se agregó un
+  modelo nuevo de cancelación de clase (decisión de negocio): una clase cancelada se modela
+  cargando el feriado/fecha cerrada.
+- **Criterio de aceptación:** ✅ no se descuenta sesión en fechas sin clase dictada.
+- **Tests:** `activities/tests_phase_g.py` (`test_activity_does_not_deduct_before_schedule_created`,
+  `test_activity_watermark_never_deducts_before_schedule_created`,
+  `test_activity_skips_closed_day`, `test_pt_does_not_deduct_before_assignment_created`).
 
 ### ADD-11 · Faltar a una salida no descuenta
-- **Severidad:** ALTO · **Estado:** ⚪ decisión de negocio · **Explicación:** el job de no-show no recorre salidas.
-- **Dónde:** `backend/activities/no_show_service.py:235-256`, `backend/subscriptions/services.py:14,2080`.
-- **Criterio de aceptación:** decisión de negocio: o no descuenta (documentar) o se agrega el
-  job.
+- **Severidad:** ALTO · **Estado:** ⚪ decisión de negocio (Fase G)
+- **Explicación:** el job de no-show no recorre salidas.
+- **Dónde:** `backend/activities/no_show_service.py`, `backend/subscriptions/services.py`.
+- **Resolución Fase G:** se mantiene intencional. Las salidas no tienen no-show ni
+  recuperación: faltar no descuenta sesión. El gimnasio cobra la salida usada o no; no se
+  implementa un job de faltas para salidas.
 
 ### ADD-12 · El conteo de salidas depende de la ventana
 - **Severidad:** MEDIO · **Estado:** 🔴 · **Dónde:** `backend/attendance/public_views.py:80-102`.
@@ -395,10 +405,17 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Severidad:** BAJO · **Estado:** 🔴 · **Dónde:** `frontend/src/pages/PersonalTrainingSettings.jsx:711-727`.
 
 ### ADD-21 · En PT las faltas agotan el paquete
-- **Severidad:** ALTO · **Estado:** 🔴 · **Explicación:** el no-show de PT no tiene créditos de
-  recuperación (las actividades sí).
+- **Severidad:** ALTO · **Estado:** 🟢
+- **Explicación:** el no-show de PT no tiene créditos de recuperación (las actividades sí).
 - **Ejemplo de impacto:** el socio paga 8 sesiones, falta 3 y le quedan 5 sin reposición.
-- **Dónde:** `backend/activities/no_show_service.py:109-149`, `backend/attendance/recovery_service.py:19-21`.
+- **Dónde:** `backend/activities/no_show_service.py`, `backend/attendance/recovery_service.py`.
+- **Resolución Fase G:** se agregó `kind="pt"` a `SessionRecovery` con FK a la asignación
+  (`attendance/migrations/0025_...`). Al otorgar el recupero se anula la falta `no_show` más
+  reciente (mismo invariante "falta + recuperación cuesta 1 sesión" que actividades) y al
+  usarlo se crea el `PersonalTrainingSessionRecord` con `source="recovery"`. La ventana de la
+  recuperación es el horario propio de la asignación.
+- **Criterio de aceptación:** ✅ una falta de PT puede reponerse sin cobrar dos veces.
+- **Tests:** `activities/tests_phase_g.py` (7 tests, incl. end-to-end `grant`→`use`→`undo`).
 
 ### ADD-23 · Desvincular PT no toca períodos ya generados
 - **Severidad:** MEDIO · **Estado:** 🔴 (intencional) · **Dónde:** `backend/personal_training/assignment_service.py:338-361`.
@@ -458,7 +475,16 @@ Hallazgos de las auditorías de actividades/salidas/PT sin re-verificar aún. De
 - **Dónde:** `backend/config/api/throttles.py:27-29`, `backend/attendance/public_views.py:107`.
 
 ### ACC-08 · La sesión no se descuenta fuera de la ventana
-- **Severidad:** ALTO · **Estado:** 🔴 · **Dónde:** `backend/attendance/public_views.py:54-100`.
+- **Severidad:** ALTO · **Estado:** 🟢
+- **Explicación:** el descuento dependía de entrar dentro de la ventana horaria.
+- **Dónde:** `backend/attendance/public_views.py`, `backend/attendance/serializers.py`.
+- **Resolución Fase G:** el descuento se centralizó en `attendance/checkin_discount.py` con la
+  regla "descontar siempre que la asistencia sea inequívoca": con **una** inscripción de
+  paquete activa ese día se descuenta sin mirar la hora; con **varias**, sólo las que caen en
+  la ventana; ninguna en ventana → no se descuenta (evita cobrar la clase equivocada). El
+  check-in de staff (`now_dt=None`) sólo aplica el caso inequívoco de una inscripción.
+- **Criterio de aceptación:** ✅ entra/entrena fuera de la ventana → el paquete baja.
+- **Tests:** `activities/tests_phase_g.py.Acc08DiscountOutsideWindowTests` (5 tests).
 
 ### ACC-10 · Aprobar desactiva el horario viejo de inmediato
 - **Severidad:** ALTO · **Estado:** 🔴 · **Ejemplo:** la UI promete vigencia futura pero el
@@ -575,6 +601,9 @@ Soft delete de asignación (`views.py:65`), unicidad de rutina activa + bulk no 
   la invariante "`Member.gym` inmutable" sólo está en un comentario, no en el esquema.
 - **REF-04 · Admin `paid`/`price_snapshot`** 🟢 — premisa falsa: ya son `readonly_fields`.
 - **REF-05 · Frontend sin tests** 🟡 — sólo `lint`/`build`.
+- **REF-06 · `validate_discount` es código muerto** 🔴 — `members/serializers.py` define
+  `validate_discount`, pero el campo real es `discount_id`; la validación nunca se ejecuta y el
+  descuento del socio no tiene control. Detectado en Fase F, anotado en Fase G; fix en Fase J.
 
 ---
 

@@ -35,6 +35,7 @@ from config.api.throttles import MemberPortalTokenThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from .recovery_service import RecoveryError, _add_hour, use_recovery
+from .checkin_discount import count_activity_sessions, count_outing_sessions
 
 
 DAY_BY_WEEKDAY = {
@@ -46,57 +47,6 @@ DAY_BY_WEEKDAY = {
     5: "saturday",
     6: "sunday",
 }
-
-
-def _count_sessions_if_in_window(member, gym, now_dt, today):
-    """Auto-count a package activity session when the check-in happens within
-    the activity's time window. Returns nothing; a failed or duplicate count
-    is silently ignored (the member is still allowed into the gym)."""
-    from activities.models import Enrollment
-    from activities.session_service import SessionService
-
-    day = DAY_BY_WEEKDAY[today.weekday()]
-    now_time = now_dt.time()
-
-    enrollments = Enrollment.objects.filter(
-        gym=gym,
-        member=member,
-        active=True,
-        modality="package",
-        schedule__day=day,
-        schedule__active=True,
-        schedule__activity__active=True,
-    ).select_related("schedule")
-
-    for enrollment in enrollments:
-        schedule = enrollment.schedule
-        if schedule.start_time <= now_time <= schedule.end_time:
-            SessionService.record_auto(enrollment, today)
-
-
-def _count_outing_sessions_if_in_window(member, gym, now_dt, today):
-    """Auto-count a package outing session when the check-in happens within
-    the outing's time window. Failures are silently ignored."""
-    from outings.models import OutingEnrollment
-    from outings.session_service import SessionService
-
-    day = DAY_BY_WEEKDAY[today.weekday()]
-    now_time = now_dt.time()
-
-    enrollments = OutingEnrollment.objects.filter(
-        gym=gym,
-        member=member,
-        active=True,
-        modality="package",
-        schedule__day=day,
-        schedule__active=True,
-        schedule__outing__active=True,
-    ).select_related("schedule")
-
-    for enrollment in enrollments:
-        schedule = enrollment.schedule
-        if schedule.start_time <= now_time <= schedule.end_time:
-            SessionService.record_auto(enrollment, today)
 
 
 class PublicCheckinView(APIView):
@@ -155,6 +105,10 @@ class PublicCheckinView(APIView):
                 slot = scheduled_recovery.used_slot
                 window_start = slot.hour
                 window_end = _add_hour(slot.hour)
+            elif scheduled_recovery.kind == "pt":
+                assignment = scheduled_recovery.pt_assignment
+                window_start = assignment.start_time
+                window_end = assignment.end_time
             else:
                 schedule = scheduled_recovery.used_schedule
                 window_start = schedule.start_time
@@ -250,10 +204,10 @@ class PublicCheckinView(APIView):
                 slot=slot,
             )
 
-            _count_sessions_if_in_window(
+            count_activity_sessions(
                 member, gym, timezone.localtime(), today
             )
-            _count_outing_sessions_if_in_window(
+            count_outing_sessions(
                 member, gym, timezone.localtime(), today
             )
 
@@ -326,10 +280,8 @@ class PublicCheckinView(APIView):
             slot=slot,
         )
 
-        _count_sessions_if_in_window(member, gym, timezone.localtime(), today)
-        _count_outing_sessions_if_in_window(
-            member, gym, timezone.localtime(), today
-        )
+        count_activity_sessions(member, gym, timezone.localtime(), today)
+        count_outing_sessions(member, gym, timezone.localtime(), today)
 
         return Response(
             {
