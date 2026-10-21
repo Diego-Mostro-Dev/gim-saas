@@ -1,9 +1,9 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0, K1, K2 y K3 hechas, K4→K8
-planificadas)**. Total: **106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`. De
-ellos **79 ya están cerrados**, **13 son decisiones de negocio** y quedan **14 abiertos** (cada
-uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
+Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0, K1, K2, K3 y K4 hechas,
+K5→K8 planificadas)**. Total: **106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`.
+De ellos **86 ya están cerrados**, **13 son decisiones de negocio** y quedan **7 abiertos**
+(cada uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
@@ -74,7 +74,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | CFG-01 | MEDIO | 🟢 | Unidades horas/días mezcladas entre pantallas | Cerrado Fase C: ambas UIs en horas, entero ≥ 0 (backend ya era entero) |
 | CFG-02 | BAJO | ⚪ | `allow_member_schedule_changes` legacy | Campo que ya no gobierna ninguna regla |
 | CFG-03 | MEDIO | ⚪ | `initial_pending` bloquea desde el día 1 | Socio nuevo sin primer pago no puede entrar aunque haya pagado el día 2 |
-| CFG-04 | MEDIO | 🔴 | El staff crea cambios de horario sin cooldown ni máximo mensual | Sin el límite que sí aplica al socio · **K4** (≡ `ACC-13`, duplicado) |
+| CFG-04 | MEDIO | 🟢 | El staff crea cambios de horario sin cooldown ni máximo mensual | Cerrado Fase K4: el staff usa la misma regla que el socio (`attendance/utils.check_schedule_change_limits`); cooldown y máximo mensual se rechazan con 400 |
 | CFG-05 | BAJO | 🟢 | Fallo de la API de feriados | Devuelve 502 con mensaje, no 500 (ya correcto) |
 | CFG-09 | ALTO | 🟢 | No se valida precio > 0 en planes ni add-ons | Cerrado Fase C: `price > 0` (excepto base) y `monthly_price > 0` en modo mensual; `session_price = 0` permitido |
 | CFG-10 | BAJO | 🟢 | Rango de descuento | Validado 1-100 (ya correcto) |
@@ -113,20 +113,20 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-28 | MEDIO | 🟢 | Darse de baja de un horario corta el cobro de **toda** la oferta | Cerrado Fase K2: el ítem se cancela con la última baja |
 | ADD-29 | BAJO | 🟢 | El watermark avanza sobre faltas que nunca se cobraron | Cerrado Fase K3: el watermark sólo avanza hasta la última falta cobrada (viene de P15) |
 | ACC-01 | CRÍTICO | 🟢 | El cupo se cuenta a sí mismo: "El horario está completo" | Cerrado Fase E: el cupo excluye al propio socio (check-in y alta de staff) |
-| ACC-02 | MEDIO | 🔴 | No hay ventana horaria de check-in | Se puede marcar a las 03:00 · **K4** |
-| ACC-03 | MEDIO | 🔴 | El staff puede marcar asistencia en un día cerrado | `GymClosedDate` no se chequea en el serializer de staff · **K4** |
-| ACC-04 | MEDIO | 🔴 | "Ya entró hoy" devuelve 200 con `success:false` | El front no lo distingue de un éxito por status · **K4** |
+| ACC-02 | MEDIO | 🟢 | No hay ventana horaria de check-in | Cerrado Fase K4: `Gym.checkin_window_minutes` (0 = sin ventana) + los dos paths + la UI de configuración |
+| ACC-03 | MEDIO | 🟢 | El staff puede marcar asistencia en un día cerrado | Cerrado Fase K4: el serializer de staff valida `GymClosedDate` (400) |
+| ACC-04 | MEDIO | 🟢 | "Ya entró hoy" devuelve 200 con `success:false` | Cerrado Fase K4: el duplicado responde 409 y el front distingue el éxito real |
 | ACC-05 | ALTO | 🟢 | Doble registro del staff → 500 | Cerrado Fase E: pre-check + `IntegrityError` → 400 en `AttendanceSerializer.create` |
 | ACC-06 | ALTO | 🟢 | Límite de 30/h por IP en el portal | Cerrado Fase E: se quitó el throttle por IP; queda sólo el de token del portal |
 | ACC-07 | MEDIO | 🟢 | Dos horarios el mismo día: entra una sola vez por QR | Cerrado Fase E: el QR registra una sola asistencia por día |
 | ACC-08 | ALTO | 🟢 | La sesión del paquete no se descuenta si entra fuera de la ventana | Cerrado Fase G: descuento cuando la asistencia es inequívoca (una inscripción de paquete activa ese día); con varias, sólo las de la ventana |
 | ACC-09 | MEDIO | 🟢 | Panel de horarios: label `executed` y filtro "Aprobadas" vacío | Cerrado Fase E: `executed` mapeado y "Aprobadas" matchea approved+executed |
-| ACC-10 | ALTO | 🔴 | Aprobar desactiva el horario viejo de inmediato | El socio pierde las clases de la semana en curso · **K4** (decisión 2026-10-21: se corrige la promesa de la UI, no se implementa la vigencia futura) |
+| ACC-10 | ALTO | 🟢 | Aprobar desactiva el horario viejo de inmediato | Cerrado Fase K4 (decisión 2026-10-21): la UI deja de prometer vigencia futura y aclara que el cambio se aplica al aprobarlo |
 | ACC-11 | ALTO | 🟢 | El cooldown de 7 días cuenta las rechazadas | Cerrado Fase E: el cooldown ignora las solicitudes rechazadas |
 | ACC-12 | ALTO | 🟢 | Doble pedido de horario → 500 | Cerrado Fase E: `IntegrityError` del constraint → 409 (serializer y `_handle_action`) |
 | ACC-13 | MEDIO | 🟢 | Staff crea cambios sin límites (ver CFG-04) | Duplicado de CFG-04: se cierra junto a él en **K4** |
-| ACC-14 | MEDIO | 🔴 | Un horario puede quedar duplicado | Editar horarios con pedido pendiente · **K4** |
-| ACC-16 | MEDIO | 🔴 | Aprobar un cambio de plan cancela pedidos de horario en silencio | El socio debe volver a pedir y no se le avisa · **K4** |
+| ACC-14 | MEDIO | 🟢 | Un horario puede quedar duplicado | Cerrado Fase K4: al aprobar se re-verifica que el horario viejo siga activo y se valida `weekly_visits` (400 si no) |
+| ACC-16 | MEDIO | 🟢 | Aprobar un cambio de plan cancela pedidos de horario en silencio | Cerrado Fase K4: los pedidos se cancelan sólo al aprobar y con nota en español (al rechazar ya no se tocan) |
 | ACC-17 | ALTO | 🟢 | El alta pública descarta el descuento y fuerza `is_comp=False` en silencio | Cerrado Fase E (decisión de negocio): el alta pública nunca honra `discount_id`/`is_comp` (son privilegios de staff) y deja warning en logs para asignarlos desde el panel |
 | ACC-18 | ALTO | 🟢 | Rotación de token deja el link viejo muerto | Cerrado Fase E: todos los endpoints del portal aceptan el token de una generación anterior (gracia de 1 generación; 2+ invalidado por diseño) |
 | ACC-19 | MEDIO | 🔴 | Teléfono único por gimnasio | Una familia con un solo teléfono no puede inscribir a dos · **K5** (decisión 2026-10-21: se mantiene único, con mensaje explícito) |
@@ -284,7 +284,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   gyms es guarda, no repro.
 
 ### CFG-04 · El staff crea cambios de horario sin límites
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K4 (≡ `ACC-13`, duplicado)
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K4) · **Sub-fase:** K4 (≡ `ACC-13`, duplicado)
 - **Explicación:** el serializer **staff** de cambio permanente no usa
   `count_schedule_changes_used_this_month` ni cooldown, a diferencia de los caminos público y
   de swap. Hoy la UI de staff sólo hace GET/approve/reject, pero el endpoint
@@ -296,6 +296,10 @@ explicación, ejemplo de impacto y criterio de aceptación.
   (`backend/gyms/models.py:102-103`).
 - **Criterio de aceptación:** el cambio creado por staff respeta el límite mensual configurado
   (y el cooldown), igual que el del socio.
+- **Resolución Fase K4:** el cooldown y el máximo mensual se calculan en un helper compartido
+  (`backend/attendance/utils.check_schedule_change_limits`) que usan los tres caminos (público,
+  staff y swap). El staff recibe 400 con un mensaje explícito. Tests en
+  `backend/attendance/tests_phase_k4.py` (`Cfg04StaffChangeLimitsTests`).
 
 ### CFG-09 · Precio 0 permitido
 - **Severidad:** ALTO · **Estado:** 🟢 (Fase C)
@@ -732,7 +736,7 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
   sesión del paquete de salida) — cerrado por este mismo fix.
 
 ### ACC-10 · Aprobar desactiva el horario viejo de inmediato
-- **Severidad:** ALTO · **Estado:** 🔴 · **Sub-fase:** K4
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase K4) · **Sub-fase:** K4
 - **Ejemplo:** la UI promete vigencia futura pero el horario actual se apaga al aprobar; el
   socio pierde las clases de la semana en curso.
 - **Dónde:** `backend/attendance/views.py:919-930` (desactiva `current_schedule` y activa el
@@ -743,6 +747,9 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
   migrar + job diferido, ~2 días, o corregir la promesa). Se **corrige la UI**: `frontend/src/pages/ScheduleChangeRequests.jsx:337-341`
   deja de decir "Vigente: {fecha}" y pasa a decir que el cambio aplica al aprobarlo.
 - **Criterio de aceptación:** la UI no promete una vigencia que el backend no implementa.
+- **Resolución Fase K4:** el panel de cambios permanentes ya no dice "Vigente: {fecha}" (que se
+  leía como vigencia futura) sino "Próxima clase del horario pedido" y aclara que el cambio se
+  aplica de inmediato al aprobarlo (`frontend/src/pages/ScheduleChangeRequests.jsx`).
 
 ### ACC-11 · El cooldown cuenta las rechazadas
 - **Severidad:** ALTO · **Estado:** 🟢 (Fase E) · **Resolución:** el cooldown ignora las
@@ -814,16 +821,17 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
 - **Criterio de aceptación:** ✅ el botón del portal da de baja la inscripción y refresca la
   lista.
 
-### ACC-02, ACC-03, ACC-04, ACC-14, ACC-16 — verificados en K0
-Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredicto del 2026-10-21:
+### ACC-02, ACC-03, ACC-04, ACC-14, ACC-16 — verificados en K0, cerrados en K4
+Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredicto del 2026-10-21
+(K0) y resolución de la Fase K4:
 
 | ID | Veredicto | Detalle | Sub-fase |
 |---|---|---|---|
-| ACC-02 | 🔴 vivo | No hay ventana horaria de check-in: ni el path público (`backend/attendance/public_views.py:238-291`) ni el de staff (`backend/attendance/serializers.py:237-324`) comparan la hora. En staging hay check-ins a las 21:00-23:00. | K4 |
-| ACC-03 | 🔴 vivo | El path público chequea `GymClosedDate` (`backend/attendance/public_views.py:87-94`); el serializer de staff **no** (`backend/attendance/serializers.py:237-324`). | K4 |
-| ACC-04 | 🔴 vivo | `backend/attendance/public_views.py:230-236` responde 200 con `success:false`; `frontend/src/pages/Checkin.jsx:54-61` no mira `data.success` y redirige como si fuera un éxito. | K4 |
-| ACC-14 | 🔴 vivo | Aprobar un cambio de horario desactiva **sólo** `current_schedule` (`backend/attendance/views.py:919-930`): si el staff editó la ficha mientras había un pedido pendiente, el socio queda con **dos** horarios activos (y puede exceder `weekly_visits`). | K4 |
-| ACC-16 | 🔴 vivo | `backend/subscriptions/views.py:394` cancela los pedidos de horario pendientes **también al rechazar** el cambio de plan, con `admin_notes` en inglés y sin aviso al socio. | K4 |
+| ACC-02 | 🟢 cerrado (K4) | `Gym.checkin_window_minutes` (0 = sin ventana) + comparación de la hora en los dos paths (público y staff) + el campo en la UI de configuración. La ventana va de (inicio − N) hasta el fin real del bloque. | K4 |
+| ACC-03 | 🟢 cerrado (K4) | El serializer de staff valida `GymClosedDate` y responde 400 si el día está cerrado. | K4 |
+| ACC-04 | 🟢 cerrado (K4) | El check-in duplicado (normal o intercambio) responde 409 y el front distingue el éxito real (`data.success`). | K4 |
+| ACC-14 | 🟢 cerrado (K4) | Al aprobar se re-verifica que el horario viejo siga activo (si el staff editó la ficha, 400: el socio tiene que volver a pedirlo) y se valida el límite de visitas del plan antes de tocar la ficha. | K4 |
+| ACC-16 | 🟢 cerrado (K4) | Los pedidos pendientes se cancelan sólo al **aprobar** el cambio de plan (al rechazar ya no se tocan) y la nota `admin_notes` —lo único que ve el socio en el portal— está en español. | K4 |
 
 ### ACC-19 · Teléfono único por gimnasio
 - **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K5 · **Explicación:** la unicidad del

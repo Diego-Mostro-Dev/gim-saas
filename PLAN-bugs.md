@@ -61,7 +61,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **K1. Portal del socio** | ACC-26 (el portal no puede dar de baja una inscripción), ADD-06, ADD-18, ADD-24, ADD-25. | Tests de alta/baja del portal + `pnpm build` | ✅ **hecha** (2026-10-21; `DELETE /api/activities/public/<token>/` + 10 tests nuevos; `ReferenceError` del portal y botón "Renovar" duplicado arreglados; el horario reconciliado ahora avisa; 405 tests) |
 | **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ✅ **hecha** (2026-10-21; validador de solape compartido `core/overlap.py`; el ítem de la oferta sobrevive mientras haya otro horario; renovación con saldo impago con override explícito; la reactivación restaura sólo los horarios apagados con la oferta; 449 tests) |
 | **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ✅ **hecha** (2026-10-21; la recuperación queda atada a la falta que perdona; el watermark sólo avanza hasta la última falta cobrada; `ScheduleSlot.duration_minutes` con la duración real en los 4 chequeos; 466 tests) |
-| **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ⬜ |
+| **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ✅ **hecha** (2026-10-21; ventana de check-in en `Gym` + los dos paths + la UI; `409` en el duplicado y el front distingue el éxito; día cerrado en el path de staff; cooldown y máximo mensual para el staff; la cancelación silenciosa sólo al aprobar y con nota en español; aprobar re-verifica el horario viejo y `weekly_visits`; la UI deja de prometer vigencia futura; 482 tests) |
 | **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ⬜ |
 | **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ⬜ |
 | **K7. Higiene de frontend y CI** | REF-05 (lint a 0 y bloqueante en el CI), ADD-19, ADD-03. | `pnpm lint` en 0 + `pnpm build` + suite completa | ⬜ |
@@ -192,10 +192,10 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
 release ejecutable.
 
-**Estado al 2026-10-21:** 106 hallazgos — 79 cerrados, 13 decisiones de negocio, **14 abiertos**
+**Estado al 2026-10-21:** 106 hallazgos — 86 cerrados, 13 decisiones de negocio, **7 abiertos**
 (cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
 sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
-fix → gate contra Postgres descartable → CI verde). K0, K1, K2 y K3 están hechas.
+fix → gate contra Postgres descartable → CI verde). K0, K1, K2, K3 y K4 están hechas.
 
 #### Decisiones tomadas (2026-10-21)
 
@@ -315,7 +315,29 @@ igual, cooldown y límite mensual para el staff, la nota en inglés de la cancel
 después `ACC-14` (aprobar un cambio no puede dejar dos horarios activos ni violar
 `weekly_visits`) y `ACC-02` (campo en `Gym` + migración + los dos paths + la UI de
 Configuración). `ACC-10` se cierra corrigiendo el texto de la UI.
-**Gate:** `attendance/tests_phase_k.py` + `makemigrations --check` limpio.
+**Hecho (2026-10-21, `3ea3b21`):**
+- `ACC-02`: `Gym.checkin_window_minutes` (0 = sin ventana, default que no rompe los gyms
+  instalados; la ventana va de (inicio − N) hasta el fin real del bloque, ADD-05). El path
+  público acepta cualquiera de los bloques activos del socio del día; el de staff compara el
+  bloque del pedido. Campo en la UI de configuración del gym.
+- `ACC-03`: el serializer de staff valida `GymClosedDate` (400).
+- `ACC-04`: el duplicado (normal o intercambio) responde 409 y el front no redirige ante
+  `data.success === false`.
+- `ACC-14`: al aprobar se re-verifica que el horario viejo siga activo (si el staff editó la
+  ficha, 400: el socio tiene que volver a pedirlo) y se valida `weekly_visits` antes de tocar
+  la ficha.
+- `ACC-16`: los pedidos pendientes de horario/intercambio se cancelan sólo al **aprobar** el
+  cambio de plan (al rechazar ya no se tocan) y la nota `admin_notes` —lo único que ve el socio
+  en el portal— queda en español.
+- `CFG-04` (≡ `ACC-13`): cooldown y máximo mensual en un helper compartido
+  (`attendance/utils.check_schedule_change_limits`) que usan los tres caminos.
+- `ACC-10`: el panel deja de decir "Vigente: {fecha}" y aclara que el cambio se aplica al
+  aprobarlo (decisión del 2026-10-21: no se implementa la vigencia futura). De paso, el panel
+  reconoce el estado `executed` (la etiqueta y el filtro "Aprobadas" ya no quedan vacíos).
+- Tests: 15 nuevos (11 en `attendance/tests_phase_k4.py`, 2 en `subscriptions/tests_phase_k4.py`),
+  todos en rojo antes del fix.
+**Gate:** 482 tests OK contra Postgres 16 descartable + `pnpm build` + `pnpm lint` (88, sin
+errores nuevos) + `makemigrations --check` limpio.
 
 **K5 · Dinero y socios** — `ACC-23`, `DIN-17`, `ACC-19`.
 `ACC-23`: el coseguro no puede quedar en 0 por un nombre mal escrito (+ backfill). `DIN-17`:
