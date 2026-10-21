@@ -147,7 +147,7 @@ class OutingEnrollmentService:
             enrollment.active = False
             enrollment.save(update_fields=["active"])
 
-            _cancel_outing_items(member, schedule.outing)
+            _cancel_outing_items(member, schedule.outing, enrollment)
 
             if sub is not None:
                 locked_sub = Subscription.objects.select_for_update().get(
@@ -287,15 +287,32 @@ def _ensure_outing_item(subscription, outing, price=None):
     )
 
 
-def _cancel_outing_items(member, outing):
+def _cancel_outing_items(member, outing, exclude_enrollment=None):
     """Cancel active outing items for a given outing across the member's
     non-expired subscriptions.
 
     Unenrolling today should stop the outing from being billed for the
     current period and every already-created future period. Historical
     (expired) subscriptions are left untouched to preserve immutability.
+
+    The item is **per offer**, not per schedule: it is only cancelled once
+    the member has no other active enrollment of the same outing. Without
+    that guard, leaving one schedule of an outing the member was also
+    enrolled in on another day cancelled the single item of the offer: the
+    member kept the other spot but stopped paying for it (ADD-28, Fase K2).
+    Same criterion as PT (``_cancel_pt_items``).
     """
     from django.utils import timezone
+
+    other_active = OutingEnrollment.objects.filter(
+        member=member,
+        schedule__outing=outing,
+        active=True,
+    )
+    if exclude_enrollment is not None:
+        other_active = other_active.exclude(pk=exclude_enrollment.pk)
+    if other_active.exists():
+        return
 
     today = timezone.localdate()
 
