@@ -1,10 +1,11 @@
 from django.contrib import admin
 
+from core.admin import GymScopedAdminMixin
 from .models import AttendanceSchedule, Attendance, ScheduleSlot, SessionRecovery
 
 
 @admin.register(ScheduleSlot)
-class ScheduleSlotAdmin(admin.ModelAdmin):
+class ScheduleSlotAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "gym",
         "day",
@@ -19,7 +20,7 @@ class ScheduleSlotAdmin(admin.ModelAdmin):
 
 
 @admin.register(AttendanceSchedule)
-class AttendanceScheduleAdmin(admin.ModelAdmin):
+class AttendanceScheduleAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "member",
         "subscription",
@@ -48,7 +49,7 @@ class AttendanceScheduleAdmin(admin.ModelAdmin):
 
 
 @admin.register(Attendance)
-class AttendanceAdmin(admin.ModelAdmin):
+class AttendanceAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "member",
         "schedule",
