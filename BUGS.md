@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-20** — Fases A, B, C, D, E, F, G, H e I hechas. Total: **99 hallazgos** — 5 `CRÍTICO`,
-29 `ALTO`, 47 `MEDIO`, 18 `BAJO`. De ellos **56 ya están cerrados**, **10 son decisiones de
-negocio** y quedan **21 abiertos** + 12 a verificar (los 🟡). Fichas de los abiertos con
+Estado: **2026-10-20** — Fases A a J hechas. Total: **101 hallazgos** — 5 `CRÍTICO`,
+29 `ALTO`, 49 `MEDIO`, 18 `BAJO`. De ellos **62 ya están cerrados**, **11 son decisiones de
+negocio** y quedan **17 abiertos** + 11 a verificar (los 🟡). Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
@@ -40,8 +40,8 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 12 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 5 | 2 |
-| Robustez/CI (`REF`) | 0 | 0 | 3 | 3 | 1 | 0 |
-| **Total** | **5** | **29** | **47** | **18** | **56** | **10** |
+| Robustez/CI (`REF`) | 0 | 0 | 5 | 3 | 7 | 1 |
+| **Total** | **5** | **29** | **49** | **18** | **62** | **11** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -143,14 +143,16 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | COM-02 | MEDIO | ⚪ | `discount` es texto libre y no participa de ningún cobro | Cerrado Fase C (validación no vacío). El descuento del local es informativo y no toca la facturación: decisión de negocio (Fase I) |
 | COM-03 | MEDIO | 🟢 | Sin unicidad de `name` por gimnasio → duplicados | Cerrado Fase I: constraint parcial `uniq_community_business_name_per_gym` `(gym,name) WHERE active=True` + `IntegrityError` → 400 |
 | COM-04 | MEDIO | 🟢 | `business.delete()` es hard delete | Cerrado Fase I: baja lógica (`active=False`); DELETE devuelve 204 sin borrar la fila |
-| COM-05 | MEDIO | 🟢 | `community` no tiene tests | Cerrado Fase I: `community/tests.py` (15 tests: discount, soft delete, unicidad, rol, visibilidad pública). Sumar `community` al CI → Fase J (`REF-02`) |
+| COM-05 | MEDIO | 🟢 | `community` no tiene tests | Cerrado Fase I: `community/tests.py` (15 tests: discount, soft delete, unicidad, rol, visibilidad pública). Sumada al CI en Fase J (`REF-02`) |
 | COM-06 | BAJO | 🟢 | El panel de comunidad se muestra a roles que recibirán 403 | No se reproduce (Fase I): `/settings` está en `ProfessorRoute` y `Settings.jsx` redirige a no-owner a `/dashboard`; la pestaña sólo aparece con la feature activa |
-| REF-01 | MEDIO | 🔴 | Apps sin tests: `community`, `routines`, `profiles`, `seed`, `core` | — |
-| REF-02 | MEDIO | 🔴 | El CI no corre `gyms`, `admins`, `accounts`, `personal_training`, `profiles`, `routines`, `community`, `seed`, `core` | Apps con tests no se ejecutan en CI |
-| REF-03 | MEDIO | 🔴 | Consultas de dinero sin filtro de gym | La invariante `Member.gym` inmutable sólo está en un comentario |
+| REF-01 | MEDIO | 🟢 | Apps sin tests: `profiles`, `seed`, `core` | Cerrado Fase J: primeras suites de `profiles`, `seed` y `core` (`core/tests.py`, `core/tests_admin_scoping.py`) |
+| REF-02 | MEDIO | 🟢 | El CI no corre varias apps | Cerrado Fase J: el CI corre todas las apps con tests (gyms, admins, accounts, personal_training, routines, community, profiles, seed, core) |
+| REF-03 | MEDIO | 🟢 | Consultas de dinero sin filtro de gym | Cerrado Fase J: `member_credit_balance`, `credit_recorded_for` y `consume_member_credit` filtran por gym; tests de aislamiento |
 | REF-04 | BAJO | 🟢 | Admin `paid`/`price_snapshot` editables | Premisa falsa: ya están en `readonly_fields` |
-| REF-05 | BAJO | 🟡 | El frontend no tiene tests | Los bugs de render se verifican a mano |
-| REF-06 | BAJO | 🔴 | `validate_discount` es código muerto | Valida un campo `discount` inexistente; el campo real es `discount_id` y no valida nada (detectado Fase F, anotado en Fase G) |
+| REF-05 | BAJO | ⚪ | El frontend no tiene tests y el lint tiene deuda | Decisión Fase J: se agrega `build` al CI; el lint preexistente (reglas nuevas de react-hooks v7 + globals virtuales sin declarar) queda como tarea de frontend |
+| REF-06 | BAJO | 🟢 | `validate_discount` es código muerto | Cerrado Fase J: renombrado a `validate_discount_id`; el descuento de otro gimnasio ahora da 400 |
+| REF-07 | MEDIO | 🟢 | N+1 en listados de asistencia y suscripciones | Detectado y cerrado Fase J: prefetch de suscripciones del socio, y `select_related` en recuperaciones/cambios/items; tests con `assertNumQueries` |
+| REF-08 | MEDIO | 🟢 | Admin sin scope de gimnasio (fuga de datos) | Detectado y cerrado Fase J: `GymScopedAdminMixin` en todos los admins de modelos que cuelgan del gimnasio; tests en `core/tests_admin_scoping.py` |
 
 ---
 
@@ -650,20 +652,35 @@ Detalle en `AUDITORIA-MIEMBROS.md §9`.
 
 ## Fichas — Robustez / CI (`REF`)
 
-- **REF-01 · Apps sin tests** 🔴 — `profiles`, `seed`, `core` (Fases H e I cerraron
-  `routines` y `community`).
-- **REF-02 · El CI no corre esas apps** 🔴 — `.github/workflows/backend-tests.yml:73` corre
-  sólo `subscriptions members attendance payments plans config activities outings` (más
-  `gyms.tests_restore`). Faltan `gyms`, `admins`, `accounts`, `personal_training`, `profiles`,
-  `routines`, `community`, `seed`, `core`.
-- **REF-03 · Consultas de dinero sin filtro de gym** 🔴 — `member_credit_balance`,
-  `credit_recorded_for`, `consume_member_credit` (`backend/subscriptions/services.py:438,466`);
-  la invariante "`Member.gym` inmutable" sólo está en un comentario, no en el esquema.
+- **REF-01 · Apps sin tests** 🟢 (Fase J) — `profiles/tests.py` (señal de `UserProfile`),
+  `seed/tests.py` (aislamiento de `BaseSeeder`), `core/tests.py` (reglas de precio, gym
+  obligatorio, permisos).
+- **REF-02 · El CI no corre esas apps** 🟢 (Fase J) —
+  `.github/workflows/backend-tests.yml` pasó a correr todas las apps con tests:
+  `subscriptions members attendance payments plans config activities outings gyms admins
+  accounts personal_training routines community profiles seed core`. Se sumó un job de
+  frontend (`pnpm build`).
+- **REF-03 · Consultas de dinero sin filtro de gym** 🟢 (Fase J) — `member_credit_balance`,
+  `credit_recorded_for` y `consume_member_credit` filtran por `gym` (del socio o de la
+  suscripción). Tests de aislamiento cruzado en
+  `subscriptions/test_money_invariants.CrossGymCreditIsolationTests`.
 - **REF-04 · Admin `paid`/`price_snapshot`** 🟢 — premisa falsa: ya son `readonly_fields`.
-- **REF-05 · Frontend sin tests** 🟡 — sólo `lint`/`build`.
-- **REF-06 · `validate_discount` es código muerto** 🔴 — `members/serializers.py` define
-  `validate_discount`, pero el campo real es `discount_id`; la validación nunca se ejecuta y el
-  descuento del socio no tiene control. Detectado en Fase F, anotado en Fase G; fix en Fase J.
+- **REF-05 · Frontend sin tests / lint con deuda** ⚪ (Fase J) — el CI corre `pnpm build`;
+  `pnpm lint` hoy falla con ~71 errores preexistentes (reglas nuevas de `react-hooks` v7 +
+  globals virtuales `__BUILD_ID__`/`__APP_VERSION__`/`process` sin declarar en
+  `eslint.config.js`). Queda como tarea de frontend (arreglar config y deuda de hooks).
+- **REF-06 · `validate_discount` es código muerto** 🟢 (Fase J) — renombrado a
+  `validate_discount_id`; el descuento de otro gimnasio ahora da 400. Tests en
+  `members/tests.py`.
+- **REF-07 · N+1 en listados** 🟢 (Fase J, nuevo) — el listado semanal/estado de asistencia
+  repetía `member_service_label` por socio (~3 queries/inscripto); recuperaciones, pedidos
+  de cambio de horario e items de suscripción cargaban FKs de a una. Prefetch/`select_related`
+  agregados; tests con `assertNumQueries` en `attendance/tests_phase_j.py` (7→22 y 8→23
+  queries sin el fix).
+- **REF-08 · Admin sin scope de gimnasio** 🟢 (Fase J, nuevo) — un dueño con acceso al admin
+  veía filas de otros gimnasios (`gyms`, `subscriptions`, `plans`, `attendance`, `routines`,
+  `community`, `profiles`). `core.admin.GymScopedAdminMixin` acota el queryset; tests en
+  `core/tests_admin_scoping.py`.
 
 ---
 

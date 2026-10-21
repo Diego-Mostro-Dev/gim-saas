@@ -56,7 +56,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **G. Sesiones y faltas** | No-show en fechas sin clase (`ADD-07`), faltas/recuperación de PT (`ADD-21`), salidas sin no-show (`ADD-11`), descuento fuera de ventana (`ACC-08`). | Invariante de paquete: sesiones consumidas = asistidas + faltas justificadas | ✅ **hecha** (2026-10-20; 16 tests nuevos en `activities/tests_phase_g.py` + 5 en `tests_sessions_invariants.py`; ADD-11 queda como decisión de negocio) |
 | **H. Rutinas** | `RUT-01` a `RUT-09`: control de rol, soft delete, unicidad de rutina activa, huérfanos, endpoint público, cobertura. | `routines` con tests | ✅ **hecha** (2026-10-20; 16 tests nuevos en `routines/tests_phase_h.py`; RUT-06/RUT-08 quedan como decisiones de negocio; sumar `routines` al CI → Fase J) |
 | **I. Comunidad** | `COM-01` a `COM-06`: soft delete, duplicados, `discount` sin validar, socio inactivo en el endpoint público, tests. | `community` con tests + auditoría | ✅ **hecha** (2026-10-20; 15 tests en `community/tests.py` + `AUDITORIA-COMUNIDAD.md`; COM-01/COM-02 quedan como decisiones de negocio; COM-06 re-verificado 🟢) |
-| **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ⬜ |
+| **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ✅ **hecha** (2026-10-20; REF-01/02/03/06 cerrados + REF-07 (N+1) y REF-08 (admin sin scope) nuevos y cerrados; REF-05 queda ⚪ (lint de frontend con deuda preexistente); CI corre todas las apps + job de build de frontend; gate 392 tests) |
 | **K. Cierre** | `BUGS.md` final + decisiones de negocio + checklist de release. | — | ⬜ |
 
 **Orden obligatorio**: A → B → C → D → E → F → G → H → I → J → K. La B es el "GPS": una vez
@@ -82,7 +82,7 @@ cd backend
 DATABASE_URL="postgres://postgres@127.0.0.1:55432/postgres" \
 DB_SSLMODE=disable ENVIRONMENT=development \
 .venv/bin/python manage.py test subscriptions members attendance payments plans config \
-activities outings personal_training routines community
+activities outings gyms admins accounts personal_training routines community profiles seed core
 ```
 
 ### Fase B — arnés de invariantes
@@ -150,6 +150,25 @@ Cierra `ADD-01`, `ADD-09`, `ADD-02`, `ADD-10` y `DIN-18`. Dos decisiones de prod
   `personal_training/tests_deactivation.py` (11 tests; 8 rojos antes del fix).
 - Gate (apps): `subscriptions members attendance payments plans config activities outings
   personal_training gyms community admins routines` → **274/274 verde**.
+
+### Fase J — higiene, performance y cobertura/CI
+
+Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-07`, `REF-08`).
+`REF-05` pasa a ⚪ (lint de frontend con deuda preexistente). Verificado con tests rojo→verde.
+
+- `members/serializers.py`: `validate_discount` → `validate_discount_id` (el campo real es
+  `discount_id` con `source="discount"`); tests en `members/tests.py`.
+- `subscriptions/services.py`: `member_credit_balance`, `credit_recorded_for` y
+  `consume_member_credit` filtran por `gym`; tests `CrossGymCreditIsolationTests`.
+- N+1 (`REF-07`): prefetch de `member__subscription_set` en los listados semanal/estado
+  (`attendance/views.py`), `select_related` en recuperaciones/pedidos de cambio e items de
+  suscripción, y `gym_closed_dates_set` lee el prefetch cache. Tests `assertNumQueries` en
+  `attendance/tests_phase_j.py`.
+- Admin (`REF-08`): `core/admin.py` → `GymScopedAdminMixin`, aplicado a `gyms`, `subscriptions`,
+  `plans`, `attendance`, `routines`, `community`, `profiles`. Tests `core/tests_admin_scoping.py`.
+- Cobertura/CI (`REF-01`/`REF-02`): `profiles/tests.py`, `seed/tests.py`, `core/tests.py`;
+  `.github/workflows/backend-tests.yml` corre todas las apps y suma un job de `pnpm build`.
+- Gate: **392 tests OK** + `makemigrations --check` limpio; `pnpm build` verde.
 
 ---
 
