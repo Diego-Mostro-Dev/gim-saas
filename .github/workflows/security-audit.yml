@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           # El input default es "package.json" relativo a GITHUB_WORKSPACE, y
           # en la raíz del repo no hay ninguno: el package.json está dentro de
