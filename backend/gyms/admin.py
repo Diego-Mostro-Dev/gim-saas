@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.conf import settings
 
+from core.admin import GymScopedAdminMixin
 from .models import Discount, Gym
 
 
@@ -38,8 +39,12 @@ class GymAdminForm(forms.ModelForm):
 
 
 @admin.register(Gym)
-class GymAdmin(admin.ModelAdmin):
+class GymAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     form = GymAdminForm
+
+    # El propio gimnasio es la fila a acotar: `id=gym.pk` deja sólo el del
+    # usuario (el superusuario no se filtra).
+    gym_lookup = "id"
 
     list_display = (
         "name",
@@ -144,7 +149,7 @@ class GymAdmin(admin.ModelAdmin):
 
 
 @admin.register(Discount)
-class DiscountAdmin(admin.ModelAdmin):
+class DiscountAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "name",
         "gym",

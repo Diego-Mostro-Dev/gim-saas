@@ -16,7 +16,9 @@ Las secciones F7/P1 a F7/P5 son los contadores de la Fase 7.0: los bugs que
 ninguno de los contadores anteriores puede ver (nacieron de revisión de código,
 no de datos). Cada uno reporta **dos** números, ``confirmados`` y ``armados``,
 porque un ``0`` solo no distingue entre "el bug no existe" y "nunca se probó" —
-ver PLAN-dinero.md sección 1.9.
+ver PLAN-dinero.md sección 1.9. F7/P6 (Fase C) aplica el mismo contador de
+"armados" a actividades y salidas, las únicas ofertas que no se auto-anulan en
+modo sesiones.
 
 Esta auditoría es una proyección read-only: replica la semántica de períodos,
 pero NO modela los guards del renovador (pago, plan base, miembro activo,
@@ -283,6 +285,56 @@ def _pt_package_bill():
 
     return {
         "confirmed": confirmed,
+        "armed": armed,
+        "armed_monthly_total": sum(
+            (row["monthly_price"] for row in armed), Decimal("0")
+        ),
+    }
+
+
+def _addon_session_offers():
+    """F7/P6 — oferta por sesiones de actividad/salida con cuota mensual armada.
+
+    El mismo estado que F7/P1, pero en el catálogo de actividades y salidas:
+    son las únicas ofertas que no se auto-anulan en modo ``sessions`` (CFG-14),
+    así que una de ellas con ``monthly_price > 0`` factura la cuota **y** el
+    paquete. Cuenta ofertas armadas, no cobros efectivos: el cobro extra sólo
+    aparece cuando alguien se anota en modo paquete.
+    """
+    from activities.models import Activity
+    from outings.models import Outing
+
+    armed = []
+
+    activities = Activity.objects.filter(
+        billing_mode="sessions", active=True, monthly_price__gt=0
+    ).values("id", "name", "monthly_price", "service__gym_id")
+    for row in activities:
+        armed.append(
+            {
+                "id": row["id"],
+                "gym_id": row["service__gym_id"],
+                "name": row["name"],
+                "monthly_price": row["monthly_price"],
+                "kind": "actividad",
+            }
+        )
+
+    outings = Outing.objects.filter(
+        billing_mode="sessions", active=True, monthly_price__gt=0
+    ).values("id", "name", "monthly_price", "gym_id")
+    for row in outings:
+        armed.append(
+            {
+                "id": row["id"],
+                "gym_id": row["gym_id"],
+                "name": row["name"],
+                "monthly_price": row["monthly_price"],
+                "kind": "salida",
+            }
+        )
+
+    return {
         "armed": armed,
         "armed_monthly_total": sum(
             (row["monthly_price"] for row in armed), Decimal("0")
@@ -561,6 +613,7 @@ class Command(BaseCommand):
                 f7_p2 = _comp_items_by_scope(today)
                 f7_p4 = _uncredited_overpayments(settlement)
                 f7_p5 = _unfrozen_discount_periods(settlement, today)
+                f7_p6 = _addon_session_offers()
                 transaction.set_rollback(True)
         finally:
             connection.force_debug_cursor = False
@@ -720,6 +773,24 @@ class Command(BaseCommand):
         self.stdout.write(
             f"      cuota mensual en juego si se asigna un paquete     : "
             f"{f7_p1['armed_monthly_total']}"
+        )
+        self.stdout.write("")
+
+        self.stdout.write(
+            "F7/P6  Actividades/salidas por sesiones con cuota armada"
+        )
+        self.stdout.write(
+            f"    armados (oferta 'sessions' con monthly_price > 0)   : "
+            f"{len(f7_p6['armed'])}"
+        )
+        for row in f7_p6["armed"][:max_ids]:
+            self.stdout.write(
+                f"      gym {row['gym_id']:<6} {row['kind']:<10} {row['id']:<6} "
+                f"{row['name'][:40]:<40} {row['monthly_price']}/mes"
+            )
+        self.stdout.write(
+            f"      cuota mensual en juego si alguien se anota        : "
+            f"{f7_p6['armed_monthly_total']}"
         )
         self.stdout.write("")
 

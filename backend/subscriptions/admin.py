@@ -1,9 +1,11 @@
 from django.contrib import admin
+
+from core.admin import GymScopedAdminMixin
 from .models import Subscription, SubscriptionItem, PlanChangeRequest
 
 
 @admin.register(Subscription)
-class SubscriptionAdmin(admin.ModelAdmin):
+class SubscriptionAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "member",
         "plan",
@@ -29,7 +31,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
 
 @admin.register(PlanChangeRequest)
-class PlanChangeRequestAdmin(admin.ModelAdmin):
+class PlanChangeRequestAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "member",
         "subscription",
@@ -60,7 +62,9 @@ class PlanChangeRequestAdmin(admin.ModelAdmin):
 
 
 @admin.register(SubscriptionItem)
-class SubscriptionItemAdmin(admin.ModelAdmin):
+class SubscriptionItemAdmin(GymScopedAdminMixin, admin.ModelAdmin):
+    gym_lookup = "subscription__gym"
+
     list_display = (
         "subscription",
         "item_type",

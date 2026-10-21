@@ -152,9 +152,19 @@ export default function AdminGymWizard() {
         return false;
       }
     }
+    for (const p of form.plans) {
+      if (!(Number(p.price) > 0)) {
+        toast.error(`El plan "${p.name || "sin nombre"}" debe tener un precio mayor a 0`);
+        return false;
+      }
+    }
     for (const a of form.activities) {
       if (a.billing_mode === "sessions" && a.schedules.length === 0) {
         toast.error(`La actividad "${a.name || "sin nombre"}" por sesiones necesita horarios`);
+        return false;
+      }
+      if (a.billing_mode === "monthly" && !(Number(a.monthly_price) > 0)) {
+        toast.error(`La actividad "${a.name || "sin nombre"}" mensual necesita una cuota mayor a 0`);
         return false;
       }
     }
@@ -520,6 +530,7 @@ function PagosStep({ form, set }) {
               className={inputCls}
               type="number"
               min={0}
+              step={1}
               value={form.schedule_change_cooldown_hours}
               onChange={(e) => set({ schedule_change_cooldown_hours: e.target.value })}
             />
@@ -529,6 +540,7 @@ function PagosStep({ form, set }) {
               className={inputCls}
               type="number"
               min={0}
+              step={1}
               value={form.max_schedule_changes_per_month}
               onChange={(e) => set({ max_schedule_changes_per_month: e.target.value })}
             />

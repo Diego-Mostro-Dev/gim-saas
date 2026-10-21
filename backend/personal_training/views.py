@@ -107,7 +107,7 @@ class PersonalTrainingAssignmentViewSet(
         qs = PersonalTrainingAssignment.objects.filter(
             gym=self.get_gym()
         ).select_related(
-            "member", "member__insurance", "trainer", "service"
+            "member", "member__insurance", "trainer", "trainer__profile", "service"
         ).annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),

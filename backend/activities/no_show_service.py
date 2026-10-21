@@ -58,6 +58,25 @@ def _pending_recovery_credits(member, activity):
     ).count()
 
 
+def _pending_pt_recovery_credits(member, assignment):
+    """Recuperaciones de PT en vuelo (programadas para el futuro).
+
+    Espeja ``_pending_recovery_credits`` para actividades: ADD-21, una
+    recuperación de PT cubre la falta más reciente para que "falta +
+    recuperación" cueste 1 sesión.
+    """
+    from attendance.models import SessionRecovery
+
+    today = timezone.localdate()
+    return SessionRecovery.objects.filter(
+        member=member,
+        pt_assignment=assignment,
+        kind="pt",
+        status="scheduled",
+        used_date__gte=today,
+    ).count()
+
+
 def _deduct_activity_enrollment(enrollment, start, end, closed):
     total = enrollment.package_total_sessions
     if total is None:
@@ -134,6 +153,10 @@ def _deduct_pt_assignment(assignment, start, end, closed):
     if remaining <= 0:
         return 0
 
+    credits = _pending_pt_recovery_credits(assignment.member, assignment)
+    if credits:
+        missed = missed[:-credits]
+
     created = 0
     for date_ in missed[:remaining]:
         from personal_training.models import PersonalTrainingSessionRecord
@@ -179,7 +202,10 @@ def deduct_missed_activity_enrollments(gym):
         if start is None:
             start = floor
         else:
-            start = start + timedelta(days=1)
+            # ADD-07: el watermark se clampea contra el floor. Un watermark
+            # viejo (avanzado antes de que el horario existiera) no puede
+            # hacer que se descuenten fechas sin clase dictada.
+            start = max(floor, start + timedelta(days=1))
         if start > end:
             continue
 
@@ -220,7 +246,8 @@ def deduct_missed_pt_assignments(gym):
         if start is None:
             start = floor
         else:
-            start = start + timedelta(days=1)
+            # ADD-07: mismo clamp que en actividades.
+            start = max(floor, start + timedelta(days=1))
         if start > end:
             continue
 
@@ -269,6 +296,30 @@ def cancel_recovered_no_show(member, activity):
         ActivitySessionRecord.objects.filter(
             member=member,
             enrollment__schedule__activity=activity,
+            source="no_show",
+        )
+        .order_by("-date", "-created_at")
+        .first()
+    )
+    if newest is None:
+        return 0
+    newest.delete()
+    return 1
+
+
+def cancel_recovered_no_show_pt(member, assignment):
+    """Anula la falta más reciente de una asignación de PT al otorgarle recuperación.
+
+    Espeja ``cancel_recovered_no_show`` (ADD-21): "falta + recuperación" debe
+    costar 1 sesión; el recupero descontará 1 cuando se use
+    (``source="recovery"``), así que la no_show de esa falta se elimina aquí.
+    """
+    from personal_training.models import PersonalTrainingSessionRecord
+
+    newest = (
+        PersonalTrainingSessionRecord.objects.filter(
+            member=member,
+            assignment=assignment,
             source="no_show",
         )
         .order_by("-date", "-created_at")

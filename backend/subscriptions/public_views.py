@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
-from members.models import Member
+from members.models import portal_member_or_404
 
 from .models import PlanChangeRequest
 from .serializers import PublicPlanChangeRequestSerializer
@@ -20,7 +20,7 @@ class PublicPlanChangeRequestView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         requests = PlanChangeRequest.objects.filter(
             member=member,
@@ -35,7 +35,7 @@ class PublicPlanChangeRequestView(APIView):
         )
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -61,7 +61,7 @@ class PublicCancelPlanChangeRequestView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -109,7 +109,7 @@ class PublicCancelRenewalView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -145,7 +145,7 @@ class PublicEnableRenewalView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(

@@ -68,9 +68,14 @@ jobs:
       # activities y outings entran en Fase A3 del release: concentran las
       # reglas de consumo de sesiones (no-show, recuperos) y el cálculo de
       # cupos del portal público, que hasta ahora no tenían red de seguridad.
-      - name: Run subscriptions, members, attendance, payments, plans, config, activities and outings tests
+      # Fase J: el resto de las apps con tests entra para que ninguna regla
+      # quede sin celador. gyms/admins/accounts cubren configuración, admin
+      # central y auth; personal_training/routines/community entraron con sus
+      # fases (G/H/I) y hasta acá no corrían en CI; profiles/seed/core suman
+      # su primera cobertura (REF-01/REF-02).
+      - name: Run full backend test suite
         working-directory: backend
-        run: python manage.py test subscriptions members attendance payments plans config activities outings
+        run: python manage.py test subscriptions members attendance payments plans config activities outings gyms admins accounts personal_training routines community profiles seed core
       - name: Run restore_db round-trip tests
         working-directory: backend
         env:
@@ -80,3 +85,26 @@ jobs:
           SECURE_SSL_REDIRECT: "false"
           DB_SSLMODE: "disable"
         run: python manage.py test gyms.tests_restore
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      # Sólo build por ahora: `pnpm lint` hoy falla con deudas preexistentes
+      # (reglas nuevas de react-hooks v7 + globals virtuales sin declarar en
+      # eslint.config.js). Meterlo al CI tal cual lo dejaría rojo sin arreglar
+      # nada de Fase J; queda como REF-05 (⚪) para una tarea de frontend.
+      - name: Build
+        working-directory: frontend
+        run: pnpm build

@@ -5,7 +5,11 @@ from django.db import transaction
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import prorated_price_for, sync_subscription_paid
+from subscriptions.services import (
+    cancel_addon_items,
+    prorated_price_for,
+    sync_subscription_paid,
+)
 
 from .models import OutingEnrollment, OutingSchedule
 
@@ -301,3 +305,26 @@ def _cancel_outing_items(member, outing):
         status="active",
         subscription__end_date__gte=today,
     ).update(status="cancelled")
+
+
+def cut_outing_billing(outing):
+    """Corta el cobro recurrente de una salida desactivada (ADD-09, Fase D).
+
+    Equivalente masivo de :meth:`OutingEnrollmentService.unenroll_member`.
+    """
+    with transaction.atomic():
+        member_ids = list(
+            OutingEnrollment.objects.filter(
+                schedule__outing=outing, active=True
+            )
+            .values_list("member_id", flat=True)
+            .distinct()
+        )
+        if not member_ids:
+            return
+
+        OutingEnrollment.objects.filter(
+            schedule__outing=outing, active=True
+        ).update(active=False)
+
+        cancel_addon_items(member_ids, outing=outing)

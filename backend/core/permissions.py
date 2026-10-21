@@ -29,3 +29,28 @@ def require_owner(request, label="errors.owner_only"):
     if not is_owner(request):
         gym = profile.gym if profile else None
         raise PermissionDenied(msg(gym, label))
+
+
+ROUTINE_MANAGER_ROLES = {
+    UserProfile.ROLE_OWNER,
+    UserProfile.ROLE_STAFF,
+    UserProfile.ROLE_PROFESSOR,
+}
+
+
+def is_routine_manager(request) -> bool:
+    """True si el usuario puede administrar el catálogo y asignar rutinas.
+
+    Dueño, staff y profesor arman rutinas; el entrenador/a personal (trainer)
+    queda afuera porque su pantalla es su propia agenda (RUT-01).
+    """
+    profile = getattr(request.user, "profile", None)
+    return bool(profile and profile.role in ROUTINE_MANAGER_ROLES)
+
+
+def require_routine_manager(request, label="errors.routine_role_required"):
+    """Lanza PermissionDenied si el usuario no puede gestionar rutinas."""
+    profile = getattr(request.user, "profile", None)
+    if not is_routine_manager(request):
+        gym = profile.gym if profile else None
+        raise PermissionDenied(msg(gym, label))

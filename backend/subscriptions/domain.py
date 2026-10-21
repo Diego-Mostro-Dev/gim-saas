@@ -26,6 +26,23 @@ from attendance.models import DAY_CHOICES
 DAY_LABELS = dict(DAY_CHOICES)
 
 
+def _inherit_auto_renew(member):
+    """``auto_renew`` for a subscription opened without a current one.
+
+    Fase F (DIN-05): giving a courtesy pass must never switch renewal on by
+    itself. When the member already has a subscription, its ``auto_renew`` is
+    the member's own choice and is inherited; when there is no prior
+    subscription there is nothing to inherit, so the conservative default is
+    False (a benefit granted is not a renewal contract).
+    """
+    from .models import Subscription
+
+    latest = Subscription.objects.filter(member=member).order_by(
+        "-start_date", "-created_at"
+    ).first()
+    return latest.auto_renew if latest is not None else False
+
+
 class ScheduleError(ValueError):
     """Raised when a schedule operation fails (slot not found, capacity full)."""
 
@@ -207,8 +224,7 @@ class SubscriptionDomain:
 
                     base_plan = ensure_base_plan_for_gym(member.gym)
                     current.plan = base_plan
-                    current.auto_renew = True
-                    current.save(update_fields=["plan", "auto_renew"])
+                    current.save(update_fields=["plan"])
 
                     # Only the days already served keep being billed; the rest
                     # of the period stops being charged. The price line has to
@@ -306,7 +322,7 @@ class SubscriptionDomain:
                 start_date=today,
                 end_date=get_last_day_of_month(today),
                 paid=comp,
-                auto_renew=True,
+                auto_renew=_inherit_auto_renew(member),
                 origin=origin,
             )
 
@@ -603,6 +619,27 @@ class ScheduleDomain:
     def get_active_schedule_count(member):
         """Return the number of active AttendanceSchedule records."""
         return member.schedules.filter(active=True).count()
+
+    @staticmethod
+    def enforce_weekly_visits(member, target_count, limit=None):
+        """Reject more weekly schedules than the member's plan allows.
+
+        ``limit`` overrides the plan read from the member: a plan change knows
+        the requested plan before it becomes the current one. ``None`` means
+        unlimited (both for an explicit ``limit`` and for a member whose plan
+        does not cap visits).
+
+        Raises ScheduleError so every caller funnels it through the same
+        error path (RegistrationError at sign-up, 400 at plan change).
+        """
+        if limit is None:
+            limit = ScheduleDomain.get_schedule_limit(member)
+        if limit is None or target_count <= limit:
+            return
+        raise ScheduleError(
+            f"El plan permite {limit} visita(s) por semana y se intentan "
+            f"asignar {target_count} horarios."
+        )
 
     @staticmethod
     def validate_slot(gym, day, hour):

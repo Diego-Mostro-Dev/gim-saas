@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
@@ -21,12 +23,19 @@ class PlanItemSerializer(serializers.Serializer):
     service = serializers.CharField(max_length=100, required=True)
     name = serializers.CharField(max_length=100, required=True)
     description = serializers.CharField(required=False, allow_blank=True, default="")
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=0)
     duration_days = serializers.IntegerField(min_value=1, required=False, default=30)
     weekly_visits = serializers.IntegerField(
         min_value=1, required=False, allow_null=True, default=None
     )
     active = serializers.BooleanField(required=False, default=True)
+
+    def validate_price(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError(
+                "El precio del plan debe ser mayor a 0."
+            )
+        return value
 
 
 class ActivityScheduleItemSerializer(serializers.Serializer):
@@ -59,9 +68,15 @@ class ActivityItemSerializer(serializers.Serializer):
     schedules = ActivityScheduleItemSerializer(many=True, required=False, default=[])
 
     def validate(self, attrs):
-        if attrs.get("billing_mode") == "sessions" and not attrs.get("schedules"):
+        if attrs.get("billing_mode") == "sessions":
+            attrs["monthly_price"] = Decimal("0")
+            if not attrs.get("schedules"):
+                raise serializers.ValidationError(
+                    "Las actividades por sesiones necesitan al menos un horario."
+                )
+        elif (attrs.get("monthly_price") or 0) <= 0:
             raise serializers.ValidationError(
-                "Las actividades por sesiones necesitan al menos un horario."
+                {"monthly_price": "El precio mensual debe ser mayor a 0."}
             )
         return attrs
 

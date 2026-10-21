@@ -331,6 +331,7 @@ class SessionRecovery(models.Model):
     KIND_CHOICES = [
         ("training", "Entrenamiento gimnasio"),
         ("activity", "Clase de actividad"),
+        ("pt", "Entrenamiento personal"),
     ]
 
     STATUS_CHOICES = [
@@ -377,6 +378,15 @@ class SessionRecovery(models.Model):
         blank=True,
         related_name="session_recoveries",
         verbose_name="Actividad",
+    )
+
+    pt_assignment = models.ForeignKey(
+        "personal_training.PersonalTrainingAssignment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="session_recoveries",
+        verbose_name="Asignación de entrenamiento personal",
     )
 
     status = models.CharField(

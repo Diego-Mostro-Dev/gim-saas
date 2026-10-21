@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from members.models import Member
+from members.models import Member, portal_member_or_404, portal_token_q
 from gyms.labels import msg
 from gyms.models import GymClosedDate
 from .models import (
@@ -31,13 +31,11 @@ from .serializers import (
     SessionRecoverySerializer,
 )
 from config.api.params import parse_date
-from config.api.throttles import (
-    MemberPortalTokenThrottle,
-    PublicAttendanceRateThrottle,
-)
+from config.api.throttles import MemberPortalTokenThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from .recovery_service import RecoveryError, _add_hour, use_recovery
+from .checkin_discount import count_activity_sessions, count_outing_sessions
 
 
 DAY_BY_WEEKDAY = {
@@ -51,60 +49,9 @@ DAY_BY_WEEKDAY = {
 }
 
 
-def _count_sessions_if_in_window(member, gym, now_dt, today):
-    """Auto-count a package activity session when the check-in happens within
-    the activity's time window. Returns nothing; a failed or duplicate count
-    is silently ignored (the member is still allowed into the gym)."""
-    from activities.models import Enrollment
-    from activities.session_service import SessionService
-
-    day = DAY_BY_WEEKDAY[today.weekday()]
-    now_time = now_dt.time()
-
-    enrollments = Enrollment.objects.filter(
-        gym=gym,
-        member=member,
-        active=True,
-        modality="package",
-        schedule__day=day,
-        schedule__active=True,
-        schedule__activity__active=True,
-    ).select_related("schedule")
-
-    for enrollment in enrollments:
-        schedule = enrollment.schedule
-        if schedule.start_time <= now_time <= schedule.end_time:
-            SessionService.record_auto(enrollment, today)
-
-
-def _count_outing_sessions_if_in_window(member, gym, now_dt, today):
-    """Auto-count a package outing session when the check-in happens within
-    the outing's time window. Failures are silently ignored."""
-    from outings.models import OutingEnrollment
-    from outings.session_service import SessionService
-
-    day = DAY_BY_WEEKDAY[today.weekday()]
-    now_time = now_dt.time()
-
-    enrollments = OutingEnrollment.objects.filter(
-        gym=gym,
-        member=member,
-        active=True,
-        modality="package",
-        schedule__day=day,
-        schedule__active=True,
-        schedule__outing__active=True,
-    ).select_related("schedule")
-
-    for enrollment in enrollments:
-        schedule = enrollment.schedule
-        if schedule.start_time <= now_time <= schedule.end_time:
-            SessionService.record_auto(enrollment, today)
-
-
 class PublicCheckinView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def post(self, request, token):
         with transaction.atomic():
@@ -112,7 +59,7 @@ class PublicCheckinView(APIView):
 
     def _handle_checkin(self, token):
         member = Member.objects.filter(
-            access_token=token,
+            portal_token_q(token),
             active=True,
         ).select_for_update().first()
 
@@ -158,6 +105,10 @@ class PublicCheckinView(APIView):
                 slot = scheduled_recovery.used_slot
                 window_start = slot.hour
                 window_end = _add_hour(slot.hour)
+            elif scheduled_recovery.kind == "pt":
+                assignment = scheduled_recovery.pt_assignment
+                window_start = assignment.start_time
+                window_end = assignment.end_time
             else:
                 schedule = scheduled_recovery.used_schedule
                 window_start = schedule.start_time
@@ -253,10 +204,10 @@ class PublicCheckinView(APIView):
                 slot=slot,
             )
 
-            _count_sessions_if_in_window(
+            count_activity_sessions(
                 member, gym, timezone.localtime(), today
             )
-            _count_outing_sessions_if_in_window(
+            count_outing_sessions(
                 member, gym, timezone.localtime(), today
             )
 
@@ -312,7 +263,7 @@ class PublicCheckinView(APIView):
 
         cap = slot.capacity or gym.default_schedule_capacity
         if cap is not None:
-            effective = compute_effective_occupancy(slot, today)
+            effective = compute_effective_occupancy(slot, today, exclude_member=member)
             if effective >= cap:
                 return Response(
                     {
@@ -329,10 +280,8 @@ class PublicCheckinView(APIView):
             slot=slot,
         )
 
-        _count_sessions_if_in_window(member, gym, timezone.localtime(), today)
-        _count_outing_sessions_if_in_window(
-            member, gym, timezone.localtime(), today
-        )
+        count_activity_sessions(member, gym, timezone.localtime(), today)
+        count_outing_sessions(member, gym, timezone.localtime(), today)
 
         return Response(
             {
@@ -344,10 +293,10 @@ class PublicCheckinView(APIView):
 
 class PublicMemberSlotsView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         target_date_str = request.GET.get("date")
         target_date = None
@@ -387,10 +336,10 @@ class PublicMemberSlotsView(APIView):
 
 class PublicScheduleChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         requests = ScheduleChangeRequest.objects.filter(
             member=member,
         ).select_related(
@@ -402,7 +351,7 @@ class PublicScheduleChangeRequestView(APIView):
         )
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -422,10 +371,10 @@ class PublicScheduleChangeRequestView(APIView):
 
 class PublicCancelScheduleChangeRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -455,10 +404,10 @@ class PublicCancelScheduleChangeRequestView(APIView):
 
 class PublicScheduleSwapRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         swaps = ScheduleSwapRequest.objects.filter(
             member=member,
         ).select_related(
@@ -470,7 +419,7 @@ class PublicScheduleSwapRequestView(APIView):
         )
 
     def post(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -490,10 +439,10 @@ class PublicScheduleSwapRequestView(APIView):
 
 class PublicCancelScheduleSwapRequestView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def post(self, request, token, pk):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
 
         if not MemberEligibility.can_operate(member):
             return Response(
@@ -523,10 +472,10 @@ class PublicCancelScheduleSwapRequestView(APIView):
 
 class PublicSessionRecoveryView(APIView):
     permission_classes = []
-    throttle_classes = [PublicAttendanceRateThrottle, MemberPortalTokenThrottle]
+    throttle_classes = [MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         recoveries = SessionRecovery.objects.filter(
             member=member,
         ).select_related("member", "activity", "granted_by", "used_schedule", "used_slot").order_by("-created_at")

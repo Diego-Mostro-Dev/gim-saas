@@ -32,8 +32,13 @@ from django.utils import timezone
 from .models import Attendance, AttendanceSchedule, ScheduleSlot, SessionRecovery
 from .utils import compute_effective_occupancy, has_effective_capacity
 from activities.models import ActivitySchedule, Enrollment
-from activities.no_show_service import cancel_recovered_no_show
+from activities.no_show_service import (
+    cancel_recovered_no_show,
+    cancel_recovered_no_show_pt,
+)
 from activities.session_service import SessionService, SessionError
+from personal_training.session_service import SessionError as PTSessionError
+from personal_training.session_service import SessionService as PTSessionService
 from gyms.labels import msg
 from gyms.models import GymClosedDate
 from members.eligibility import MemberEligibility
@@ -185,9 +190,9 @@ def _validate_plan_date(gym, member, target_date):
         )
 
 
-def eligible_options(gym, member, kind, activity, target_date):
+def eligible_options(gym, member, kind, activity, target_date, pt_assignment=None):
     """Opciones válidas para programar la recuperación de un socio en una fecha."""
-    if kind not in ("training", "activity"):
+    if kind not in ("training", "activity", "pt"):
         raise RecoveryError("Tipo de recuperación inválido.")
 
     if member.gym_id not in (gym.pk, None):
@@ -201,13 +206,51 @@ def eligible_options(gym, member, kind, activity, target_date):
         if activity.service.gym_id != gym.pk:
             raise RecoveryError(msg(gym, "errors.activity_not_in_gym"))
 
+    if kind == "pt":
+        if pt_assignment is None:
+            raise RecoveryError(
+                "Para recuperar un entrenamiento es necesario indicar la "
+                "asignación."
+            )
+        if pt_assignment.gym_id != gym.pk:
+            raise RecoveryError(msg(gym, "errors.member_not_in_gym"))
+
     _validate_plan_date(gym, member, target_date)
     day = DAY_BY_WEEKDAY[target_date.weekday()]
 
     if kind == "training":
         return _eligible_training_slots(gym, member, target_date, day)
 
+    if kind == "pt":
+        return _eligible_pt_assignments(
+            gym, member, pt_assignment, target_date, day
+        )
+
     return _eligible_activity_schedules(gym, activity, member, target_date, day)
+
+
+def _eligible_pt_assignments(gym, member, assignment, target_date, day):
+    """La recuperación de PT usa el propio horario de la asignación.
+
+    A diferencia de las actividades (varios horarios posibles), el PT es un
+    cupo exclusivo socio↔trainer: el único horario válido es el del propio
+    assignment. Sólo es elegible el día que corresponde a su ``day``.
+    """
+    if assignment.member_id != member.pk or assignment.gym_id != gym.pk:
+        raise RecoveryError(msg(gym, "errors.member_not_in_gym"))
+
+    if assignment.day != day:
+        return []
+
+    return [
+        {
+            "type": "pt",
+            "pt_assignment_id": assignment.id,
+            "day": assignment.day,
+            "start_time": assignment.start_time.strftime("%H:%M"),
+            "end_time": assignment.end_time.strftime("%H:%M"),
+        }
+    ]
 
 
 def _eligible_training_slots(gym, member, target_date, day):
@@ -307,7 +350,8 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
     Para ``kind=training`` crea la Attendance (``is_recovery=True``) en el
     horario programado. Para ``kind=activity`` también crea la Attendance
     (``is_recovery=True``) y, con paquete, descuenta 1 sesión del paquete
-    (``ActivitySessionRecord`` source="recovery").
+    (``ActivitySessionRecord`` source="recovery"). Para ``kind=pt`` hace lo
+    propio con ``PersonalTrainingSessionRecord`` (ADD-21).
     """
     _assert_usable(recovery, target_date)
 
@@ -339,6 +383,44 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
         recovery.used_slot = slot
         recovery.save(
             update_fields=["status", "used_at", "used_date", "used_slot", "updated_at"]
+        )
+        return recovery, attendance
+
+    if recovery.kind == "pt":
+        assignment = recovery.pt_assignment
+        if assignment is None:
+            raise RecoveryError(
+                "La recuperación no tiene una asignación de entrenamiento programada."
+            )
+        if assignment.day != DAY_BY_WEEKDAY[target_date.weekday()]:
+            raise RecoveryError(
+                "La clase de entrenamiento no es válida para esa fecha."
+            )
+
+        if (
+            assignment.modality == "package"
+            and not assignment.exhausted
+        ):
+            try:
+                PTSessionService.record_session(
+                    assignment, target_date, source="recovery"
+                )
+            except PTSessionError as exc:
+                raise RecoveryError(str(exc)) from exc
+
+        attendance = Attendance.objects.create(
+            gym=recovery.gym,
+            member=recovery.member,
+            date=target_date,
+            is_recovery=True,
+            recovery=recovery,
+        )
+
+        recovery.status = "used"
+        recovery.used_at = timezone.now()
+        recovery.used_date = target_date
+        recovery.save(
+            update_fields=["status", "used_at", "used_date", "updated_at"]
         )
         return recovery, attendance
 
@@ -392,7 +474,8 @@ def use_recovery(recovery, target_date, slot=None, schedule=None, used_by=None):
 
 @transaction.atomic
 def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None,
-                    note="", target_date=None, slot=None, schedule=None):
+                    note="", target_date=None, slot=None, schedule=None,
+                    pt_assignment=None):
     """Programa una recuperación para día y horario fijos (estado ``scheduled``).
 
     No crea asistencia ni descuenta sesión: la recuperación se consume cuando
@@ -407,7 +490,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
             "Debes indicar la fecha en que el socio recupera la clase."
         )
 
-    if kind not in ("training", "activity"):
+    if kind not in ("training", "activity", "pt"):
         raise RecoveryError("Tipo de recuperación inválido.")
 
     if member.gym_id not in (gym.pk, None):
@@ -420,6 +503,15 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
             )
         if activity.service.gym_id != gym.pk:
             raise RecoveryError(msg(gym, "errors.activity_not_in_gym"))
+
+    if kind == "pt":
+        if pt_assignment is None:
+            raise RecoveryError(
+                "Para recuperar un entrenamiento es necesario indicar la "
+                "asignación."
+            )
+        if pt_assignment.gym_id != gym.pk:
+            raise RecoveryError(msg(gym, "errors.member_not_in_gym"))
 
     today = timezone.localdate()
     month_start = today.replace(day=1)
@@ -434,7 +526,9 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
             f"{gym.max_session_recoveries_per_month} recuperaciones este mes."
         )
 
-    options = eligible_options(gym, member, kind, activity, target_date)
+    options = eligible_options(
+        gym, member, kind, activity, target_date, pt_assignment=pt_assignment
+    )
 
     if kind == "training":
         if slot is None:
@@ -443,7 +537,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
             )
         if not any(o["slot_id"] == slot.id for o in options):
             raise RecoveryError(msg(gym, "errors.slot_unavailable"))
-    else:
+    elif kind == "activity":
         if schedule is None:
             raise RecoveryError(
                 "Debes elegir la clase en la que el socio recupera la sesión."
@@ -457,6 +551,11 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
                 "La clase seleccionada no está disponible: sin cupo o "
                 "colisiona con otra clase del socio."
             )
+    else:  # kind == "pt"
+        if not options:
+            raise RecoveryError(
+                "La asignación de entrenamiento no está disponible para esa fecha."
+            )
 
     recovery = SessionRecovery.objects.create(
         gym=gym,
@@ -464,6 +563,7 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
         granted_by=granted_by,
         kind=kind,
         activity=activity if kind == "activity" else None,
+        pt_assignment=pt_assignment if kind == "pt" else None,
         status="scheduled",
         used_date=target_date,
         used_slot=slot,
@@ -477,6 +577,9 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
         # no_show más reciente de esa actividad (el recupero descontará 1
         # cuando se use).
         cancel_recovered_no_show(member, activity)
+    elif kind == "pt":
+        # ADD-21: mismo invariante para PT.
+        cancel_recovered_no_show_pt(member, pt_assignment)
 
     return recovery
 
@@ -498,6 +601,16 @@ def undo_recovery(recovery):
             member=recovery.member,
             date=recovery.used_date,
             schedule=recovery.used_schedule,
+            source="recovery",
+        ).delete()
+
+    if recovery.kind == "pt" and recovery.pt_assignment_id:
+        from personal_training.models import PersonalTrainingSessionRecord
+
+        PersonalTrainingSessionRecord.objects.filter(
+            member=recovery.member,
+            date=recovery.used_date,
+            assignment=recovery.pt_assignment,
             source="recovery",
         ).delete()
 

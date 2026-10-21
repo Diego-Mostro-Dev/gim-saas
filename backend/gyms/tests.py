@@ -318,3 +318,49 @@ class OutingsFeatureFlagTests(BaseAPITest):
         self.gym.save()
         self.assertTrue(outings_enabled(self.gym))
         require_outings(self.gym)
+
+
+class GymScheduleHoursValidationTests(BaseAPITest):
+    """CFG-01: los plazos de cambio de horario se configuran en horas.
+
+    El campo es ``IntegerField``: una fracción (antes interpretada como días
+    desde la UI) se redondeaba y un negativo quedaba guardado, dejando el
+    cooldown/aviso sin efecto o con comportamiento inverso.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.owner = self.create_user(self.gym, username="owner_user")
+        Token.objects.create(user=self.owner)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {Token.objects.get(user=self.owner).key}"
+        )
+
+    def _patch(self, payload):
+        return self.client.patch("/api/gyms/me/", payload, format="json")
+
+    def test_fractional_hours_rejected(self):
+        resp = self._patch({"schedule_change_notice_hours": 1.5})
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("schedule_change_notice_hours", resp.data)
+
+    def test_negative_hours_rejected(self):
+        resp = self._patch({"schedule_change_cooldown_hours": -1})
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("schedule_change_cooldown_hours", resp.data)
+
+    def test_whole_hours_accepted(self):
+        resp = self._patch(
+            {
+                "schedule_change_notice_hours": 24,
+                "schedule_change_cooldown_hours": 0,
+            }
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.gym.refresh_from_db()
+        self.assertEqual(self.gym.schedule_change_notice_hours, 24)
+        self.assertEqual(self.gym.schedule_change_cooldown_hours, 0)

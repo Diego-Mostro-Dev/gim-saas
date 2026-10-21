@@ -87,8 +87,8 @@ class SessionService:
 
         The per-session co-pay (`session_price`) is refreshed from the
         member's current health insurance so new sessions use the current
-        rate, and the package total recomputes accordingly. The sellado is
-        reset to pending so the gym can collect it again for the new package.
+        rate, and the package total recomputes accordingly. El sellado NO se
+        vuelve a pedir: se cobra una vez por inscripción (Fase D / DIN-18).
         """
         if enrollment.modality != "package":
             raise SessionError("La inscripción no es de modalidad paquete.")
@@ -115,10 +115,9 @@ class SessionService:
 
         total = enrollment.package_total_sessions or 0
         enrollment.package_total_sessions = total + additional
-        enrollment.sellado_paid = False
         enrollment.active = True
 
-        update_fields = ["package_total_sessions", "sellado_paid", "active"]
+        update_fields = ["package_total_sessions", "active"]
 
         if enrollment.member.is_comp:
             enrollment.session_price = Decimal("0")

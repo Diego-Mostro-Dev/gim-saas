@@ -7,7 +7,11 @@ from gyms.labels import msg
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
 from subscriptions.models import Subscription, SubscriptionItem
-from subscriptions.services import prorated_price_for, sync_subscription_paid
+from subscriptions.services import (
+    cancel_addon_items,
+    prorated_price_for,
+    sync_subscription_paid,
+)
 from profiles.models import UserProfile
 
 from .models import PersonalTrainingAssignment, PersonalTrainingService
@@ -361,3 +365,28 @@ def _cancel_pt_items(member, pt_service, exclude_assignment):
         status="active",
         subscription__end_date__gte=today,
     ).update(status="cancelled")
+
+
+def cut_service_billing(service):
+    """Corta el cobro recurrente de una oferta de PT desactivada (Fase D).
+
+    Equivalente masivo de :meth:`AssignmentService.unassign_member`: da de
+    baja las asignaciones activas de la oferta y cancela sus ítems en las
+    suscripciones no vencidas, resincronizando el saldo.
+    """
+    with transaction.atomic():
+        member_ids = list(
+            PersonalTrainingAssignment.objects.filter(
+                service=service, active=True
+            )
+            .values_list("member_id", flat=True)
+            .distinct()
+        )
+        if not member_ids:
+            return
+
+        PersonalTrainingAssignment.objects.filter(
+            service=service, active=True
+        ).update(active=False)
+
+        cancel_addon_items(member_ids, personal_training=service)

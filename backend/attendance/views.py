@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 
+from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Q, Prefetch
 from django.utils import timezone
@@ -30,7 +31,8 @@ from .recovery_service import (
 )
 from members.identity import member_identity
 from members.models import Member
-from subscriptions.domain import ScheduleDomain, SubscriptionDomain
+from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
+from subscriptions.models import Subscription
 from .serializers import (
     AttendanceScheduleSerializer,
     AttendanceSerializer,
@@ -42,6 +44,20 @@ from .serializers import (
     SessionRecoverySerializer,
 )
 from config.api.params import parse_date, parse_int, parse_time, validate_choice
+
+
+def _member_subscription_prefetch():
+    """Prefetch a member's subscriptions (with plan + service) in bulk.
+
+    ``member_service_label`` walks ``member.subscription_set.all()`` and then
+    ``subscription.plan.service`` for every enrolled member. Without this the
+    weekly/status lists fire a handful of queries per member (N+1); the
+    prefetch collapses them into two fixed queries per list.
+    """
+    return Prefetch(
+        "member__subscription_set",
+        queryset=Subscription.objects.select_related("plan__service"),
+    )
 
 
 def _build_class_items_by_day(gym, days):
@@ -61,7 +77,9 @@ def _build_class_items_by_day(gym, days):
             "enrollments",
             queryset=Enrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -118,7 +136,9 @@ def _build_outing_items_by_day(gym, days):
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -172,7 +192,9 @@ def _build_class_items_for_status(gym, day, selected_time):
             "enrollments",
             queryset=Enrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -222,7 +244,9 @@ def _build_outing_items_for_status(gym, day, selected_time):
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -856,7 +880,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
             gym=self.request.user.profile.gym,
         ).select_related(
             "member__insurance", "member", "current_schedule__slot", "requested_slot", "reviewed_by"
-        )
+        ).prefetch_related("gym__closed_dates")
 
     def perform_create(self, serializer):
         gym = self.request.user.profile.gym
@@ -875,40 +899,52 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
         return self._handle_action(request, pk, "cancelled_by_staff")
 
     def _handle_action(self, request, pk, new_status):
-        instance = self.get_object()
+        try:
+            with transaction.atomic():
+                instance = self.get_object()
 
-        if instance.status != "pending":
+                if instance.status != "pending":
+                    return Response(
+                        {"detail": f"No se puede modificar una solicitud con estado '{instance.status}'."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                serializer = ScheduleChangeRequestActionSerializer(
+                    instance,
+                    data={**request.data, "status": new_status},
+                    context={"request": request},
+                )
+                serializer.is_valid(raise_exception=True)
+
+                if new_status == "executed":
+                    current_schedule = instance.current_schedule
+                    requested_slot = instance.requested_slot
+
+                    current_schedule.active = False
+                    current_schedule.save(update_fields=["active"])
+
+                    subscription = SubscriptionDomain.get_current_subscription(instance.member)
+                    ScheduleDomain.activate_schedule(
+                        instance.member, instance.gym, requested_slot,
+                        subscription=subscription,
+                    )
+
+                serializer.save(
+                    reviewed_by=request.user,
+                    reviewed_at=timezone.now(),
+                )
+
+            return Response(ScheduleChangeRequestSerializer(instance).data)
+        except ScheduleError as exc:
             return Response(
-                {"detail": f"No se puede modificar una solicitud con estado '{instance.status}'."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": str(exc)},
+                status=exc.status_code,
             )
-
-        serializer = ScheduleChangeRequestActionSerializer(
-            instance,
-            data={**request.data, "status": new_status},
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-
-        if new_status == "executed":
-            current_schedule = instance.current_schedule
-            requested_slot = instance.requested_slot
-
-            current_schedule.active = False
-            current_schedule.save(update_fields=["active"])
-
-            subscription = SubscriptionDomain.get_current_subscription(instance.member)
-            ScheduleDomain.activate_schedule(
-                instance.member, instance.gym, requested_slot,
-                subscription=subscription,
+        except IntegrityError:
+            return Response(
+                {"detail": "Ya existe una solicitud de cambio de horario pendiente."},
+                status=status.HTTP_409_CONFLICT,
             )
-
-        serializer.save(
-            reviewed_by=request.user,
-            reviewed_at=timezone.now(),
-        )
-
-        return Response(ScheduleChangeRequestSerializer(instance).data)
 
 
 @api_view(["GET"])
@@ -1086,7 +1122,15 @@ class SessionRecoveryListCreateView(APIView):
         gym = request.user.profile.gym
         qs = SessionRecovery.objects.filter(
             gym=gym,
-        ).select_related("member", "activity", "granted_by")
+        ).select_related(
+            "member",
+            "activity",
+            "granted_by",
+            "gym",
+            "used_slot",
+            "used_schedule",
+            "pt_assignment",
+        )
 
         member_id = request.GET.get("member")
         if member_id:
@@ -1115,6 +1159,7 @@ class SessionRecoveryListCreateView(APIView):
         member_id = request.data.get("member")
         kind = request.data.get("kind", "training")
         activity_id = request.data.get("activity")
+        pt_assignment_id = request.data.get("pt_assignment")
         note = request.data.get("note", "")
         date_str = request.data.get("date")
         slot_id = request.data.get("slot_id")
@@ -1167,6 +1212,19 @@ class SessionRecoveryListCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        pt_assignment = None
+        if kind == "pt":
+            from personal_training.models import PersonalTrainingAssignment
+            pt_assignment = PersonalTrainingAssignment.objects.filter(
+                gym=gym,
+                pk=pt_assignment_id,
+            ).first()
+            if pt_assignment is None:
+                return Response(
+                    {"detail": "Asignación de entrenamiento no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         slot = None
         schedule = None
         if kind == "training":
@@ -1184,7 +1242,7 @@ class SessionRecoveryListCreateView(APIView):
                     {"detail": "Horario de entrenamiento no encontrado."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        else:
+        elif kind == "activity":
             if not schedule_id:
                 return Response(
                     {"detail": "Debés elegir la clase que se recupera."},
@@ -1212,6 +1270,7 @@ class SessionRecoveryListCreateView(APIView):
                 target_date=target_date,
                 slot=slot,
                 schedule=schedule,
+                pt_assignment=pt_assignment,
             )
         except RecoveryError as exc:
             return Response(
@@ -1240,7 +1299,11 @@ class SessionRecoveryOptionsView(APIView):
 
         kind, kind_error = validate_choice(
             request.GET.get("kind", "training"),
-            [("training", "Entrenamiento"), ("activity", "Clase de actividad")],
+            [
+                ("training", "Entrenamiento"),
+                ("activity", "Clase de actividad"),
+                ("pt", "Entrenamiento personal"),
+            ],
             "kind",
         )
         if kind_error:
@@ -1252,6 +1315,13 @@ class SessionRecoveryOptionsView(APIView):
         )
         if activity_error:
             return activity_error
+
+        pt_assignment_id, pt_assignment_error = parse_int(
+            request.GET.get("pt_assignment"),
+            "pt_assignment",
+        )
+        if pt_assignment_error:
+            return pt_assignment_error
 
         date_str, date_error = parse_date(
             request.GET.get("date"),
@@ -1302,8 +1372,28 @@ class SessionRecoveryOptionsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        pt_assignment = None
+        if kind == "pt":
+            from personal_training.models import PersonalTrainingAssignment
+            pt_assignment = PersonalTrainingAssignment.objects.filter(
+                gym=gym,
+                pk=pt_assignment_id,
+            ).first()
+            if pt_assignment is None:
+                return Response(
+                    {"detail": "Asignación de entrenamiento no encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
-            options = eligible_options(gym, member, kind, activity, target_date)
+            options = eligible_options(
+                gym,
+                member,
+                kind,
+                activity,
+                target_date,
+                pt_assignment=pt_assignment,
+            )
         except RecoveryError as exc:
             return Response(
                 {"detail": str(exc)},

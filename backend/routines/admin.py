@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from core.admin import GymScopedAdminMixin
 from .models import (
     Exercise,
     RoutineTemplate,
@@ -10,27 +11,28 @@ from .models import (
 
 
 @admin.register(Exercise)
-class ExerciseAdmin(admin.ModelAdmin):
+class ExerciseAdmin(GymScopedAdminMixin, admin.ModelAdmin):
+    use_all_objects = True
+
     list_display = ("name", "gym", "category", "is_active")
     list_filter = ("gym", "category", "is_active")
     search_fields = ("name",)
 
-    def get_queryset(self, request):
-        return self.model.all_objects.get_queryset()
-
 
 @admin.register(RoutineTemplate)
-class RoutineTemplateAdmin(admin.ModelAdmin):
+class RoutineTemplateAdmin(GymScopedAdminMixin, admin.ModelAdmin):
+    use_all_objects = True
+
     list_display = ("name", "gym", "is_active")
     list_filter = ("gym", "is_active")
     search_fields = ("name",)
 
-    def get_queryset(self, request):
-        return self.model.all_objects.get_queryset()
-
 
 @admin.register(RoutineExercise)
-class RoutineExerciseAdmin(admin.ModelAdmin):
+class RoutineExerciseAdmin(GymScopedAdminMixin, admin.ModelAdmin):
+    use_all_objects = True
+    gym_lookup = "routine_template__gym"
+
     list_display = (
         "routine_template",
         "exercise",
@@ -45,12 +47,9 @@ class RoutineExerciseAdmin(admin.ModelAdmin):
         "routine_template__name",
     )
 
-    def get_queryset(self, request):
-        return self.model.all_objects.get_queryset()
-
 
 @admin.register(RoutineAssignment)
-class RoutineAssignmentAdmin(admin.ModelAdmin):
+class RoutineAssignmentAdmin(GymScopedAdminMixin, admin.ModelAdmin):
     list_display = ("member", "routine_template", "gym", "active", "assigned_at")
     list_filter = ("gym", "active")
     search_fields = (
@@ -63,7 +62,9 @@ class RoutineAssignmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(WorkoutSet)
-class WorkoutSetAdmin(admin.ModelAdmin):
+class WorkoutSetAdmin(GymScopedAdminMixin, admin.ModelAdmin):
+    gym_lookup = "routine_assignment__gym"
+
     list_display = (
         "routine_assignment",
         "routine_exercise",

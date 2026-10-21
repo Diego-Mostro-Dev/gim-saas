@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from core.mixins import BillingPriceMixin
 from gyms.labels import msg
 from members.identity import member_identity
 from members.models import Member
@@ -30,7 +31,7 @@ class MemberBasicSerializer(serializers.ModelSerializer):
         return member_identity(obj)["insurance_name"]
 
 
-class ActivitySerializer(serializers.ModelSerializer):
+class ActivitySerializer(BillingPriceMixin, serializers.ModelSerializer):
     service = serializers.PrimaryKeyRelatedField(
         queryset=PlanService.objects.none(),
         required=False,
@@ -72,6 +73,10 @@ class ActivitySerializer(serializers.ModelSerializer):
 
     def get_schedule_count(self, obj):
         return getattr(obj, "schedule_count", 0)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        return self.apply_billing_price_rules(attrs)
 
     def create(self, validated_data):
         gym = validated_data.pop("gym")

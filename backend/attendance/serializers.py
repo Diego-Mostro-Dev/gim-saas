@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 
 from .models import (
     Attendance,
@@ -27,6 +29,16 @@ from gyms.models import GymClosedDate
 from subscriptions.domain import SubscriptionDomain
 
 
+class ScheduleChangeConflict(APIException):
+    """Doble submit concurrente de un cambio de horario (409)."""
+
+    status_code = 409
+    default_detail = (
+        "Ya tienes una solicitud de cambio de horario pendiente."
+    )
+    default_code = "schedule_change_conflict"
+
+
 class SessionRecoverySerializer(serializers.ModelSerializer):
     member_name = serializers.SerializerMethodField()
     member_photo = serializers.SerializerMethodField()
@@ -48,6 +60,7 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
             "kind_label",
             "activity",
             "activity_name",
+            "pt_assignment",
             "granted_by",
             "granted_by_name",
             "status",
@@ -65,6 +78,7 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
             "member",
             "kind",
             "activity",
+            "pt_assignment",
             "granted_by",
             "expires_at",
             "status",
@@ -97,6 +111,8 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
         labels = get_gym_labels(obj.gym)
         if obj.kind == "training":
             return labels.get("recovery.kind.training", "Gimnasio")
+        if obj.kind == "pt":
+            return labels.get("recovery.kind.pt", "Entrenamiento personal")
         return labels.get("recovery.kind.activity", "Clase (actividad)")
 
     def get_granted_by_name(self, obj):
@@ -115,6 +131,8 @@ class SessionRecoverySerializer(serializers.ModelSerializer):
             return obj.used_slot.hour.strftime("%H:%M")
         if obj.used_schedule_id:
             return obj.used_schedule.start_time.strftime("%H:%M")
+        if obj.kind == "pt" and obj.pt_assignment_id:
+            return obj.pt_assignment.start_time.strftime("%H:%M")
         return None
 
 
@@ -263,9 +281,8 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
             already_registered = Attendance.objects.filter(
                 gym=gym,
-                schedule=schedule,
+                member=schedule.member,
                 date=timezone.localdate(),
-                swap_request__isnull=True,
             ).exists()
 
             if already_registered:
@@ -278,7 +295,8 @@ class AttendanceSerializer(serializers.ModelSerializer):
         if slot is not None:
             cap = slot.capacity or gym.default_schedule_capacity
             if cap is not None:
-                effective = compute_effective_occupancy(slot, timezone.localdate())
+                member_check = schedule.member if schedule is not None else (swap_request.member if swap_request else None)
+                effective = compute_effective_occupancy(slot, timezone.localdate(), exclude_member=member_check)
                 if effective >= cap:
                     raise serializers.ValidationError(
                         "El horario está completo."
@@ -313,13 +331,34 @@ class AttendanceSerializer(serializers.ModelSerializer):
         swap_request = validated_data.get("swap_request")
         slot = validated_data.pop("_slot", None)
 
-        return Attendance.objects.create(
-            gym=gym,
-            member=schedule.member,
-            schedule=schedule,
-            swap_request=swap_request,
-            slot=slot,
+        try:
+            with transaction.atomic():
+                attendance = Attendance.objects.create(
+                    gym=gym,
+                    member=schedule.member,
+                    schedule=schedule,
+                    swap_request=swap_request,
+                    slot=slot,
+                )
+        except IntegrityError:
+            raise serializers.ValidationError({
+                "schedule": "La asistencia ya fue registrada hoy."
+            })
+
+        # ACC-08: el check-in del staff también descuenta el paquete cuando la
+        # asistencia es inequívoca (una sola inscripción de paquete activa
+        # hoy). Sin hora de check-in no se puede aplicar la ventana, así que
+        # con varias inscripciones no se descuenta ninguna.
+        from .checkin_discount import (
+            count_activity_sessions,
+            count_outing_sessions,
         )
+
+        today = timezone.localdate()
+        count_activity_sessions(schedule.member, gym, None, today)
+        count_outing_sessions(schedule.member, gym, None, today)
+
+        return attendance
 
 
 DAY_INDEX = {
@@ -334,6 +373,15 @@ DAY_INDEX = {
 
 
 def gym_closed_dates_set(gym):
+    """Set of dates the gym is closed.
+
+    Reads from the prefetched ``gym.closed_dates`` cache when the caller
+    arranged it (list serializers), so a row per request does not turn into a
+    query per row. Falls back to a fresh query otherwise.
+    """
+    cached = getattr(gym, "_prefetched_objects_cache", {}).get("closed_dates")
+    if cached is not None:
+        return {closed.date for closed in cached}
     return set(
         GymClosedDate.objects.filter(gym=gym).values_list("date", flat=True)
     )
@@ -527,7 +575,11 @@ class ScheduleChangeRequestSerializer(
         request = self.context["request"]
         gym = request.user.profile.gym
         validated_data["gym"] = gym
-        return super().create(validated_data)
+        try:
+            with transaction.atomic():
+                return super().create(validated_data)
+        except IntegrityError:
+            raise ScheduleChangeConflict()
 
 
 class ScheduleChangeRequestActionSerializer(serializers.ModelSerializer):
@@ -653,6 +705,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         cooldown_hours = gym.schedule_change_cooldown_hours
         latest = ScheduleChangeRequest.objects.filter(
             member=member,
+            status__in=["pending", "approved", "executed"],
         ).order_by("-requested_at").first()
         if latest:
             elapsed = (timezone.now() - latest.requested_at).total_seconds()
@@ -739,7 +792,11 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
         member = self.context["member"]
         validated_data["gym"] = SubscriptionDomain.resolve_gym(member)
         validated_data["member"] = member
-        return super().create(validated_data)
+        try:
+            with transaction.atomic():
+                return super().create(validated_data)
+        except IntegrityError:
+            raise ScheduleChangeConflict()
 
 
 class ScheduleSwapRequestSerializer(

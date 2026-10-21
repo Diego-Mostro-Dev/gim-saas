@@ -5,7 +5,7 @@ recovery) build on the same small fixture graph: a Gym with a staff user and
 a MembershipPlan, plus helpers that open subscriptions and settle them.
 """
 
-from datetime import date, time as _time
+from datetime import date, datetime, time as _time
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -152,4 +152,144 @@ class BaseAPITest(APITestCase):
             slot=slot,
             subscription=subscription,
             active=True,
+        )
+
+    # --- Fase G: paquetes de sesiones -------------------------------------
+
+    @staticmethod
+    def _backdate(instance, field, when):
+        """Set an auto_now_add field the ORM normally owns."""
+        model = type(instance)
+        model.objects.filter(pk=instance.pk).update(
+            **{field: timezone.make_aware(datetime.combine(when, _time(0, 0)))}
+        )
+        instance.refresh_from_db()
+
+    def create_activity_package(self, *, gym=None, member=None, total=10,
+                                day="monday", session_price="2500.00",
+                                start_time=_time(9, 0), end_time=_time(10, 0),
+                                created_at=None):
+        """Activity + ActivitySchedule + package Enrollment in one helper."""
+        from activities.models import (
+            Activity,
+            ActivitySchedule,
+            Enrollment,
+        )
+
+        gym = gym or self.gym
+        member = member or self.create_member(gym)
+        activity = Activity.objects.create(
+            service=Service.get_default_for_gym(gym),
+            name="Kinesio",
+            billing_mode="sessions",
+        )
+        schedule = ActivitySchedule.objects.create(
+            activity=activity,
+            day=day,
+            start_time=start_time,
+            end_time=end_time,
+            capacity=10,
+        )
+        enrollment = Enrollment.objects.create(
+            gym=gym,
+            member=member,
+            schedule=schedule,
+            modality="package",
+            package_total_sessions=total,
+            session_price=Decimal(session_price),
+            amount_paid=Decimal(session_price) * total,
+        )
+        when = created_at or date(2030, 1, 1)
+        self._backdate(schedule, "created_at", when)
+        self._backdate(enrollment, "enrolled_at", when)
+        return activity, schedule, enrollment
+
+    def create_pt_assignment(self, *, gym=None, member=None, trainer=None,
+                             total=10, day="monday", session_price="3000.00",
+                             start_time=_time(9, 0), end_time=_time(10, 0),
+                             created_at=None):
+        """PersonalTrainingService + package Assignment in one helper."""
+        from personal_training.models import (
+            PersonalTrainingAssignment,
+            PersonalTrainingService,
+        )
+
+        gym = gym or self.gym
+        member = member or self.create_member(gym)
+        if trainer is None:
+            import uuid
+
+            trainer = User.objects.create_user(
+                username=f"trainer-{uuid.uuid4().hex[:8]}",
+                password="pass12345",
+            )
+            profile = trainer.profile
+            profile.gym = gym
+            profile.role = "staff"
+            profile.save()
+        service = PersonalTrainingService.objects.create(
+            gym=gym,
+            service=Service.get_default_for_gym(gym),
+            name="Entrenamiento personal",
+            billing_mode="sessions",
+        )
+        assignment = PersonalTrainingAssignment.objects.create(
+            gym=gym,
+            member=member,
+            trainer=trainer,
+            service=service,
+            day=day,
+            start_time=start_time,
+            end_time=end_time,
+            modality="package",
+            package_total_sessions=total,
+            session_price=Decimal(session_price),
+            amount_paid=Decimal(session_price) * total,
+        )
+        self._backdate(assignment, "created_at", created_at or date(2030, 1, 1))
+        return service, assignment
+
+    def create_outing_package(self, *, gym=None, member=None, total=10,
+                              day="monday", session_price="2000.00",
+                              start_time=_time(9, 0), end_time=_time(10, 0),
+                              created_at=None):
+        """Outing + OutingSchedule + package OutingEnrollment in one helper."""
+        from outings.models import (
+            Outing,
+            OutingEnrollment,
+            OutingSchedule,
+        )
+
+        gym = gym or self.gym
+        member = member or self.create_member(gym)
+        outing = Outing.objects.create(
+            service=Service.get_default_for_gym(gym),
+            name="Trekking",
+            billing_mode="sessions",
+        )
+        schedule = OutingSchedule.objects.create(
+            outing=outing,
+            day=day,
+            start_time=start_time,
+            end_time=end_time,
+            capacity=10,
+        )
+        enrollment = OutingEnrollment.objects.create(
+            gym=gym,
+            member=member,
+            schedule=schedule,
+            modality="package",
+            package_total_sessions=total,
+            session_price=Decimal(session_price),
+            amount_paid=Decimal(session_price) * total,
+        )
+        self._backdate(enrollment, "enrolled_at", created_at or date(2030, 1, 1))
+        return outing, schedule, enrollment
+
+    def create_closed_date(self, day, *, gym=None):
+        from gyms.models import GymClosedDate
+
+        return GymClosedDate.objects.create(
+            gym=gym or self.gym,
+            date=day,
         )

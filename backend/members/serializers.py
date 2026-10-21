@@ -270,9 +270,6 @@ class MemberSerializer(serializers.ModelSerializer):
         """
         today = timezone.localdate()
 
-        if obj.is_comp:
-            return False
-
         subs = list(obj.subscription_set.all())
         if not subs:
             return False
@@ -328,7 +325,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_discount(self, value):
+    def validate_discount_id(self, value):
         if value is None:
             return value
 

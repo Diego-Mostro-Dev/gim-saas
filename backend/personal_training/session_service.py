@@ -64,7 +64,11 @@ class SessionService:
 
     @staticmethod
     def renew_package(assignment, additional_sessions):
-        """Staff renews the package adding N more sessions."""
+        """Staff renews the package adding N more sessions.
+
+        El sellado NO se vuelve a pedir: se cobra una vez por inscripción
+        (Fase D / DIN-18).
+        """
         if assignment.modality != "package":
             raise SessionError("La asignación no es de modalidad paquete.")
 
@@ -90,10 +94,9 @@ class SessionService:
 
         total = assignment.package_total_sessions or 0
         assignment.package_total_sessions = total + additional
-        assignment.sellado_paid = False
         assignment.active = True
 
-        update_fields = ["package_total_sessions", "sellado_paid", "active"]
+        update_fields = ["package_total_sessions", "active"]
 
         if assignment.member.is_comp:
             assignment.session_price = Decimal("0")

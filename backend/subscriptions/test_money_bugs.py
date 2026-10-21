@@ -454,7 +454,7 @@ class MoneyBugRecoveryAndCompTests(_MoneyBugBase):
             active=True,
         )
 
-        new_sub = recover_member(member)
+        new_sub, _created = recover_member(member)
 
         member.refresh_from_db()
         self.assertTrue(member.active)
@@ -2547,7 +2547,7 @@ class PaidFlagDerivationTests(_MoneyBugBase):
         member.active = False
         member.save(update_fields=["active"])
 
-        new_sub = recover_member(member)
+        new_sub, _created = recover_member(member)
 
         self.assertEqual(new_sub.origin, "recovery")
         self.assertEqual(calculate_subscription_total(new_sub), Decimal("0.00"))

@@ -55,6 +55,7 @@ DEFAULT_LABELS = {
     "install.banner_icon": "(verás el ícono del gimnasio).",
     "recovery.kind.training": "Gimnasio",
     "recovery.kind.activity": "Clase (actividad)",
+    "recovery.kind.pt": "Entrenamiento personal",
     "staff.settings.google_seo": "Estos datos se usan para que tu gimnasio aparezca en Google al compartir tu link de registro. Completalos para mejorar tu posicionamiento local.",
     "staff.settings.email_placeholder": "Ej: info@gimnasio.com",
     "staff.settings.seo_title_placeholder": "Ej: Gimnasio Atlas | Musculación y CrossFit en Rosario",
@@ -105,6 +106,7 @@ DEFAULT_LABELS = {
     "errors.owner_only_closed_dates": "Solo el dueño puede gestionar las fechas cerradas.",
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
     "errors.owner_only_community": "Solo el dueño puede gestionar los locales adheridos.",
+    "errors.routine_role_required": "No tenés permiso para gestionar las rutinas.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del gimnasio.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que el gimnasio no abre. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
 }
@@ -150,6 +152,7 @@ SINKRO_LABELS = {
     "install.banner_icon": "(verás el ícono).",
     "recovery.kind.training": "Entrenamiento",
     "recovery.kind.activity": "Clase (actividad)",
+    "recovery.kind.pt": "Entrenamiento personal",
     "staff.settings.google_seo": "Estos datos se usan para que tu entrenamiento aparezca en Google al compartir tu link de registro. Completalos para mejorar tu posicionamiento local.",
     "staff.settings.email_placeholder": "Ej: info@entrenamiento.com",
     "staff.settings.seo_title_placeholder": "Ej: Entrenamiento Atlas | Musculación y CrossFit en Rosario",
@@ -200,6 +203,7 @@ SINKRO_LABELS = {
     "errors.owner_only_closed_dates": "Solo el dueño puede gestionar las fechas cerradas.",
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
     "errors.owner_only_community": "Solo el dueño puede gestionar los locales adheridos.",
+    "errors.routine_role_required": "No tenés permiso para gestionar las rutinas.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del entrenamiento.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que no hay entrenamiento. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",
 }

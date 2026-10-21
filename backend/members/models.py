@@ -7,6 +7,7 @@ import cloudinary
 from django.db import models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+from django.http import Http404
 from django.utils import timezone
 from django.conf import settings
 from cloudinary.models import CloudinaryField
@@ -286,24 +287,31 @@ class Member(models.Model):
         )
 
 
+def portal_token_q(token):
+    """Q que matchea el token vigente o el de la generación anterior."""
+    return models.Q(access_token=token) | models.Q(
+        access_token_previous=token
+    )
+
+
 def resolve_public_portal_member(token):
     """Resuelve un socio por su token de portal, aceptando también el de la
     generación anterior (para no romper URLs ya compartidas al rotar).
 
-    Fuente única para los endpoints del portal del socio. Los endpoints que
-    exigen el "token vigente" (adjuntos, foto, checkins) resuelven solo por
-    ``access_token`` y quedan invalidados al rotar.
+    Fuente única para los endpoints del portal del socio. La gracia es de una
+    sola generación: un token de dos rotaciones atrás queda invalidado.
     """
     if not token:
         return None
-    return (
-        Member.objects
-        .filter(
-            models.Q(access_token=token) |
-            models.Q(access_token_previous=token)
-        )
-        .first()
-    )
+    return Member.objects.filter(portal_token_q(token)).first()
+
+
+def portal_member_or_404(token):
+    """Igual que ``resolve_public_portal_member`` pero con semántica 404."""
+    member = resolve_public_portal_member(token)
+    if member is None:
+        raise Http404("No Member matches the given query.")
+    return member
 
 
 class MemberAttachment(models.Model):

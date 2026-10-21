@@ -1,11 +1,9 @@
-from django.shortcuts import get_object_or_404
-
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from config.api.throttles import MemberPortalTokenThrottle, PublicMemberRateThrottle
 from gyms.features import require_community
-from members.models import Member
+from members.models import portal_member_or_404
 from subscriptions.domain import SubscriptionDomain
 
 from .models import CommunityBusiness
@@ -23,12 +21,13 @@ class PublicMemberCommunityView(APIView):
     throttle_classes = [PublicMemberRateThrottle, MemberPortalTokenThrottle]
 
     def get(self, request, token):
-        member = get_object_or_404(Member, access_token=token)
+        member = portal_member_or_404(token)
         gym = SubscriptionDomain.resolve_gym(member)
         require_community(gym)
 
         businesses = CommunityBusiness.objects.filter(
-            gym=gym
+            gym=gym,
+            active=True,
         ).order_by("name")
 
         return Response({
