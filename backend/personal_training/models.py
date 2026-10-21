@@ -341,7 +341,6 @@ class PersonalTrainingChangeRequest(models.Model):
 
     STATUS_CHOICES = [
         ("pending", "Pendiente"),
-        ("approved", "Aprobado"),
         ("executed", "Ejecutado"),
         ("rejected", "Rechazado"),
         ("cancelled_by_member", "Cancelado por el socio"),

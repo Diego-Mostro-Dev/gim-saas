@@ -63,6 +63,8 @@ const DEFAULT_LABELS = {
   "member.attachments.hint":
     "Mandale al gimnasio la orden de sesiones, el comprobante de pago o cualquier estudio que necesitemos ver (ej. electrocardiograma para natación).",
   "portal.pt_no_schedule": "Cuando el gimnasio te asigne un horario, aparecerá acá.",
+  "portal.slot_adjusted":
+    "El horario que elegiste no está libre: se ajustó a las {horario}.",
   "portal.pt_pending_approval": "Esperando aprobación del gimnasio",
   "portal.pt_request_review":
     "El gimnasio revisará tu solicitud y confirmará el nuevo horario.",
