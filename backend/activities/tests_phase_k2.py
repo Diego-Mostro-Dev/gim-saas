@@ -12,9 +12,10 @@ Corre contra Postgres real, nunca SQLite ni la base de desarrollo.
 from datetime import time
 from decimal import Decimal
 
-from activities.enrollment_service import EnrollmentService
+from activities.enrollment_service import EnrollmentError, EnrollmentService
 from activities.models import Activity, ActivitySchedule, Enrollment
 from core.testing import BaseAPITest
+from outings.models import Outing, OutingEnrollment, OutingSchedule
 from plans.models import Service
 from subscriptions.models import SubscriptionItem
 
@@ -166,3 +167,81 @@ class Add28ActivityItemTests(BaseAPITest):
 
         item = self._item()
         self.assertEqual(item.status, "active")
+
+
+class Add16OutingDimensionTests(BaseAPITest):
+    """ADD-16: el choque con una salida también frena a actividades y PT.
+
+    Si sólo se valida del lado de las salidas, el socio que primero se
+    anota en una salida y después en una actividad queda con las dos
+    cosas a la misma hora: el orden de las anotaciones no puede cambiar
+    la regla.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.gym.features = {
+            **self.gym.features,
+            "activities": True,
+            "salidas": True,
+        }
+        self.gym.save(update_fields=["features"])
+        self.member = self.create_member(self.gym)
+        self.activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Yoga",
+            billing_mode="monthly",
+            monthly_price=Decimal("5000.00"),
+        )
+        self.schedule = ActivitySchedule.objects.create(
+            activity=self.activity,
+            day="monday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+        self.outing = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Trekking",
+            billing_mode="monthly",
+            monthly_price=Decimal("4000.00"),
+        )
+        self.outing_schedule = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="monday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+    def test_activity_enrollment_conflicting_with_an_outing_is_rejected(self):
+        OutingEnrollment.objects.create(
+            gym=self.gym,
+            member=self.member,
+            schedule=self.outing_schedule,
+            active=True,
+        )
+
+        with self.assertRaises(EnrollmentError) as ctx:
+            EnrollmentService.enroll_member(
+                self.member, self.schedule, skip_eligibility_check=True
+            )
+
+        self.assertIn("salida", str(ctx.exception))
+
+    def test_activity_enrollment_without_conflicts_is_allowed(self):
+        other_day = ActivitySchedule.objects.create(
+            activity=self.activity,
+            day="tuesday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+        enrollment = EnrollmentService.enroll_member(
+            self.member, other_day, skip_eligibility_check=True
+        )
+
+        self.assertTrue(enrollment.active)

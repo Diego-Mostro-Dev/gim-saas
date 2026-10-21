@@ -5,6 +5,7 @@ from subscriptions.domain import SubscriptionDomain
 
 from .enrollment_service import OutingEnrollmentError, OutingEnrollmentService
 from .models import OutingEnrollment, OutingEnrollmentRequest
+from .overlap import validate_enrollment
 
 
 class OutingEnrollmentRequestError(ValueError):
@@ -52,6 +53,11 @@ class OutingEnrollmentRequestService:
             raise OutingEnrollmentRequestError(
                 "Ya estás inscripto en este horario.", status_code=409
             )
+
+        try:
+            validate_enrollment(member, schedule)
+        except ValueError as e:
+            raise OutingEnrollmentRequestError(str(e))
 
         return OutingEnrollmentRequest.objects.create(
             gym=gym,

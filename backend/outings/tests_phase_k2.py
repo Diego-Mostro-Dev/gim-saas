@@ -12,9 +12,21 @@ Corre contra Postgres real, nunca SQLite ni la base de desarrollo.
 from datetime import time
 from decimal import Decimal
 
+from activities.models import Activity, ActivitySchedule, Enrollment
 from core.testing import BaseAPITest
-from outings.enrollment_service import OutingEnrollmentService
-from outings.models import Outing, OutingSchedule
+from outings.enrollment_request_service import (
+    OutingEnrollmentRequestError,
+    OutingEnrollmentRequestService,
+)
+from outings.enrollment_service import (
+    OutingEnrollmentError,
+    OutingEnrollmentService,
+)
+from outings.models import Outing, OutingEnrollmentRequest, OutingSchedule
+from personal_training.models import (
+    PersonalTrainingAssignment,
+    PersonalTrainingService,
+)
 from plans.models import Service
 from subscriptions.models import SubscriptionItem
 
@@ -25,7 +37,7 @@ class Add28OutingItemTests(BaseAPITest):
     def setUp(self):
         super().setUp()
         self.gym = self.create_gym()
-        self.gym.features = {**self.gym.features, "outings": True}
+        self.gym.features = {**self.gym.features, "salidas": True}
         self.gym.save(update_fields=["features"])
         self.member = self.create_member(self.gym)
         self.outing = Outing.objects.create(
@@ -119,3 +131,253 @@ class Add28OutingItemTests(BaseAPITest):
 
         item = self._item()
         self.assertEqual(item.status, "cancelled")
+
+
+class Add16OutingOverlapTests(BaseAPITest):
+    """ADD-16: las salidas validan el choque con la agenda del socio.
+
+    Antes el socio quedaba anotado en dos cosas a la misma hora: las
+    salidas no tenían ninguna validación de solape (ni con el horario fijo
+    del gimnasio, ni con actividades, ni con PT, ni con otra salida).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.gym.features = {
+            **self.gym.features,
+            "activities": True,
+            "salidas": True,
+        }
+        self.gym.save(update_fields=["features"])
+        self.member = self.create_member(self.gym)
+        self.plan = self.create_plan(self.gym, price=Decimal("10000.00"))
+        self.subscription = self.open_month_subscription(self.member, self.plan)
+        self.settle_subscription(self.subscription)
+        self.outing = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Trekking",
+            billing_mode="monthly",
+            monthly_price=Decimal("4000.00"),
+        )
+        self.schedule = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="monday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+    def _enroll(self, schedule=None):
+        return OutingEnrollmentService.enroll_member(
+            self.member, schedule or self.schedule, skip_eligibility_check=True
+        )
+
+    def _add_fixed_gym_schedule(self):
+        slot = self.create_today_slot(self.gym, day="monday", hour="09:00")
+        return self.create_attendance_schedule(self.member, self.gym, slot)
+
+    def _add_activity(self, day="monday"):
+        activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Yoga",
+            monthly_price=Decimal("5000.00"),
+        )
+        schedule = ActivitySchedule.objects.create(
+            activity=activity,
+            day=day,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+        Enrollment.objects.create(
+            gym=self.gym,
+            member=self.member,
+            schedule=schedule,
+            active=True,
+        )
+        return activity
+
+    def _add_pt_assignment(self, day="monday"):
+        service = PersonalTrainingService.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Entrenamiento personal",
+            billing_mode="sessions",
+        )
+        trainer = self.create_user(self.gym, username="trainer", role="staff")
+        return PersonalTrainingAssignment.objects.create(
+            gym=self.gym,
+            member=self.member,
+            trainer=trainer,
+            service=service,
+            day=day,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+    def test_enroll_without_conflicts_is_allowed(self):
+        enrollment = self._enroll()
+
+        self.assertTrue(enrollment.active)
+
+    def test_enroll_conflicting_with_the_gym_schedule_is_rejected(self):
+        self._add_fixed_gym_schedule()
+
+        with self.assertRaises(OutingEnrollmentError) as ctx:
+            self._enroll()
+
+        self.assertIn("horario fijo", str(ctx.exception))
+
+    def test_enroll_conflicting_with_an_activity_is_rejected(self):
+        self._add_activity()
+
+        with self.assertRaises(OutingEnrollmentError) as ctx:
+            self._enroll()
+
+        self.assertIn("actividad", str(ctx.exception))
+
+    def test_enroll_conflicting_with_a_pt_assignment_is_rejected(self):
+        self._add_pt_assignment()
+
+        with self.assertRaises(OutingEnrollmentError) as ctx:
+            self._enroll()
+
+        self.assertIn("entrenamiento personal", str(ctx.exception))
+
+    def test_enroll_conflicting_with_another_outing_is_rejected(self):
+        other = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Caminata",
+            billing_mode="monthly",
+            monthly_price=Decimal("4000.00"),
+        )
+        other_schedule = OutingSchedule.objects.create(
+            outing=other,
+            day="monday",
+            start_time=time(9, 30),
+            end_time=time(10, 30),
+            capacity=10,
+        )
+        self._enroll(other_schedule)
+
+        with self.assertRaises(OutingEnrollmentError) as ctx:
+            self._enroll()
+
+        self.assertIn("salida", str(ctx.exception))
+
+    def test_enroll_on_another_day_is_allowed(self):
+        self._add_fixed_gym_schedule()
+        self._add_activity()
+        self._add_pt_assignment()
+
+        tuesday = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="tuesday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+        enrollment = self._enroll(tuesday)
+
+        self.assertTrue(enrollment.active)
+
+    def test_enroll_at_a_different_time_of_the_same_day_is_allowed(self):
+        self._add_activity()
+
+        later = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="monday",
+            start_time=time(18, 0),
+            end_time=time(19, 0),
+            capacity=10,
+        )
+
+        enrollment = self._enroll(later)
+
+        self.assertTrue(enrollment.active)
+
+    def test_api_enroll_returns_400_on_conflict(self):
+        self._add_activity()
+        self.create_user(self.gym, username="staff", role="staff")
+        self.client.force_authenticate(user=self.create_user(self.gym, "staff2"))
+
+        resp = self.client.post(
+            f"/api/outings/schedules/{self.schedule.id}/enroll/",
+            {"member_id": self.member.id, "modality": "monthly"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("superpone", str(resp.data))
+
+
+class Add16OutingRequestTests(BaseAPITest):
+    """ADD-16: la solicitud de inscripción a una salida también valida.
+
+    Sin esto el socio pedía el horario en conflicto, el staff lo aprobaba
+    y el error le salía recién al aprobar.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.gym.features = {**self.gym.features, "salidas": True}
+        self.gym.save(update_fields=["features"])
+        self.member = self.create_member(self.gym)
+        self.plan = self.create_plan(self.gym, price=Decimal("10000.00"))
+        self.subscription = self.open_month_subscription(self.member, self.plan)
+        self.settle_subscription(self.subscription)
+        self.outing = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Trekking",
+            billing_mode="monthly",
+            monthly_price=Decimal("4000.00"),
+        )
+        self.schedule = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="monday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+    def _request(self):
+        return OutingEnrollmentRequestService.create_enroll_request(
+            self.member, self.schedule
+        )
+
+    def test_request_without_conflicts_is_created(self):
+        request = self._request()
+
+        self.assertEqual(request.status, "pending")
+
+    def test_request_conflicting_with_an_activity_is_rejected(self):
+        activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Yoga",
+            monthly_price=Decimal("5000.00"),
+        )
+        activity_schedule = ActivitySchedule.objects.create(
+            activity=activity,
+            day="monday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+        Enrollment.objects.create(
+            gym=self.gym,
+            member=self.member,
+            schedule=activity_schedule,
+            active=True,
+        )
+
+        with self.assertRaises(OutingEnrollmentRequestError) as ctx:
+            self._request()
+
+        self.assertIn("actividad", str(ctx.exception))
+        self.assertFalse(OutingEnrollmentRequest.objects.exists())

@@ -12,6 +12,7 @@ from subscriptions.services import (
 )
 
 from .models import OutingEnrollment, OutingSchedule
+from .overlap import validate_enrollment
 
 
 class OutingEnrollmentError(ValueError):
@@ -76,6 +77,11 @@ class OutingEnrollmentService:
                 raise OutingEnrollmentError("El miembro no puede operar.")
 
         gym = SubscriptionDomain.resolve_gym(member)
+
+        try:
+            validate_enrollment(member, schedule)
+        except ValueError as e:
+            raise OutingEnrollmentError(str(e))
 
         with transaction.atomic():
             locked_schedule = OutingSchedule.objects.select_for_update().get(
