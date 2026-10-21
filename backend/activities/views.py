@@ -75,10 +75,18 @@ class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):
 
         activity.active = True
         activity.save(update_fields=["active"])
-        ActivitySchedule.objects.filter(activity=activity).update(active=True)
 
-        serializer = self.get_serializer(activity)
-        return Response(serializer.data)
+        restored = 0
+        if parse_bool(request.data.get("restore_schedules"), default=True):
+            # Sólo vuelven los horarios que se apagaron con la oferta: los
+            # que el staff apagó a mano siguen apagados (ADD-04, Fase K2).
+            restored = ActivitySchedule.objects.filter(
+                activity=activity, auto_deactivated=True
+            ).update(active=True, auto_deactivated=False)
+
+        data = self.get_serializer(activity).data
+        data["restored_schedules"] = restored
+        return Response(data)
 
 
 class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
@@ -126,7 +134,9 @@ class ActivityScheduleViewSet(ActivitiesGuardMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         schedule.active = False
-        schedule.save(update_fields=["active"])
+        # Apagado a mano: no vuelve con la oferta (ADD-04, Fase K2).
+        schedule.auto_deactivated = False
+        schedule.save(update_fields=["active", "auto_deactivated"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

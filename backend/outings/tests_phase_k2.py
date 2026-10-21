@@ -505,3 +505,92 @@ class Add14OutingRenewTests(BaseAPITest):
         self.assertEqual(resp.status_code, 200, resp.data)
         self.enrollment.refresh_from_db()
         self.assertEqual(self.enrollment.package_total_sessions, 15)
+
+
+class Add15SelectiveRestoreTests(BaseAPITest):
+    """ADD-15: reactivar la salida no revive los horarios apagados a mano."""
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.gym.features = {**self.gym.features, "salidas": True}
+        self.gym.save(update_fields=["features"])
+        self.user = self.create_user(self.gym, username="staff", role="staff")
+        self.client.force_authenticate(user=self.user)
+        self.outing = Outing.objects.create(
+            gym=self.gym,
+            service=Service.get_default_for_gym(self.gym),
+            name="Trekking",
+            billing_mode="monthly",
+            monthly_price=Decimal("4000.00"),
+        )
+        self.saturday = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="saturday",
+            start_time=time(8, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+        self.sunday = OutingSchedule.objects.create(
+            outing=self.outing,
+            day="sunday",
+            start_time=time(8, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+    def _deactivate_outing(self):
+        self.outing.active = False
+        self.outing.save(update_fields=["active"])
+
+    def _deactivate_schedule_by_hand(self, schedule):
+        resp = self.client.delete(
+            f"/api/outings/schedules/{schedule.id}/",
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(resp.status_code, 204, resp.data)
+
+    def _reactivate(self, **payload):
+        return self.client.post(
+            f"/api/outings/outings/{self.outing.id}/reactivate/",
+            payload,
+            format="json",
+            HTTP_ACCEPT="application/json",
+        )
+
+    def test_reactivate_brings_back_the_schedules_deactivated_with_the_offer(self):
+        self._deactivate_outing()
+
+        resp = self._reactivate()
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.saturday.refresh_from_db()
+        self.sunday.refresh_from_db()
+        self.assertTrue(self.saturday.active)
+        self.assertTrue(self.sunday.active)
+        self.assertEqual(resp.data["restored_schedules"], 2)
+
+    def test_reactivate_keeps_the_schedules_deactivated_by_hand(self):
+        self._deactivate_schedule_by_hand(self.sunday)
+        self._deactivate_outing()
+
+        resp = self._reactivate()
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.saturday.refresh_from_db()
+        self.sunday.refresh_from_db()
+        self.assertTrue(self.saturday.active)
+        self.assertFalse(self.sunday.active)
+        self.assertEqual(resp.data["restored_schedules"], 1)
+
+    def test_reactivate_without_restore_schedules_keeps_everything_off(self):
+        self._deactivate_outing()
+
+        resp = self._reactivate(restore_schedules=False)
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.saturday.refresh_from_db()
+        self.sunday.refresh_from_db()
+        self.assertFalse(self.saturday.active)
+        self.assertFalse(self.sunday.active)
+        self.assertEqual(resp.data["restored_schedules"], 0)

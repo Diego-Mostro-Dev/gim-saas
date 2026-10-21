@@ -245,3 +245,113 @@ class Add16OutingDimensionTests(BaseAPITest):
         )
 
         self.assertTrue(enrollment.active)
+
+
+class Add04SelectiveRestoreTests(BaseAPITest):
+    """ADD-04: reactivar la actividad no revive los horarios apagados a mano.
+
+    Antes, `reactivate` hacía `update(active=True)` sobre **todos** los
+    horarios de la actividad, incluidos los que el staff había apagado a
+    propósito (por ejemplo, el horario de verano que se apaga en abril).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.gym.features = {**self.gym.features, "activities": True}
+        self.gym.save(update_fields=["features"])
+        self.user = self.create_user(self.gym, username="staff", role="staff")
+        self.client.force_authenticate(user=self.user)
+        self.activity = Activity.objects.create(
+            service=Service.get_default_for_gym(self.gym),
+            name="Yoga",
+            billing_mode="monthly",
+            monthly_price=Decimal("5000.00"),
+        )
+        self.monday = ActivitySchedule.objects.create(
+            activity=self.activity,
+            day="monday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+        self.friday = ActivitySchedule.objects.create(
+            activity=self.activity,
+            day="friday",
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=10,
+        )
+
+    def _deactivate_activity(self):
+        self.activity.active = False
+        self.activity.save(update_fields=["active"])
+
+    def _deactivate_schedule_by_hand(self, schedule):
+        resp = self.client.delete(
+            f"/api/activities/schedules/{schedule.id}/",
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(resp.status_code, 204, resp.data)
+
+    def _reactivate(self, **payload):
+        return self.client.post(
+            f"/api/activities/activities/{self.activity.id}/reactivate/",
+            payload,
+            format="json",
+            HTTP_ACCEPT="application/json",
+        )
+
+    def test_deactivating_the_activity_deactivates_its_schedules(self):
+        self._deactivate_activity()
+
+        self.monday.refresh_from_db()
+        self.friday.refresh_from_db()
+        self.assertFalse(self.monday.active)
+        self.assertFalse(self.friday.active)
+
+    def test_reactivate_brings_back_the_schedules_deactivated_with_the_offer(self):
+        self._deactivate_activity()
+
+        resp = self._reactivate()
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.monday.refresh_from_db()
+        self.friday.refresh_from_db()
+        self.assertTrue(self.monday.active)
+        self.assertTrue(self.friday.active)
+        self.assertEqual(resp.data["restored_schedules"], 2)
+
+    def test_reactivate_keeps_the_schedules_deactivated_by_hand(self):
+        self._deactivate_schedule_by_hand(self.friday)
+        self._deactivate_activity()
+
+        resp = self._reactivate()
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.monday.refresh_from_db()
+        self.friday.refresh_from_db()
+        self.assertTrue(self.monday.active, "El horario apagado con la oferta vuelve")
+        self.assertFalse(
+            self.friday.active,
+            "El horario que el staff apagó a mano tiene que seguir apagado",
+        )
+        self.assertEqual(resp.data["restored_schedules"], 1)
+
+    def test_reactivate_without_restore_schedules_keeps_everything_off(self):
+        self._deactivate_activity()
+
+        resp = self._reactivate(restore_schedules=False)
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.monday.refresh_from_db()
+        self.friday.refresh_from_db()
+        self.assertFalse(self.monday.active)
+        self.assertFalse(self.friday.active)
+        self.assertEqual(resp.data["restored_schedules"], 0)
+
+    def test_a_schedule_deactivated_by_hand_is_not_marked_as_auto(self):
+        self._deactivate_schedule_by_hand(self.friday)
+
+        self.friday.refresh_from_db()
+        self.assertFalse(self.friday.auto_deactivated)

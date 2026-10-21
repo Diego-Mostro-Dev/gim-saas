@@ -188,7 +188,14 @@ function Outings() {
       handleSetOuting(updated);
       removePendingActivation(outing.id);
       setInactiveOutings((prev) => prev.filter((o) => o.id !== outing.id));
-      toast.success(`"${outing.name}" reactivada con sus horarios`);
+      const restored = updated.restored_schedules ?? 0;
+      toast.success(
+        restored > 0
+          ? `"${outing.name}" reactivada con ${restored} ${
+              restored === 1 ? "horario" : "horarios"
+            }`
+          : `"${outing.name}" reactivada`
+      );
       setReactivateModal(null);
     } catch (err) {
       toast.error(err.message || "Error al reactivar");

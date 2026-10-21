@@ -161,7 +161,14 @@ function Activities() {
       handleSetActivity(updated);
       removePendingActivation(activity.id);
       setInactiveActivities((prev) => prev.filter((a) => a.id !== activity.id));
-      toast.success(`"${activity.name}" reactivada con sus horarios`);
+      const restored = updated.restored_schedules ?? 0;
+      toast.success(
+        restored > 0
+          ? `"${activity.name}" reactivada con ${restored} ${
+              restored === 1 ? "horario" : "horarios"
+            }`
+          : `"${activity.name}" reactivada`
+      );
       setReactivateModal(null);
     } catch (err) {
       toast.error(err.message || "Error al reactivar");
