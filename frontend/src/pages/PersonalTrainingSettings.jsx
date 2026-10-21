@@ -790,17 +790,29 @@ function AssignmentCard({ assignment, onChanged }) {
             placeholder="Sesiones"
           />
           <button
-            onClick={() =>
+            onClick={() => {
+              // El backend exige cobrar antes de renovar. El staff puede
+              // renovar igual a propósito: se le pregunta y se manda
+              // allow_unpaid.
+              const adeuda = Number(assignment.remaining_amount) > 0;
+              if (adeuda) {
+                const ok = window.confirm(
+                  `El socio tiene ${formatCurrency(assignment.remaining_amount)} sin cobrar. ` +
+                    "¿Renovar el paquete igual?",
+                );
+                if (!ok) return;
+              }
               run(
                 () =>
                   renewPersonalTrainingPackage(
                     assignment.id,
                     Number(additional),
+                    adeuda,
                   ),
                 "renovar el paquete",
                 "Paquete renovado",
-              )
-            }
+              );
+            }}
             disabled={busy || !additional || Number(additional) <= 0}
             className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
           >

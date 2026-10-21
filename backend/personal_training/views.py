@@ -34,7 +34,12 @@ from .serializers import (
     PersonalTrainingServiceSerializer,
     TrainerSerializer,
 )
-from config.api.params import as_error_detail, parse_int, validate_choice
+from config.api.params import (
+    as_error_detail,
+    parse_bool,
+    parse_int,
+    validate_choice,
+)
 from .session_service import SessionError, SessionService
 
 
@@ -262,10 +267,11 @@ class PersonalTrainingAssignmentViewSet(
     def renew(self, request, pk=None):
         assignment = self.get_object()
         additional_sessions = request.data.get("additional_sessions")
+        allow_unpaid = parse_bool(request.data.get("allow_unpaid"))
 
         try:
             assignment = SessionService.renew_package(
-                assignment, additional_sessions
+                assignment, additional_sessions, allow_unpaid=allow_unpaid
             )
         except SessionError as e:
             return Response(

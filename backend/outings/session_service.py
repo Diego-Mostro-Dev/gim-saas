@@ -82,12 +82,17 @@ class SessionService:
         return deleted
 
     @staticmethod
-    def renew_package(enrollment, additional_sessions):
+    def renew_package(enrollment, additional_sessions, allow_unpaid=False):
         """Staff renews the package adding N more sessions.
 
         The per-session co-pay (`session_price`) is refreshed from the
         member's current health insurance so new sessions use the current
         rate, and the package total recomputes accordingly.
+
+        `allow_unpaid` is the explicit override: renewing a package with
+        sessions pending collection used to fail with a 400 and leave the
+        staff without a way to renew (ADD-14, Fase K2). The rule stays as
+        the default; the staff can now renew anyway on purpose.
         """
         if enrollment.modality != "package":
             raise SessionError("La inscripción no es de modalidad paquete.")
@@ -103,7 +108,8 @@ class SessionService:
             raise SessionError("La cantidad de sesiones debe ser mayor a cero.")
 
         if (
-            enrollment.session_price is not None
+            not allow_unpaid
+            and enrollment.session_price is not None
             and enrollment.remaining_amount is not None
             and enrollment.remaining_amount > 0
         ):

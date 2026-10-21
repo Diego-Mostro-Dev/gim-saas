@@ -141,8 +141,18 @@ function OutingEnrollments() {
       toast.error("Ingresá una cantidad de sesiones válida");
       return;
     }
+    // El backend exige cobrar antes de renovar. El staff puede renovar
+    // igual a propósito: se le pregunta y se manda allow_unpaid.
+    const adeuda = Number(enrollment.remaining_amount) > 0;
+    if (adeuda) {
+      const ok = window.confirm(
+        `El socio tiene ${money(enrollment.remaining_amount)} sin cobrar. ` +
+          "¿Renovar el paquete igual?"
+      );
+      if (!ok) return;
+    }
     await runAction(
-      () => renewOutingEnrollment(enrollment.id, amount),
+      () => renewOutingEnrollment(enrollment.id, amount, adeuda),
       "Paquete renovado correctamente"
     );
     setRenewId(null);

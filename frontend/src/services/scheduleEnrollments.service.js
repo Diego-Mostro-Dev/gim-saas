@@ -45,10 +45,17 @@ export async function removeSession(enrollmentId, date) {
   );
 }
 
-export async function renewEnrollment(enrollmentId, additionalSessions) {
+export async function renewEnrollment(
+  enrollmentId,
+  additionalSessions,
+  allowUnpaid = false
+) {
   return apiFetch(`/api/activities/enrollments/${enrollmentId}/renew/`, {
     method: "POST",
-    body: JSON.stringify({ additional_sessions: additionalSessions }),
+    body: JSON.stringify({
+      additional_sessions: additionalSessions,
+      allow_unpaid: allowUnpaid,
+    }),
   });
 }
 

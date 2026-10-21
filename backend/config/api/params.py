@@ -38,6 +38,19 @@ def parse_int(raw_value, label="id"):
         return None, error_response(f"El valor de '{label}' no es válido.")
 
 
+def parse_bool(raw_value, default=False):
+    """Acepta true/false, 1/0, "sí"/"no" (o "si"/"yes") → bool.
+
+    No devuelve error: un valor que no se entiende se toma por False
+    (el default es el comportamiento conservative).
+    """
+    if raw_value is None or raw_value == "":
+        return default
+    if isinstance(raw_value, bool):
+        return raw_value
+    return str(raw_value).strip().lower() in ("true", "1", "yes", "si", "sí")
+
+
 def validate_choice(raw_value, choices, label="campo"):
     """Permite solo los valores de `choices` (lista de pares o conjunto)."""
     if not raw_value:

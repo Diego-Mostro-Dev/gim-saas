@@ -12,6 +12,7 @@ from rest_framework.response import Response
 
 from core.mixins import GymQuerysetMixin
 from core.viewsets import GymModelViewSet
+from config.api.params import parse_bool
 from gyms.features import require_activities
 from members.models import Member
 
@@ -326,10 +327,11 @@ class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.G
     def renew(self, request, pk=None):
         enrollment = self.get_object()
         additional_sessions = request.data.get("additional_sessions")
+        allow_unpaid = parse_bool(request.data.get("allow_unpaid"))
 
         try:
             enrollment = SessionService.renew_package(
-                enrollment, additional_sessions
+                enrollment, additional_sessions, allow_unpaid=allow_unpaid
             )
         except SessionError as e:
             return Response(

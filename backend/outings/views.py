@@ -38,7 +38,7 @@ from .serializers import (
     StaffOutingEnrollmentRequestSerializer,
 )
 from .session_service import SessionError, SessionService
-from config.api.params import as_error_detail, validate_choice
+from config.api.params import as_error_detail, parse_bool, validate_choice
 
 
 class OutingsGuardMixin:
@@ -448,10 +448,11 @@ class OutingEnrollmentActionViewSet(
     def renew(self, request, pk=None):
         enrollment = self.get_object()
         additional_sessions = request.data.get("additional_sessions")
+        allow_unpaid = parse_bool(request.data.get("allow_unpaid"))
 
         try:
             enrollment = SessionService.renew_package(
-                enrollment, additional_sessions
+                enrollment, additional_sessions, allow_unpaid=allow_unpaid
             )
         except SessionError as e:
             return Response(
