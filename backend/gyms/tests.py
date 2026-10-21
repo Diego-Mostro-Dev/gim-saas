@@ -4,6 +4,7 @@ from unittest.mock import patch
 import requests
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
@@ -364,3 +365,46 @@ class GymScheduleHoursValidationTests(BaseAPITest):
         self.gym.refresh_from_db()
         self.assertEqual(self.gym.schedule_change_notice_hours, 24)
         self.assertEqual(self.gym.schedule_change_cooldown_hours, 0)
+
+
+@override_settings(FRONTEND_URL=None)
+class FrontendUrlMissingTests(BaseAPITest):
+    """REF-09: sin FRONTEND_URL los constructores de URLs no deben romper.
+
+    ``FRONTEND_URL`` es opcional (``os.getenv``); en CI no existe, y concatenar
+    ``None`` con un str daba ``TypeError`` en ``get_onboarding_url``/
+    ``get_public_register_url``, el admin y la vista pública de registro. Acá se
+    fuerza el caso ``None`` (no configurada) para reproducir exactamente el CI,
+    porque ``settings.py`` ya normaliza a ``""`` al cargar.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.owner = self.create_user(self.gym, username="owner_user")
+        Token.objects.create(user=self.owner)
+
+    def test_onboarding_and_register_urls_are_relative(self):
+        self.assertEqual(
+            self.gym.get_onboarding_url(),
+            f"/onboarding/{self.gym.onboarding_code}",
+        )
+        self.assertEqual(
+            self.gym.get_public_register_url(),
+            f"/register/{self.gym.onboarding_code}",
+        )
+
+    def test_gym_serialization_succeeds(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {Token.objects.get(user=self.owner).key}"
+        )
+        resp = self.client.get("/api/gyms/me/")
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+
+    def test_public_seo_view_succeeds(self):
+        resp = self.client.get(
+            f"/api/gyms/public/seo/{self.gym.onboarding_code}/"
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)

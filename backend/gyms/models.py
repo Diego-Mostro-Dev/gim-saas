@@ -160,13 +160,13 @@ class Gym(models.Model):
 
     def get_onboarding_url(self):
         return (
-            settings.FRONTEND_URL+
+            (settings.FRONTEND_URL or "") +
             f"/onboarding/{self.onboarding_code}"
         )
 
     def get_public_register_url(self):
         return (
-            settings.FRONTEND_URL+
+            (settings.FRONTEND_URL or "") +
             f"/register/{self.onboarding_code}"
         )
 

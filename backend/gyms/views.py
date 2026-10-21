@@ -517,7 +517,7 @@ class GymSeoView(APIView):
         gym = get_object_or_404(Gym, onboarding_code=gym_code)
 
         register_url = (
-            settings.FRONTEND_URL + f"/register/{gym.onboarding_code}"
+            (settings.FRONTEND_URL or "") + f"/register/{gym.onboarding_code}"
         )
 
         title = (

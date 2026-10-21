@@ -56,7 +56,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **G. Sesiones y faltas** | No-show en fechas sin clase (`ADD-07`), faltas/recuperación de PT (`ADD-21`), salidas sin no-show (`ADD-11`), descuento fuera de ventana (`ACC-08`). | Invariante de paquete: sesiones consumidas = asistidas + faltas justificadas | ✅ **hecha** (2026-10-20; 16 tests nuevos en `activities/tests_phase_g.py` + 5 en `tests_sessions_invariants.py`; ADD-11 queda como decisión de negocio) |
 | **H. Rutinas** | `RUT-01` a `RUT-09`: control de rol, soft delete, unicidad de rutina activa, huérfanos, endpoint público, cobertura. | `routines` con tests | ✅ **hecha** (2026-10-20; 16 tests nuevos en `routines/tests_phase_h.py`; RUT-06/RUT-08 quedan como decisiones de negocio; sumar `routines` al CI → Fase J) |
 | **I. Comunidad** | `COM-01` a `COM-06`: soft delete, duplicados, `discount` sin validar, socio inactivo en el endpoint público, tests. | `community` con tests + auditoría | ✅ **hecha** (2026-10-20; 15 tests en `community/tests.py` + `AUDITORIA-COMUNIDAD.md`; COM-01/COM-02 quedan como decisiones de negocio; COM-06 re-verificado 🟢) |
-| **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ✅ **hecha** (2026-10-20; REF-01/02/03/06 cerrados + REF-07 (N+1) y REF-08 (admin sin scope) nuevos y cerrados; REF-05 queda ⚪ (lint de frontend con deuda preexistente); CI corre todas las apps + job de build de frontend; gate 392 tests) |
+| **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ✅ **hecha** (2026-10-20; REF-01/02/03/06 cerrados + REF-07 (N+1), REF-08 (admin sin scope) y REF-09 (500 sin FRONTEND_URL, destapado por CI) nuevos y cerrados; REF-05 queda ⚪ (lint de frontend con deuda preexistente); CI corre todas las apps + job de build de frontend; gate 395 tests) |
 | **K. Cierre** | `BUGS.md` final + decisiones de negocio + checklist de release. | — | ⬜ |
 
 **Orden obligatorio**: A → B → C → D → E → F → G → H → I → J → K. La B es el "GPS": una vez
@@ -168,7 +168,12 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
   `plans`, `attendance`, `routines`, `community`, `profiles`. Tests `core/tests_admin_scoping.py`.
 - Cobertura/CI (`REF-01`/`REF-02`): `profiles/tests.py`, `seed/tests.py`, `core/tests.py`;
   `.github/workflows/backend-tests.yml` corre todas las apps y suma un job de `pnpm build`.
-- Gate: **392 tests OK** + `makemigrations --check` limpio; `pnpm build` verde.
+- CI rojo al sumar `gyms`/`admins` (`REF-09`): `settings.FRONTEND_URL` era `None` sin la env
+  var y `None + str` rompía el alta de gimnasio y la vista SEO pública. Default `""` +
+  guardas en los call sites; tests `gyms.tests.FrontendUrlMissingTests`.
+- Gate: **395 tests OK** + `makemigrations --check` limpio; `pnpm build` verde. El gate corre
+  también **sin `FRONTEND_URL`** (env limpio) para reproducir el CI:
+  `env -u FRONTEND_URL ...` o quitando la línea de `.env`.
 
 ---
 

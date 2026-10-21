@@ -133,7 +133,7 @@ class GymAdmin(GymScopedAdminMixin, admin.ModelAdmin):
             return "-"
 
         url = (
-            settings.FRONTEND_URL +
+            (settings.FRONTEND_URL or "") +
             f"/register/{obj.onboarding_code}"
         )
 
