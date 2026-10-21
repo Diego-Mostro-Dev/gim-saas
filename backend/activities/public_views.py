@@ -84,6 +84,57 @@ class PublicMemberEnrollmentsView(APIView):
         serializer = PublicEnrollmentSerializer(enrollment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def delete(self, request, token):
+        """Baja de inscripción desde el portal del socio (ACC-26).
+
+        El botón "Cancelar inscripción" del portal siempre terminó en un
+        409: hacía POST contra el endpoint de **alta**, porque la baja no
+        existía en la API pública. Va en DELETE de la misma URL con el
+        ``schedule_id`` en el body.
+
+        A diferencia del alta, no exige ``can_operate``: darse de baja
+        nunca está penalizado (decisión 2026-10-21).
+        """
+        member = portal_member_or_404(token)
+        gym = SubscriptionDomain.resolve_gym(member)
+        require_activities(gym)
+
+        schedule_id, error = parse_int(
+            request.data.get("schedule_id"), "schedule_id"
+        )
+        if error is not None:
+            return error
+        if not schedule_id:
+            return Response(
+                {"detail": "El campo schedule_id es requerido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Sin ``active=True``: si el gym desactivó la actividad o el
+        # horario, el socio que sigue inscripto tiene que poder salir.
+        schedule = get_object_or_404(
+            ActivitySchedule,
+            id=schedule_id,
+            activity__service__gym=gym,
+        )
+
+        if schedule.activity.billing_mode == "sessions":
+            return Response(
+                {"detail": "Esta actividad requiere inscripción por el staff."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            enrollment = EnrollmentService.unenroll_member(member, schedule)
+        except EnrollmentError as e:
+            return Response(
+                {"detail": str(e)},
+                status=e.status_code,
+            )
+
+        serializer = PublicEnrollmentSerializer(enrollment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class PublicGymActivitiesView(APIView):
     permission_classes = []
