@@ -373,6 +373,15 @@ DAY_INDEX = {
 
 
 def gym_closed_dates_set(gym):
+    """Set of dates the gym is closed.
+
+    Reads from the prefetched ``gym.closed_dates`` cache when the caller
+    arranged it (list serializers), so a row per request does not turn into a
+    query per row. Falls back to a fresh query otherwise.
+    """
+    cached = getattr(gym, "_prefetched_objects_cache", {}).get("closed_dates")
+    if cached is not None:
+        return {closed.date for closed in cached}
     return set(
         GymClosedDate.objects.filter(gym=gym).values_list("date", flat=True)
     )

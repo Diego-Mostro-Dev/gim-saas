@@ -452,7 +452,7 @@ def credit_recorded_for(subscription):
     from payments.models import Payment
 
     total = (
-        Payment.objects.filter(concept="credit")
+        Payment.objects.filter(concept="credit", gym=subscription.gym)
         .filter(
             Q(applied_to=subscription)
             | Q(subscription=subscription, applied_to__isnull=True)
@@ -479,6 +479,7 @@ def member_credit_balance(member):
     total = (
         Payment.objects.filter(
             member=member,
+            gym=member.gym,
             concept="credit",
             applied_to__isnull=True,
         ).aggregate(credit=Sum("amount"))["credit"]
@@ -593,6 +594,7 @@ def consume_member_credit(member, subscription):
         consumed = Decimal("0")
         open_credits = Payment.objects.select_for_update().filter(
             member=member,
+            gym=member.gym,
             concept="credit",
             applied_to__isnull=True,
         ).order_by("paid_at", "id")
@@ -1093,7 +1095,7 @@ def member_total_outstanding_debt(member):
             member=member,
         )
         .select_related("plan", "member__discount")
-        .prefetch_related("items")
+        .prefetch_related("items__activity", "items__outing", "items__plan")
         .order_by("start_date", "created_at")
     )
     subscription_ids = [sub.id for sub in outstanding_subs]
@@ -1186,7 +1188,7 @@ def gym_outstanding_subscriptions(gym):
     subscriptions = list(
         Subscription.objects.filter(gym=gym)
         .select_related("member__discount", "plan", "gym")
-        .prefetch_related("items__activity")
+        .prefetch_related("items__activity", "items__outing", "items__plan")
         .order_by("start_date", "created_at")
     )
     subscription_ids = [sub.id for sub in subscriptions]

@@ -54,7 +54,7 @@ class OutingViewSet(OutingsGuardMixin, GymModelViewSet):
 
     def get_queryset(self):
         qs = Outing.objects.filter(service__gym=self.get_gym())
-        qs = qs.annotate(
+        qs = qs.select_related("trainer").annotate(
             enrolled_count=Count(
                 "schedules__enrollments",
                 filter=Q(schedules__enrollments__active=True),

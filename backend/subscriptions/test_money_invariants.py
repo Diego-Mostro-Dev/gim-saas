@@ -526,3 +526,71 @@ class PackageDebtCycleTests(_MoneyInvariantBase):
         )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assert_invariants()
+
+
+class CrossGymCreditIsolationTests(_MoneyInvariantBase):
+    """REF-03: las consultas de crédito no pueden cruzar gimnasios.
+
+    ``member_credit_balance``, ``credit_recorded_for`` y
+    ``consume_member_credit`` filtran por ``gym`` derivado del socio o de la
+    suscripción. Si un entero quedara mal escrito (o una futura rotura de la
+    inmutabilidad de ``Member.gym`` colara una fila ajena), el saldo del socio
+    de otro gimnasio no debe aparecer.
+    """
+
+    def test_credit_from_other_gym_is_not_counted(self):
+        from payments.models import Payment
+
+        member = self.create_member(self.gym)
+        self.open_month_subscription(
+            member, self.plan, start_date=MONTH_START, end_date=MONTH_END
+        )
+
+        other_gym = self.create_gym(name="Otro Gym")
+        # Fila de crédito abierta a nombre del socio pero perteneciente a otro
+        # gimnasio: es la corrupción que el filtro de gym debe ignorar.
+        Payment.objects.create(
+            gym=other_gym,
+            member=member,
+            concept="credit",
+            amount=Decimal("-7777.00"),
+            member_name="Ana Gomez",
+            plan_name="Saldo a favor",
+        )
+
+        # El crédito visible para el socio (mirado desde su propio gimnasio) no
+        # incluye la fila ajena.
+        self.assertEqual(member_credit_balance(member), Decimal("0"))
+        self.assert_invariants()
+
+    def test_consume_ignores_foreign_gym_credit(self):
+        from payments.models import Payment
+
+        member = self.create_member(self.gym)
+        other_gym = self.create_gym(name="Otro Gym")
+        Payment.objects.create(
+            gym=other_gym,
+            member=member,
+            concept="credit",
+            amount=Decimal("-5000.00"),
+            member_name="Ana Gomez",
+            plan_name="Saldo a favor",
+        )
+
+        sub = self.open_month_subscription(
+            member, self.plan, start_date=MONTH_START, end_date=MONTH_END
+        )
+        sub.refresh_from_db()
+
+        # Ninguna porción del crédito ajeno se aplica al período nuevo.
+        self.assertEqual(
+            member_credit_balance(member), Decimal("0")
+        )
+        self.assertFalse(
+            Payment.objects.filter(
+                member=member,
+                gym=self.gym,
+                concept="credit",
+                applied_to__isnull=False,
+            ).exists()
+        )

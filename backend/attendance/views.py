@@ -32,6 +32,7 @@ from .recovery_service import (
 from members.identity import member_identity
 from members.models import Member
 from subscriptions.domain import ScheduleDomain, ScheduleError, SubscriptionDomain
+from subscriptions.models import Subscription
 from .serializers import (
     AttendanceScheduleSerializer,
     AttendanceSerializer,
@@ -43,6 +44,20 @@ from .serializers import (
     SessionRecoverySerializer,
 )
 from config.api.params import parse_date, parse_int, parse_time, validate_choice
+
+
+def _member_subscription_prefetch():
+    """Prefetch a member's subscriptions (with plan + service) in bulk.
+
+    ``member_service_label`` walks ``member.subscription_set.all()`` and then
+    ``subscription.plan.service`` for every enrolled member. Without this the
+    weekly/status lists fire a handful of queries per member (N+1); the
+    prefetch collapses them into two fixed queries per list.
+    """
+    return Prefetch(
+        "member__subscription_set",
+        queryset=Subscription.objects.select_related("plan__service"),
+    )
 
 
 def _build_class_items_by_day(gym, days):
@@ -62,7 +77,9 @@ def _build_class_items_by_day(gym, days):
             "enrollments",
             queryset=Enrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -119,7 +136,9 @@ def _build_outing_items_by_day(gym, days):
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -173,7 +192,9 @@ def _build_class_items_for_status(gym, day, selected_time):
             "enrollments",
             queryset=Enrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -223,7 +244,9 @@ def _build_outing_items_for_status(gym, day, selected_time):
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
                 gym=gym, active=True
-            ).select_related("member"),
+            ).select_related("member").prefetch_related(
+                _member_subscription_prefetch()
+            ),
         )
     )
 
@@ -857,7 +880,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
             gym=self.request.user.profile.gym,
         ).select_related(
             "member__insurance", "member", "current_schedule__slot", "requested_slot", "reviewed_by"
-        )
+        ).prefetch_related("gym__closed_dates")
 
     def perform_create(self, serializer):
         gym = self.request.user.profile.gym
@@ -1099,7 +1122,15 @@ class SessionRecoveryListCreateView(APIView):
         gym = request.user.profile.gym
         qs = SessionRecovery.objects.filter(
             gym=gym,
-        ).select_related("member", "activity", "granted_by")
+        ).select_related(
+            "member",
+            "activity",
+            "granted_by",
+            "gym",
+            "used_slot",
+            "used_schedule",
+            "pt_assignment",
+        )
 
         member_id = request.GET.get("member")
         if member_id:

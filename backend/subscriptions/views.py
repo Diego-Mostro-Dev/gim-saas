@@ -117,7 +117,9 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         .prefetch_related(
             Prefetch(
                 "items",
-                queryset=SubscriptionItem.objects.select_related("activity", "plan"),
+                queryset=SubscriptionItem.objects.select_related(
+                    "activity", "plan", "outing"
+                ),
             ),
             Prefetch(
                 "member__plan_change_requests",
