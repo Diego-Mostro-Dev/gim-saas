@@ -57,10 +57,19 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **H. Rutinas** | `RUT-01` a `RUT-09`: control de rol, soft delete, unicidad de rutina activa, huérfanos, endpoint público, cobertura. | `routines` con tests | ✅ **hecha** (2026-10-20; 16 tests nuevos en `routines/tests_phase_h.py`; RUT-06/RUT-08 quedan como decisiones de negocio; sumar `routines` al CI → Fase J) |
 | **I. Comunidad** | `COM-01` a `COM-06`: soft delete, duplicados, `discount` sin validar, socio inactivo en el endpoint público, tests. | `community` con tests + auditoría | ✅ **hecha** (2026-10-20; 15 tests en `community/tests.py` + `AUDITORIA-COMUNIDAD.md`; COM-01/COM-02 quedan como decisiones de negocio; COM-06 re-verificado 🟢) |
 | **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ✅ **hecha** (2026-10-20; REF-01/02/03/06 cerrados + REF-07 (N+1), REF-08 (admin sin scope) y REF-09 (500 sin FRONTEND_URL, destapado por CI) nuevos y cerrados; REF-05 queda ⚪ (lint de frontend con deuda preexistente); CI corre todas las apps + job de build de frontend; gate 395 tests) |
-| **K. Cierre** | `BUGS.md` final + decisiones de negocio + checklist de release. | — | ⬜ |
+| **K0. Saneamiento del registro** | Re-verificar los 11 🟡 que quedaban, corregir las fichas obsoletas, cerrar los no-reproducidos, dar de alta los hallazgos nuevos (ACC-26, ADD-27/28/29) y dejar cada 🔴 con su sub-fase. | `BUGS.md` con 0 🔴 sin sub-fase asignada | ✅ **hecha** (2026-10-21; 11 🟡 re-verificados, 4 fichas nuevas, 5 cerradas sin código, 1 reabierta, 4 fichas obsoletas corregidas, 106 hallazgos = 65 🟢 / 13 ⚪ / 28 🔴, 0 a verificar; borrador de `RELEASE-CHECKLIST.md`) |
+| **K1. Portal del socio** | ACC-26 (el portal no puede dar de baja una inscripción), ADD-06, ADD-18, ADD-24, ADD-25. | Tests de alta/baja del portal + `pnpm build` | ⬜ |
+| **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ⬜ |
+| **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ⬜ |
+| **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ⬜ |
+| **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ⬜ |
+| **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ⬜ |
+| **K7. Higiene de frontend y CI** | REF-05 (lint a 0 y bloqueante en el CI), ADD-19, ADD-03. | `pnpm lint` en 0 + `pnpm build` + suite completa | ⬜ |
+| **K8. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging | ⬜ |
 
-**Orden obligatorio**: A → B → C → D → E → F → G → H → I → J → K. La B es el "GPS": una vez
-que existe la red de invariantes, cada fix de C-F se valida contra ella.
+**Orden obligatorio**: A → B → C → D → E → F → G → H → I → J → K0 → K1 → K2 → K3 → K4 → K5 →
+K6 → K7 → K8. La B es el "GPS": una vez que existe la red de invariantes, cada fix de C-F se
+valida contra ella.
 
 ---
 
@@ -177,12 +186,143 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 
 ---
 
+### Fase K — plan detallado (K0 → K8)
+
+**Objetivo:** cerrar el registro (`BUGS.md` sin 🔴 sin dueño), arreglar lo que queda vivo —en
+orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
+release ejecutable.
+
+**Estado al 2026-10-21:** 106 hallazgos — 65 cerrados, 13 decisiones de negocio, **28 abiertos**
+(cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
+sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
+fix → gate contra Postgres descartable → CI verde).
+
+#### Decisiones tomadas (2026-10-21)
+
+| Decisión | Alternativa descartada | Por qué |
+|---|---|---|
+| **ACC-10**: se corrige la promesa de la UI ("aplica al aprobar"), no se implementa la vigencia futura | Campo `effective_date` + job diferido + estado `approved` (~2 días, migración) | La UI promete algo que el backend no hace; prometer en falso es peor que no prometer |
+| **ACC-02**: campo `checkin_window_minutes` en `Gym`, default 0 = sin ventana | Regla global fija (±2 h del horario) | No rompe a los gimnasios ya instalados y cada gym decide su tolerancia |
+| **ACC-20**: baja lógica con `Member.deleted_at` | Hard delete con `ProtectedError` | Se pierde historial de pagos y asistencias. **No** se reutiliza `active`: `active=False` significa "suspendido" y el portal debe seguir accesible (COM-01) |
+| **ACC-19**: se mantiene el teléfono único por gimnasio, con mensaje explícito y constraint en DB | Permitir teléfono repetido | Es una restricción consciente y ahora con un mensaje que dice en qué gimnasio choca |
+| **REF-05**: entra en la K — lint a 0 y `pnpm lint` bloqueante en el CI | Dejarlo como tarea de frontend | El CI sin lint deja pasar errores de React en el portal del socio |
+
+#### Qué vino de las fases anteriores (triaje del 2026-10-21)
+
+El registro tenía 17 🔴 y 11 🟡. Al re-verificar **los 11 🟡** (los que nadie había mirado
+desde las auditorías) y contrastar con el código:
+
+- **4 fichas nuevas**:
+  - `ACC-26` (ALTO) — **el portal no puede dar de baja una inscripción**: el botón "Cancelar
+    inscripción" hace POST al endpoint de **alta** (`activities/public_views.py:44`) y siempre
+    responde 409. Regresión de `664737a` (2026-09-02). **No estaba en ninguna auditoría.**
+  - `ADD-27` (MEDIO) = **P8** de la Fase 8 de `PLAN-dinero.md`: una recuperación perdona **dos**
+    faltas (`no_show_service.py:42-58, 107-111, 286-307`).
+  - `ADD-28` (MEDIO) = **P10**: darse de baja de un horario **corta el cobro de toda la oferta**
+    (actividades y salidas no tienen el guard `other_active` que sí tiene PT). Regresión de la
+    Fase D.
+  - `ADD-29` (BAJO) = **P15**: el watermark avanza sobre faltas que nunca se cobraron.
+- **5 fichas que se cierran sin código**: `ADD-12` (lo resolvió ACC-08 en la Fase G),
+  `ADD-26` (no se reproduce: la PT es recurrente semanal), `ADD-23` / `ADD-17` / `ACC-22`
+  (decisiones de negocio), `ACC-13` (duplicado de `CFG-04`).
+- **1 ficha que se reabre**: `ADD-06` — la re-verificación de la Fase E fue incorrecta (el
+  commit `5a87ad3` no tocó `MemberActivities.jsx`): el `ReferenceError` sigue en el código,
+  sólo que hoy la rama está muerta por la Fase D.
+- **4 fichas obsoletas corregidas**: `ACC-01`, `ACC-05`, `ACC-06`, `ACC-11` (la tabla decía
+  🟢, la ficha decía 🔴).
+- **De `PLAN-dinero.md`**: los pendientes #11–#16 (TaskRun real, socios congelados, deuda de
+  los 38 bloqueados, backfill de snapshot, números unknowable) entran a "Pendientes" de
+  `BUGS.md` como decisiones de negocio/verificación operativa.
+
+#### Sub-fases
+
+**K0 · Saneamiento del registro** — sólo `.md` — ✅ **hecha** (2026-10-21).
+Corrigió las fichas obsoletas, cerró los no-reproducidos, dio de alta
+`ACC-26`/`ADD-27`/`28`/`29` y dejó cada 🔴 con su sub-fase. **Gate cumplido:** `BUGS.md` con 0
+filas 🔴 sin sub-fase asignada y tabla/fichas coherentes (verificado con un script sobre la
+tabla maestra).
+
+**K1 · Portal del socio** — `ACC-26`, `ADD-06`, `ADD-18`, `ADD-24`, `ADD-25`.
+`ACC-26` es el más visible: hay que crear el endpoint público de baja (hoy no existe) y apuntar
+el servicio del front. `ADD-06` son dos líneas (`txt` importado + `useGym()`) que eliminan un
+`ReferenceError` latente que tumba **todo** el portal de actividades.
+**Gate:** test de API de alta/baja desde el portal + `pnpm build` + lint sin errores nuevos.
+
+**K2 · Add-ons: solapes, renovaciones y bajas** — `ADD-16`, `ADD-28`, `ADD-14`, `ADD-22`,
+`ADD-04`, `ADD-15`.
+`ADD-16` reusa el validador de solape que ya existe para actividades. `ADD-28` porta el guard
+`other_active` de PT (y hay que mirar la variante cross-suscripción). `ADD-14`/`ADD-22` son el
+mismo fix: hoy renovar con saldo impago da 400 y **bloquea una acción del staff** (propuesta:
+permitirlo con un override explícito). `ADD-04`/`ADD-15` es un solo fix: la restauración
+selectiva (el front ya manda `restore_schedules` y el backend lo ignora).
+**Gate:** tests de salidas/actividades/PT + invariantes de dinero.
+
+**K3 · Faltas, no-show y recuperaciones** — `ADD-27`, `ADD-29`, `ADD-05`.
+`ADD-27` implica atar el crédito de recuperación a una falta concreta (enrollment + fecha) en
+actividades y en PT; hoy los dos mecanismos se prueban por separado y nunca juntos, que es
+justo donde aparece el bug. `ADD-29` es que el watermark no avance sobre faltas no cobradas.
+`ADD-05` agrega `duration_minutes` a `ScheduleSlot` (default 60) y actualiza los 4 call sites
+que asumen 1 h.
+**Gate:** `activities/tests_phase_k.py` con los tests combinados `grant → cron` que hoy faltan.
+
+**K4 · Asistencia y horarios** — `ACC-02`, `ACC-03`, `ACC-04`, `ACC-14`, `ACC-16`, `CFG-04`,
+`ACC-10`.
+Primero los S (día cerrado en el path de staff, `409` en "ya entró hoy" + el front que redirige
+igual, cooldown y límite mensual para el staff, la nota en inglés de la cancelación silenciosa),
+después `ACC-14` (aprobar un cambio no puede dejar dos horarios activos ni violar
+`weekly_visits`) y `ACC-02` (campo en `Gym` + migración + los dos paths + la UI de
+Configuración). `ACC-10` se cierra corrigiendo el texto de la UI.
+**Gate:** `attendance/tests_phase_k.py` + `makemigrations --check` limpio.
+
+**K5 · Dinero y socios** — `ACC-23`, `DIN-17`, `ACC-19`.
+`ACC-23`: el coseguro no puede quedar en 0 por un nombre mal escrito (+ backfill). `DIN-17`:
+sacar el fallback `total += plan.price` y migrar las **65 filas** que hoy caen en él (el
+precio histórico no está en la fila: hay que fijar el criterio de `price_snapshot` antes de
+programar). `ACC-19`: constraint en DB + mensaje explícito.
+**Gate:** arnés de la Fase B (I1–I8) verde sin `expectedFailure` + `audit_money_bugs` sin
+"armados" nuevos.
+
+**K6 · Baja lógica de socios** — `ACC-20`.
+`Member.deleted_at` + `DELETE` → 405 + filtros en todos los listados (y "reactivar"). Es la
+sub-fase más invasiva: hay que revisar cada queryset que liste socios (panel, portal,
+selects, reportes).
+**Gate:** tests de baja/reactivación + verificación de que el historial queda intacto.
+
+**K7 · Higiene de frontend y CI** — `REF-05`, `ADD-19`, `ADD-03`.
+`REF-05`: declarar `__BUILD_ID__`/`__APP_VERSION__`/`process` en `eslint.config.js`, arreglar
+la deuda de `react-hooks` v7 hasta dejar el lint en 0, y recién entonces volver `pnpm lint`
+bloqueante en el CI. `ADD-19` expone el PATCH de trainer/horario (feature que el backend ya
+soporta). `ADD-03`: el cambio de horario del portal, atómico o muerto.
+**Gate:** `pnpm lint` en 0 + `pnpm build` + suite completa verde.
+
+**K8 · Cierre y release** — `RELEASE-CHECKLIST.md` final, `BUGS.md` sin 🔴, `PLAN-bugs.md`
+cerrado, merge `development` → `main` (que despliega Render vía `Procfile`) y monitoreo con
+`scripts/monitor.sh`.
+**Gate:** checklist ejecutada de punta a punta en staging + `monitor.sh` verde.
+
+#### Corte mínimo publicable
+
+Si hay que liberar antes de terminar la K entera: **K0 + K1 + K2 + K3 + K5 + K8** (~5 días).
+Deja de perder plata (`ADD-27`, `ADD-28`, `DIN-17`, `ACC-23`), arregla el botón roto del
+portal (`ACC-26`) y cierra el registro. K4, K6 y K7 pueden ir post-release.
+
+**Estimación total:** ~10 días de trabajo efectivo (K6 y K7 son las que más engordan; K7
+parcial = sólo `REF-05`).
+
+---
+
 ## Decisiones de negocio (no se arreglan, se documentan)
 
-Viven en `BUGS.md` → sección "Pendientes". Resumen: prorrateo de recuperación, crédito no
-aplicado al recuperar, precios viejos que no se propagan a socios ya inscriptos, sin
+Viven en `BUGS.md` → sección "Pendientes" (13 filas). Resumen: prorrateo de recuperación, crédito
+no aplicado al recuperar, precios viejos que no se propagan a socios ya inscriptos, sin
 reembolsos, sin pago online, sin recordatorios por email/WhatsApp, `allow_member_schedule_changes`
 legacy, y bloqueo desde día 1 del socio con primer pago pendiente.
+
+**Sumadas en el triaje de la K (2026-10-21):** las salidas en modo sesiones no se ofrecen en el
+portal (`ADD-17`) · desvincular PT no toca los períodos ya generados (`ADD-23`) · quitar la
+cortesía exige elegir un plan de pago (`ACC-22`) · el teléfono sigue siendo único por gimnasio
+(`ACC-19`, con mensaje explícito) · y las 5 decisiones heredadas de `PLAN-dinero.md` (socios
+congelados, deuda de los bloqueados, backfill de snapshot, números unknowable, TaskRun real).
 
 ---
 
@@ -206,3 +346,6 @@ legacy, y bloqueo desde día 1 del socio con primer pago pendiente.
 2. Respetar el orden de fases y el gate de cada una.
 3. Un commit por fase. Al cerrar una fase: actualizar el estado en `BUGS.md` y este plan.
 4. Si un hallazgo resulta ser decisión de negocio, moverlo a "Pendientes" y seguir.
+5. **Fase K:** arrancar por **K0** (sólo `.md`, sin riesgo) y seguir K0 → K1 → … → K8. Cada
+   sub-fase cierra sus IDs en `BUGS.md` y actualiza la tabla de fases de este plan.
+6. El checklist de release vive en **`RELEASE-CHECKLIST.md`** (borrador en K0, se completa en K8).
