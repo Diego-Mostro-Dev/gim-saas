@@ -60,7 +60,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **K0. Saneamiento del registro** | Re-verificar los 11 🟡 que quedaban, corregir las fichas obsoletas, cerrar los no-reproducidos, dar de alta los hallazgos nuevos (ACC-26, ADD-27/28/29) y dejar cada 🔴 con su sub-fase. | `BUGS.md` con 0 🔴 sin sub-fase asignada | ✅ **hecha** (2026-10-21; 11 🟡 re-verificados, 4 fichas nuevas, 5 cerradas sin código, 1 reabierta, 4 fichas obsoletas corregidas, 106 hallazgos = 65 🟢 / 13 ⚪ / 28 🔴, 0 a verificar; borrador de `RELEASE-CHECKLIST.md`) |
 | **K1. Portal del socio** | ACC-26 (el portal no puede dar de baja una inscripción), ADD-06, ADD-18, ADD-24, ADD-25. | Tests de alta/baja del portal + `pnpm build` | ✅ **hecha** (2026-10-21; `DELETE /api/activities/public/<token>/` + 10 tests nuevos; `ReferenceError` del portal y botón "Renovar" duplicado arreglados; el horario reconciliado ahora avisa; 405 tests) |
 | **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ✅ **hecha** (2026-10-21; validador de solape compartido `core/overlap.py`; el ítem de la oferta sobrevive mientras haya otro horario; renovación con saldo impago con override explícito; la reactivación restaura sólo los horarios apagados con la oferta; 449 tests) |
-| **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ⬜ |
+| **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ✅ **hecha** (2026-10-21; la recuperación queda atada a la falta que perdona; el watermark sólo avanza hasta la última falta cobrada; `ScheduleSlot.duration_minutes` con la duración real en los 4 chequeos; 466 tests) |
 | **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ⬜ |
 | **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ⬜ |
 | **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ⬜ |
@@ -192,10 +192,10 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
 release ejecutable.
 
-**Estado al 2026-10-21:** 106 hallazgos — 76 cerrados, 13 decisiones de negocio, **17 abiertos**
+**Estado al 2026-10-21:** 106 hallazgos — 79 cerrados, 13 decisiones de negocio, **14 abiertos**
 (cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
 sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
-fix → gate contra Postgres descartable → CI verde). K0, K1 y K2 están hechas.
+fix → gate contra Postgres descartable → CI verde). K0, K1, K2 y K3 están hechas.
 
 #### Decisiones tomadas (2026-10-21)
 
@@ -285,13 +285,28 @@ problemas) + `makemigrations --check` limpio.
 **Gate:** 449 tests OK contra Postgres 16 descartable + `pnpm build` + `pnpm lint` (88, sin
 errores nuevos) + `makemigrations --check` limpio.
 
-**K3 · Faltas, no-show y recuperaciones** — `ADD-27`, `ADD-29`, `ADD-05`.
-`ADD-27` implica atar el crédito de recuperación a una falta concreta (enrollment + fecha) en
-actividades y en PT; hoy los dos mecanismos se prueban por separado y nunca juntos, que es
-justo donde aparece el bug. `ADD-29` es que el watermark no avance sobre faltas no cobradas.
-`ADD-05` agrega `duration_minutes` a `ScheduleSlot` (default 60) y actualiza los 4 call sites
-que asumen 1 h.
-**Gate:** `activities/tests_phase_k.py` con los tests combinados `grant → cron` que hoy faltan.
+**K3 · Faltas, no-show y recuperaciones** — `ADD-27`, `ADD-29`, `ADD-05` — ✅ **hecha**
+(2026-10-21), en un commit (`1b2acff`).
+- **ADD-27** (una recuperación, una falta): `SessionRecovery` gana `forgiven_date`,
+  `forgiven_enrollment` y `forgiven_assignment`. Al otorgar el recupero queda anotada la falta
+  que perdona, y los créditos ya enlazados dejan de cubrir faltas nuevas; si al otorgarlo no
+  hay ninguna falta registrada, el crédito queda en vuelo y el cron lo enlaza a una falta
+  pendiente. Espejo en PT. Los créditos legados no se pueden backfillear (no se sabe qué falta
+  perdonaron) y siguen como antes.
+  5 tests (3 actividades + 2 PT).
+- **ADD-29** (watermark): `_deduct_activity_enrollment` y `_deduct_pt_assignment` devuelven
+  `(created, last_charged, pending)`; el watermark sólo avanza hasta la última falta cobrada
+  cuando quedan pendientes, así que el rango se vuelve a recorrer y las faltas no se pierden.
+  4 tests (2 actividades + 2 PT).
+- **ADD-05** (duración real del bloque): `ScheduleSlot.duration_minutes` (default 60,
+  migración `attendance/0026`) y la aritmética de horarios en un solo lugar
+  (`backend/core/times.py`). Los 4 call sites que asumían 1 h usan la duración real
+  (inscripción en actividad, alta de socio con agenda, ventana del recupero, validación de
+  onboarding); la API acepta `duration_minutes` (15–480 min) y `Settings.jsx` la muestra y la
+  deja editar. El lado PT ya usaba `start_time`/`end_time` reales.
+  8 tests (3 actividades + 5 API en `attendance/tests_phase_k3.py`).
+**Gate:** 466 tests OK contra Postgres 16 descartable + `pnpm build` + `pnpm lint` (88, sin
+errores nuevos) + `makemigrations --check` limpio.
 
 **K4 · Asistencia y horarios** — `ACC-02`, `ACC-03`, `ACC-04`, `ACC-14`, `ACC-16`, `CFG-04`,
 `ACC-10`.
@@ -331,7 +346,7 @@ cerrado, merge `development` → `main` (que despliega Render vía `Procfile`) y
 #### Corte mínimo publicable
 
 Si hay que liberar antes de terminar la K entera: **K0 + K1 + K2 + K3 + K5 + K8** (~5 días).
-Deja de perder plata (`ADD-27`, `ADD-28`, `DIN-17`, `ACC-23`), arregla el botón roto del
+Deja de perder plata (`ADD-27` 🟢, `ADD-28` 🟢, `DIN-17`, `ACC-23`), arregla el botón roto del
 portal (`ACC-26`) y cierra el registro. K4, K6 y K7 pueden ir post-release.
 
 **Estimación total:** ~10 días de trabajo efectivo (K6 y K7 son las que más engordan; K7

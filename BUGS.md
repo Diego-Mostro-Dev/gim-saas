@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0, K1 y K2 hechas, K3→K8
+Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0, K1, K2 y K3 hechas, K4→K8
 planificadas)**. Total: **106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`. De
-ellos **76 ya están cerrados**, **13 son decisiones de negocio** y quedan **17 abiertos** (cada
+ellos **79 ya están cerrados**, **13 son decisiones de negocio** y quedan **14 abiertos** (cada
 uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -38,12 +38,12 @@ explicación, ejemplo de impacto y criterio de aceptación.
 |---|---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 13 | 3 | 1 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 | 1 |
-| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 21 | 3 | 5 |
+| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 24 | 3 | 2 |
 | Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 14 | 1 | 9 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **51** | **19** | **76** | **13** | **17** |
+| **Total** | **5** | **31** | **51** | **19** | **79** | **13** | **14** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -89,7 +89,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-10 | MEDIO | 🟢 | Huérfanas: idem salidas | Cerrado Fase D: idem actividades |
 | ADD-03 | ALTO | 🔴 | Cambiar de horario puede dejar al socio sin ninguno | Si falla la reinscripción queda sin horario · **K7** (hoy inalcanzable: la Fase D vació la rama) |
 | ADD-04 | MEDIO | 🟢 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Cerrado Fase K2: sólo vuelven los horarios apagados con la oferta |
-| ADD-05 | MEDIO | 🔴 | El choque con el gimnasio se calcula como "hora + 1 h" | Bloques de más de 1 hora pueden no detectarse · **K3** |
+| ADD-05 | MEDIO | 🟢 | El choque con el gimnasio se calcula como "hora + 1 h" | Cerrado Fase K3: `ScheduleSlot.duration_minutes` y los 4 chequeos usan la duración real |
 | ADD-06 | ALTO | 🟢 | El portal rompe al renderizar una actividad desactivada | Cerrado Fase K1: `gym` del outlet context + import de `txt` |
 | ADD-07 | CRÍTICO | 🟢 | El no-show descuenta sesión en fechas sin clase | Cerrado Fase G: watermark clampeado a la creación del horario + se saltean días cerrados (el job nunca descuenta antes de que exista la clase) |
 | ADD-08 | ALTO | 🟢 | Paquete sobre-cobrable fuera de `record_package_payment` | Cerrado: el serializer de pagos unificado valida el tope y resincroniza |
@@ -109,9 +109,9 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-24 | BAJO | 🟢 | El wizard de asignación reconcilia el horario elegido | Cerrado Fase K1: `reconcileSlot` avisa cuando el horario se mueve |
 | ADD-25 | BAJO | 🟢 | Estado `approved` muerto en PT | Cerrado Fase K1: estado fuera de `STATUS_CHOICES` + migración |
 | ADD-26 | MEDIO | 🟢 | PT: reasignar a otro día no se detecta como doble-booking | No se reproduce (K0): la asignación de PT es recurrente semanal; sólo cambia el día de la serie |
-| ADD-27 | MEDIO | 🔴 | Una recuperación de sesión perdona **dos** faltas | El gimnasio entrega sesiones impagas · **K3** (viene de P8, Fase 8 de `PLAN-dinero.md`) |
+| ADD-27 | MEDIO | 🟢 | Una recuperación de sesión perdona **dos** faltas | Cerrado Fase K3: la recuperación queda atada a la falta que perdona (viene de P8, Fase 8 de `PLAN-dinero.md`) |
 | ADD-28 | MEDIO | 🟢 | Darse de baja de un horario corta el cobro de **toda** la oferta | Cerrado Fase K2: el ítem se cancela con la última baja |
-| ADD-29 | BAJO | 🔴 | El watermark avanza sobre faltas que nunca se cobraron | El socio recibe sesiones que no pagó · **K3** (viene de P15) |
+| ADD-29 | BAJO | 🟢 | El watermark avanza sobre faltas que nunca se cobraron | Cerrado Fase K3: el watermark sólo avanza hasta la última falta cobrada (viene de P15) |
 | ACC-01 | CRÍTICO | 🟢 | El cupo se cuenta a sí mismo: "El horario está completo" | Cerrado Fase E: el cupo excluye al propio socio (check-in y alta de staff) |
 | ACC-02 | MEDIO | 🔴 | No hay ventana horaria de check-in | Se puede marcar a las 03:00 · **K4** |
 | ACC-03 | MEDIO | 🔴 | El staff puede marcar asistencia en un día cerrado | `GymClosedDate` no se chequea en el serializer de staff · **K4** |
@@ -393,7 +393,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   arregla junto con `ACC-26` (el front de portal), que es la misma pantalla.
 
 ### ADD-05 · Choque asume bloques de 1 hora
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K3
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K3)
 - **Explicación:** `ScheduleSlot` sólo tiene `day` + `hour` (`backend/attendance/models.py:19-43`,
   sin `duration_minutes`), así que el solape con el gimnasio asume 1 hora.
 - **Dónde:** `backend/activities/overlap.py:29-30, 115-117, 143-145`;
@@ -404,6 +404,19 @@ explicación, ejemplo de impacto y criterio de aceptación.
   romper las filas existentes) y los 4 call sites usan la duración real; o, si el negocio
   confirma que todos los bloques son de 1 h, se documenta la convención y se centraliza en un
   helper.
+- **Resolución Fase K3:** se tomó la primera opción: `ScheduleSlot.duration_minutes` (default
+  60, migración `attendance/0026`) y la aritmética de horarios queda en un solo lugar
+  (`backend/core/times.py`: `add_minutes`/`slot_end`, más `ScheduleSlot.end_time`). Los cuatro
+  call sites usan la duración real: inscripción en actividad (`core/overlap.py:86`), alta de socio
+  con agenda (`activities/overlap.py:93`), ventana del recupero
+  (`attendance/recovery_service.py:118,135` + `attendance/public_views.py:110`) y validación de
+  onboarding (`activities/overlap.py:93`). La API acepta `duration_minutes` (entre 15 y 480
+  minutos) en el alta simple y en la alta por lote, y `Settings.jsx` la muestra y la permite
+  editar. **El lado PT ya usaba `start_time`/`end_time` reales** (`personal_training/overlap.py`),
+  por eso no aparece entre los call sites corregidos.
+- **Tests:** 3 en `backend/activities/tests_phase_k3.py` (choque con bloque de 90 min, no falso
+  positivo con 60 min, validación de onboarding) + 5 en `backend/attendance/tests_phase_k3.py`
+  (API: alta por lote con duración, default, rango inválido, serializer). 5 en rojo sin el fix.
 
 ### ADD-06 · El portal rompe con una actividad desactivada
 - **Severidad:** ALTO · **Estado:** 🟢 (Fase K1) · **Detectado por:** re-verificado en K0 (la
@@ -521,7 +534,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   valida. Endurecerlo queda como mejora menor, no como bug.
 
 ### ADD-27 · Una recuperación de sesión perdona dos faltas
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K3 · **Origen:** P8 de la Fase 8 de
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K3) · **Origen:** P8 de la Fase 8 de
   `PLAN-dinero.md` (nunca triado en este registro).
 - **Explicación:** hay dos mecanismos que no se conocen y ambos usan la clave
   `(member, activity)`:
@@ -545,6 +558,21 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Tests:** hoy los dos mecanismos se prueban por separado
   (`backend/activities/tests_phase_g.py:203,247` y `backend/attendance/tests.py:160`), nunca en
   combinación. Falta el test `grant → cron`.
+- **Resolución Fase K3:** `SessionRecovery` gana `forgiven_date`, `forgiven_enrollment` y
+  `forgiven_assignment` (migración `attendance/0026`). Al otorgar la recuperación
+  (`attendance/recovery_service.py:grant_scheduled`) se anota a qué falta concreta perdona, y los
+  créditos ya enlazados **dejan de contar** para cubrir faltas nuevas
+  (`activities/no_show_service.py:_pending_recovery_credits` filtra
+  `forgiven_date__isnull=True`). Si al otorgarla todavía no hay ninguna falta registrada, el
+  crédito queda "en vuelo" y el cron lo enlaza a una falta pendiente (la más reciente:
+  `_bind_pending_recoveries`). Espejo en PT (`_bind_pending_pt_recoveries`), que antes filtraba
+  por asignación pero no por fecha.
+- **Consecuencia documentada:** los créditos ya existentes **no** se pueden backfillear (no hay
+  forma de saber qué falta perdonaron), así que siguen en vuelo y se comportan como antes hasta
+  que se usen.
+- **Tests:** 3 en `backend/activities/tests_phase_k3.py` (grant → cron no perdona dos faltas, la
+  recuperación queda atada, la falta perdonada no se vuelve a descontar) + 2 en
+  `backend/personal_training/tests_phase_k3.py` (espejo en PT). 5 en rojo sin el fix.
 
 ### ADD-28 · Darse de baja de un horario corta el cobro de toda la oferta
 - **Severidad:** MEDIO · **Estado:** 🟢 (Fase K2) · **Origen:** P10 de la Fase 8 de
@@ -614,7 +642,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   (8, 1 en rojo con el fix).
 
 ### ADD-29 · El watermark avanza sobre faltas que nunca se cobraron
-- **Severidad:** BAJO · **Estado:** 🔴 · **Sub-fase:** K3 · **Origen:** P15 de la Fase 8 de
+- **Severidad:** BAJO · **Estado:** 🟢 (Fase K3) · **Origen:** P15 de la Fase 8 de
   `PLAN-dinero.md` (nunca triado en este registro).
 - **Explicación:** `deduct_missed_activity_enrollments` escribe `no_show_scan_until`
   **incondicionalmente**, aunque `_deduct_activity_enrollment` haya descartado faltas:
@@ -628,6 +656,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
   (`:153-154, 161, 255-256`).
 - **Criterio de aceptación:** el watermark sólo avanza hasta la última fecha efectivamente
   descontada (o la ventana truncada queda marcada como no cobrable sin perderse).
+- **Resolución Fase K3:** `_deduct_activity_enrollment` y `_deduct_pt_assignment` devuelven ahora
+  `(created, last_charged, pending)`: la última falta **cobrada** y si quedaron faltas
+  pendientes. El watermark (`no_show_scan_until`) sólo avanza hasta `last_charged` cuando hay
+  pendientes (paquete agotado o lista truncada por el tope); si no hay pendientes, avanza hasta
+  el fin del rango como antes. Con el paquete agotado no se avanza nada, así que el rango se
+  vuelve a recorrer en la próxima vuelta del cron y las faltas no se pierden. Espejo en PT.
+- **Tests:** 2 en `backend/activities/tests_phase_k3.py` (paquete agotado y lista truncada) + 2
+  en `backend/personal_training/tests_phase_k3.py` (espejo en PT). 4 en rojo sin el fix.
 
 ### ADD-04, ADD-14, ADD-15, ADD-17, ADD-19, ADD-22, ADD-24, ADD-25 — verificados en K0, dos cerrados en K1, cuatro en K2
 Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026-10-21
@@ -1035,8 +1071,8 @@ En este registro quedan como `🟢`: `DIN-01` (P21 y P14), `DIN-02`/`DIN-08`/`DI
 `DIN-03` (P22/P23), `DIN-07` (P12), `ADD-08`/`ADD-13`/`ADD-20`, `ACC-08` (P11), `ACC-24` (fix
 `f27bc67`), `CFG-05`, `CFG-10`, `CFG-11`, `CFG-13`, `RUT-05`, `REF-04`.
 
-De la Fase 8 (`PLAN-dinero.md`): **P8 → `ADD-27`** (abierto, K3) · **P10 → `ADD-28`**
-(abierto, K2) · **P15 → `ADD-29`** (abierto, K3) · **P9 → `ADD-11`** (decisión de negocio) ·
+De la Fase 8 (`PLAN-dinero.md`): **P8 → `ADD-27`** 🟢 (K3) · **P10 → `ADD-28`** 🟢 (K2) ·
+**P15 → `ADD-29`** 🟢 (K3) · **P9 → `ADD-11`** (decisión de negocio) ·
 **P11 → `ACC-08`** 🟢 · **P13 → `DIN-17`** (abierto, K5) · **P14 → `DIN-01`** 🟢 · **P16** 🟢.
 
 ---
