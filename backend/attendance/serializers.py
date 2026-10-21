@@ -195,9 +195,19 @@ class AttendanceScheduleSerializer(MemberIdentityMixin, serializers.ModelSeriali
 class ScheduleSlotSerializer(serializers.ModelSerializer):
     class Meta:
         model = ScheduleSlot
-        fields = ["id", "day", "hour", "capacity", "gym"]
+        fields = ["id", "day", "hour", "duration_minutes", "capacity", "gym"]
         read_only_fields = ["gym"]
         validators = []
+
+    def validate_duration_minutes(self, value):
+        # ADD-05: el bloque del gym tiene duración real. Menos de 15
+        # minutos no es un turno de entrenamiento y más de 8 horas es un
+        # error de carga.
+        if value < 15 or value > 480:
+            raise serializers.ValidationError(
+                "La duración debe estar entre 15 y 480 minutos."
+            )
+        return value
 
     def validate(self, attrs):
         request = self.context.get("request")

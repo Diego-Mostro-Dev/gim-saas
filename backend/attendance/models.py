@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
+from core.times import add_minutes
 from gyms.models import Gym
 from members.models import Member
 
@@ -27,6 +28,15 @@ class ScheduleSlot(models.Model):
     day = models.CharField(max_length=20, choices=DAY_CHOICES, verbose_name="Día")
     hour = models.TimeField(verbose_name="Hora")
 
+    duration_minutes = models.PositiveIntegerField(
+        default=60,
+        verbose_name="Duración (minutos)",
+        help_text=(
+            "Duración del bloque de entrenamiento. Antes se asumían 60 "
+            "minutos y el choque con actividades salía mal (ADD-05, Fase K3)."
+        ),
+    )
+
     capacity = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -40,6 +50,11 @@ class ScheduleSlot(models.Model):
 
     def __str__(self):
         return f"{self.gym.name} - {self.day} - {self.hour}"
+
+    @property
+    def end_time(self):
+        """Fin del bloque: la hora de inicio más la duración real."""
+        return add_minutes(self.hour, self.duration_minutes)
 
 
 class AttendanceSchedule(models.Model):
@@ -387,6 +402,35 @@ class SessionRecovery(models.Model):
         blank=True,
         related_name="session_recoveries",
         verbose_name="Asignación de entrenamiento personal",
+    )
+
+    forgiven_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Falta perdonada",
+        help_text=(
+            "Fecha de la falta que esta recuperación perdona. Mientras siga "
+            "lleno, la recuperación ya cubrió su falta y no cubre otra "
+            "(ADD-27, Fase K3)."
+        ),
+    )
+
+    forgiven_enrollment = models.ForeignKey(
+        "activities.Enrollment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="forgiven_recoveries",
+        verbose_name="Inscripción de la falta perdonada",
+    )
+
+    forgiven_assignment = models.ForeignKey(
+        "personal_training.PersonalTrainingAssignment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="forgiven_recoveries",
+        verbose_name="Asignación de la falta perdonada",
     )
 
     status = models.CharField(

@@ -24,8 +24,7 @@ Reglas:
   (source="recovery") que descuenta 1 sesión del paquete.
 """
 
-from datetime import timedelta
-
+from core.times import slot_end
 from django.db import transaction
 from django.utils import timezone
 
@@ -117,7 +116,7 @@ def _gym_slot_overlaps_activity(slot, member, day):
     for enrollment in conflicting:
         sched = enrollment.schedule
         if _times_overlap(
-            slot.hour, _add_hour(slot.hour),
+            slot.hour, _slot_end(slot),
             sched.start_time, sched.end_time,
         ):
             return True
@@ -134,7 +133,8 @@ def _activity_overlaps_member(member, gym, schedule):
         slot__day=schedule.day,
     ).select_related("slot")
     for gs in gym_schedules:
-        if _times_overlap(gs.slot.hour, _add_hour(gs.slot.hour), start, end):
+        # ADD-05: duración real del bloque del gym.
+        if _times_overlap(gs.slot.hour, _slot_end(gs.slot), start, end):
             return True
 
     others = Enrollment.objects.filter(
@@ -151,9 +151,9 @@ def _activity_overlaps_member(member, gym, schedule):
     return False
 
 
-def _add_hour(t):
-    from datetime import datetime
-    return (datetime.combine(datetime(2000, 1, 1), t) + timedelta(hours=1)).time()
+def _slot_end(slot):
+    """Fin del bloque del gym: hora de inicio + duración real (ADD-05)."""
+    return slot_end(slot)
 
 
 def _times_overlap(start_a, end_a, start_b, end_b):
@@ -576,10 +576,12 @@ def grant_scheduled(gym, member, granted_by=None, kind="training", activity=None
         # "Falta + recuperación" cuesta 1 sesión: se anula la falta
         # no_show más reciente de esa actividad (el recupero descontará 1
         # cuando se use).
-        cancel_recovered_no_show(member, activity)
+        # ADD-27: la recuperación queda atada a esa falta, así no cubre
+        # otra en el próximo barrido del cron.
+        cancel_recovered_no_show(member, activity, recovery)
     elif kind == "pt":
-        # ADD-21: mismo invariante para PT.
-        cancel_recovered_no_show_pt(member, pt_assignment)
+        # ADD-21: mismo invariante para PT. ADD-27: también queda atada.
+        cancel_recovered_no_show_pt(member, pt_assignment, recovery)
 
     return recovery
 

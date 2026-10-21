@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 from core.overlap import (
     CONFLICT_ACTIVITY,
     CONFLICT_GYM_SCHEDULE,
@@ -8,6 +6,7 @@ from core.overlap import (
     SlotConflict,
     check_member_slot,
 )
+from core.times import slot_end
 from gyms.labels import msg
 
 
@@ -91,7 +90,8 @@ def validate_gym_activity_overlap(gym_slots, activity_schedules):
     """
     for slot in gym_slots:
         gym_start = slot.hour
-        gym_end = _add_hour(slot.hour)
+        # ADD-05: duración real del bloque del gym.
+        gym_end = slot_end(slot)
         for schedule in activity_schedules:
             if slot.day != schedule.day:
                 continue
@@ -117,6 +117,3 @@ def _times_overlap(start_a, end_a, start_b, end_b):
     return start_a < end_b and start_b < end_a
 
 
-def _add_hour(t):
-    dt = datetime.combine(datetime.today(), t) + timedelta(hours=1)
-    return dt.time()

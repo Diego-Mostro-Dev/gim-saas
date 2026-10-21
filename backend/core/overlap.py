@@ -13,6 +13,8 @@ pueden personalizar por gym en ``gyms/labels.py``).
 
 from datetime import datetime, timedelta
 
+from core.times import slot_end
+
 CONFLICT_GYM_SCHEDULE = "gym_schedule"
 CONFLICT_ACTIVITY = "activity"
 CONFLICT_OUTING = "outing"
@@ -83,7 +85,8 @@ def _check_gym_schedule(member, day, start_time, end_time):
         if gs.slot.day != day:
             continue
         gym_start = gs.slot.hour
-        gym_end = add_hour(gs.slot.hour)
+        # ADD-05: el bloque del gym tiene duración real, no siempre 1 hora.
+        gym_end = slot_end(gs.slot)
         if times_overlap(gym_start, gym_end, start_time, end_time):
             raise SlotConflict(
                 CONFLICT_GYM_SCHEDULE,
@@ -173,3 +176,4 @@ def times_overlap(start_a, end_a, start_b, end_b):
 def add_hour(t):
     dt = datetime.combine(datetime.today(), t) + timedelta(hours=1)
     return dt.time()
+

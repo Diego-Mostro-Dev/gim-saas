@@ -832,6 +832,20 @@ class ScheduleSlotBulkCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        # ADD-05: la duración real del bloque (60 minutos por defecto).
+        try:
+            duration_minutes = int(data.get("duration_minutes", 60))
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "La duración debe ser un número de minutos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if duration_minutes < 15 or duration_minutes > 480:
+            return Response(
+                {"detail": "La duración debe estar entre 15 y 480 minutos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         existing = set(
             ScheduleSlot.objects.filter(
                 gym=gym,
@@ -849,7 +863,15 @@ class ScheduleSlotBulkCreateView(APIView):
                 if key in existing:
                     skipped.append({"day": day, "hour": slot_time.strftime("%H:%M")})
                 else:
-                    to_create.append(ScheduleSlot(gym=gym, day=day, hour=slot_time, capacity=capacity))
+                    to_create.append(
+                        ScheduleSlot(
+                            gym=gym,
+                            day=day,
+                            hour=slot_time,
+                            capacity=capacity,
+                            duration_minutes=duration_minutes,
+                        )
+                    )
 
         created = ScheduleSlot.objects.bulk_create(to_create)
 
