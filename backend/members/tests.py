@@ -114,6 +114,70 @@ class MemberCreateTests(BaseAPITest):
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("access_token", resp.data[0])
 
+    def test_discount_from_other_gym_is_rejected(self):
+        """REF-06: el validador debe correr sobre `discount_id` (no `discount`).
+
+        El campo se llama `discount_id` con `source="discount"`, así que DRF
+        busca `validate_discount_id`; el método viejo `validate_discount` era
+        código muerto y el descuento de otro gimnasio se aceptaba.
+        """
+        self.client.force_authenticate(user=self.user)
+        plan = self.create_plan(self.gym)
+        other_gym = self.create_gym(name="Otro Gym")
+        foreign_discount = Discount.objects.create(
+            gym=other_gym, name="Ajeno", discount_percent=10
+        )
+
+        resp = self.client.post(
+            "/api/members/",
+            {
+                "first_name": "Ana",
+                "last_name": "Gomez",
+                "phone": "119999",
+                "document_number": "12345670",
+                "date_of_birth": "1990-05-04",
+                "services": json.dumps(["gym"]),
+                "schedules": json.dumps(
+                    [{"day": self.slot.day, "hour": "10:00"}]
+                ),
+                "plan_id": plan.id,
+                "discount_id": foreign_discount.id,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("discount_id", resp.data)
+
+    def test_own_active_discount_is_accepted(self):
+        self.client.force_authenticate(user=self.user)
+        plan = self.create_plan(self.gym)
+        discount = Discount.objects.create(
+            gym=self.gym, name="Amigo", discount_percent=50
+        )
+
+        resp = self.client.post(
+            "/api/members/",
+            {
+                "first_name": "Ana",
+                "last_name": "Gomez",
+                "phone": "118888",
+                "document_number": "12345679",
+                "date_of_birth": "1990-05-04",
+                "services": json.dumps(["gym"]),
+                "schedules": json.dumps(
+                    [{"day": self.slot.day, "hour": "10:00"}]
+                ),
+                "plan_id": plan.id,
+                "discount_id": discount.id,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        member = Member.objects.get(phone="118888")
+        self.assertEqual(member.discount, discount)
+
 
 class IsRecoverableTests(BaseAPITest):
 

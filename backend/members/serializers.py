@@ -325,7 +325,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_discount(self, value):
+    def validate_discount_id(self, value):
         if value is None:
             return value
 
