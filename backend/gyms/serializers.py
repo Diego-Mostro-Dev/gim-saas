@@ -51,6 +51,16 @@ class GymSerializer(serializers.ModelSerializer):
             "min_value": "El cooldown no puede ser negativo.",
         },
     )
+    checkin_window_minutes = serializers.IntegerField(
+        min_value=0,
+        max_value=1440,
+        required=False,
+        error_messages={
+            "invalid": "La ventana de check-in debe ser un número entero de minutos.",
+            "min_value": "La ventana de check-in no puede ser negativa.",
+            "max_value": "La ventana de check-in no puede ser mayor a 1440 minutos.",
+        },
+    )
 
     class Meta:
         model = Gym
@@ -73,6 +83,7 @@ class GymSerializer(serializers.ModelSerializer):
             "payment_due_day",
             "access_block_day",
             "allow_activity_without_membership",
+            "checkin_window_minutes",
             "allow_plan_changes",
             "allow_schedule_changes",
             "schedule_change_cooldown_hours",

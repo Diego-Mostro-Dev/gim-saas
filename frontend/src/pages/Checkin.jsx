@@ -56,6 +56,14 @@ export default function Checkin() {
         skipAuth: true,
       });
 
+      // ACC-04: el backend responde 409 cuando la asistencia ya estaba
+      // registrada. Si aun así llega un 200 con success:false, no se
+      // redirige como si fuera un éxito.
+      if (data?.success === false) {
+        setMessage(data?.message || "No pudimos registrar tu asistencia");
+        return;
+      }
+
       setMessage(data?.message || "Asistencia registrada");
       setRedirecting(true);
       goToPortal(memberToken);
@@ -85,6 +93,9 @@ export default function Checkin() {
         setMessage(
           error?.message || "No podés registrar tu asistencia en este momento."
         );
+      } else if (error?.status === 409) {
+        // ACC-04: la asistencia de hoy ya estaba registrada.
+        setMessage(error?.message || "Ya registraste asistencia hoy");
       } else {
         setMessage(error?.message || "No pudimos registrar tu asistencia");
       }

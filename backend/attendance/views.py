@@ -939,8 +939,42 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
 
                 if new_status == "executed":
-                    current_schedule = instance.current_schedule
+                    current_schedule = AttendanceSchedule.objects.select_for_update().get(
+                        pk=instance.current_schedule_id
+                    )
                     requested_slot = instance.requested_slot
+
+                    # ACC-14: al aprobar hay que re-verificar que el horario
+                    # viejo siga activo. Si el staff editó a mano la ficha del
+                    # socio con el pedido pendiente, aprobar dejaba al socio
+                    # con dos horarios activos.
+                    if not current_schedule.active:
+                        return Response(
+                            {
+                                "detail": (
+                                    "El horario del socio cambió desde que se hizo el "
+                                    "pedido: el socio tiene que volver a pedirlo."
+                                )
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # ...y que el socio no quede con más horarios de los que
+                    # permite su plan (el pedido reemplaza uno por otro).
+                    active_schedules = list(
+                        AttendanceSchedule.objects.select_for_update().filter(
+                            member=instance.member, active=True
+                        ).select_related("slot")
+                    )
+                    requested_already_active = any(
+                        s.slot_id == requested_slot.id for s in active_schedules
+                    )
+                    target_count = len(active_schedules) - 1 + (
+                        0 if requested_already_active else 1
+                    )
+                    ScheduleDomain.enforce_weekly_visits(
+                        member=instance.member, target_count=target_count
+                    )
 
                     current_schedule.active = False
                     current_schedule.save(update_fields=["active"])

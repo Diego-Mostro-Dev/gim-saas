@@ -391,7 +391,14 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                     reviewed_at=now_value,
                 )
 
-            self._cancel_pending_schedule_requests(instance.member, instance.gym)
+            # ACC-16: sólo el cambio de plan **aprobado** deja obsoletos
+            # los pedidos de horario e intercambio del socio. Al rechazar o
+            # cancelar el cambio de plan, los pedidos siguen siendo válidos
+            # y se cancelaban sin motivo (y con una nota en inglés).
+            if new_status == "approved":
+                self._cancel_pending_schedule_requests(
+                    instance.member, instance.gym
+                )
 
         return Response(PlanChangeRequestSerializer(instance).data)
 
@@ -462,10 +469,17 @@ class PlanChangeRequestViewSet(GymModelViewSet):
                 )
 
     def _cancel_pending_schedule_requests(self, member, gym):
+        """Cancela los pedidos de horario/intercambio del socio.
+
+        La nota es lo único que el socio ve en el portal, así que va en
+        español y explica por qué se canceló (ACC-16).
+        """
+        note = "Se canceló porque se aprobó tu cambio de plan."
+
         ScheduleChangeRequest.objects.filter(
             member=member, gym=gym, status="pending"
-        ).update(status="cancelled_by_staff", reviewed_at=now(), admin_notes="Cancelled due to plan change approval")
+        ).update(status="cancelled_by_staff", reviewed_at=now(), admin_notes=note)
 
         ScheduleSwapRequest.objects.filter(
             member=member, gym=gym, status="pending"
-        ).update(status="cancelled", reviewed_at=now(), admin_notes="Cancelled due to plan change approval")
+        ).update(status="cancelled", reviewed_at=now(), admin_notes=note)

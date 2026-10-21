@@ -371,6 +371,91 @@ def get_swap_usage_metrics(gym, start_date, end_date):
     return stats
 
 
+def checkin_window_bounds(slot, window_minutes):
+    """Ventana de check-in de un bloque: de (inicio - ventana) a su fin.
+
+    El socio puede llegar antes (dentro de la ventana que fija el gym) y
+    marcar asistencia hasta que termina su bloque. El fin del bloque usa la
+    duración real (ADD-05), no 60 minutos fijos.
+    """
+    from core.times import add_minutes, slot_end
+
+    start = add_minutes(slot.hour, -window_minutes)
+    return start, slot_end(slot)
+
+
+def within_checkin_window(gym, slots, when):
+    """¿La hora `when` cae dentro de la ventana de check-in del gimnasio?
+
+    Sin ventana configurada (0) no se filtra nada: es el default para no
+    romper los gimnasios ya instalados. Con ventana, basta con que la hora
+    entre por alguno de los bloques del socio.
+    """
+    window = getattr(gym, "checkin_window_minutes", 0) or 0
+    if not window:
+        return True
+
+    for slot in slots:
+        if slot is None:
+            continue
+        start, end = checkin_window_bounds(slot, window)
+        if start <= when <= end:
+            return True
+
+    return False
+
+
+def checkin_window_message(gym, slots):
+    """Mensaje de error para un check-in fuera de la ventana."""
+    window = gym.checkin_window_minutes or 0
+    hours = f"{window // 60} h" if window >= 60 else f"{window} min"
+    return (
+        f"Fuera del horario de check-in: sólo se puede marcar asistencia "
+        f"desde {hours} antes de tu bloque hasta el final de él."
+    )
+
+
+def check_schedule_change_limits(gym, member, *, for_staff=False):
+    """Valida el cooldown y el máximo mensual de cambios de horario.
+
+    Devuelve el mensaje de error o ``None`` si el socio puede pedir el
+    cambio. El path público y el de staff usan **la misma** regla: el de
+    staff se saltaba los dos límites (CFG-04).
+    """
+    cooldown_hours = gym.schedule_change_cooldown_hours
+    latest = ScheduleChangeRequest.objects.filter(
+        member=member,
+        status__in=["pending", "approved", "executed"],
+    ).order_by("-requested_at").first()
+    if latest:
+        elapsed = (timezone.now() - latest.requested_at).total_seconds()
+        if elapsed < cooldown_hours * 3600:
+            remaining_hours = int((cooldown_hours * 3600 - elapsed) / 3600)
+            if for_staff:
+                return (
+                    f"El socio tiene un cambio de horario reciente: todavía "
+                    f"faltan {remaining_hours} hora(s) de espera "
+                    f"(cooldown del gimnasio)."
+                )
+            return f"Debes esperar {remaining_hours} hora(s) antes de solicitar otro cambio."
+
+    if (
+        count_schedule_changes_used_this_month(member)
+        >= gym.max_schedule_changes_per_month
+    ):
+        if for_staff:
+            return (
+                f"El socio alcanzó el límite de "
+                f"{gym.max_schedule_changes_per_month} cambios de horario este mes."
+            )
+        return (
+            f"Has alcanzado el límite de "
+            f"{gym.max_schedule_changes_per_month} cambios de horario este mes."
+        )
+
+    return None
+
+
 def count_schedule_changes_used_this_month(member):
     """Total schedule change requests consumed by a member this calendar month.
 
