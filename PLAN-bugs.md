@@ -58,7 +58,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **I. Comunidad** | `COM-01` a `COM-06`: soft delete, duplicados, `discount` sin validar, socio inactivo en el endpoint público, tests. | `community` con tests + auditoría | ✅ **hecha** (2026-10-20; 15 tests en `community/tests.py` + `AUDITORIA-COMUNIDAD.md`; COM-01/COM-02 quedan como decisiones de negocio; COM-06 re-verificado 🟢) |
 | **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ✅ **hecha** (2026-10-20; REF-01/02/03/06 cerrados + REF-07 (N+1), REF-08 (admin sin scope) y REF-09 (500 sin FRONTEND_URL, destapado por CI) nuevos y cerrados; REF-05 queda ⚪ (lint de frontend con deuda preexistente); CI corre todas las apps + job de build de frontend; gate 395 tests) |
 | **K0. Saneamiento del registro** | Re-verificar los 11 🟡 que quedaban, corregir las fichas obsoletas, cerrar los no-reproducidos, dar de alta los hallazgos nuevos (ACC-26, ADD-27/28/29) y dejar cada 🔴 con su sub-fase. | `BUGS.md` con 0 🔴 sin sub-fase asignada | ✅ **hecha** (2026-10-21; 11 🟡 re-verificados, 4 fichas nuevas, 5 cerradas sin código, 1 reabierta, 4 fichas obsoletas corregidas, 106 hallazgos = 65 🟢 / 13 ⚪ / 28 🔴, 0 a verificar; borrador de `RELEASE-CHECKLIST.md`) |
-| **K1. Portal del socio** | ACC-26 (el portal no puede dar de baja una inscripción), ADD-06, ADD-18, ADD-24, ADD-25. | Tests de alta/baja del portal + `pnpm build` | ⬜ |
+| **K1. Portal del socio** | ACC-26 (el portal no puede dar de baja una inscripción), ADD-06, ADD-18, ADD-24, ADD-25. | Tests de alta/baja del portal + `pnpm build` | ✅ **hecha** (2026-10-21; `DELETE /api/activities/public/<token>/` + 10 tests nuevos; `ReferenceError` del portal y botón "Renovar" duplicado arreglados; el horario reconciliado ahora avisa; 405 tests) |
 | **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ⬜ |
 | **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ⬜ |
 | **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ⬜ |
@@ -192,7 +192,7 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
 release ejecutable.
 
-**Estado al 2026-10-21:** 106 hallazgos — 65 cerrados, 13 decisiones de negocio, **28 abiertos**
+**Estado al 2026-10-21:** 106 hallazgos — 70 cerrados, 13 decisiones de negocio, **23 abiertos**
 (cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
 sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
 fix → gate contra Postgres descartable → CI verde).
@@ -242,11 +242,19 @@ Corrigió las fichas obsoletas, cerró los no-reproducidos, dio de alta
 filas 🔴 sin sub-fase asignada y tabla/fichas coherentes (verificado con un script sobre la
 tabla maestra).
 
-**K1 · Portal del socio** — `ACC-26`, `ADD-06`, `ADD-18`, `ADD-24`, `ADD-25`.
-`ACC-26` es el más visible: hay que crear el endpoint público de baja (hoy no existe) y apuntar
-el servicio del front. `ADD-06` son dos líneas (`txt` importado + `useGym()`) que eliminan un
-`ReferenceError` latente que tumba **todo** el portal de actividades.
-**Gate:** test de API de alta/baja desde el portal + `pnpm build` + lint sin errores nuevos.
+**K1 · Portal del socio** — `ACC-26`, `ADD-06`, `ADD-18`, `ADD-24`, `ADD-25` — ✅ **hecha**
+(2026-10-21).
+- **ACC-26**: `DELETE /api/activities/public/<token>/` con `schedule_id` en el body. No exige
+  `can_operate` (darse de baja no se penaliza) y no exige horario activo. 403 para
+  `billing_mode="sessions"`. 10 tests en `backend/activities/tests_phase_k.py`.
+- **ADD-06**: el gym del portal sale del **outlet context**, no de `useGym()` (que es el del
+  staff). Se importa `txt` y se borra un import muerto.
+- **ADD-18**: un solo botón "Renovar" (condición `isPackage`): el backend sí renueva los
+  paquetes de cortesía a precio 0.
+- **ADD-24**: `reconcileSlot` devuelve `changed` y los 4 llamados avisan con un toast.
+- **ADD-25**: el estado `approved` de PT sale de `STATUS_CHOICES` (migración `0003`).
+**Gate:** 405 tests OK contra Postgres 16 descartable + `pnpm build` + `pnpm lint` (91 → 88
+problemas) + `makemigrations --check` limpio.
 
 **K2 · Add-ons: solapes, renovaciones y bajas** — `ADD-16`, `ADD-28`, `ADD-14`, `ADD-22`,
 `ADD-04`, `ADD-15`.

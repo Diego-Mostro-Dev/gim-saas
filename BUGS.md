@@ -1,10 +1,10 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0 hecha, K1→K8 planificadas)**. Total:
-**106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`. De ellos **65 ya están
-cerrados**, **13 son decisiones de negocio** y quedan **28 abiertos** (cada uno con la
-sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con explicación,
-ejemplo de impacto y criterio de aceptación.
+Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0 y K1 hechas, K2→K8
+planificadas)**. Total: **106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`. De
+ellos **70 ya están cerrados**, **13 son decisiones de negocio** y quedan **23 abiertos** (cada
+uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
+explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
 > manual descriptivo ("cómo funciona hoy"); esto es "qué está mal y qué hacemos".
@@ -38,12 +38,12 @@ ejemplo de impacto y criterio de aceptación.
 |---|---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 13 | 3 | 1 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 | 1 |
-| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 11 | 3 | 15 |
-| Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 13 | 1 | 10 |
+| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 14 | 3 | 12 |
+| Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 14 | 1 | 9 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **51** | **19** | **65** | **13** | **28** |
+| **Total** | **5** | **31** | **51** | **19** | **70** | **13** | **23** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -90,7 +90,7 @@ ejemplo de impacto y criterio de aceptación.
 | ADD-03 | ALTO | 🔴 | Cambiar de horario puede dejar al socio sin ninguno | Si falla la reinscripción queda sin horario · **K7** (hoy inalcanzable: la Fase D vació la rama) |
 | ADD-04 | MEDIO | 🔴 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Reactiva horarios que el staff había apagado · **K2** |
 | ADD-05 | MEDIO | 🔴 | El choque con el gimnasio se calcula como "hora + 1 h" | Bloques de más de 1 hora pueden no detectarse · **K3** |
-| ADD-06 | ALTO | 🔴 | El portal rompe al renderizar una actividad desactivada | La re-verificación de Fase E fue incorrecta: el `ReferenceError` sigue en `MemberActivities.jsx:338` (rama muerta) · **K1** |
+| ADD-06 | ALTO | 🟢 | El portal rompe al renderizar una actividad desactivada | Cerrado Fase K1: `gym` del outlet context + import de `txt` |
 | ADD-07 | CRÍTICO | 🟢 | El no-show descuenta sesión en fechas sin clase | Cerrado Fase G: watermark clampeado a la creación del horario + se saltean días cerrados (el job nunca descuenta antes de que exista la clase) |
 | ADD-08 | ALTO | 🟢 | Paquete sobre-cobrable fuera de `record_package_payment` | Cerrado: el serializer de pagos unificado valida el tope y resincroniza |
 | ADD-11 | ALTO | ⚪ | Faltar a una salida no descuenta sesión | **Decisión de negocio (Fase G):** las salidas no tienen no-show ni recuperación; faltar no descuenta. Se documenta, no se implementa. |
@@ -100,14 +100,14 @@ ejemplo de impacto y criterio de aceptación.
 | ADD-15 | BAJO | 🔴 | "Reactivar" revive todos los horarios (engañoso) | UX · **K2** |
 | ADD-16 | ALTO | 🔴 | Las salidas no validan choque con gimnasio/actividades/PT | El socio queda anotado en dos cosas a la misma hora · **K2** |
 | ADD-17 | MEDIO | ⚪ | El portal no ofrece salidas en modo sesiones | Decisión de negocio (K0): la salida en modo sesiones requiere inscripción del staff |
-| ADD-18 | BAJO | 🔴 | Botón "Renovar" duplicado | Cosmético · **K1** |
+| ADD-18 | BAJO | 🟢 | Botón "Renovar" duplicado | Cerrado Fase K1: queda un solo botón |
 | ADD-19 | BAJO | 🔴 | El PATCH directo de trainer/horario no está en la UI | Feature no alcanzable · **K7** |
 | ADD-20 | MEDIO | 🟢 | `record_payment` de PT sin usar / desincroniza `amount_paid` | Cerrado: `RecoverMembers.jsx` lo usa y todo Payment resincroniza |
 | ADD-21 | ALTO | 🟢 | En PT las faltas agotan el paquete sin recuperación | Cerrado Fase G: `SessionRecovery.kind="pt"` con FK a la asignación; la falta cancelada se repone (mismo invariante que actividades) |
 | ADD-22 | MEDIO | 🔴 | Renovación de PT bloqueada por saldo impago | Bloquea una acción de staff · **K2** |
 | ADD-23 | MEDIO | ⚪ | Desvincular PT no toca los períodos ya generados | Decisión de negocio (K0): inmutabilidad de los períodos ya generados |
-| ADD-24 | BAJO | 🔴 | El wizard de asignación reconcilia el horario elegido | Puede no ser el que el staff esperaba · **K1** |
-| ADD-25 | BAJO | 🔴 | Estado `approved` muerto en PT | Código latente · **K1** |
+| ADD-24 | BAJO | 🟢 | El wizard de asignación reconcilia el horario elegido | Cerrado Fase K1: `reconcileSlot` avisa cuando el horario se mueve |
+| ADD-25 | BAJO | 🟢 | Estado `approved` muerto en PT | Cerrado Fase K1: estado fuera de `STATUS_CHOICES` + migración |
 | ADD-26 | MEDIO | 🟢 | PT: reasignar a otro día no se detecta como doble-booking | No se reproduce (K0): la asignación de PT es recurrente semanal; sólo cambia el día de la serie |
 | ADD-27 | MEDIO | 🔴 | Una recuperación de sesión perdona **dos** faltas | El gimnasio entrega sesiones impagas · **K3** (viene de P8, Fase 8 de `PLAN-dinero.md`) |
 | ADD-28 | MEDIO | 🔴 | Darse de baja de un horario corta el cobro de **toda** la oferta | Pérdida de facturación recurrente · **K2** (viene de P10; regresión de la Fase D) |
@@ -135,7 +135,7 @@ ejemplo de impacto y criterio de aceptación.
 | ACC-23 | ALTO | 🔴 | Obra social sin match → texto libre sin precio | No se cobra el coseguro; el gimnasio pierde plata · **K5** |
 | ACC-24 | ALTO | 🟢 | 500 al pedir cambio de horario de PT | Cerrado `f27bc67` (bug real no documentado en ninguna auditoría) |
 | ACC-25 | ALTO | 🟢 | Login con contraseña incorrecta → 500 y Axes no registra el intento | Cerrado Fase E: `authenticate(request=...)`; responde 400 y Axes registra el `AccessAttempt` |
-| ACC-26 | ALTO | 🔴 | El portal no puede dar de baja una inscripción de actividad | "Cancelar inscripción" llama al endpoint de **alta** y siempre responde 409 · **K1** |
+| ACC-26 | ALTO | 🟢 | El portal no puede dar de baja una inscripción de actividad | Cerrado Fase K1: `DELETE /api/activities/public/<token>/` (baja pública) + front |
 | RUT-01 | ALTO | 🟢 | Sin control de rol en rutinas | Cerrado Fase H: `require_routine_manager` (owner/staff/professor); el trainer recibe 403 |
 | RUT-02 | MEDIO | 🟢 | Asignación con hard DELETE | Cerrado Fase H: `RoutineAssignment.delete()` es soft delete (`active=False`) y el ViewSet no expone DELETE (405) |
 | RUT-03 | MEDIO | 🟢 | Sin unicidad de rutina activa; bulk-assign no atómico | Cerrado Fase H: índice único parcial `(gym, member) WHERE active=True` + `bulk-assign` en `transaction.atomic()` |
@@ -406,17 +406,22 @@ ejemplo de impacto y criterio de aceptación.
   helper.
 
 ### ADD-06 · El portal rompe con una actividad desactivada
-- **Severidad:** ALTO · **Estado:** 🔴 (K0: la re-verificación de Fase E fue incorrecta) · **Sub-fase:** K1.
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase K1) · **Detectado por:** re-verificado en K0 (la
+  re-verificación de Fase E había sido incorrecta).
 - **Explicación:** en `frontend/src/pages/MemberActivities.jsx:338` se llama a
-  `txt(gym, "portal.suspended_activity")`, pero **`txt` no está importado** y **`gym` no está
-  en scope** (el componente no usa `useGym()`). Es un `ReferenceError` en render: tumba todo el
-  portal de actividades (lo agarra el `ErrorBoundary` raíz), no sólo una tarjeta.
+  `txt(gym, "portal.suspended_activity")`, pero **`txt` no estaba importado** y **`gym` no
+  estaba en scope**. Es un `ReferenceError` en render: tumba todo el portal de actividades (lo
+  agarra el `ErrorBoundary` raíz), no sólo una tarjeta.
 - **Por qué se creyó cerrado:** la Fase D filtró los huérfanos en el backend
   (`activities/public_views.py:30-39`), con lo que la rama quedó muerta y el bug invisible.
   El commit `5a87ad3` (Fase E) afirmó la re-verificación pero **no tocó `MemberActivities.jsx`**.
-- **Dónde:** `frontend/src/pages/MemberActivities.jsx:338`.
-- **Criterio de aceptación:** la rama renderiza sin `ReferenceError` (importar `txt` y usar
-  `useGym()`), aunque hoy sea inalcanzable.
+- **Resolución Fase K1:** `gym` sale del **outlet context** del portal
+  (`const { token, gym, isOperativeBlocked } = useOutletContext()`), igual que
+  `MemberPersonalTraining.jsx` — **no** de `useGym()`, que es el hook del gym del *staff*
+  (`/api/gyms/me/`). Se importa `txt` de `../utils/labels` y se borra el import muerto de
+  `unenrollMemberFromActivity` (que el lint marcaba).
+- **Dónde:** `frontend/src/pages/MemberActivities.jsx:22` (destructure) y `:9` (import).
+- **Criterio de aceptación:** ✅ la rama renderiza sin `ReferenceError`.
 
 ### ADD-07 · El no-show descuenta en fechas sin clase
 - **Severidad:** CRÍTICO · **Estado:** 🟢
@@ -459,7 +464,13 @@ ejemplo de impacto y criterio de aceptación.
   `backend/outings/enrollment_request_service.py:18-48` (tampoco valida).
 
 ### ADD-18 · Botón "Renovar" duplicado
-- **Severidad:** BAJO · **Estado:** 🔴 · **Sub-fase:** K1 · **Dónde:** `frontend/src/pages/PersonalTrainingSettings.jsx:710-727` (dos render de "Renovar" en la misma celda: `:710-718` y `:719-727`).
+- **Severidad:** BAJO · **Estado:** 🟢 (Fase K1) · **Dónde:** `frontend/src/pages/PersonalTrainingSettings.jsx:710-727` (dos render de "Renovar" en la misma celda: `:710-718` y `:719-727`).
+- **Resolución Fase K1:** queda **un solo** botón "Renovar", con la condición más amplia
+  (`isPackage`). El duplicado con `!assignment.is_comp` había reemplazado al botón "Cobrar" en
+  `df382ae` (unificación de pagos) y el otro quedó de la creación del archivo. Se conserva la
+  condición amplia porque el backend **sí** renueva los paquetes de cortesía a precio 0
+  (`SessionService.renew_package` pone `session_price=0` para `is_comp`): excluir al socio de
+  cortesía le quitaba una capacidad que el backend soporta.
 
 ### ADD-21 · En PT las faltas agotan el paquete
 - **Severidad:** ALTO · **Estado:** 🟢
@@ -553,7 +564,7 @@ ejemplo de impacto y criterio de aceptación.
 - **Criterio de aceptación:** el watermark sólo avanza hasta la última fecha efectivamente
   descontada (o la ventana truncada queda marcada como no cobrable sin perderse).
 
-### ADD-04, ADD-14, ADD-15, ADD-17, ADD-19, ADD-22, ADD-24, ADD-25 — verificados en K0
+### ADD-04, ADD-14, ADD-15, ADD-17, ADD-19, ADD-22, ADD-24, ADD-25 — verificados en K0, dos cerrados en K1
 Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026-10-21
 (lectura de código + runtime en BD descartable):
 
@@ -565,8 +576,8 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
 | ADD-17 | ⚪ decisión | `backend/outings/public_views.py:180` excluye `billing_mode="sessions"` del portal: la salida en modo sesiones requiere inscripción del staff. Comportamiento previsto (`AUDITORIA-SALIDAS.md:273-274`). | — |
 | ADD-19 | 🔴 vivo | `frontend/src/services/personalTraining.service.js:57-63` define `updatePersonalTrainingAssignment` pero **nadie lo llama**: el backend sí soporta el cambio (`backend/personal_training/serializers.py:349-362`). | K7 |
 | ADD-22 | 🔴 vivo | `backend/personal_training/session_service.py:85-93`: renovar PT con saldo impago → **400**. Mismo criterio que ADD-14. | K2 |
-| ADD-24 | 🔴 vivo | `frontend/src/utils/ptAvailability.js:65-72` (`reconcileSlot`) elige el primer slot libre sin avisar; se usa en el wizard, en el cambio de día y en el portal del socio. | K1 |
-| ADD-25 | 🔴 vivo | `backend/personal_training/models.py:344` declara el estado `approved`, pero el flujo escribe `executed` (`backend/personal_training/change_request_service.py:132`): código muerto. | K1 |
+| ADD-24 | 🟢 vivo (K1) | `frontend/src/utils/ptAvailability.js:65-72` (`reconcileSlot`) elegía el primer slot libre sin avisar. **Cerrado en K1**: `reconcileSlot` devuelve `changed` y los 4 llamados (wizard, cambio de día y portal) avisan con un toast. | — |
+| ADD-25 | 🟢 vivo (K1) | `backend/personal_training/models.py:344` declaraba el estado `approved`, pero el flujo escribe `executed` (`backend/personal_training/change_request_service.py:132`). **Cerrado en K1**: estado fuera de `STATUS_CHOICES` + migración `personal_training/0003`. | — |
 
 ---
 
@@ -672,8 +683,8 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
 - **Criterio de aceptación:** el coseguro no puede quedar en 0 por un nombre mal escrito (400
   con la lista de obras sociales, o enlace explícito) + backfill de las filas existentes.
 
-### ACC-26 · El portal no puede dar de baja una inscripción de actividad
-- **Severidad:** ALTO · **Estado:** 🔴 · **Sub-fase:** K1 · **Detectado por:** K0 (revisión del
+### ACC-26 · El portal no puede darse de baja de una inscripción de actividad
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase K1) · **Detectado por:** K0 (revisión del
   front contra las rutas del backend; no estaba en ninguna auditoría).
 - **Explicación:** el botón "Cancelar inscripción" del portal del socio
   (`frontend/src/pages/MemberActivities.jsx:231,357-359`) llama a
@@ -687,11 +698,20 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
 - **Regresión:** `664737a` (2026-09-02) cambió el POST de *baja* a *alta* sin actualizar el
   front (último toque: `6edbeec`, 2026-07-03). Salidas y PT sí tienen su `DELETE` público
   (`outings/public_views.py:134`, `personal_training/public_views.py:157`).
-- **Dónde:** `frontend/src/services/activitiesPublic.service.js:7-12`,
-  `frontend/src/hooks/useMemberActivities.js:34`, `backend/activities/urls.py:52-66`,
-  `backend/activities/public_views.py:44-85`.
-- **Criterio de aceptación:** existe un endpoint público de baja y el botón del portal da de
-  baja la inscripción y refresca la lista.
+- **Resolución Fase K1:** `DELETE /api/activities/public/<token>/` con `schedule_id` en el body
+  (`PublicMemberEnrollmentsView.delete`, `backend/activities/public_views.py:88-138`). Valida
+  que el horario sea del gym, usa `EnrollmentService.unenroll_member` (cancela el ítem de la
+  actividad en la suscripción y resincroniza el saldo) y devuelve la inscripción dada de baja.
+  A diferencia del alta **no exige `can_operate`** (darse de baja nunca está penalizado;
+  decisión 2026-10-21) y **no** exige que el horario esté activo (si el gym desactivó la
+  actividad, el socio igual tiene que poder salir). 403 para `billing_mode="sessions"`
+  (mismo criterio que el alta: las maneja el staff). El front pasó a `DELETE`
+  (`frontend/src/services/activitiesPublic.service.js:7-12`).
+- **Tests:** `backend/activities/tests_phase_k.py` (10 tests: baja, lista del portal, ítem de
+  la suscripción, 400 sin `schedule_id`, 404 de otro gym, 404 sin inscripción, 404 de token
+  inexistente, 403 de sesiones, baja con el socio bloqueado, baja con el horario desactivado).
+- **Criterio de aceptación:** ✅ el botón del portal da de baja la inscripción y refresca la
+  lista.
 
 ### ACC-02, ACC-03, ACC-04, ACC-14, ACC-16 — verificados en K0
 Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredicto del 2026-10-21:
@@ -964,10 +984,10 @@ Postgres 16 descartable en `/tmp`.
 
 | Gate | Estado |
 |---|---|
-| Suite completa (`manage.py test` de las 17 apps) | 🟢 395 tests OK (Fase J) |
+| Suite completa (`manage.py test` de las 17 apps) | 🟢 405 tests OK (Fase K1) |
 | `makemigrations --check --dry-run` | 🟢 sin cambios pendientes |
 | `pnpm build` (frontend) | 🟢 verde |
-| `pnpm lint` (frontend) | 🔴 **91 problemas (71 errores, 20 warnings)** → `REF-05`, a cerrar en K7 |
+| `pnpm lint` (frontend) | 🔴 **88 problemas (68 errores, 20 warnings)** → `REF-05`, a cerrar en K7 |
 | `audit_money_bugs` | 🟢 sin "armados" nuevos |
 | Migraciones pendientes | 🟢 ninguna |
 
