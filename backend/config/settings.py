@@ -190,7 +190,11 @@ MIDDLEWARE = [
 # CORS
 # =========================
 
-FRONTEND_URL = os.getenv("FRONTEND_URL")
+# Vacío si no está configurada: los constructores de URLs (Gym.get_onboarding_url,
+# get_public_register_url, admin, vista pública) concatenan este valor, así que un
+# None los haría explotar con TypeError. Con "" se genera una URL relativa en vez
+# de un 500, y el bloque de CORS de abajo sigue tomando la rama de fallback.
+FRONTEND_URL = os.getenv("FRONTEND_URL") or ""
 
 CORS_ALLOWED_ORIGINS_ENV = os.getenv("CORS_ALLOWED_ORIGINS")
 if CORS_ALLOWED_ORIGINS_ENV:

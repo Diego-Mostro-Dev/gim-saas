@@ -1,7 +1,7 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-20** — Fases A a J hechas. Total: **101 hallazgos** — 5 `CRÍTICO`,
-29 `ALTO`, 49 `MEDIO`, 18 `BAJO`. De ellos **62 ya están cerrados**, **11 son decisiones de
+Estado: **2026-10-20** — Fases A a J hechas. Total: **102 hallazgos** — 5 `CRÍTICO`,
+30 `ALTO`, 49 `MEDIO`, 18 `BAJO`. De ellos **63 ya están cerrados**, **11 son decisiones de
 negocio** y quedan **17 abiertos** + 11 a verificar (los 🟡). Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -40,8 +40,8 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Acceso/portal (`ACC`) | 1 | 11 | 11 | 0 | 12 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 5 | 2 |
-| Robustez/CI (`REF`) | 0 | 0 | 5 | 3 | 7 | 1 |
-| **Total** | **5** | **29** | **49** | **18** | **62** | **11** |
+| Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 1 |
+| **Total** | **5** | **30** | **49** | **18** | **63** | **11** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -153,6 +153,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | REF-06 | BAJO | 🟢 | `validate_discount` es código muerto | Cerrado Fase J: renombrado a `validate_discount_id`; el descuento de otro gimnasio ahora da 400 |
 | REF-07 | MEDIO | 🟢 | N+1 en listados de asistencia y suscripciones | Detectado y cerrado Fase J: prefetch de suscripciones del socio, y `select_related` en recuperaciones/cambios/items; tests con `assertNumQueries` |
 | REF-08 | MEDIO | 🟢 | Admin sin scope de gimnasio (fuga de datos) | Detectado y cerrado Fase J: `GymScopedAdminMixin` en todos los admins de modelos que cuelgan del gimnasio; tests en `core/tests_admin_scoping.py` |
+| REF-09 | ALTO | 🟢 | Sin `FRONTEND_URL` los constructores de URLs dan 500 | Detectado por CI (Fase J): `settings.FRONTEND_URL` era `None` y `None + str` → `TypeError` en `Gym.get_onboarding_url`/`get_public_register_url`, admin y `GymSeoView`; ya no corre en el CI sólo porque faltaba la variable. Cerrado: default `""` + guardas en los call sites; tests `FrontendUrlMissingTests` |
 
 ---
 
@@ -681,6 +682,13 @@ Detalle en `AUDITORIA-MIEMBROS.md §9`.
   veía filas de otros gimnasios (`gyms`, `subscriptions`, `plans`, `attendance`, `routines`,
   `community`, `profiles`). `core.admin.GymScopedAdminMixin` acota el queryset; tests en
   `core/tests_admin_scoping.py`.
+- **REF-09 · Sin `FRONTEND_URL` los constructores de URLs dan 500** 🟢 (Fase J, nuevo) — el CI
+  destapó 14 errores al sumar `gyms`/`admins`: `settings.FRONTEND_URL` era `None` (la variable
+  no existe en CI) y `None + str` rompía `Gym.get_onboarding_url`/`get_public_register_url`,
+  `GymAdmin.public_register_link` y `GymSeoView`. No era sólo un problema de tests: cualquier
+  deploy sin `FRONTEND_URL` daba 500 en el alta de gimnasio y en la vista SEO pública. Cerrado:
+  default `""` en `settings.py` + guardas `(settings.FRONTEND_URL or "")` en los cuatro call
+  sites; tests `gyms.tests.FrontendUrlMissingTests`.
 
 ---
 
