@@ -716,15 +716,6 @@ function AssignmentCard({ assignment, onChanged }) {
               Renovar
             </button>
           )}
-          {isPackage && !assignment.is_comp && (
-            <button
-              onClick={() => setAction("renew")}
-              disabled={busy}
-              className="rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-surface-hover disabled:opacity-50"
-            >
-              Renovar
-            </button>
-          )}
           {assignment.active && (
             <button
               onClick={() => {
@@ -854,6 +845,16 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const fetchSeq = useRef(0);
 
+  // El horario elegido se ajusta solo cuando no está libre. Antes se lo
+  // hacía en silencio (ADD-24): el staff veía un horario que no era el
+  // que había elegido.
+  function notifySlotAdjusted(fixed) {
+    if (!fixed?.changed || !fixed.start) return;
+    toast.info(
+      `El horario no estaba disponible: se ajustó a las ${fixed.start} - ${fixed.end}.`,
+    );
+  }
+
   function fetchFreeSlots(member, serviceId, trainerId) {
     if (!member || !serviceId || !trainerId) {
       setFreeData(null);
@@ -890,6 +891,9 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
             end_time: fixed.end,
           };
         });
+        // El horario se ajusta en silencio: si se movió, se avisa (ADD-24).
+        const fixed = reconcileSlot(res, form.day, form.start_time, form.end_time);
+        if (fixed.changed) notifySlotAdjusted(fixed);
       })
       .catch((err) => {
         if (seq !== fetchSeq.current) return;
@@ -1193,6 +1197,15 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                               end_time: fixed.end,
                             };
                           });
+                          // Si el horario del día nuevo no está libre, se
+                          // movió solo: hay que avisarlo (ADD-24).
+                          const fixed = reconcileSlot(
+                            freeData,
+                            day,
+                            form.start_time,
+                            form.end_time,
+                          );
+                          notifySlotAdjusted(fixed);
                         }}
                         className={inputClass}
                       >

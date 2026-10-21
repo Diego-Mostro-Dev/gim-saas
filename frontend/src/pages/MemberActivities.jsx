@@ -6,20 +6,20 @@ import toast from "react-hot-toast";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { DAY_NAMES } from "../constants/days";
 import { useMemberActivities } from "../hooks/useMemberActivities";
+import { txt } from "../utils/labels";
 import {
   getAvailableActivities,
   enrollMemberPublic,
-  unenrollMemberFromActivity,
 } from "../services/activitiesPublic.service";
 
 function formatTime(timeStr) {
   if (!timeStr) return "";
-  const [h, m] = timeStr.split(":");
-  return `${h.padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
+  const [h, m] = String(timeStr).split(":").map(Number);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function MemberActivities() {
-  const { token, isOperativeBlocked } = useOutletContext();
+  const { token, gym, isOperativeBlocked } = useOutletContext();
   const navigate = useNavigate();
   const { enrollments, loading, error, handleUnenroll, unenrollingId, reload } =
     useMemberActivities(token);
