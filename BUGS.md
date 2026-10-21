@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0 y K1 hechas, K2→K8
+Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0, K1 y K2 hechas, K3→K8
 planificadas)**. Total: **106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`. De
-ellos **70 ya están cerrados**, **13 son decisiones de negocio** y quedan **23 abiertos** (cada
+ellos **76 ya están cerrados**, **13 son decisiones de negocio** y quedan **17 abiertos** (cada
 uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -38,12 +38,12 @@ explicación, ejemplo de impacto y criterio de aceptación.
 |---|---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 13 | 3 | 1 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 | 1 |
-| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 14 | 3 | 12 |
+| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 21 | 3 | 5 |
 | Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 14 | 1 | 9 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **51** | **19** | **70** | **13** | **23** |
+| **Total** | **5** | **31** | **51** | **19** | **76** | **13** | **17** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -88,7 +88,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-02 | MEDIO | 🟢 | Huérfanas: el portal muestra la actividad/horario desactivado | Cerrado Fase D: el portal filtra `schedule.active` y `activity.active` |
 | ADD-10 | MEDIO | 🟢 | Huérfanas: idem salidas | Cerrado Fase D: idem actividades |
 | ADD-03 | ALTO | 🔴 | Cambiar de horario puede dejar al socio sin ninguno | Si falla la reinscripción queda sin horario · **K7** (hoy inalcanzable: la Fase D vació la rama) |
-| ADD-04 | MEDIO | 🔴 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Reactiva horarios que el staff había apagado · **K2** |
+| ADD-04 | MEDIO | 🟢 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Cerrado Fase K2: sólo vuelven los horarios apagados con la oferta |
 | ADD-05 | MEDIO | 🔴 | El choque con el gimnasio se calcula como "hora + 1 h" | Bloques de más de 1 hora pueden no detectarse · **K3** |
 | ADD-06 | ALTO | 🟢 | El portal rompe al renderizar una actividad desactivada | Cerrado Fase K1: `gym` del outlet context + import de `txt` |
 | ADD-07 | CRÍTICO | 🟢 | El no-show descuenta sesión en fechas sin clase | Cerrado Fase G: watermark clampeado a la creación del horario + se saltean días cerrados (el job nunca descuenta antes de que exista la clase) |
@@ -96,21 +96,21 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-11 | ALTO | ⚪ | Faltar a una salida no descuenta sesión | **Decisión de negocio (Fase G):** las salidas no tienen no-show ni recuperación; faltar no descuenta. Se documenta, no se implementa. |
 | ADD-12 | MEDIO | 🟢 | El conteo de salidas depende de entrar dentro de la ventana | Cerrado por ACC-08 (Fase G): el descuento se centralizó en `attendance/checkin_discount.py` |
 | ADD-13 | ALTO | 🟢 | Paquete de salida sobre-cobrable | Cerrado por el mismo serializer unificado |
-| ADD-14 | MEDIO | 🔴 | Renovación de salidas bloqueada por sesiones impagas | Bloquea una acción de staff · **K2** |
-| ADD-15 | BAJO | 🔴 | "Reactivar" revive todos los horarios (engañoso) | UX · **K2** |
-| ADD-16 | ALTO | 🔴 | Las salidas no validan choque con gimnasio/actividades/PT | El socio queda anotado en dos cosas a la misma hora · **K2** |
+| ADD-14 | MEDIO | 🟢 | Renovación de salidas bloqueada por sesiones impagas | Cerrado Fase K2: override explícito (`allow_unpaid`) |
+| ADD-15 | BAJO | 🟢 | "Reactivar" revive todos los horarios (engañoso) | Cerrado Fase K2: restauración selectiva |
+| ADD-16 | ALTO | 🟢 | Las salidas no validan choque con gimnasio/actividades/PT | Cerrado Fase K2: validador compartido en `core/overlap.py` |
 | ADD-17 | MEDIO | ⚪ | El portal no ofrece salidas en modo sesiones | Decisión de negocio (K0): la salida en modo sesiones requiere inscripción del staff |
 | ADD-18 | BAJO | 🟢 | Botón "Renovar" duplicado | Cerrado Fase K1: queda un solo botón |
 | ADD-19 | BAJO | 🔴 | El PATCH directo de trainer/horario no está en la UI | Feature no alcanzable · **K7** |
 | ADD-20 | MEDIO | 🟢 | `record_payment` de PT sin usar / desincroniza `amount_paid` | Cerrado: `RecoverMembers.jsx` lo usa y todo Payment resincroniza |
 | ADD-21 | ALTO | 🟢 | En PT las faltas agotan el paquete sin recuperación | Cerrado Fase G: `SessionRecovery.kind="pt"` con FK a la asignación; la falta cancelada se repone (mismo invariante que actividades) |
-| ADD-22 | MEDIO | 🔴 | Renovación de PT bloqueada por saldo impago | Bloquea una acción de staff · **K2** |
+| ADD-22 | MEDIO | 🟢 | Renovación de PT bloqueada por saldo impago | Cerrado Fase K2: override explícito (`allow_unpaid`) |
 | ADD-23 | MEDIO | ⚪ | Desvincular PT no toca los períodos ya generados | Decisión de negocio (K0): inmutabilidad de los períodos ya generados |
 | ADD-24 | BAJO | 🟢 | El wizard de asignación reconcilia el horario elegido | Cerrado Fase K1: `reconcileSlot` avisa cuando el horario se mueve |
 | ADD-25 | BAJO | 🟢 | Estado `approved` muerto en PT | Cerrado Fase K1: estado fuera de `STATUS_CHOICES` + migración |
 | ADD-26 | MEDIO | 🟢 | PT: reasignar a otro día no se detecta como doble-booking | No se reproduce (K0): la asignación de PT es recurrente semanal; sólo cambia el día de la serie |
 | ADD-27 | MEDIO | 🔴 | Una recuperación de sesión perdona **dos** faltas | El gimnasio entrega sesiones impagas · **K3** (viene de P8, Fase 8 de `PLAN-dinero.md`) |
-| ADD-28 | MEDIO | 🔴 | Darse de baja de un horario corta el cobro de **toda** la oferta | Pérdida de facturación recurrente · **K2** (viene de P10; regresión de la Fase D) |
+| ADD-28 | MEDIO | 🟢 | Darse de baja de un horario corta el cobro de **toda** la oferta | Cerrado Fase K2: el ítem se cancela con la última baja |
 | ADD-29 | BAJO | 🔴 | El watermark avanza sobre faltas que nunca se cobraron | El socio recibe sesiones que no pagó · **K3** (viene de P15) |
 | ACC-01 | CRÍTICO | 🟢 | El cupo se cuenta a sí mismo: "El horario está completo" | Cerrado Fase E: el cupo excluye al propio socio (check-in y alta de staff) |
 | ACC-02 | MEDIO | 🔴 | No hay ventana horaria de check-in | Se puede marcar a las 03:00 · **K4** |
@@ -456,12 +456,29 @@ explicación, ejemplo de impacto y criterio de aceptación.
   conteo de salidas. La ficha quedó abierta por leftovers de la auditoría.
 
 ### ADD-16 · Las salidas no validan choque
-- **Severidad:** ALTO · **Estado:** 🔴 · **Sub-fase:** K2 · **Explicación:** `enroll_member` no
-  valida solape con gimnasio, actividades ni PT (compárese con
-  `backend/activities/enrollment_service.py:85-88`, que sí valida).
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase K2) · **Explicación:** `enroll_member` no
+  validaba solape con gimnasio, actividades ni PT (compárese con
+  `backend/activities/enrollment_service.py:85-88`, que sí validaba).
 - **Ejemplo de impacto:** el socio queda en running y en una actividad a la misma hora.
-- **Dónde:** `backend/outings/enrollment_service.py:25-126`;
-  `backend/outings/enrollment_request_service.py:18-48` (tampoco valida).
+- **Resolución Fase K2:** el problema de fondo era que cada app llevaba su propia copia de la
+  comprobación y las copias se desfasaron (actividades la tenía, PT la tenía, salidas no).
+  - `backend/core/overlap.py` es ahora la fuente única: revisa las cuatro fuentes (horario
+    fijo del gimnasio, actividades, salidas y PT) y devuelve un código de conflicto; cada
+    app traduce el código a su texto (los de horario fijo salen de `gyms/labels.py`).
+  - Salidas: `enroll_member` valida antes de inscribir, y también la solicitud de inscripción
+    del portal (para que el error le llegue al socio y no al staff que aprueba).
+  - Actividades y PT: se les agrega la dimensión "salidas" que les faltaba. Si sólo se
+    validara del lado de las salidas, el socio que primero se anota en una salida y después
+    en una actividad quedaría con las dos cosas a la misma hora: **el orden de las
+    anotaciones no puede cambiar la regla**.
+  - Se mantienen el filtro por gimnasio y los mensajes de cada app: no cambia el
+    comportamiento que ya tenían actividades y PT.
+- **Dónde:** `backend/core/overlap.py` (nuevo), `backend/outings/overlap.py` (nuevo),
+  `backend/activities/overlap.py`, `backend/personal_training/overlap.py`,
+  `backend/outings/enrollment_service.py:80-84`,
+  `backend/outings/enrollment_request_service.py:49-64`.
+- **Tests:** `backend/outings/tests_phase_k2.py` (8 de solape), `backend/activities/
+  tests_phase_k2.py` (2) y `backend/personal_training/tests_phase_k2.py` (3).
 
 ### ADD-18 · Botón "Renovar" duplicado
 - **Severidad:** BAJO · **Estado:** 🟢 (Fase K1) · **Dónde:** `frontend/src/pages/PersonalTrainingSettings.jsx:710-727` (dos render de "Renovar" en la misma celda: `:710-718` y `:719-727`).
@@ -530,7 +547,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   combinación. Falta el test `grant → cron`.
 
 ### ADD-28 · Darse de baja de un horario corta el cobro de toda la oferta
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K2 · **Origen:** P10 de la Fase 8 de
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K2) · **Origen:** P10 de la Fase 8 de
   `PLAN-dinero.md` (nunca triado en este registro).
 - **Explicación:** el ítem de suscripción es **por oferta** (actividad/salida), no por horario.
   PT tiene el guard `other_active` (`backend/personal_training/assignment_service.py:353-360`):
@@ -546,7 +563,55 @@ explicación, ejemplo de impacto y criterio de aceptación.
   `0980ed3` para PT).
 - **Criterio de aceptación:** antes de cancelar el ítem, se verifica que no queden otras
   inscripciones activas de la misma oferta (mismo criterio que PT), en el período en curso y en
-  los futuros ya generados.
+  los futuros ya generados. ✅
+- **Resolución Fase K2:** `_cancel_activity_items` y `_cancel_outing_items` ahora cancelan el
+  ítem **sólo** cuando no queda ninguna inscripción activa de la misma oferta, con el mismo
+  criterio que `_cancel_pt_items`. El guard es por oferta: otra actividad (u otra salida) no
+  lo mantiene vivo, y una inscripción dada de baja antes tampoco cuenta. La baja masiva de
+  una oferta desactivada (`cut_*_billing`) no cambia: ahí se dan de baja todas las
+  inscripciones, así que el ítem va.
+- **Tests:** `backend/activities/tests_phase_k2.py` y `backend/outings/tests_phase_k2.py`
+  (11 tests, 2 en rojo con el fix).
+
+### ADD-14 / ADD-22 · Renovar con saldo impago bloquea al staff
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K2) · **Sub-fase:** K2.
+- **Explicación:** `renew_package` de salidas y de PT exige saldo a favor antes de renovar
+  (`backend/outings/session_service.py:105-113`,
+  `backend/personal_training/session_service.py:85-93`). Con saldo impago la respuesta es 400 y
+  el staff **no puede renovar**: la regla "cobrar antes de renovar" (decisión DIN) convierte una
+  operación de mantenimiento en un bloqueo.
+- **Ejemplo de impacto:** el socio pagó un mes y debe el siguiente; el staff quiere renovarle
+  el paquete de PT para no cortar el servicio, y el sistema no lo deja.
+- **Decisión tomada (2026-10-21):** la regla de fondo **se mantiene** (no se renueva en deuda por
+  defecto, porque el add-on unpaid se descuenta del saldo y enriquece al gimnasio sin cobrar);
+  lo que se agrega es un **override explícito** del staff, con confirmación en el front.
+- **Resolución Fase K2:** `renew_package(..., allow_unpaid=False)` en las tres apps
+  (actividades tenía el mismo bug aunque la ficha no lo listara), `parse_bool` en
+  `backend/config/api/params.py` para leer el flag, y confirmación con `window.confirm` en
+  `OutingEnrollments.jsx`, `ScheduleEnrollments.jsx` y `PersonalTrainingSettings.jsx`.
+- **Tests:** 5 en `backend/outings/tests_phase_k2.py` + 5 en
+  `backend/personal_training/tests_phase_k2.py` (10, 5 en rojo con el fix).
+
+### ADD-04 / ADD-15 · Reactivar la oferta revive los horarios apagados a mano
+- **Severidad:** MEDIO (ADD-04) / BAJO (ADD-15) · **Estado:** 🟢 (Fase K2) · **Sub-fase:** K2.
+- **Explicación:** "Restaurar horarios" (actividades) y "Reactivar" (salidas) hacían
+  `update(active=True)` sobre **todos** los horarios de la oferta, incluidos los que el staff
+  había apagado a propósito (`backend/activities/views.py:71-80`,
+  `backend/outings/views.py:87-96`). El backend no tenía forma de saber por qué estaba apagado un
+  horario, así que no podía distinguir "apagado porque se desactivó la oferta" de "apagado a
+  mano". El front ya mandaba `restore_schedules` y el backend lo ignoraba.
+- **Ejemplo de impacto:** el horario de verano se apaga en abril; en septiembre, al reactivar la
+  actividad, vuelve y el socio se encuentra con un horario de verano que ya no aplica.
+- **Resolución Fase K2:** nuevo flag `auto_deactivated` en `ActivitySchedule` y `OutingSchedule`:
+  la cascada que apaga los horarios al desactivar la oferta los marca, y al reactivar vuelven
+  **sólo** los marcados (los apagados a mano siguen apagados). `restore_schedules: false` deja la
+  oferta activa sin tocar ningún horario. La respuesta trae `restored_schedules` y el front lo
+  dice ("reactivada con 2 horarios"), en vez de prometer "con sus horarios" cuando no es cierto.
+  Migraciones `activities/0016` y `outings/0004`, con backfill: los horarios apagados de una
+  oferta que sigue desactivada se marcan como auto-desactivados (vuelven al reactivarla, como
+  antes) y los de una oferta activa se dejan en False (son manuales).
+- **Tests:** 5 en `backend/activities/tests_phase_k2.py` + 3 en `backend/outings/tests_phase_k2.py`
+  (8, 1 en rojo con el fix).
 
 ### ADD-29 · El watermark avanza sobre faltas que nunca se cobraron
 - **Severidad:** BAJO · **Estado:** 🔴 · **Sub-fase:** K3 · **Origen:** P15 de la Fase 8 de
@@ -564,18 +629,18 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Criterio de aceptación:** el watermark sólo avanza hasta la última fecha efectivamente
   descontada (o la ventana truncada queda marcada como no cobrable sin perderse).
 
-### ADD-04, ADD-14, ADD-15, ADD-17, ADD-19, ADD-22, ADD-24, ADD-25 — verificados en K0, dos cerrados en K1
+### ADD-04, ADD-14, ADD-15, ADD-17, ADD-19, ADD-22, ADD-24, ADD-25 — verificados en K0, dos cerrados en K1, cuatro en K2
 Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026-10-21
 (lectura de código + runtime en BD descartable):
 
 | ID | Veredicto | Detalle | Sub-fase |
 |---|---|---|---|
-| ADD-04 | 🔴 vivo | `backend/activities/views.py:71-80`: "Restaurar horarios" hace `update(active=True)` sobre **todos** los horarios, incluidos los apagados a mano. El front ya manda `restore_schedules` y el backend lo ignora. | K2 |
-| ADD-14 | 🔴 vivo | `backend/outings/session_service.py:105-113`: renovar con saldo impago → **400**. Bloquea una acción de staff. | K2 |
-| ADD-15 | 🔴 vivo | `backend/outings/views.py:87-96`: "Reactivar" revive todos los horarios. Mismo fix que ADD-04. | K2 |
+| ADD-04 | 🟢 vivo (K2) | `backend/activities/views.py:71-80`: "Restaurar horarios" hacía `update(active=True)` sobre **todos** los horarios. **Cerrado en K2**: con el flag `auto_deactivated` vuelve sólo lo que se apagó con la oferta. | — |
+| ADD-14 | 🟢 vivo (K2) | `backend/outings/session_service.py:105-113`: renovar con saldo impago → **400**. **Cerrado en K2**: la regla sigue, pero con override explícito (`allow_unpaid`). | — |
+| ADD-15 | 🟢 vivo (K2) | `backend/outings/views.py:87-96`: "Reactivar" revivía todos los horarios. **Cerrado en K2**: mismo flag `auto_deactivated` que actividades. | — |
 | ADD-17 | ⚪ decisión | `backend/outings/public_views.py:180` excluye `billing_mode="sessions"` del portal: la salida en modo sesiones requiere inscripción del staff. Comportamiento previsto (`AUDITORIA-SALIDAS.md:273-274`). | — |
 | ADD-19 | 🔴 vivo | `frontend/src/services/personalTraining.service.js:57-63` define `updatePersonalTrainingAssignment` pero **nadie lo llama**: el backend sí soporta el cambio (`backend/personal_training/serializers.py:349-362`). | K7 |
-| ADD-22 | 🔴 vivo | `backend/personal_training/session_service.py:85-93`: renovar PT con saldo impago → **400**. Mismo criterio que ADD-14. | K2 |
+| ADD-22 | 🟢 vivo (K2) | `backend/personal_training/session_service.py:85-93`: renovar PT con saldo impago → **400**. **Cerrado en K2**: mismo override explícito que ADD-14. | — |
 | ADD-24 | 🟢 vivo (K1) | `frontend/src/utils/ptAvailability.js:65-72` (`reconcileSlot`) elegía el primer slot libre sin avisar. **Cerrado en K1**: `reconcileSlot` devuelve `changed` y los 4 llamados (wizard, cambio de día y portal) avisan con un toast. | — |
 | ADD-25 | 🟢 vivo (K1) | `backend/personal_training/models.py:344` declaraba el estado `approved`, pero el flujo escribe `executed` (`backend/personal_training/change_request_service.py:132`). **Cerrado en K1**: estado fuera de `STATUS_CHOICES` + migración `personal_training/0003`. | — |
 
@@ -892,7 +957,8 @@ Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredic
   `subscriptions/test_money_invariants.CrossGymCreditIsolationTests`.
 - **REF-04 · Admin `paid`/`price_snapshot`** 🟢 — premisa falsa: ya son `readonly_fields`.
 - **REF-05 · Frontend sin tests / lint con deuda** 🔴 (K7) — el CI corre `pnpm build`;
-  `pnpm lint` hoy falla con **91 problemas (71 errores, 20 warnings)**: 23 de
+  `pnpm lint` hoy falla con **88 problemas (68 errores, 20 warnings)** (91 → 88 con las
+  correcciones de K1 y K2): 23 de
   `react-hooks/set-state-in-effect`, 19 de `no-undef` (globals virtuales `__BUILD_ID__` /
   `__APP_VERSION__` / `process` sin declarar en `eslint.config.js`), 19 de
   `react-hooks/exhaustive-deps` (warnings), 13 de `no-unused-vars`, 6 de `no-empty`. Archivos con
@@ -984,7 +1050,7 @@ Postgres 16 descartable en `/tmp`.
 
 | Gate | Estado |
 |---|---|
-| Suite completa (`manage.py test` de las 17 apps) | 🟢 405 tests OK (Fase K1) |
+| Suite completa (`manage.py test` de las 17 apps) | 🟢 449 tests OK (Fase K2) |
 | `makemigrations --check --dry-run` | 🟢 sin cambios pendientes |
 | `pnpm build` (frontend) | 🟢 verde |
 | `pnpm lint` (frontend) | 🔴 **88 problemas (68 errores, 20 warnings)** → `REF-05`, a cerrar en K7 |

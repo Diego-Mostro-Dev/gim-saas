@@ -59,7 +59,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **J. Higiene, performance y cobertura/CI** | N+1, admin con scope, filtro de gym en consultas de dinero, y sumar al CI las apps que hoy no corren. | CI corre todas las apps | ✅ **hecha** (2026-10-20; REF-01/02/03/06 cerrados + REF-07 (N+1), REF-08 (admin sin scope) y REF-09 (500 sin FRONTEND_URL, destapado por CI) nuevos y cerrados; REF-05 queda ⚪ (lint de frontend con deuda preexistente); CI corre todas las apps + job de build de frontend; gate 395 tests) |
 | **K0. Saneamiento del registro** | Re-verificar los 11 🟡 que quedaban, corregir las fichas obsoletas, cerrar los no-reproducidos, dar de alta los hallazgos nuevos (ACC-26, ADD-27/28/29) y dejar cada 🔴 con su sub-fase. | `BUGS.md` con 0 🔴 sin sub-fase asignada | ✅ **hecha** (2026-10-21; 11 🟡 re-verificados, 4 fichas nuevas, 5 cerradas sin código, 1 reabierta, 4 fichas obsoletas corregidas, 106 hallazgos = 65 🟢 / 13 ⚪ / 28 🔴, 0 a verificar; borrador de `RELEASE-CHECKLIST.md`) |
 | **K1. Portal del socio** | ACC-26 (el portal no puede dar de baja una inscripción), ADD-06, ADD-18, ADD-24, ADD-25. | Tests de alta/baja del portal + `pnpm build` | ✅ **hecha** (2026-10-21; `DELETE /api/activities/public/<token>/` + 10 tests nuevos; `ReferenceError` del portal y botón "Renovar" duplicado arreglados; el horario reconciliado ahora avisa; 405 tests) |
-| **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ⬜ |
+| **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ✅ **hecha** (2026-10-21; validador de solape compartido `core/overlap.py`; el ítem de la oferta sobrevive mientras haya otro horario; renovación con saldo impago con override explícito; la reactivación restaura sólo los horarios apagados con la oferta; 449 tests) |
 | **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ⬜ |
 | **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ⬜ |
 | **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ⬜ |
@@ -192,10 +192,10 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
 release ejecutable.
 
-**Estado al 2026-10-21:** 106 hallazgos — 70 cerrados, 13 decisiones de negocio, **23 abiertos**
+**Estado al 2026-10-21:** 106 hallazgos — 76 cerrados, 13 decisiones de negocio, **17 abiertos**
 (cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
 sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
-fix → gate contra Postgres descartable → CI verde).
+fix → gate contra Postgres descartable → CI verde). K0, K1 y K2 están hechas.
 
 #### Decisiones tomadas (2026-10-21)
 
@@ -257,13 +257,33 @@ tabla maestra).
 problemas) + `makemigrations --check` limpio.
 
 **K2 · Add-ons: solapes, renovaciones y bajas** — `ADD-16`, `ADD-28`, `ADD-14`, `ADD-22`,
-`ADD-04`, `ADD-15`.
-`ADD-16` reusa el validador de solape que ya existe para actividades. `ADD-28` porta el guard
-`other_active` de PT (y hay que mirar la variante cross-suscripción). `ADD-14`/`ADD-22` son el
-mismo fix: hoy renovar con saldo impago da 400 y **bloquea una acción del staff** (propuesta:
-permitirlo con un override explícito). `ADD-04`/`ADD-15` es un solo fix: la restauración
-selectiva (el front ya manda `restore_schedules` y el backend lo ignora).
-**Gate:** tests de salidas/actividades/PT + invariantes de dinero.
+`ADD-04`, `ADD-15` — ✅ **hecha** (2026-10-21), en cuatro commits.
+- **ADD-16** (solapes): el problema de fondo era que cada app llevaba su propia copia de la
+  comprobación y las copias se desfasaron (actividades la tenía, PT la tenía, salidas no).
+  `backend/core/overlap.py` es ahora la fuente única de las cuatro fuentes de solape
+  (horario fijo del gimnasio, actividades, salidas y PT) y devuelve un código de conflicto que
+  cada app traduce a su texto. Salidas: valida en `enroll_member` y en la solicitud del portal.
+  Actividades y PT: se les agrega la dimensión "salidas" que les faltaba — si sólo validara el
+  lado de las salidas, el orden de las anotaciones cambiaría la regla.
+  19 tests (14 salidas + 2 actividades + 3 PT).
+- **ADD-28** (bajas): `_cancel_activity_items` y `_cancel_outing_items` cancelan el ítem sólo
+  cuando no queda ninguna inscripción activa **de la misma oferta**, con el mismo criterio que
+  `_cancel_pt_items`. La baja masiva de una oferta desactivada no cambia.
+  11 tests.
+- **ADD-14`/`ADD-22` (renovaciones):** la regla "cobrar antes de renovar" se mantiene; lo que
+  cambia es que el staff puede forzar la renovación con saldo impago con un override explícito
+  (`allow_unpaid` en el backend + confirmación en el front), en vez de quedarse bloqueado. Se
+  aplicó también a actividades, que tenía el mismo bug aunque la ficha no lo listara.
+  10 tests.
+- **ADD-04`/`ADD-15` (reactivación):** nuevo flag `auto_deactivated` en `ActivitySchedule` y
+  `OutingSchedule`: la cascada que apaga los horarios al desactivar la oferta los marca, y al
+  reactivar vuelven **sólo** esos; los apagados a mano siguen apagados. `restore_schedules`
+  (que el front ya mandaba y el backend ignoraba) deja la oferta activa sin tocar horarios.
+  Migraciones `activities/0016` y `outings/0004` con backfill. La respuesta trae
+  `restored_schedules` y el front lo dice ("reactivada con 2 horarios").
+  8 tests.
+**Gate:** 449 tests OK contra Postgres 16 descartable + `pnpm build` + `pnpm lint` (88, sin
+errores nuevos) + `makemigrations --check` limpio.
 
 **K3 · Faltas, no-show y recuperaciones** — `ADD-27`, `ADD-29`, `ADD-05`.
 `ADD-27` implica atar el crédito de recuperación a una falta concreta (enrollment + fecha) en
