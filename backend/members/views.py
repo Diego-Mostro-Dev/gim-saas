@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
 from django.db import models, transaction
+from django.db.utils import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.db.models import Count, Prefetch
@@ -226,6 +227,21 @@ class MemberViewSet(GymModelViewSet):
             )
         except RegistrationError as e:
             return Response(e.detail, status=e.status_code)
+        except IntegrityError as exc:
+            # ACC-19: el teléfono es único por gym. La validación del
+            # serializer lo chequea, pero dos altas simultáneas pueden
+            # pasar el chequeo y chocar contra el constraint de la base.
+            if "unique_member_phone_per_gym" not in str(exc):
+                raise
+            return Response(
+                {
+                    "phone": (
+                        "Ya existe un socio con ese teléfono en este "
+                        "gimnasio."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             MemberSerializer(member).data,
@@ -234,11 +250,25 @@ class MemberViewSet(GymModelViewSet):
 
     def update(self, request, *args, **kwargs):
 
-        return super().update(
-            request,
-            *args,
-            **kwargs,
-        )
+        try:
+            return super().update(
+                request,
+                *args,
+                **kwargs,
+            )
+        except IntegrityError as exc:
+            # ACC-19: ver la nota en create().
+            if "unique_member_phone_per_gym" not in str(exc):
+                raise
+            return Response(
+                {
+                    "phone": (
+                        "Ya existe un socio con ese teléfono en este "
+                        "gimnasio."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

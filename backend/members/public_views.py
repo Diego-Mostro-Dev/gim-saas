@@ -3,6 +3,7 @@ import logging
 from datetime import time
 
 from django.shortcuts import get_object_or_404
+from django.db.utils import IntegrityError
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -220,6 +221,19 @@ class PublicRegisterView(APIView):
             )
         except RegistrationError as e:
             return Response(e.detail, status=e.status_code)
+        except IntegrityError as exc:
+            # ACC-19: el teléfono es único por gym.
+            if "unique_member_phone_per_gym" not in str(exc):
+                raise
+            return Response(
+                {
+                    "phone": (
+                        "Ya existe un socio con ese teléfono en este "
+                        "gimnasio."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             PublicMemberSerializer(member).data,

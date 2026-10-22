@@ -231,6 +231,17 @@ class Member(models.Model):
     class Meta:
         verbose_name = "Miembro"
         verbose_name_plural = "Miembros"
+        constraints = [
+            # Fase K5 (ACC-19): el teléfono identifica al socio dentro del
+            # gym (es el login del portal), así que no puede repetirse. El
+            # teléfono vacío queda fuera del constraint: hay socios sin
+            # teléfono y no es motivo para bloquearlos.
+            models.UniqueConstraint(
+                fields=["gym", "phone"],
+                condition=~models.Q(phone=""),
+                name="unique_member_phone_per_gym",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.access_token:

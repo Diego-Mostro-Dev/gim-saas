@@ -5,6 +5,7 @@ recovery) build on the same small fixture graph: a Gym with a staff user and
 a MembershipPlan, plus helpers that open subscriptions and settle them.
 """
 
+import uuid
 from datetime import date, datetime, time as _time
 from decimal import Decimal
 
@@ -69,11 +70,15 @@ class BaseAPITest(APITestCase):
         )
 
     def create_member(self, gym, first_name="Ana", last_name="Gomez", phone=None):
+        if phone is None:
+            # ACC-19: el teléfono es único por gym (constraint en la base), así
+            # que el default tiene que ser único por socio.
+            phone = f"11-{first_name.lower()[:8]}-{uuid.uuid4().hex[:8]}"
         return Member.objects.create(
             gym=gym,
             first_name=first_name,
             last_name=last_name,
-            phone=phone or f"11-{first_name.lower()}",
+            phone=phone,
         )
 
     @staticmethod

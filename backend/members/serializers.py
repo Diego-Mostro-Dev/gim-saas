@@ -409,7 +409,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
         if qs.exists():
             raise serializers.ValidationError(
-                "Ya existe un socio con ese teléfono."
+                "Ya existe un socio con ese teléfono en este gimnasio."
             )
 
         return value
@@ -702,7 +702,7 @@ class PublicMemberDataSerializer(serializers.ModelSerializer):
 
         if qs.exists():
             raise serializers.ValidationError(
-                "Ya existe un socio con ese teléfono."
+                "Ya existe un socio con ese teléfono en este gimnasio."
             )
 
         return value
