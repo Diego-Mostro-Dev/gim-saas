@@ -326,9 +326,16 @@ _db_config = dj_database_url.parse(
 # "disable" para Postgres sin TLS: el container postgres:16 del CI tiene
 # ssl = off y sin esta variable no conecta con "server does not support SSL,
 # but SSL was required". Sirve igual para un Postgres local sin certificados.
+#
+# Si el DATABASE_URL trae sslmode explícito (Neon: ?sslmode=require), ese
+# gana: DB_SSLMODE sólo rellena el hueco cuando la URL no dice nada. Antes
+# esta variable pisaba el valor de la URL, así que un DB_SSLMODE=disable
+# global dejaba a Neon sin TLS y la conexión fallaba con "connection is
+# insecure".
 if _db_config["ENGINE"].endswith("postgresql"):
-    _db_config.setdefault("OPTIONS", {})["sslmode"] = (
-        os.getenv("DB_SSLMODE", "require").strip() or "require"
+    _db_config.setdefault("OPTIONS", {}).setdefault(
+        "sslmode",
+        os.getenv("DB_SSLMODE", "require").strip() or "require",
     )
 
 # Force IPv4 for Neon pooler — some networks drop/break IPv6 to the pooler.
