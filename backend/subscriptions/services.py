@@ -284,6 +284,35 @@ def ensure_pt_items_for_active_assignments(member, subscription):
         )
 
 
+_MISSING_PLAN_ITEM_REPORTED = set()
+
+
+def _report_missing_plan_item(subscription):
+    """Report a subscription with no active plan item (Fase K5 · DIN-17).
+
+    The total is built only from the price snapshots, so a missing plan item
+    means the period has no contract price at all. Guessing the live plan
+    price used to invent a debt nobody ever owed (and to contradict the
+    ``paid`` flag); now the gap is reported and the legacy rows are fixed by
+    the migration ``0024_backfill_missing_plan_items``.
+
+    The report fires once per subscription per process: the members and
+    subscriptions endpoints recompute totals for many rows at a time and
+    would otherwise repeat the same line for each of them.
+    """
+    key = subscription.pk
+    if key in _MISSING_PLAN_ITEM_REPORTED:
+        return
+    if len(_MISSING_PLAN_ITEM_REPORTED) >= 1000:
+        _MISSING_PLAN_ITEM_REPORTED.clear()
+    _MISSING_PLAN_ITEM_REPORTED.add(key)
+    logger.error(
+        "Suscripción %s sin ítem de plan activo: el total se calcula sólo "
+        "con los ítems que tiene (K5 · DIN-17).",
+        key,
+    )
+
+
 def calculate_subscription_total(subscription, apply_discount=True):
     """Return the total amount to pay for a subscription.
 
@@ -309,9 +338,10 @@ def calculate_subscription_total(subscription, apply_discount=True):
     ``apply_discount=False`` yields the undiscounted contract total for
     display.
 
-    Defensive fallback: a subscription created before the SubscriptionItem
-    backfill may lack a plan item; only then is the current plan price used
-    as a last resort.
+    Fase K5 (DIN-17): a subscription without an active plan item is a data
+    problem, not a price to guess. The total is whatever its items say (zero
+    if that is all there is) and the gap is reported in the log; the legacy
+    rows are fixed by the migration ``0024_backfill_missing_plan_items``.
     """
     total = Decimal("0")
     has_plan_item = False
@@ -323,8 +353,8 @@ def calculate_subscription_total(subscription, apply_discount=True):
             has_plan_item = True
         total += item.price_snapshot
 
-    if not has_plan_item and subscription.plan is not None:
-        total += subscription.plan.price
+    if not has_plan_item:
+        _report_missing_plan_item(subscription)
 
     if not apply_discount:
         return total
