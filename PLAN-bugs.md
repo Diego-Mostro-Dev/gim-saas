@@ -62,7 +62,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **K2. Add-ons: solapes, renovaciones y bajas** | ADD-16, ADD-28 (P10), ADD-14, ADD-22, ADD-04, ADD-15. | Tests de salidas/actividades/PT + invariantes de dinero | ✅ **hecha** (2026-10-21; validador de solape compartido `core/overlap.py`; el ítem de la oferta sobrevive mientras haya otro horario; renovación con saldo impago con override explícito; la reactivación restaura sólo los horarios apagados con la oferta; 449 tests) |
 | **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ✅ **hecha** (2026-10-21; la recuperación queda atada a la falta que perdona; el watermark sólo avanza hasta la última falta cobrada; `ScheduleSlot.duration_minutes` con la duración real en los 4 chequeos; 466 tests) |
 | **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ✅ **hecha** (2026-10-21; ventana de check-in en `Gym` + los dos paths + la UI; `409` en el duplicado y el front distingue el éxito; día cerrado en el path de staff; cooldown y máximo mensual para el staff; la cancelación silenciosa sólo al aprobar y con nota en español; aprobar re-verifica el horario viejo y `weekly_visits`; la UI deja de prometer vigencia futura; 482 tests) |
-| **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ⬜ |
+| **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ✅ **hecha** (2026-10-22; fallback de precio eliminado + 65 filas legacy con `price_snapshot = 0`; obra social sin match marcada y enlazable desde el panel + select en el alta pública; teléfono único por gym con constraint parcial y limpieza en la migración; 47 tests nuevos; arnés 125→27, las 27 de `seed` → `DIN-20`; 529 tests) |
 | **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ⬜ |
 | **K7. Higiene de frontend y CI** | REF-05 (lint a 0 y bloqueante en el CI), ADD-19, ADD-03. | `pnpm lint` en 0 + `pnpm build` + suite completa | ⬜ |
 | **K8. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging | ⬜ |
@@ -192,10 +192,11 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
 release ejecutable.
 
-**Estado al 2026-10-21:** 106 hallazgos — 86 cerrados, 13 decisiones de negocio, **7 abiertos**
+**Estado al 2026-10-22:** 107 hallazgos — 89 cerrados, 13 decisiones de negocio, **5 abiertos**
 (cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
 sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
-fix → gate contra Postgres descartable → CI verde). K0, K1, K2, K3 y K4 están hechas.
+fix → gate contra Postgres descartable → CI verde). K0, K1, K2, K3, K4 y K5 están hechas; sigue
+**K6** (baja lógica de socios).
 
 #### Decisiones tomadas (2026-10-21)
 
@@ -340,12 +341,32 @@ Configuración). `ACC-10` se cierra corrigiendo el texto de la UI.
 errores nuevos) + `makemigrations --check` limpio.
 
 **K5 · Dinero y socios** — `ACC-23`, `DIN-17`, `ACC-19`.
-`ACC-23`: el coseguro no puede quedar en 0 por un nombre mal escrito (+ backfill). `DIN-17`:
-sacar el fallback `total += plan.price` y migrar las **65 filas** que hoy caen en él (el
-precio histórico no está en la fila: hay que fijar el criterio de `price_snapshot` antes de
-programar). `ACC-19`: constraint en DB + mensaje explícito.
-**Gate:** arnés de la Fase B (I1–I8) verde sin `expectedFailure` + `audit_money_bugs` sin
-"armados" nuevos.
+**Hecho (2026-10-22):**
+- `DIN-17` (`2498e33`): se quita el fallback `total += plan.price`; `calculate_subscription_total`
+  suma sólo los ítems y `_report_missing_plan_item` deja un ERROR en logs si falta el ítem. La
+  migración `subscriptions/0024_backfill_missing_plan_items` crea el ítem de las **65 filas
+  legacy** con `price_snapshot = 0` (decisión: lo efectivamente cobrado — están vencidas y sin
+  pagos) y `paid = True`, idempotente. Medido sobre la copia local de staging: 65 → 0 filas en
+  el fallback y el arnés bajó de 125 a 27 violaciones (las 27 son datos de `seed/base.py`, nueva
+  ficha `DIN-20`, no código de facturación); `audit_money_bugs` idéntico antes/después.
+- `ACC-23` (`11e2d5c`): decisión "no bloquear el alta, marcar y enlazar". `insurance_unverified`
+  en el serializer, badge + filtro + botón de un clic en el panel (`MemberForm` abre el combo),
+  endpoint público `GET /api/public/health-insurances/<code>/` y select de obras en
+  `Register.jsx` con "Otra obra social...". Signal de re-enlace al crear/renombrar una obra
+  (`members/insurance.py`, `members/signals.py`) y comando `relink_insurances --gym|--all`.
+  WARNING en logs cuando el nombre no matchea. Backfill: 0 filas en staging.
+- `ACC-19` (`85a20d6`): `UniqueConstraint(gym, phone)` parcial (teléfonos vacíos afuera) +
+  `IntegrityError` → 400 con "Ya existe un socio con ese teléfono en este gimnasio." en staff y
+  alta pública. La migración `members/0019` limpia los duplicados **antes** de crear el índice
+  (`phone_cleanup.py`, keeper = el más antiguo, sufijo `-<id>`) y el comando
+  `cleanup_duplicate_phones` permite el dry-run. Re-medición en producción (sólo lectura): **1
+  grupo real** (`gym_id=9`, `000-0000`, socios 882/883/884) — la cifra anterior de 12 grupos
+  agrupaba por nombre de gym y era un falso positivo.
+- Tests: 47 nuevos (11 en `subscriptions/tests_phase_k5.py`, 21 + 15 en
+  `members/tests_phase_k5.py`).
+**Gate:** 529 tests OK contra Postgres 16 descartable + `pnpm build` + `pnpm lint` (88, sin
+errores nuevos, deuda de K7) + `makemigrations --check` limpio + arnés de la Fase B (I1–I8)
+verde sin `expectedFailure` + `audit_money_bugs` sin "armados" nuevos.
 
 **K6 · Baja lógica de socios** — `ACC-20`.
 `Member.deleted_at` + `DELETE` → 405 + filtros en todos los listados (y "reactivar"). Es la

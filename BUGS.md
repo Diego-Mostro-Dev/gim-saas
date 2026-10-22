@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-21** — Fases A a J hechas; **Fase K en curso (K0, K1, K2, K3 y K4 hechas,
-K5→K8 planificadas)**. Total: **106 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 19 `BAJO`.
-De ellos **86 ya están cerrados**, **13 son decisiones de negocio** y quedan **7 abiertos**
+Estado: **2026-10-22** — Fases A a J hechas; **Fase K en curso (K0 a K5 hechas,
+K6→K8 planificadas)**. Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
+De ellos **89 ya están cerrados**, **13 son decisiones de negocio** y quedan **5 abiertos**
 (cada uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -36,14 +36,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
 
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones | Abiertos |
 |---|---|---|---|---|---|---|---|
-| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 2 | 13 | 3 | 1 |
-| Configuración (`CFG`) | 1 | 2 | 4 | 5 | 9 | 2 | 1 |
+| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 3 | 14 | 3 | 1 |
+| Configuración (`CFG`) | 1 | 2 | 4 | 5 | 10 | 2 | 0 |
 | Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 24 | 3 | 2 |
-| Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 14 | 1 | 9 |
+| Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 22 | 1 | 1 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **51** | **19** | **79** | **13** | **14** |
+| **Total** | **5** | **31** | **51** | **20** | **89** | **13** | **5** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -69,8 +69,9 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | DIN-13 | MEDIO | ⚪ | El chequeo de deuda corre antes que el de ciclo vigente | Inactivo con ciclo vigente + deuda residual no puede reactivarse |
 | DIN-15 | MEDIO | 🟢 | `recover_member` no toma lock; la carrera la resuelve el constraint con 500 | Cerrado Fase F: el `IntegrityError` de `unique_subscription_member_period` se traduce a `SubscriptionConflictError` (400) |
 | DIN-16 | ALTO | ⚪ | Recuperar no prorratea | Recuperar el día 25 cobra el mes completo por 5 días |
-| DIN-17 | BAJO | 🔴 | `calculate_subscription_total` reintroduce el precio vigente (fallback P13) | Una fila legacy sin ítem de plan se factura al precio actual del plan · **K5** |
+| DIN-17 | BAJO | 🟢 | `calculate_subscription_total` reintroduce el precio vigente (fallback P13) | Cerrado Fase K5: sin fallback; la migración 0024 crea los ítems con `price_snapshot = 0` (lo efectivamente cobrado) |
 | DIN-18 | ALTO | 🟢 | Agregar sesiones a un paquete vuelve a dejar el sellado pendiente | Cerrado Fase D: `renew_package` ya no resetea `sellado_paid` |
+| DIN-20 | BAJO | 🔴 | El seed deja 27 violaciones de dinero en el arnés | Gym Dev/Gym Demo/Sinkro Prueba tienen sobrepagos y `paid` invertidos: el arnés no puede exigir 0 · **K8** (higiene de seed) |
 | CFG-01 | MEDIO | 🟢 | Unidades horas/días mezcladas entre pantallas | Cerrado Fase C: ambas UIs en horas, entero ≥ 0 (backend ya era entero) |
 | CFG-02 | BAJO | ⚪ | `allow_member_schedule_changes` legacy | Campo que ya no gobierna ninguna regla |
 | CFG-03 | MEDIO | ⚪ | `initial_pending` bloquea desde el día 1 | Socio nuevo sin primer pago no puede entrar aunque haya pagado el día 2 |
@@ -129,10 +130,10 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ACC-16 | MEDIO | 🟢 | Aprobar un cambio de plan cancela pedidos de horario en silencio | Cerrado Fase K4: los pedidos se cancelan sólo al aprobar y con nota en español (al rechazar ya no se tocan) |
 | ACC-17 | ALTO | 🟢 | El alta pública descarta el descuento y fuerza `is_comp=False` en silencio | Cerrado Fase E (decisión de negocio): el alta pública nunca honra `discount_id`/`is_comp` (son privilegios de staff) y deja warning en logs para asignarlos desde el panel |
 | ACC-18 | ALTO | 🟢 | Rotación de token deja el link viejo muerto | Cerrado Fase E: todos los endpoints del portal aceptan el token de una generación anterior (gracia de 1 generación; 2+ invalidado por diseño) |
-| ACC-19 | MEDIO | 🔴 | Teléfono único por gimnasio | Una familia con un solo teléfono no puede inscribir a dos · **K5** (decisión 2026-10-21: se mantiene único, con mensaje explícito) |
+| ACC-19 | MEDIO | 🟢 | Teléfono único por gimnasio | Cerrado Fase K5: constraint parcial por gym + 400 explícito; la migración 0019 limpia los duplicados antes de crear el índice |
 | ACC-20 | MEDIO | 🔴 | Borrar un socio es hard delete en cascada | Sin papelera; se pierde historial · **K6** (decisión 2026-10-21: baja lógica) |
 | ACC-22 | MEDIO | ⚪ | Quitar la cortesía exige elegir un plan de pago | Decisión de negocio (K0): es correcto que quitar la cortesía obligue a elegir un plan de pago |
-| ACC-23 | ALTO | 🔴 | Obra social sin match → texto libre sin precio | No se cobra el coseguro; el gimnasio pierde plata · **K5** |
+| ACC-23 | ALTO | 🟢 | Obra social sin match → texto libre sin precio | Cerrado Fase K5: el texto sin match queda marcado y enlazable desde el panel; el alta pública ofrece la lista de obras del gym |
 | ACC-24 | ALTO | 🟢 | 500 al pedir cambio de horario de PT | Cerrado `f27bc67` (bug real no documentado en ninguna auditoría) |
 | ACC-25 | ALTO | 🟢 | Login con contraseña incorrecta → 500 y Axes no registra el intento | Cerrado Fase E: `authenticate(request=...)`; responde 400 y Axes registra el `AccessAttempt` |
 | ACC-26 | ALTO | 🟢 | El portal no puede dar de baja una inscripción de actividad | Cerrado Fase K1: `DELETE /api/activities/public/<token>/` (baja pública) + front |
@@ -237,7 +238,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Ejemplo de impacto:** recuperar el día 25 cobra el mes completo por 5 días.
 
 ### DIN-17 · Fallback de precio (P13)
-- **Severidad:** BAJO · **Estado:** 🔴 (diferido) · **Sub-fase:** K5
+- **Severidad:** BAJO · **Estado:** 🟢 (Fase K5) · **Sub-fase:** K5
 - **Explicación:** `if not has_plan_item ... total += subscription.plan.price` para filas legacy.
 - **Dónde:** `backend/subscriptions/services.py:326-327`.
 - **Dimensionado (2026-10-21, staging):** 422 suscripciones, 357 con ítem de plan activo y
@@ -253,6 +254,17 @@ explicación, ejemplo de impacto y criterio de aceptación.
   `price_snapshot` congelado (el precio histórico no está en la fila: hay que decidir el
   criterio — precio del plan al momento de la migración, o el importe efectivamente pagado) +
   un test que prohíba el fallback.
+- **Resolución Fase K5 (decisión 2026-10-21):** `price_snapshot = 0` —lo **efectivamente
+  cobrado**: las 65 filas legacy están vencidas y sin pagos, y ese ítem no se vuelve a facturar.
+  `calculate_subscription_total` suma sólo los ítems y `_report_missing_plan_item` deja un ERROR
+  en los logs si aparece una fila sin ítem (visibilidad en vez de precio inventado). La
+  migración `0024_backfill_missing_plan_items` crea el ítem con `price_snapshot = 0` y
+  `paid = True` (nada que cobrar), idempotente. Se aplicó sobre la copia local de staging: de
+  **65 filas** en el fallback a **0**; el arnés de invariantes bajó de **125 a 27**
+  violaciones y `audit_money_bugs` quedó idéntico. Las 27 restantes son datos de `seed/base.py`
+  (nueva ficha `DIN-20`, no de código de facturación).
+- **Tests:** `backend/subscriptions/tests_phase_k5.py` (11 tests: sin fallback, backfill con y
+  sin pagos, idempotencia, ítem sin plan, `paid` normalizado, total sólo por ítems).
 
 ### DIN-18 · Agregar sesiones vuelve a pedir el sellado
 - **Severidad:** ALTO · **Estado:** 🟢 (Fase D)
@@ -265,6 +277,21 @@ explicación, ejemplo de impacto y criterio de aceptación.
   Aplica a actividades y PT. Cubierto por `activities/tests_deactivation.py`
   (`ActivitySelladoRenewalTests`) y `personal_training/tests_deactivation.py`
   (`PTSelladoRenewalTests`).
+
+### DIN-20 · El seed deja violaciones de dinero en el arnés
+- **Severidad:** BAJO · **Estado:** 🔴 · **Sub-fase:** K8 (higiene de seed)
+- **Detectado por:** K5, al correr el arnés de invariantes sobre la copia local de staging
+  después de `DIN-17`.
+- **Explicación:** de las 27 violaciones que quedan en el arnés, ninguna viene de código de
+  facturación: son datos de `backend/seed/base.py` en los gyms de demo. Reparto: **Gym Dev 19**
+  (6 de I3 —`paid` invertido— y 13 de I4 —sobrepago sin crédito—), **Gym Demo 5** (I3) y
+  **Sinkro Prueba 3** (2 I4 y 1 I5 —períodos solapados—).
+- **Ejemplo de impacto:** el arnés no puede exigir 0 violaciones y una regresión real se
+  esconde entre el ruido del seed; además el demo muestra socios con saldos imposibles.
+- **Dónde:** `backend/seed/base.py`.
+- **Criterio de aceptación:** correr `seed` sobre una base limpia deja 0 violaciones de
+  `check_money_invariants` (o el seed documenta explícitamente las que necesita y el arnés las
+  excluye por gym).
 
 ---
 
@@ -781,7 +808,7 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
   `outings`, `subscriptions`, `personal_training`, `community`, `gyms`, `routines`, `members`.
 
 ### ACC-23 · Obra social sin match
-- **Severidad:** ALTO · **Estado:** 🔴 · **Sub-fase:** K5 · **Explicación:** `_autolink_insurance`
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase K5) · **Sub-fase:** K5 · **Explicación:** `_autolink_insurance`
   normaliza (minúsculas/acentos) pero si no matchea queda `None` → sin precio de coseguro.
 - **Dónde:** `backend/members/serializers.py:423-450` (`_autolink_insurance` + `validate`).
 - **Ejemplo de impacto:** el campo es texto libre también en el alta pública
@@ -790,6 +817,20 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
   (nadie lo explotó todavía).
 - **Criterio de aceptación:** el coseguro no puede quedar en 0 por un nombre mal escrito (400
   con la lista de obras sociales, o enlace explícito) + backfill de las filas existentes.
+- **Resolución Fase K5 (decisión 2026-10-21: no bloquear el alta):** el socio se da de alta
+  igual, pero queda marcado. `Member.insurance_unverified` (serializer) expone el texto cargado
+  sin FK; el panel muestra un badge, un filtro "obra social sin verificar" y un botón que abre
+  el combo de obras ya desplegado (`MemberForm` con `focusInsurance`), así se enlaza con un
+  clic. El alta pública ofrece la lista de obras del gym (`GET
+  /api/public/health-insurances/<code>/`) con una opción "Otra obra social..." para el texto
+  libre. Al crear o renombrar una obra social, un signal re-enlaza los socios por nombre
+  actual o anterior (`members/insurance.py`, `members/signals.py`) y el comando
+  `relink_insurances --gym <id>|--all` permite forzarlo. `_autolink_insurance` deja un WARNING
+  con el nombre y el gym cuando no matchea. Backfill medido: 0 socios con texto sin FK en
+  staging, así que no hizo falta migrar datos.
+- **Tests:** `backend/members/tests_phase_k5.py` (21 tests: normalización, auto-link,
+  re-enlace al renombrar, badge, filtro, endpoint público, comando, alta con obra conocida y
+  desconocida).
 
 ### ACC-26 · El portal no puede darse de baja de una inscripción de actividad
 - **Severidad:** ALTO · **Estado:** 🟢 (Fase K1) · **Detectado por:** K0 (revisión del
@@ -834,7 +875,7 @@ Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredic
 | ACC-16 | 🟢 cerrado (K4) | Los pedidos pendientes se cancelan sólo al **aprobar** el cambio de plan (al rechazar ya no se tocan) y la nota `admin_notes` —lo único que ve el socio en el portal— está en español. | K4 |
 
 ### ACC-19 · Teléfono único por gimnasio
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K5 · **Explicación:** la unicidad del
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K5) · **Sub-fase:** K5 · **Explicación:** la unicidad del
   teléfono es **sólo de serializer** (`backend/members/serializers.py:373-403` y `:667-683`),
   por `(phone, gym)`. No hay constraint en el modelo (`backend/members/models.py:111-115`).
 - **Ejemplo de impacto:** una familia con un solo teléfono no puede inscribir a dos socios en
@@ -844,6 +885,25 @@ Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredic
   mensaje explícito: *"Ya existe un socio con ese teléfono en este gimnasio"*.
 - **Criterio de aceptación:** la restricción no depende del serializer (constraint en DB) y el
   mensaje dice en qué gimnasio choca.
+- **Resolución Fase K5:** `UniqueConstraint(fields=["gym","phone"], condition=~Q(phone=""),
+  name="unique_member_phone_per_gym")` en `Member.Meta` (los teléfonos vacíos quedan fuera).
+  `MemberViewSet.create/update` y `PublicRegisterView` traducen el `IntegrityError` del
+  constraint a **400** con *"Ya existe un socio con ese teléfono en este gimnasio."* (sólo si el
+  error es de ese índice; el resto se re-lanza), y los dos serializers usan el mismo texto. La
+  migración `0019_member_unique_phone_per_gym` corre `RunPython` con la limpieza **antes** de
+  `AddConstraint`, así un deploy no puede fallar por datos sucios; el comando
+  `cleanup_duplicate_phones [--gym <id>] [--apply]` permite revisarla aparte (dry-run por
+  defecto) y `members/phone_cleanup.py` concentra la lógica (keeper = el más antiguo, sufijo
+  `-<id>`, tope de 30 caracteres).
+- **Dato corregido (2026-10-22):** la medición que hablaba de "12 grupos duplicados" agrupaba
+  por **nombre** de gym (hay varios "Test") — falso positivo. Re-medido por `gym_id` en
+  producción (sólo lectura): **1 grupo real** (`gym_id=9`, teléfono `000-0000`, socios
+  882/883/884) y 1 socio con teléfono vacío (excluido). En la copia local de staging la
+  migración renombró 2 filas y dejó 0 duplicados. La unicidad se aplica **por `gym_id`**, no por
+  nombre.
+- **Tests:** `backend/members/tests_phase_k5.py` (15 tests: constraint en el mismo gym y entre
+  gyms, vacíos permitidos, 400 en alta/edición staff y alta pública, `plan_phone_dedupe`,
+  `build_unique_phone` con sufijo/tope/colisiones y el comando en dry-run y `--apply`).
 
 ### ACC-20 · Borrar un socio es hard delete en cascada
 - **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K6 · **Explicación:** `Member` no tiene
@@ -1081,7 +1141,7 @@ En este registro quedan como `🟢`: `DIN-01` (P21 y P14), `DIN-02`/`DIN-08`/`DI
 
 De la Fase 8 (`PLAN-dinero.md`): **P8 → `ADD-27`** 🟢 (K3) · **P10 → `ADD-28`** 🟢 (K2) ·
 **P15 → `ADD-29`** 🟢 (K3) · **P9 → `ADD-11`** (decisión de negocio) ·
-**P11 → `ACC-08`** 🟢 · **P13 → `DIN-17`** (abierto, K5) · **P14 → `DIN-01`** 🟢 · **P16** 🟢.
+**P11 → `ACC-08`** 🟢 · **P13 → `DIN-17`** 🟢 (K5) · **P14 → `DIN-01`** 🟢 · **P16** 🟢.
 
 ---
 
@@ -1094,11 +1154,12 @@ Postgres 16 descartable en `/tmp`.
 
 | Gate | Estado |
 |---|---|
-| Suite completa (`manage.py test` de las 17 apps) | 🟢 449 tests OK (Fase K2) |
+| Suite completa (`manage.py test` de las 17 apps) | 🟢 529 tests OK (Fase K5) |
 | `makemigrations --check --dry-run` | 🟢 sin cambios pendientes |
 | `pnpm build` (frontend) | 🟢 verde |
 | `pnpm lint` (frontend) | 🔴 **88 problemas (68 errores, 20 warnings)** → `REF-05`, a cerrar en K7 |
 | `audit_money_bugs` | 🟢 sin "armados" nuevos |
+| Arnés de invariantes (I1–I8) | 🟢 27 violaciones, todas de `seed/base.py` (`DIN-20`); ninguna de código |
 | Migraciones pendientes | 🟢 ninguna |
 
 > La Fase K **no** puede darse por cerrada con el lint en rojo: `REF-05` es bloqueante del

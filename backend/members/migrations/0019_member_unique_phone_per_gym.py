@@ -1,10 +1,15 @@
 """Fase K5 · ACC-19: el teléfono es único por gym.
 
 Antes de crear el constraint hay que devolverle el teléfono a los socios
-que lo comparten: en producción había 12 grupos duplicados. La limpieza va
-en la propia migración (no en un comando previo) para que un deploy nunca
-pueda romper por datos sucios: si quedan duplicados, la migración los
-renombra y recién después aplica el constraint.
+que lo comparten. Re-medido en producción (sólo lectura) agrupando por
+``gym_id``: **1 grupo real** (gym 9, teléfono ``000-0000``). La medición
+anterior de 12 grupos agrupaba por nombre de gym (hay varios "Test") y era
+un falso positivo.
+
+La limpieza va en la propia migración (no en un comando previo) para que un
+deploy nunca pueda romper por datos sucios: si quedan duplicados, la
+migración los renombra y recién después aplica el constraint. Imprime el
+resumen en el log del deploy.
 
 El comando ``cleanup_duplicate_phones`` sirve para revisar el cambio antes
 (dry-run) y para correr la limpieza por gym.
@@ -23,7 +28,13 @@ def dedupe_phones(apps, schema_editor):
     """
     from members.phone_cleanup import apply_phone_dedupe
 
-    apply_phone_dedupe()
+    changes = apply_phone_dedupe()
+    if changes:
+        print(
+            f"K5 · ACC-19: se renombró el teléfono de {len(changes)} socios "
+            f"({len({c['gym_id'] for c in changes})} gimnasios) antes de "
+            "crear el índice único."
+        )
 
 
 def noop(apps, schema_editor):
