@@ -15,6 +15,7 @@ from .public_views import (
     PublicRegisterView,
     PublicSlotsView,
     PublicPlansView,
+    PublicHealthInsurancesView,
 )
 from activities.public_views import PublicGymActivitiesView
 
@@ -58,6 +59,11 @@ urlpatterns = router.urls + [
         "public/activities/<uuid:gym_code>/",
         PublicGymActivitiesView.as_view(),
         name="public-gym-activities",
+    ),
+    path(
+        "public/health-insurances/<uuid:gym_code>/",
+        PublicHealthInsurancesView.as_view(),
+        name="public-health-insurances",
     ),
     path(
         "public/<str:token>/photo/",

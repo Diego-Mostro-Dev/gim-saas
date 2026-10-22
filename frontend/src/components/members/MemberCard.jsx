@@ -4,6 +4,7 @@ import { formatHumanDate } from "../../utils/date.utils";
 function MemberCard({
   member,
   onEdit,
+  onFixInsurance,
   onDelete,
   onSharePortal,
   onCopyPortalLink,
@@ -44,6 +45,16 @@ function MemberCard({
             <p className="truncate font-medium text-text-primary">
               {member.first_name} {member.last_name}
             </p>
+
+            {member.insurance_unverified && (
+              <button
+                type="button"
+                onClick={() => onFixInsurance && onFixInsurance(member)}
+                className="mt-0.5 block w-fit rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text hover:underline dark:bg-warning/15 dark:text-warning"
+              >
+                Obra social sin verificar
+              </button>
+            )}
 
             <p className="truncate text-sm text-text-secondary">{member.phone}</p>
 

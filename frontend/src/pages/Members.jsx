@@ -77,6 +77,15 @@ function Members() {
 
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Fase K5 (ACC-23): filtro de las fichas con obra social escrita que el
+  // gym no tiene configurada (coseguro sin definir).
+  const [insuranceUnverifiedOnly, setInsuranceUnverifiedOnly] = useState(false);
+
+  // Al tocar el badge "obra social sin verificar" se abre la edición del
+  // socio con el combo de obras sociales ya desplegado: enlazar es un clic.
+  const [focusInsurance, setFocusInsurance] = useState(false);
+
+
   const [viewMode, setViewMode] = useState("cards");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -160,7 +169,20 @@ function Members() {
   const { filteredMembers } = useFilteredMembers({
     members,
     searchTerm,
+    insuranceUnverifiedOnly,
   });
+
+  // Fase K5 (ACC-23): cuántas fichas tienen obra social escrita sin obra
+  // configurada en el gym (coseguro sin definir).
+  const unverifiedInsuranceCount = useMemo(
+    () => members.filter((m) => m.insurance_unverified).length,
+    [members]
+  );
+
+  function openInsuranceFix(member) {
+    setFocusInsurance(true);
+    openEditForm(member);
+  }
 
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
 
@@ -357,6 +379,8 @@ function Members() {
       }
 
       resetForm();
+
+      setFocusInsurance(false);
 
       closeForm();
     } catch (error) {
@@ -773,6 +797,7 @@ function Members() {
           <button
             onClick={() => {
               if (showForm) {
+                setFocusInsurance(false);
                 closeForm();
               } else {
                 openCreateForm();
@@ -806,6 +831,23 @@ function Members() {
         />
       </div>
 
+      {/* OBRAS SOCIALES SIN VERIFICAR (Fase K5 · ACC-23) */}
+      {unverifiedInsuranceCount > 0 && (
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => setInsuranceUnverifiedOnly(!insuranceUnverifiedOnly)}
+            className={`rounded-xl border px-3 py-2 text-sm transition-colors ${
+              insuranceUnverifiedOnly
+                ? "border-warning bg-warning/10 text-text-primary"
+                : "border-border bg-surface-elevated text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            Obra social sin verificar ({unverifiedInsuranceCount})
+          </button>
+        </div>
+      )}
+
       {/* FORM */}
       {showForm && !loadingSlots && availableSlots.length === 0 && !editingMember && !activitiesEnabled && (
         <div className="rounded-xl border border-border bg-surface-elevated p-6 text-center">
@@ -821,6 +863,7 @@ function Members() {
       {showForm && (editingMember || availableSlots.length > 0 || activitiesEnabled) && (
         <div ref={formRef}>
           <MemberForm
+            key={`${editingMember ? editingMember.id : "new"}-${focusInsurance ? "fix" : ""}`}
             gym={gym}
             formData={formData}
             setFormData={setFormData}
@@ -835,6 +878,7 @@ function Members() {
             activitiesAvailable={activitiesEnabled}
             availableInsurances={availableInsurances}
             availableDiscounts={availableDiscounts}
+            focusInsurance={focusInsurance}
           />
         </div>
       )}
@@ -851,6 +895,7 @@ function Members() {
               key={member.id}
               member={member}
               onEdit={openEditForm}
+              onFixInsurance={openInsuranceFix}
               onDelete={handleOpenDeleteModal}
               onSharePortal={handleSharePortal}
               onCopyPortalLink={handleCopyPortalLink}
@@ -896,9 +941,21 @@ function Members() {
                           </>
                         )}
                       </div>
-                      <span className="font-medium text-text-primary">
-                        {member.first_name} {member.last_name}
-                      </span>
+                      <div>
+                        <span className="font-medium text-text-primary">
+                          {member.first_name} {member.last_name}
+                        </span>
+
+                        {member.insurance_unverified && (
+                          <button
+                            type="button"
+                            onClick={() => openInsuranceFix(member)}
+                            className="mt-1 block w-fit rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text hover:underline dark:bg-warning/15 dark:text-warning"
+                          >
+                            Obra social sin verificar
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </td>
 

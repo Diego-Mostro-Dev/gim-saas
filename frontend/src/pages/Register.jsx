@@ -9,6 +9,7 @@ import {
   getPublicSlots,
   getPublicPlans,
   getPublicActivities,
+  getPublicHealthInsurances,
 } from "../services/publicRegister.service";
 import { getPublicGym } from "../services/gym.service";
 import { txt } from "../utils/labels";
@@ -60,6 +61,12 @@ function Register() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [availablePlans, setAvailablePlans] = useState([]);
   const [availableActivities, setAvailableActivities] = useState([]);
+  const [availableInsurances, setAvailableInsurances] = useState([]);
+
+  // "otra" = el socio escribe una obra social que el gym no tiene
+  // configurada (Fase K5 · ACC-23). El texto queda pendiente de enlace y
+  // el staff lo ve marcado en el panel.
+  const [customInsurance, setCustomInsurance] = useState(false);
 
   // "loading" | "ok" | "no-contracted" | "error"
   const [activitiesStatus, setActivitiesStatus] = useState("loading");
@@ -82,10 +89,11 @@ function Register() {
     // horarios y el gym. Y las actividades entran al lote paralelo: antes
     // estaban después del Promise.all, así que nunca se pedían.
     async function fetchAll() {
-      const [slots, plans, activities, gymData] = await Promise.allSettled([
+      const [slots, plans, activities, insurances, gymData] = await Promise.allSettled([
         getPublicSlots(gymCode),
         getPublicPlans(gymCode),
         getPublicActivities(gymCode),
+        getPublicHealthInsurances(gymCode),
         getPublicGym(gymCode),
       ]);
 
@@ -102,10 +110,12 @@ function Register() {
       const nextSlots = asList(slots);
       const nextPlans = asList(plans);
       const nextActivities = asList(activities);
+      const nextInsurances = asList(insurances);
 
       if (nextSlots) setAvailableSlots(nextSlots);
       if (nextPlans) setAvailablePlans(nextPlans);
       if (nextActivities) setAvailableActivities(nextActivities);
+      if (nextInsurances) setAvailableInsurances(nextInsurances);
 
       // El gym es un objeto, no una lista.
       if (gymData.status === "fulfilled" && gymData.value) {
@@ -429,13 +439,64 @@ function Register() {
           />
         </div>
 
-        <input
-          type="text"
-          placeholder="Obra social / Seguro médico (opcional)"
-          value={formData.health_insurance}
-          onChange={(e) => setFormData({ ...formData, health_insurance: e.target.value })}
-          className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
-        />
+        <div>
+          {availableInsurances.length > 0 ? (
+            <>
+              <label className="mb-1 block text-sm text-text-secondary">
+                Obra social / Seguro médico (opcional)
+              </label>
+
+              <select
+                value={customInsurance ? "__otra__" : formData.health_insurance}
+                onChange={(e) => {
+                  const value = e.target.value;
+
+                  if (value === "__otra__") {
+                    setCustomInsurance(true);
+                    setFormData({ ...formData, health_insurance: "" });
+                    return;
+                  }
+
+                  setCustomInsurance(false);
+                  setFormData({ ...formData, health_insurance: value });
+                }}
+                className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+              >
+                <option value="">Sin obra social</option>
+
+                {availableInsurances.map((ins) => (
+                  <option key={ins.id} value={ins.name}>
+                    {ins.name}
+                  </option>
+                ))}
+
+                <option value="__otra__">Otra obra social...</option>
+              </select>
+
+              {customInsurance && (
+                <input
+                  type="text"
+                  placeholder="Nombre de la obra social"
+                  value={formData.health_insurance}
+                  onChange={(e) =>
+                    setFormData({ ...formData, health_insurance: e.target.value })
+                  }
+                  className="mt-2 w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+                />
+              )}
+            </>
+          ) : (
+            <input
+              type="text"
+              placeholder="Obra social / Seguro médico (opcional)"
+              value={formData.health_insurance}
+              onChange={(e) =>
+                setFormData({ ...formData, health_insurance: e.target.value })
+              }
+              className="w-full rounded-xl border border-border bg-surface-input px-4 py-3 text-text-primary outline-none"
+            />
+          )}
+        </div>
 
         <input
           type="text"
