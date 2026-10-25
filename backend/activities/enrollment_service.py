@@ -95,7 +95,10 @@ class EnrollmentService:
             )
 
             active_count = Enrollment.objects.filter(
-                gym=gym, schedule=locked_schedule, active=True
+                gym=gym,
+                schedule=locked_schedule,
+                active=True,
+                member__deleted_at__isnull=True,
             ).count()
             if active_count >= locked_schedule.capacity:
                 raise EnrollmentError("El horario alcanzó su capacidad máxima.")

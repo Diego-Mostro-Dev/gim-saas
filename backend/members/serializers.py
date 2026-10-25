@@ -149,6 +149,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "discount_name",
             "discount_percent",
             "active",
+            "deleted_at",
             "entry_mode",
             "is_comp",
             "schedules",
@@ -166,7 +167,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "outing_enrollments",
         ]
 
-        read_only_fields = ["gym", "active"]
+        read_only_fields = ["gym", "active", "deleted_at"]
 
     def _active_subscription(self, obj):
         """Most recent subscription whose start_date is in the past (or today).

@@ -15,6 +15,7 @@ from core.viewsets import GymModelViewSet
 
 from attendance.models import AttendanceSchedule, ScheduleChangeRequest, ScheduleSlot, ScheduleSwapRequest
 from members.models import Member
+from members.query import only_alive_members
 
 from payments.models import Payment
 
@@ -138,7 +139,7 @@ class SubscriptionView(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
         gym = self.request.user.profile.gym
         member_id = self.request.query_params.get("member")
-        queryset = queryset.filter(gym=gym)
+        queryset = only_alive_members(queryset).filter(gym=gym)
         if member_id:
             try:
                 member_id = int(member_id)
@@ -276,7 +277,9 @@ class PlanChangeRequestViewSet(GymModelViewSet):
         return PlanChangeRequestSerializer
 
     def get_queryset(self):
-        return super().get_queryset().select_related(
+        return only_alive_members(
+            super().get_queryset()
+        ).select_related(
             "member__insurance", "member", "requested_plan", "reviewed_by",
         ).prefetch_related("planned_schedules").annotate(
             _fallback_plan_name=Subquery(

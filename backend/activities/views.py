@@ -42,7 +42,10 @@ class ActivityViewSet(ActivitiesGuardMixin, GymModelViewSet):
         qs = qs.annotate(
             enrolled_count=Count(
                 "schedules__enrollments",
-                filter=Q(schedules__enrollments__active=True),
+                filter=Q(
+                    schedules__enrollments__active=True,
+                    schedules__enrollments__member__deleted_at__isnull=True,
+                ),
                 distinct=True,
             ),
             schedule_count=Count(
@@ -156,6 +159,7 @@ class ScheduleEnrollmentViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets
             gym=gym,
             schedule=schedule,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related("member", "member__insurance").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),
@@ -273,6 +277,7 @@ class EnrollmentActionViewSet(ActivitiesGuardMixin, GymQuerysetMixin, viewsets.G
         return Enrollment.objects.filter(
             gym=gym,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related("member__insurance", "member", "schedule__activity").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),

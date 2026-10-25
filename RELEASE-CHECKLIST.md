@@ -8,17 +8,17 @@ Objetivo: poder publicar una versión del producto **vender y cobrar** sin sorpr
 
 ---
 
-## 0. Estado del gate (línea base del 2026-10-22, cierre de K5)
+## 0. Estado del gate (línea base del 2026-10-25, cierre de K6)
 
 | Gate | Comando | Estado |
 |---|---|---|
-| Suite backend | `manage.py test <17 apps>` (ver §2) | 🟢 529 tests OK |
+| Suite backend | `manage.py test <17 apps>` (ver §2) | 🟢 553 tests OK |
 | Migraciones | `manage.py makemigrations --check --dry-run` | 🟢 sin cambios pendientes |
 | Build de front | `pnpm build` (en `frontend/`) | 🟢 verde |
 | Lint de front | `pnpm lint` (en `frontend/`) | 🔴 **88 problemas (68 errores, 20 warnings)** → `REF-05`, bloqueante (K7) |
 | Auditoría de dinero | `manage.py audit_money_bugs` | 🟢 sin "armados" nuevos |
 | Arnés de invariantes (I1–I8) | `check_money_invariants` sobre la copia de staging | 🟢 27 violaciones, todas de `seed/base.py` (`DIN-20`) |
-| Bugs abiertos | `BUGS.md` | 🔴 5 abiertos (K6: ACC-20; K7: ADD-03, ADD-19, REF-05; K8: DIN-20) |
+| Bugs abiertos | `BUGS.md` | 🔴 4 abiertos (K7: ADD-03, ADD-19, REF-05; K8: DIN-20) |
 
 ---
 
@@ -94,6 +94,9 @@ Otros workflows:
       (verificar en el log: `K5 · ACC-19: ...` renombrados) y `subscriptions/0024` creó el ítem
       de las filas legacy con `price_snapshot = 0` (log: `K5 · DIN-17: ...`). Ambos comandos son
       idempotentes y corren dentro de `migrate` (el `Procfile` migra antes de `gunicorn`).
+- [ ] K6 en staging: `members/0020` agrega `deleted_at` y reemplaza el constraint de teléfono
+      por uno parcial (sólo socios vivos). Verificar que los socios existentes quedan con
+      `deleted_at = NULL` y que la pestaña "Dados de baja" arranca vacía.
 - [ ] `BUGS.md` sin 🔴 y `PLAN-bugs.md` con la fase actual marcada como hecha.
 - [ ] `audit_money_bugs` sin "armados" nuevos y el arnés de invariantes (I1–I8) verde.
 - [ ] Sin secretos en el diff: `scripts/prod_token.txt` está ignorado por git (permisos 600).

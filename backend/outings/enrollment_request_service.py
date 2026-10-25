@@ -40,7 +40,10 @@ class OutingEnrollmentRequestService:
             )
 
         active_count = OutingEnrollment.objects.filter(
-            gym=gym, schedule=schedule, active=True
+            gym=gym,
+            schedule=schedule,
+            active=True,
+            member__deleted_at__isnull=True,
         ).count()
         if active_count >= schedule.capacity:
             raise OutingEnrollmentRequestError(

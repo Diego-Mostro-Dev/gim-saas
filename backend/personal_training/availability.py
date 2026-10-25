@@ -117,7 +117,10 @@ def _member_pt_intervals(gym, member, day, exclude):
 
 def _trainer_pt_intervals(trainer, day, exclude):
     qs = PersonalTrainingAssignment.objects.filter(
-        trainer=trainer, active=True, day=day
+        trainer=trainer,
+        active=True,
+        day=day,
+        member__deleted_at__isnull=True,
     )
     if exclude is not None:
         qs = qs.exclude(pk=exclude.pk)

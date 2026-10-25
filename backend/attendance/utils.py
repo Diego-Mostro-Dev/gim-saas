@@ -48,6 +48,7 @@ def compute_effective_occupancy(slot, target_date, exclude_member=None):
         status="approved",
         effective_date__lte=target_date,
         planned_schedules__slot=slot,
+        member__deleted_at__isnull=True,
     ).values("member").distinct()
     if exclude_member:
         future_qs = future_qs.exclude(member=exclude_member)
@@ -61,6 +62,7 @@ def compute_effective_occupancy(slot, target_date, exclude_member=None):
         effective_date__lte=target_date,
         member__schedules__slot=slot,
         member__schedules__active=True,
+        member__deleted_at__isnull=True,
     ).exclude(planned_schedules__slot=slot).values("member").distinct()
     if exclude_member:
         leavers_qs = leavers_qs.exclude(member=exclude_member)
@@ -71,6 +73,7 @@ def compute_effective_occupancy(slot, target_date, exclude_member=None):
     base_qs = AttendanceSchedule.objects.filter(
         slot=slot,
         active=True,
+        member__deleted_at__isnull=True,
     ).exclude(member__in=future_qs).exclude(member__in=leavers_qs)
     if exclude_member:
         base_qs = base_qs.exclude(member=exclude_member)
@@ -80,6 +83,7 @@ def compute_effective_occupancy(slot, target_date, exclude_member=None):
         destination_slot=slot,
         swap_date=target_date,
         status="approved",
+        member__deleted_at__isnull=True,
     )
     if exclude_member:
         swaps_in_qs = swaps_in_qs.exclude(member=exclude_member)
@@ -89,6 +93,7 @@ def compute_effective_occupancy(slot, target_date, exclude_member=None):
         origin_schedule__slot=slot,
         swap_date=target_date,
         status="approved",
+        member__deleted_at__isnull=True,
     )
     if exclude_member:
         swaps_out_qs = swaps_out_qs.exclude(member=exclude_member)
@@ -118,6 +123,7 @@ def compute_effective_occupancies(slots, target_date, exclude_member=None):
         AttendanceSchedule.objects.filter(
             slot_id__in=slot_ids,
             active=True,
+            member__deleted_at__isnull=True,
         ).values_list("slot_id", "member_id")
     )
     if exclude_member is not None:
@@ -135,6 +141,7 @@ def compute_effective_occupancies(slots, target_date, exclude_member=None):
         PlanChangeRequest.objects.filter(
             status="approved",
             effective_date__lte=target_date,
+            member__deleted_at__isnull=True,
         ).values_list("id", "member_id")
     )
     member_changes = {}
@@ -183,6 +190,7 @@ def compute_effective_occupancies(slots, target_date, exclude_member=None):
         destination_slot_id__in=slot_ids,
         swap_date=target_date,
         status="approved",
+        member__deleted_at__isnull=True,
     ).values_list("destination_slot_id", "member_id")
     for slot_id, member_id in swaps_in:
         if exclude_member is not None and member_id == exclude_member:
@@ -194,6 +202,7 @@ def compute_effective_occupancies(slots, target_date, exclude_member=None):
         origin_schedule__slot_id__in=slot_ids,
         swap_date=target_date,
         status="approved",
+        member__deleted_at__isnull=True,
     ).values_list("origin_schedule__slot_id", "member_id")
     for slot_id, member_id in swaps_out:
         if exclude_member is not None and member_id == exclude_member:

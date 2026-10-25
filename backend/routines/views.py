@@ -78,6 +78,11 @@ class RoutineAssignmentViewSet(RoutineManagerMixin, GymModelViewSet):
     # vía PATCH active=false o la desactivación implícita del bulk-assign.
     http_method_names = ["get", "post", "patch", "head", "options"]
 
+    def get_queryset(self):
+        return super().get_queryset().filter(
+            member__deleted_at__isnull=True,
+        )
+
 
 class RoutineExerciseViewSet(RoutineManagerMixin, viewsets.ModelViewSet):
     queryset = RoutineExercise.objects.all()
@@ -111,6 +116,7 @@ class MemberRoutineView(APIView):
                 gym=gym,
                 member_id=member_id,
                 active=True,
+                member__deleted_at__isnull=True,
             )
             .first()
         )
@@ -268,6 +274,7 @@ class ActiveRoutinesView(APIView):
             .filter(
                 gym=gym,
                 active=True,
+                member__deleted_at__isnull=True,
             )
         )
 

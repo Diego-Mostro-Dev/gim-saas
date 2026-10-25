@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-22** — Fases A a J hechas; **Fase K en curso (K0 a K5 hechas,
-K6→K8 planificadas)**. Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
-De ellos **89 ya están cerrados**, **13 son decisiones de negocio** y quedan **5 abiertos**
+Estado: **2026-10-25** — Fases A a J hechas; **Fase K en curso (K0 a K6 hechas,
+K7→K8 planificadas)**. Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
+De ellos **90 ya están cerrados**, **13 son decisiones de negocio** y quedan **4 abiertos**
 (cada uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -39,11 +39,11 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 3 | 14 | 3 | 1 |
 | Configuración (`CFG`) | 1 | 2 | 4 | 5 | 10 | 2 | 0 |
 | Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 24 | 3 | 2 |
-| Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 22 | 1 | 1 |
+| Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 23 | 1 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **51** | **20** | **89** | **13** | **5** |
+| **Total** | **5** | **31** | **51** | **20** | **90** | **13** | **4** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -131,7 +131,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ACC-17 | ALTO | 🟢 | El alta pública descarta el descuento y fuerza `is_comp=False` en silencio | Cerrado Fase E (decisión de negocio): el alta pública nunca honra `discount_id`/`is_comp` (son privilegios de staff) y deja warning en logs para asignarlos desde el panel |
 | ACC-18 | ALTO | 🟢 | Rotación de token deja el link viejo muerto | Cerrado Fase E: todos los endpoints del portal aceptan el token de una generación anterior (gracia de 1 generación; 2+ invalidado por diseño) |
 | ACC-19 | MEDIO | 🟢 | Teléfono único por gimnasio | Cerrado Fase K5: constraint parcial por gym + 400 explícito; la migración 0019 limpia los duplicados antes de crear el índice |
-| ACC-20 | MEDIO | 🔴 | Borrar un socio es hard delete en cascada | Sin papelera; se pierde historial · **K6** (decisión 2026-10-21: baja lógica) |
+| ACC-20 | MEDIO | 🟢 | Borrar un socio es hard delete en cascada | Cerrado Fase K6: `Member.deleted_at` + baja/reactivación, DELETE 405 y filtros operativos; el historial se conserva |
 | ACC-22 | MEDIO | ⚪ | Quitar la cortesía exige elegir un plan de pago | Decisión de negocio (K0): es correcto que quitar la cortesía obligue a elegir un plan de pago |
 | ACC-23 | ALTO | 🟢 | Obra social sin match → texto libre sin precio | Cerrado Fase K5: el texto sin match queda marcado y enlazable desde el panel; el alta pública ofrece la lista de obras del gym |
 | ACC-24 | ALTO | 🟢 | 500 al pedir cambio de horario de PT | Cerrado `f27bc67` (bug real no documentado en ninguna auditoría) |
@@ -906,20 +906,37 @@ Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredic
   `build_unique_phone` con sufijo/tope/colisiones y el comando en dry-run y `--apply`).
 
 ### ACC-20 · Borrar un socio es hard delete en cascada
-- **Severidad:** MEDIO · **Estado:** 🔴 · **Sub-fase:** K6 · **Explicación:** `Member` no tiene
-  baja lógica: `MemberViewSet.destroy` (`backend/members/views.py:260-277`) llama
-  `instance.delete()` y las FK con `on_delete=CASCADE` borran suscripciones, pagos,
-  asistencias, inscripciones y rutinas (`backend/subscriptions/models.py:24`,
-  `backend/attendance/models.py:53,99,180,261,351`, `backend/activities/models.py:147,273`, etc.).
-  El único freno es `ProtectedError` → 409 en los pagos.
+- **Severidad:** MEDIO · **Estado:** 🟢 (Fase K6) · **Sub-fase:** K6 · **Explicación original:**
+  `Member` no tenía baja lógica: `MemberViewSet.destroy` llamaba `instance.delete()` y las FK
+  con `on_delete=CASCADE` borraban suscripciones, pagos, asistencias, inscripciones y rutinas
+  (`backend/subscriptions/models.py:24`, `backend/attendance/models.py:53,99,180,261,351`,
+  `backend/activities/models.py:147,273`, etc.). El único freno era `ProtectedError` → 409 en
+  los pagos.
 - **Ejemplo de impacto:** sin papelera, un borrado accidental destruye el historial comercial
   del socio (y el del gimnasio).
 - **Decisión (2026-10-21):** **baja lógica**. Se agrega `Member.deleted_at` (nuevo campo, *no*
   se reutiliza `active`: `active=False` significa "suspendido" y el portal debe seguir
   accesible para que el socio suba un comprobante — ver COM-01), `DELETE` deja de existir
   (405) y todos los listados filtran los socios dados de baja.
-- **Criterio de aceptación:** dar de baja un socio conserva el historial y no aparece en los
-  listados; "reactivar" lo devuelve.
+- **Resolución Fase K6 (2026-10-25):**
+  - `Member.deleted_at` (migración `0020_...`) + managers `objects` (sólo vivos) y
+    `all_objects` (todos). `Member.soft_delete()` marca `deleted_at`, apaga `active` y
+    desactiva `auto_renew`; `Member.reactivate()` limpia `deleted_at` y vuelve a `active`.
+  - `DELETE /api/members/<id>/` responde **405**. La baja es
+    `POST /api/members/<id>/deactivate/` y la reactivación
+    `POST /api/members/<id>/reactivate/`; el listado normal excluye los dados de baja y
+    `GET /api/members/?deleted=1` los muestra (pestaña "Dados de baja" en el panel).
+  - Reactivar valida el teléfono (el constraint único ahora sólo aplica a vivos) y las
+    capacidades que se pudieron ocupar mientras el socio estuvo dado de baja: horario de
+    gimnasio, actividad, salida y solape de entrenador de PT. Si hay conflicto responde 400
+    con `conflicts`.
+  - Todos los listados operativos (actividades, salidas, asistencias, PT, rutinas, adjuntos,
+    suscripciones, deudores, dashboard y el portal) filtran los socios dados de baja. El
+    historial financiero se conserva: los pagos siguen visibles aunque el socio esté dado de
+    baja, y las suscripciones y demás filas no se borran.
+- **Tests:** `backend/members/tests_phase_k6.py` (26 tests: DELETE 405, baja/reactivación,
+  `auto_renew`, teléfono liberado, historial intacto, filtros operativos y conflictos de
+  capacidad).
 
 ### ACC-22 · Quitar la cortesía exige elegir un plan de pago
 - **Severidad:** MEDIO · **Estado:** ⚪ decisión de negocio (K0) · **Explicación:** es el

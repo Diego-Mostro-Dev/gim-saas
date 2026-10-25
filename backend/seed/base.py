@@ -39,7 +39,7 @@ class BaseSeeder:
         self.stats = {}
 
     def needs_seeding(self):
-        existing = Member.objects.filter(gym=self.gym).count()
+        existing = Member.all_objects.filter(gym=self.gym).count()
         if existing > 0:
             return self.force
         return True
@@ -47,7 +47,7 @@ class BaseSeeder:
     def cleanup_phase1(self):
         Payment.objects.filter(gym=self.gym).delete()
         Subscription.objects.filter(gym=self.gym).delete()
-        Member.objects.filter(gym=self.gym).delete()
+        Member.all_objects.filter(gym=self.gym).delete()
         if not self.preserve_plans:
             MembershipPlan.objects.filter(gym=self.gym).delete()
 

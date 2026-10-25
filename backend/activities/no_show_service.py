@@ -327,6 +327,7 @@ def deduct_missed_activity_enrollments(gym):
         modality="package",
         schedule__active=True,
         schedule__activity__active=True,
+        member__deleted_at__isnull=True,
     ).select_related("schedule")
 
     enrollments = 0
@@ -382,6 +383,7 @@ def deduct_missed_pt_assignments(gym):
         active=True,
         modality="package",
         service__active=True,
+        member__deleted_at__isnull=True,
     )
 
     assignments = 0

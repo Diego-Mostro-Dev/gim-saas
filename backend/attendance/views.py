@@ -76,7 +76,9 @@ def _build_class_items_by_day(gym, days):
         Prefetch(
             "enrollments",
             queryset=Enrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -135,7 +137,9 @@ def _build_outing_items_by_day(gym, days):
         Prefetch(
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -191,7 +195,9 @@ def _build_class_items_for_status(gym, day, selected_time):
         Prefetch(
             "enrollments",
             queryset=Enrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -243,7 +249,9 @@ def _build_outing_items_for_status(gym, day, selected_time):
         Prefetch(
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -300,6 +308,7 @@ class WeeklyScheduleView(APIView):
                     gym=gym,
                     swap_date=target_date,
                     status="approved",
+                    member__deleted_at__isnull=True,
                 ).select_related(
                     "origin_schedule__slot", "destination_slot", "member"
                 ).prefetch_related("member__subscription_set")
@@ -322,6 +331,7 @@ class WeeklyScheduleView(APIView):
             gym=gym,
             slot__day__in=days,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member",
             "slot",
@@ -424,8 +434,11 @@ class WeeklyScheduleView(APIView):
             return {}
 
         slot_ids = set(
-            AttendanceSchedule.objects.filter(gym=gym, active=True)
-            .values_list("slot_id", flat=True)
+            AttendanceSchedule.objects.filter(
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
+            ).values_list("slot_id", flat=True)
         )
         if approved_swaps:
             slot_ids.update(swap.destination_slot_id for swap in approved_swaps)
@@ -467,6 +480,7 @@ def members_by_schedule(request):
         slot__day=day,
         slot__hour=hour,
         active=True,
+        member__deleted_at__isnull=True,
     ).select_related("member__insurance", "member", "slot")
 
     result = [
@@ -492,6 +506,7 @@ def members_by_schedule(request):
                 origin_schedule__slot__hour=hour,
                 swap_date=target_date,
                 status="approved",
+                member__deleted_at__isnull=True,
             ).values_list("origin_schedule_id", flat=True)
         )
         result = [r for r in result if r["schedule_id"] not in swap_out_ids]
@@ -503,6 +518,7 @@ def members_by_schedule(request):
             destination_slot__hour=hour,
             swap_date=target_date,
             status="approved",
+            member__deleted_at__isnull=True,
         ).select_related("member__insurance", "member")
 
         for swap in swaps_in:
@@ -554,6 +570,7 @@ def attendance_status(request):
         slot__day=day,
         slot__hour=hour,
         active=True,
+        member__deleted_at__isnull=True,
     ).select_related(
         "member__insurance",
         "member",
@@ -600,6 +617,7 @@ def attendance_status(request):
             origin_schedule__slot__hour=hour,
             swap_date=target_date,
             status="approved",
+            member__deleted_at__isnull=True,
         ).values_list("origin_schedule_id", flat=True)
     )
     result = [r for r in result if r["schedule_id"] not in swap_out_ids]
@@ -611,6 +629,7 @@ def attendance_status(request):
         destination_slot__hour=hour,
         swap_date=target_date,
         status="approved",
+        member__deleted_at__isnull=True,
     ).select_related(
         "member__insurance", "member", "origin_schedule__slot", "destination_slot"
     ).prefetch_related("member__subscription_set"))
@@ -663,6 +682,7 @@ def attendance_status(request):
         orphaned_attendances = Attendance.objects.filter(
             gym=gym,
             member__gym=gym,
+            member__deleted_at__isnull=True,
             date=today,
             schedule__isnull=True,
             swap_request__isnull=True,
@@ -900,6 +920,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ScheduleChangeRequest.objects.filter(
             gym=self.request.user.profile.gym,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member__insurance", "member", "current_schedule__slot", "requested_slot", "reviewed_by"
         ).prefetch_related("gym__closed_dates")
@@ -1074,7 +1095,7 @@ def attendance_analytics(request):
     )
 
     top_members = (
-        Member.objects.filter(gym=gym)
+        Member.all_objects.filter(gym=gym)
         .annotate(
             num_attendances=Count("attendances", filter=Q(
                 attendances__date__gte=start_date,
@@ -1123,6 +1144,7 @@ class ScheduleSwapRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ScheduleSwapRequest.objects.filter(
             gym=self.request.user.profile.gym,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member__insurance", "member", "origin_schedule__slot", "destination_slot", "reviewed_by"
         )
@@ -1168,6 +1190,7 @@ def _get_recovery(request, recovery_pk):
     return SessionRecovery.objects.filter(
         gym=gym,
         pk=recovery_pk,
+        member__deleted_at__isnull=True,
     ).select_related("member", "activity", "granted_by").first()
 
 
@@ -1178,6 +1201,7 @@ class SessionRecoveryListCreateView(APIView):
         gym = request.user.profile.gym
         qs = SessionRecovery.objects.filter(
             gym=gym,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member",
             "activity",

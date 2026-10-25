@@ -77,7 +77,10 @@ def _conflict_message(conflict, member):
 
 def _check_trainer_pt_overlap(trainer, day, start_time, end_time, exclude):
     qs = PersonalTrainingAssignment.objects.filter(
-        trainer=trainer, active=True, day=day
+        trainer=trainer,
+        active=True,
+        day=day,
+        member__deleted_at__isnull=True,
     )
     if exclude is not None:
         qs = qs.exclude(pk=exclude.pk)

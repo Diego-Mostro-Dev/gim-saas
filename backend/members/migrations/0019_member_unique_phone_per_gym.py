@@ -16,19 +16,59 @@ El comando ``cleanup_duplicate_phones`` sirve para revisar el cambio antes
 """
 
 from django.db import migrations, models
+from django.db.models import Count
 
 
 def dedupe_phones(apps, schema_editor):
     """Devuelve un teléfono único a cada socio duplicado.
 
-    Importa ``members.phone_cleanup`` (no el modelo histórico) a propósito:
-    la lógica del sufijo ``-<id>`` tiene que ser la misma que usa el
-    comando de limpieza. Si ese módulo cambia, hay que actualizar esta
-    migración también.
+    Usa el modelo histórico de la migración y no el modelo actual: a esta
+    altura la tabla todavía no tiene ``deleted_at`` (lo agrega 0020), así
+    que un query con el manager actual falla en una base nueva. La lógica
+    del sufijo sigue viniendo de ``members.phone_cleanup`` para que el
+    comando de limpieza y la migración no se separen.
     """
-    from members.phone_cleanup import apply_phone_dedupe
+    from members.phone_cleanup import build_unique_phone
 
-    changes = apply_phone_dedupe()
+    Member = apps.get_model("members", "Member")
+
+    duplicate_groups = (
+        Member.objects.exclude(phone="")
+        .order_by()
+        .values("gym_id", "phone")
+        .annotate(n=Count("id"))
+        .filter(n__gt=1)
+    )
+
+    changes = []
+    for row in duplicate_groups:
+        member_ids = list(
+            Member.objects.filter(
+                gym_id=row["gym_id"],
+                phone=row["phone"],
+            )
+            .order_by("created_at", "id")
+            .values_list("id", flat=True)
+        )
+
+        taken = set(
+            Member.objects.filter(gym_id=row["gym_id"])
+            .exclude(phone=row["phone"])
+            .values_list("phone", flat=True)
+        )
+
+        for member_id in member_ids[1:]:
+            new_phone = build_unique_phone(row["phone"], member_id, taken)
+            taken.add(new_phone)
+            Member.objects.filter(pk=member_id).update(phone=new_phone)
+            changes.append(
+                {
+                    "gym_id": row["gym_id"],
+                    "member_id": member_id,
+                    "new_phone": new_phone,
+                }
+            )
+
     if changes:
         print(
             f"K5 · ACC-19: se renombró el teléfono de {len(changes)} socios "

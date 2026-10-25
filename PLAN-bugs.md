@@ -63,7 +63,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **K3. Faltas, no-show y recuperaciones** | ADD-27 (P8), ADD-29 (P15), ADD-05. | `activities/tests_phase_k.py` | ✅ **hecha** (2026-10-21; la recuperación queda atada a la falta que perdona; el watermark sólo avanza hasta la última falta cobrada; `ScheduleSlot.duration_minutes` con la duración real en los 4 chequeos; 466 tests) |
 | **K4. Asistencia y horarios** | ACC-02, ACC-03, ACC-04, ACC-14, ACC-16, CFG-04 (≡ ACC-13), ACC-10 (UI). | `attendance/tests_phase_k.py` + `makemigrations --check` | ✅ **hecha** (2026-10-21; ventana de check-in en `Gym` + los dos paths + la UI; `409` en el duplicado y el front distingue el éxito; día cerrado en el path de staff; cooldown y máximo mensual para el staff; la cancelación silenciosa sólo al aprobar y con nota en español; aprobar re-verifica el horario viejo y `weekly_visits`; la UI deja de prometer vigencia futura; 482 tests) |
 | **K5. Dinero y socios** | ACC-23, DIN-17, ACC-19. | Arnés Fase B (I1–I8) + `audit_money_bugs` sin armados | ✅ **hecha** (2026-10-22; fallback de precio eliminado + 65 filas legacy con `price_snapshot = 0`; obra social sin match marcada y enlazable desde el panel + select en el alta pública; teléfono único por gym con constraint parcial y limpieza en la migración; 47 tests nuevos; arnés 125→27, las 27 de `seed` → `DIN-20`; 529 tests) |
-| **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ⬜ |
+| **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ✅ **hecha** (2026-10-25; `Member.deleted_at` + managers `objects`/`all_objects`, `DELETE` → 405, `POST deactivate`/`reactivate`, filtros en todos los listados operativos y validación de teléfono/capacidad al reactivar; pestaña "Dados de baja" en el panel; 26 tests nuevos; 553 tests) |
 | **K7. Higiene de frontend y CI** | REF-05 (lint a 0 y bloqueante en el CI), ADD-19, ADD-03. | `pnpm lint` en 0 + `pnpm build` + suite completa | ⬜ |
 | **K8. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging | ⬜ |
 
@@ -192,11 +192,11 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
 release ejecutable.
 
-**Estado al 2026-10-22:** 107 hallazgos — 89 cerrados, 13 decisiones de negocio, **5 abiertos**
+**Estado al 2026-10-25:** 107 hallazgos — 90 cerrados, 13 decisiones de negocio, **4 abiertos**
 (cada uno con su sub-fase) y **0 a verificar**. La K se divide en 9 sub-fases; **un commit por
 sub-fase** y no se arranca la N+1 sin cerrar la N (mismo método que A→J: repro en rojo →
-fix → gate contra Postgres descartable → CI verde). K0, K1, K2, K3, K4 y K5 están hechas; sigue
-**K6** (baja lógica de socios).
+fix → gate contra Postgres descartable → CI verde). K0, K1, K2, K3, K4, K5 y K6 están hechas;
+sigue **K7** (higiene de frontend y CI).
 
 #### Decisiones tomadas (2026-10-21)
 
@@ -369,10 +369,23 @@ errores nuevos, deuda de K7) + `makemigrations --check` limpio + arnés de la Fa
 verde sin `expectedFailure` + `audit_money_bugs` sin "armados" nuevos.
 
 **K6 · Baja lógica de socios** — `ACC-20`.
-`Member.deleted_at` + `DELETE` → 405 + filtros en todos los listados (y "reactivar"). Es la
-sub-fase más invasiva: hay que revisar cada queryset que liste socios (panel, portal,
-selects, reportes).
-**Gate:** tests de baja/reactivación + verificación de que el historial queda intacto.
+**Hecho (2026-10-25):**
+- `Member.deleted_at` (migración `members/0020`) + managers `objects` (sólo vivos) y
+  `all_objects` (todos). `soft_delete()` marca la baja, apaga `active` y `auto_renew`;
+  `reactivate()` limpia `deleted_at` y vuelve a `active`.
+- `DELETE /api/members/<id>/` → **405**. La baja es `POST /api/members/<id>/deactivate/` y la
+  reactivación `POST /api/members/<id>/reactivate/`; `GET /api/members/?deleted=1` lista los
+  dados de baja. El panel suma la pestaña **"Dados de baja"** con el botón de reactivar.
+- Filtros operativos en actividades, salidas, asistencias, PT, rutinas, adjuntos,
+  suscripciones, deudores, dashboard y portal. El historial financiero se conserva: los pagos
+  siguen visibles aunque el socio esté dado de baja y las suscripciones no se borran.
+- Reactivar valida que el teléfono siga libre y que no se hayan ocupado las capacidades
+  (horario de gimnasio, actividad, salida o entrenador de PT); si hay conflicto responde 400
+  con `conflicts`.
+- La migración `0019` usa el modelo histórico para la limpieza de teléfonos: así puede correr
+  antes de que exista `deleted_at` en una base nueva.
+- Tests: 26 nuevos en `members/tests_phase_k6.py`.
+**Gate:** 553 tests OK contra Postgres 16 descartable + `makemigrations --check` limpio.
 
 **K7 · Higiene de frontend y CI** — `REF-05`, `ADD-19`, `ADD-03`.
 `REF-05`: declarar `__BUILD_ID__`/`__APP_VERSION__`/`process` en `eslint.config.js`, arreglar
@@ -390,7 +403,7 @@ cerrado, merge `development` → `main` (que despliega Render vía `Procfile`) y
 
 Si hay que liberar antes de terminar la K entera: **K0 + K1 + K2 + K3 + K5 + K8** (~5 días).
 Deja de perder plata (`ADD-27` 🟢, `ADD-28` 🟢, `DIN-17`, `ACC-23`), arregla el botón roto del
-portal (`ACC-26`) y cierra el registro. K4, K6 y K7 pueden ir post-release.
+portal (`ACC-26`) y cierra el registro. K7 puede ir post-release.
 
 **Estimación total:** ~10 días de trabajo efectivo (K6 y K7 son las que más engordan; K7
 parcial = sólo `REF-05`).

@@ -12,6 +12,7 @@ from django.utils import timezone
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
 from attendance.utils import compute_effective_occupancy
 from activities.no_show_service import deduct_missed_sessions
+from members.query import only_alive_members
 from .domain import ScheduleDomain, SubscriptionConflictError, SubscriptionDomain
 
 from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSchedule
@@ -875,6 +876,7 @@ def gym_activity_package_debt(gym):
             modality="package",
             session_price__isnull=False,
         )
+        .filter(member__deleted_at__isnull=True)
         .select_related("member", "schedule__activity")
     )
     return _package_debt_entries(pending_enrollments, include_member=True)
@@ -912,6 +914,7 @@ def gym_personal_training_package_debt(gym):
             modality="package",
             session_price__isnull=False,
         )
+        .filter(member__deleted_at__isnull=True)
         .select_related("service", "member")
     )
     return _pt_package_debt_entries(pending_assignments, include_member=True)
@@ -949,6 +952,7 @@ def gym_outing_package_debt(gym):
             modality="package",
             session_price__isnull=False,
         )
+        .filter(member__deleted_at__isnull=True)
         .select_related("member", "schedule__outing")
     )
     return _outing_package_debt_entries(pending_enrollments, include_member=True)
@@ -1055,7 +1059,9 @@ def gym_sellado_debt(gym, member=None):
         active=True,
         sellado_amount__isnull=False,
         sellado_paid=False,
-    ).select_related("member", "schedule__activity")
+    ).filter(member__deleted_at__isnull=True).select_related(
+        "member", "schedule__activity"
+    )
     if member is not None:
         enrollments = enrollments.filter(member=member)
     for e in enrollments:
@@ -1077,7 +1083,9 @@ def gym_sellado_debt(gym, member=None):
         active=True,
         sellado_amount__isnull=False,
         sellado_paid=False,
-    ).select_related("member", "service")
+    ).filter(member__deleted_at__isnull=True).select_related(
+        "member", "service"
+    )
     if member is not None:
         assignments = assignments.filter(member=member)
     for a in assignments:
@@ -1216,7 +1224,7 @@ def gym_outstanding_subscriptions(gym):
     from payments.models import Payment
 
     subscriptions = list(
-        Subscription.objects.filter(gym=gym)
+        only_alive_members(Subscription.objects.filter(gym=gym))
         .select_related("member__discount", "plan", "gym")
         .prefetch_related("items__activity", "items__outing", "items__plan")
         .order_by("start_date", "created_at")
@@ -1238,7 +1246,7 @@ def gym_outstanding_subscriptions(gym):
     credit_by_subscription = consumed_credit_by_subscription(subscription_ids)
 
     earliest_first_created = dict(
-        Subscription.objects.filter(gym=gym)
+        only_alive_members(Subscription.objects.filter(gym=gym))
         .values("member")
         .annotate(first_created=Min("created_at"))
         .values_list("member", "first_created")

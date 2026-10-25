@@ -46,6 +46,7 @@ from .models import (
     portal_member_or_404,
     resolve_public_portal_member,
 )
+from .reactivation import validate_reactivation_capacity
 from .serializers import (
     HealthInsuranceSerializer,
     MemberSerializer,
@@ -60,12 +61,24 @@ logger = logging.getLogger(__name__)
 
 
 class MemberViewSet(GymModelViewSet):
-    queryset = Member.objects.all()
+    queryset = Member.all_objects.all()
     serializer_class = MemberSerializer
     pagination_class = None
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
+
+    def _showing_deleted(self):
+        value = self.request.query_params.get("deleted", "")
+        return value.lower() in {"1", "true", "yes"}
 
     def get_queryset(self):
-        return super().get_queryset().select_related("insurance", "discount").prefetch_related(
+        queryset = super().get_queryset()
+
+        if self._showing_deleted():
+            queryset = queryset.filter(deleted_at__isnull=False)
+        else:
+            queryset = queryset.filter(deleted_at__isnull=True)
+
+        return queryset.select_related("insurance", "discount").prefetch_related(
             Prefetch(
                 "schedules",
                 queryset=AttendanceSchedule.objects.filter(
@@ -287,24 +300,85 @@ class MemberViewSet(GymModelViewSet):
                 logger.exception("No se pudo precomputar is_recoverable")
         return context
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="deactivate",
+    )
+    def deactivate(self, request, pk=None):
+        member = self.get_object()
+
+        with transaction.atomic():
+            member.soft_delete()
+
+        return Response(self.get_serializer(member).data)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="reactivate",
+    )
+    def reactivate(self, request, pk=None):
+        member = get_object_or_404(
+            Member.all_objects,
+            pk=pk,
+            gym=self.get_gym(),
+        )
+
+        if member.deleted_at is None:
+            return Response(
+                {"detail": "El socio no está dado de baja."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        phone_taken = (
+            bool(member.phone)
+            and Member.objects.filter(
+                gym=member.gym,
+                phone=member.phone,
+            ).exclude(pk=member.pk).exists()
+        )
+
+        if phone_taken:
+            return Response(
+                {
+                    "phone": (
+                        "Otro socio activo ya usa ese teléfono. Cambialo "
+                        "antes de reactivar."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             with transaction.atomic():
-                instance.delete()
-        except models.ProtectedError:
+                conflicts = validate_reactivation_capacity(member)
+                if conflicts:
+                    return Response(
+                        {
+                            "detail": (
+                                "No se puede reactivar: hay horarios o "
+                                "capacidades completas."
+                            ),
+                            "conflicts": conflicts,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                member.reactivate()
+        except IntegrityError as exc:
+            if "unique_member_phone_per_gym" not in str(exc):
+                raise
             return Response(
                 {
-                    "detail": (
-                        "No se puede eliminar: el socio tiene pagos "
-                        "o suscripciones con dependencias vinculadas."
+                    "phone": (
+                        "Otro socio activo ya usa ese teléfono. Cambialo "
+                        "antes de reactivar."
                     )
                 },
-                status=status.HTTP_409_CONFLICT,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(self.get_serializer(member).data)
 
     @action(
         detail=False,
@@ -346,6 +420,7 @@ class MemberViewSet(GymModelViewSet):
                 for row in Enrollment.objects.filter(
                     schedule_id__in=all_schedule_ids,
                     active=True,
+                    member__deleted_at__isnull=True,
                 )
                 .values("schedule_id")
                 .annotate(c=Count("id"))
@@ -522,7 +597,9 @@ class MemberAttachmentViewSet(GymModelViewSet):
     http_method_names = ["get", "patch", "head", "options"]
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related("member")
+        queryset = super().get_queryset().select_related("member").filter(
+            member__deleted_at__isnull=True,
+        )
 
         member_id = self.request.query_params.get("member")
         if member_id:

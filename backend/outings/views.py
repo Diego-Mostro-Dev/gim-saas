@@ -57,7 +57,10 @@ class OutingViewSet(OutingsGuardMixin, GymModelViewSet):
         qs = qs.select_related("trainer").annotate(
             enrolled_count=Count(
                 "schedules__enrollments",
-                filter=Q(schedules__enrollments__active=True),
+                filter=Q(
+                    schedules__enrollments__active=True,
+                    schedules__enrollments__member__deleted_at__isnull=True,
+                ),
                 distinct=True,
             ),
             schedule_count=Count(
@@ -200,6 +203,7 @@ class ScheduleOutingEnrollmentViewSet(
             gym=gym,
             schedule=schedule,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related("member", "member__insurance").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),
@@ -303,7 +307,8 @@ class OutingEnrollmentRequestViewSet(
 
     def get_queryset(self):
         qs = OutingEnrollmentRequest.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            member__deleted_at__isnull=True,
         ).select_related(
             "member",
             "schedule__outing__trainer",
@@ -394,6 +399,7 @@ class OutingEnrollmentActionViewSet(
         return OutingEnrollment.objects.filter(
             gym=gym,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related("member__insurance", "member", "schedule__outing").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),

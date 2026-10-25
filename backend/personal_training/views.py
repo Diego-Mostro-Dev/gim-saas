@@ -110,7 +110,8 @@ class PersonalTrainingAssignmentViewSet(
 
     def get_queryset(self):
         qs = PersonalTrainingAssignment.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            member__deleted_at__isnull=True,
         ).select_related(
             "member", "member__insurance", "trainer", "trainer__profile", "service"
         ).annotate(
@@ -311,7 +312,8 @@ class PersonalTrainingChangeRequestViewSet(
 
     def get_queryset(self):
         qs = PersonalTrainingChangeRequest.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            member__deleted_at__isnull=True,
         ).select_related("member", "member__insurance", "assignment", "assignment__service", "assignment__trainer", "reviewed_by")
         status_filter = self.request.query_params.get("status")
         if status_filter:
@@ -444,7 +446,9 @@ class PersonalTrainingAttendanceView(APIView):
 
         assignments = (
             PersonalTrainingAssignment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             )
             .select_related(
                 "member",

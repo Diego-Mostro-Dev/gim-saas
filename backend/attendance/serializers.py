@@ -588,6 +588,7 @@ class ScheduleChangeRequestSerializer(
                     gym=gym,
                     slot=requested_slot,
                     active=True,
+                    member__deleted_at__isnull=True,
                 ).count()
                 if current_count >= cap:
                     raise serializers.ValidationError(
@@ -790,6 +791,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
                     gym=gym,
                     slot=requested_slot,
                     active=True,
+                    member__deleted_at__isnull=True,
                 ).count()
                 if current_count >= cap:
                     raise serializers.ValidationError(
