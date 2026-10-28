@@ -9,6 +9,7 @@ __pycache__/
 .env.*
 !.env.example
 *.sqlite3
+test.db
 staticfiles/
 
 # Node
