@@ -15,10 +15,10 @@ Objetivo: poder publicar una versión del producto **vender y cobrar** sin sorpr
 | Suite backend | `manage.py test <17 apps>` (ver §2) | 🟢 553 tests OK |
 | Migraciones | `manage.py makemigrations --check --dry-run` | 🟢 sin cambios pendientes |
 | Build de front | `pnpm build` (en `frontend/`) | 🟢 verde |
-| Lint de front | `pnpm lint` (en `frontend/`) | 🔴 **88 problemas (68 errores, 20 warnings)** → `REF-05`, bloqueante (K7) |
+| Lint de front | `pnpm lint` (en `frontend/`) | 🟢 0 errores/warnings (K7 cerrado) |
 | Auditoría de dinero | `manage.py audit_money_bugs` | 🟢 sin "armados" nuevos |
-| Arnés de invariantes (I1–I8) | `check_money_invariants` sobre la copia de staging | 🟢 27 violaciones, todas de `seed/base.py` (`DIN-20`) |
-| Bugs abiertos | `BUGS.md` | 🔴 4 abiertos (K7: ADD-03, ADD-19, REF-05; K8: DIN-20) |
+| Arnés de invariantes (I1–I8) | `check_money_invariants` sobre staging (24 gimnasios) | 🟢 0 violaciones (K8: seed corregido + 27 casos legacy reparados) |
+| Bugs abiertos | `BUGS.md` | 🟢 Sin bugs abiertos |
 
 ---
 
@@ -82,8 +82,8 @@ Otros workflows:
 `CORS_ALLOWED_ORIGINS` · `NUM_PROXIES` · `DB_SSLMODE` (require) ·
 `NEON_ENDPOINT_STAGING` / `NEON_ENDPOINT_PRODUCTION`.
 
-> `.env.example` es la lista de referencia. Ojo: `BACKUP_RETENTION` se usa en
-> `backend/config/api/backup.py` y **no** estaba documentada en `.env.example` (K8: agregarla).
+> `.env.example` es la lista de referencia. `BACKUP_RETENTION` (usada en
+> `backend/config/api/backup.py`) ya quedó documentada ahí (K8).
 
 ## 4. Antes de mergear a `main`
 

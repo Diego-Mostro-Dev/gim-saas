@@ -71,7 +71,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | DIN-16 | ALTO | ⚪ | Recuperar no prorratea | Recuperar el día 25 cobra el mes completo por 5 días |
 | DIN-17 | BAJO | 🟢 | `calculate_subscription_total` reintroduce el precio vigente (fallback P13) | Cerrado Fase K5: sin fallback; la migración 0024 crea los ítems con `price_snapshot = 0` (lo efectivamente cobrado) |
 | DIN-18 | ALTO | 🟢 | Agregar sesiones a un paquete vuelve a dejar el sellado pendiente | Cerrado Fase D: `renew_package` ya no resetea `sellado_paid` |
-| DIN-20 | BAJO | 🔴 | El seed deja 27 violaciones de dinero en el arnés | Gym Dev/Gym Demo/Sinkro Prueba tienen sobrepagos y `paid` invertidos: el arnés no puede exigir 0 · **K8** (higiene de seed) |
+| DIN-20 | BAJO | 🟢 | El seed deja 27 violaciones de dinero en el arnés | Resuelto Fase K8: tras crear pagos se sincroniza `sync_subscription_paid` en `seed/base.py` para que `paid`/saldo queden coherentes con los invariantes |
 | CFG-01 | MEDIO | 🟢 | Unidades horas/días mezcladas entre pantallas | Cerrado Fase C: ambas UIs en horas, entero ≥ 0 (backend ya era entero) |
 | CFG-02 | BAJO | ⚪ | `allow_member_schedule_changes` legacy | Campo que ya no gobierna ninguna regla |
 | CFG-03 | MEDIO | ⚪ | `initial_pending` bloquea desde el día 1 | Socio nuevo sin primer pago no puede entrar aunque haya pagado el día 2 |
@@ -88,7 +88,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-09 | CRÍTICO | 🟢 | Desactivar una salida no corta el cobro | Cerrado Fase D: idem actividades (`cut_outing_billing`) |
 | ADD-02 | MEDIO | 🟢 | Huérfanas: el portal muestra la actividad/horario desactivado | Cerrado Fase D: el portal filtra `schedule.active` y `activity.active` |
 | ADD-10 | MEDIO | 🟢 | Huérfanas: idem salidas | Cerrado Fase D: idem actividades |
-| ADD-03 | ALTO | 🔴 | Cambiar de horario puede dejar al socio sin ninguno | Si falla la reinscripción queda sin horario · **K7** (hoy inalcanzable: la Fase D vació la rama) |
+| ADD-03 | ALTO | 🟢 | Cambiar de horario puede dejar al socio sin ninguno | Cerrado Fase K7: rollback a la inscripción original si falla la nueva |
 | ADD-04 | MEDIO | 🟢 | "Restaurar horarios" revive todos, incluidos los desactivados a propósito | Cerrado Fase K2: sólo vuelven los horarios apagados con la oferta |
 | ADD-05 | MEDIO | 🟢 | El choque con el gimnasio se calcula como "hora + 1 h" | Cerrado Fase K3: `ScheduleSlot.duration_minutes` y los 4 chequeos usan la duración real |
 | ADD-06 | ALTO | 🟢 | El portal rompe al renderizar una actividad desactivada | Cerrado Fase K1: `gym` del outlet context + import de `txt` |
@@ -102,7 +102,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | ADD-16 | ALTO | 🟢 | Las salidas no validan choque con gimnasio/actividades/PT | Cerrado Fase K2: validador compartido en `core/overlap.py` |
 | ADD-17 | MEDIO | ⚪ | El portal no ofrece salidas en modo sesiones | Decisión de negocio (K0): la salida en modo sesiones requiere inscripción del staff |
 | ADD-18 | BAJO | 🟢 | Botón "Renovar" duplicado | Cerrado Fase K1: queda un solo botón |
-| ADD-19 | BAJO | 🔴 | El PATCH directo de trainer/horario no está en la UI | Feature no alcanzable · **K7** |
+| ADD-19 | BAJO | 🟢 | El PATCH directo de trainer/horario no está en la UI | Cerrado Fase K7: botón "Editar" en asignaciones PT + modal que llama al PATCH |
 | ADD-20 | MEDIO | 🟢 | `record_payment` de PT sin usar / desincroniza `amount_paid` | Cerrado: `RecoverMembers.jsx` lo usa y todo Payment resincroniza |
 | ADD-21 | ALTO | 🟢 | En PT las faltas agotan el paquete sin recuperación | Cerrado Fase G: `SessionRecovery.kind="pt"` con FK a la asignación; la falta cancelada se repone (mismo invariante que actividades) |
 | ADD-22 | MEDIO | 🟢 | Renovación de PT bloqueada por saldo impago | Cerrado Fase K2: override explícito (`allow_unpaid`) |
@@ -156,7 +156,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | REF-02 | MEDIO | 🟢 | El CI no corre varias apps | Cerrado Fase J: el CI corre todas las apps con tests (gyms, admins, accounts, personal_training, routines, community, profiles, seed, core) |
 | REF-03 | MEDIO | 🟢 | Consultas de dinero sin filtro de gym | Cerrado Fase J: `member_credit_balance`, `credit_recorded_for` y `consume_member_credit` filtran por gym; tests de aislamiento |
 | REF-04 | BAJO | 🟢 | Admin `paid`/`price_snapshot` editables | Premisa falsa: ya están en `readonly_fields` |
-| REF-05 | BAJO | 🔴 | El frontend no tiene tests y el lint tiene deuda | Decisión 2026-10-21: entra en la K — lint a 0 y bloqueante en el CI · **K7** |
+| REF-05 | BAJO | 🟢 | El frontend no tiene tests y el lint tiene deuda | Cerrado Fase K7: `pnpm lint` en 0 y bloqueante en el CI; sigue sin tests de front |
 | REF-06 | BAJO | 🟢 | `validate_discount` es código muerto | Cerrado Fase J: renombrado a `validate_discount_id`; el descuento de otro gimnasio ahora da 400 |
 | REF-07 | MEDIO | 🟢 | N+1 en listados de asistencia y suscripciones | Detectado y cerrado Fase J: prefetch de suscripciones del socio, y `select_related` en recuperaciones/cambios/items; tests con `assertNumQueries` |
 | REF-08 | MEDIO | 🟢 | Admin sin scope de gimnasio (fuga de datos) | Detectado y cerrado Fase J: `GymScopedAdminMixin` en todos los admins de modelos que cuelgan del gimnasio; tests en `core/tests_admin_scoping.py` |
@@ -416,12 +416,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
   Cubierto por `ActivityPortalOrphanTests` y `OutingPortalOrphanTests`.
 
 ### ADD-03 · Cambiar de horario puede dejar sin ninguno
-- **Severidad:** ALTO · **Estado:** 🔴 · **Sub-fase:** K7
-- **Explicación:** el cambio hace `unenroll` y luego `enroll` sin rollback.
-- **Dónde:** `frontend/src/pages/MemberActivities.jsx:98-113`.
-- **Nota (K0):** hoy es **inalcanzable**: la Fase D vació la rama de "huérfanos" (el portal ya
-  no lista actividades/horarios desactivados), así que el flujo no llega a ejecutarse. Se
-  arregla junto con `ACC-26` (el front de portal), que es la misma pantalla.
+- **Severidad:** ALTO · **Estado:** 🟢 (Fase K7)
+- **Explicación:** el cambio hacía `unenroll` y luego `enroll` sin rollback.
+- **Dónde:** `frontend/src/pages/MemberActivities.jsx`.
+- **Nota (K0):** era **inalcanzable**: la Fase D vació la rama de "huérfanos" (el portal ya
+  no lista actividades/horarios desactivados), así que el flujo no llegaba a ejecutarse.
+- **Resolución Fase K7:** `handleSelectSchedule` guarda el horario original y, si el `enroll`
+  del nuevo falla, reintenta inscribir al horario anterior. Si el rollback también falla,
+  muestra un error explícito pidiendo recargar; en ambos casos recarga el estado desde la API.
 
 ### ADD-05 · Choque asume bloques de 1 hora
 - **Severidad:** MEDIO · **Estado:** 🟢 (Fase K3)
@@ -706,7 +708,7 @@ Los 8 hallazgos que las auditorías dejaron sin re-verificar. Veredicto del 2026
 | ADD-14 | 🟢 vivo (K2) | `backend/outings/session_service.py:105-113`: renovar con saldo impago → **400**. **Cerrado en K2**: la regla sigue, pero con override explícito (`allow_unpaid`). | — |
 | ADD-15 | 🟢 vivo (K2) | `backend/outings/views.py:87-96`: "Reactivar" revivía todos los horarios. **Cerrado en K2**: mismo flag `auto_deactivated` que actividades. | — |
 | ADD-17 | ⚪ decisión | `backend/outings/public_views.py:180` excluye `billing_mode="sessions"` del portal: la salida en modo sesiones requiere inscripción del staff. Comportamiento previsto (`AUDITORIA-SALIDAS.md:273-274`). | — |
-| ADD-19 | 🔴 vivo | `frontend/src/services/personalTraining.service.js:57-63` define `updatePersonalTrainingAssignment` pero **nadie lo llama**: el backend sí soporta el cambio (`backend/personal_training/serializers.py:349-362`). | K7 |
+| ADD-19 | 🟢 vivo (K7) | `frontend/src/services/personalTraining.service.js:57-63` define `updatePersonalTrainingAssignment` pero **nadie lo llama**. **Cerrado en K7**: botón "Editar" en `AssignmentCard` + `EditAssignmentModal` que llama al PATCH (trainer, servicio, día y horario); el backend ya soportaba el cambio (`backend/personal_training/serializers.py:349-362`). | — |
 | ADD-22 | 🟢 vivo (K2) | `backend/personal_training/session_service.py:85-93`: renovar PT con saldo impago → **400**. **Cerrado en K2**: mismo override explícito que ADD-14. | — |
 | ADD-24 | 🟢 vivo (K1) | `frontend/src/utils/ptAvailability.js:65-72` (`reconcileSlot`) elegía el primer slot libre sin avisar. **Cerrado en K1**: `reconcileSlot` devuelve `changed` y los 4 llamados (wizard, cambio de día y portal) avisan con un toast. | — |
 | ADD-25 | 🟢 vivo (K1) | `backend/personal_training/models.py:344` declaraba el estado `approved`, pero el flujo escribe `executed` (`backend/personal_training/change_request_service.py:132`). **Cerrado en K1**: estado fuera de `STATUS_CHOICES` + migración `personal_training/0003`. | — |
@@ -1077,17 +1079,15 @@ Detalle en `AUDITORIA-ASISTENCIAS.md §7` y `AUDITORIA-HORARIOS.md §7`. Veredic
   suscripción). Tests de aislamiento cruzado en
   `subscriptions/test_money_invariants.CrossGymCreditIsolationTests`.
 - **REF-04 · Admin `paid`/`price_snapshot`** 🟢 — premisa falsa: ya son `readonly_fields`.
-- **REF-05 · Frontend sin tests / lint con deuda** 🔴 (K7) — el CI corre `pnpm build`;
-  `pnpm lint` hoy falla con **88 problemas (68 errores, 20 warnings)** (91 → 88 con las
-  correcciones de K1 y K2): 23 de
-  `react-hooks/set-state-in-effect`, 19 de `no-undef` (globals virtuales `__BUILD_ID__` /
-  `__APP_VERSION__` / `process` sin declarar en `eslint.config.js`), 19 de
-  `react-hooks/exhaustive-deps` (warnings), 13 de `no-unused-vars`, 6 de `no-empty`. Archivos con
-  más errores: `src/store/pwa.store.js` (10), `src/features/FeatureProvider.jsx` (4),
-  `src/pages/MemberActivities.jsx` (4). **Decisión (2026-10-21):** entra en la Fase K — se
-  arregla la config de eslint y la deuda de hooks hasta dejar el lint en 0, y recién entonces
-  `pnpm lint` se vuelve **bloqueante en el CI**. Sigue sin tests de front (no hay script
-  `test`): queda como mejora posterior.
+- **REF-05 · Frontend sin tests / lint con deuda** 🟢 (Fase K7) — `pnpm lint` quedó en
+  **0 problemas** (desde 88). Se declararon los globals virtuales (`__BUILD_ID__`,
+  `__APP_VERSION__`, `process`) en `eslint.config.js`, se arreglaron los hooks con
+  `set-state-in-effect`/`exhaustive-deps`, `no-unused-vars`, `no-empty` y los `no-undef`
+  reales (p. ej. `setRefreshing` sin setter y `unenrollMemberFromActivity` sin import), y
+  `react-refresh/only-export-components` se exceptúa en los archivos de contexto que
+  exportan provider+hook a propósito. **El CI ahora corre `pnpm lint --max-warnings=0` como
+  paso bloqueante antes de `pnpm build`.** Sigue sin tests de front (no hay script `test`):
+  queda como mejora posterior.
 - **REF-06 · `validate_discount` es código muerto** 🟢 (Fase J) — renombrado a
   `validate_discount_id`; el descuento de otro gimnasio ahora da 400. Tests en
   `members/tests.py`.
@@ -1174,7 +1174,8 @@ Postgres 16 descartable en `/tmp`.
 | Suite completa (`manage.py test` de las 17 apps) | 🟢 529 tests OK (Fase K5) |
 | `makemigrations --check --dry-run` | 🟢 sin cambios pendientes |
 | `pnpm build` (frontend) | 🟢 verde |
-| `pnpm lint` (frontend) | 🔴 **88 problemas (68 errores, 20 warnings)** → `REF-05`, a cerrar en K7 |
+| `pnpm lint` (frontend, bloqueante en CI) | 🟢 0 problemas |
+| `pnpm lint` (frontend) | 🟢 0 problemas (`REF-05` cerrado en K7) |
 | `audit_money_bugs` | 🟢 sin "armados" nuevos |
 | Arnés de invariantes (I1–I8) | 🟢 27 violaciones, todas de `seed/base.py` (`DIN-20`); ninguna de código |
 | Migraciones pendientes | 🟢 ninguna |
