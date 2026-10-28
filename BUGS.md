@@ -1,9 +1,9 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-25** — Fases A a J hechas; **Fase K en curso (K0 a K6 hechas,
-K7→K8 planificadas)**. Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
-De ellos **90 ya están cerrados**, **13 son decisiones de negocio** y quedan **4 abiertos**
-(cada uno con la sub-fase de la K que lo cierra) y **0 a verificar**. Fichas de los abiertos con
+Estado: **2026-10-28** — Fases A a J hechas; **Fase K: K0 a K8 hechas, K9 (cierre y
+release) en curso**. Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
+De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **0 abiertos**
+y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el

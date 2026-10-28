@@ -66,10 +66,10 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ✅ **hecha** (2026-10-25; `Member.deleted_at` + managers `objects`/`all_objects`, `DELETE` → 405, `POST deactivate`/`reactivate`, filtros en todos los listados operativos y validación de teléfono/capacidad al reactivar; pestaña "Dados de baja" en el panel; 26 tests nuevos; 553 tests) |
 | **K7. Higiene de frontend y CI** | REF-05 (lint a 0 y bloqueante en el CI), ADD-19, ADD-03. | `pnpm lint` en 0 + `pnpm build` + suite completa | ✅ |
 | **K8. Higiene de seed / dinero** | DIN-20 (armonizar seed con arnés de invariantes). | Arnés I1–I8 en 0 tras seed (sin violaciones de `seed/base.py`). | ✅ |
-| **K8. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging | ⬜ |
+| **K9. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging | ⬜ |
 
 **Orden obligatorio**: A → B → C → D → E → F → G → H → I → J → K0 → K1 → K2 → K3 → K4 → K5 →
-K6 → K7 → K8. La B es el "GPS": una vez que existe la red de invariantes, cada fix de C-F se
+K6 → K7 → K8 → K9. La B es el "GPS": una vez que existe la red de invariantes, cada fix de C-F se
 valida contra ella.
 
 ---
@@ -187,7 +187,7 @@ Cierra `REF-06`, `REF-03`, `REF-01`, `REF-02` y suma dos hallazgos nuevos (`REF-
 
 ---
 
-### Fase K — plan detallado (K0 → K8)
+### Fase K — plan detallado (K0 → K9)
 
 **Objetivo:** cerrar el registro (`BUGS.md` sin 🔴 sin dueño), arreglar lo que queda vivo —en
 orden de impacto sobre la plata y sobre lo que el socio ve— y salir con un checklist de
@@ -395,14 +395,14 @@ bloqueante en el CI. `ADD-19` expone el PATCH de trainer/horario (feature que el
 soporta). `ADD-03`: el cambio de horario del portal, atómico o muerto.
 **Gate:** `pnpm lint` en 0 + `pnpm build` + suite completa verde.
 
-**K8 · Cierre y release** — `RELEASE-CHECKLIST.md` final, `BUGS.md` sin 🔴, `PLAN-bugs.md`
+**K9 · Cierre y release** — `RELEASE-CHECKLIST.md` final, `BUGS.md` sin 🔴, `PLAN-bugs.md`
 cerrado, merge `development` → `main` (que despliega Render vía `Procfile`) y monitoreo con
 `scripts/monitor.sh`.
 **Gate:** checklist ejecutada de punta a punta en staging + `monitor.sh` verde.
 
 #### Corte mínimo publicable
 
-Si hay que liberar antes de terminar la K entera: **K0 + K1 + K2 + K3 + K5 + K8** (~5 días).
+Si hay que liberar antes de terminar la K entera: **K0 + K1 + K2 + K3 + K5 + K8 + K9** (~5 días).
 Deja de perder plata (`ADD-27` 🟢, `ADD-28` 🟢, `DIN-17`, `ACC-23`), arregla el botón roto del
 portal (`ACC-26`) y cierra el registro. K7 puede ir post-release.
 
@@ -446,6 +446,6 @@ congelados, deuda de los bloqueados, backfill de snapshot, números unknowable, 
 2. Respetar el orden de fases y el gate de cada una.
 3. Un commit por fase. Al cerrar una fase: actualizar el estado en `BUGS.md` y este plan.
 4. Si un hallazgo resulta ser decisión de negocio, moverlo a "Pendientes" y seguir.
-5. **Fase K:** arrancar por **K0** (sólo `.md`, sin riesgo) y seguir K0 → K1 → … → K8. Cada
+5. **Fase K:** arrancar por **K0** (sólo `.md`, sin riesgo) y seguir K0 → K1 → … → K9. Cada
    sub-fase cierra sus IDs en `BUGS.md` y actualiza la tabla de fases de este plan.
-6. El checklist de release vive en **`RELEASE-CHECKLIST.md`** (borrador en K0, se completa en K8).
+6. El checklist de release vive en **`RELEASE-CHECKLIST.md`** (borrador en K0, se completa en K9).

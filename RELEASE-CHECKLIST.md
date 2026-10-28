@@ -1,6 +1,6 @@
 # Checklist de release
 
-> **Estado: BORRADOR** — creado en la Fase K0 (2026-10-21). Se completa en la sub-fase K8.
+> **Estado: BORRADOR** — creado en la Fase K0 (2026-10-21). Se completa en la sub-fase K9.
 > El registro de bugs es `BUGS.md`; el plan por fases es `PLAN-bugs.md`.
 
 Objetivo: poder publicar una versión del producto **vender y cobrar** sin sorpresas. Cada
