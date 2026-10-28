@@ -27,22 +27,6 @@ export default function Checkin() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!gymCode) {
-      setMessage("Código inválido");
-      return;
-    }
-
-    const memberToken = localStorage.getItem("member_token");
-
-    if (!memberToken) {
-      setMessage("No pudimos identificarte. Abrí primero tu Portal del Socio.");
-      return;
-    }
-
-    registerAttendance(memberToken);
-  }, [gymCode]);
-
   function goToPortal(memberToken) {
     redirectTimerRef.current = setTimeout(() => {
       navigate(`/routine/${memberToken}`);
@@ -101,6 +85,25 @@ export default function Checkin() {
       }
     }
   }
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (!gymCode) {
+        setMessage("Código inválido");
+        return;
+      }
+
+      const memberToken = localStorage.getItem("member_token");
+
+      if (!memberToken) {
+        setMessage("No pudimos identificarte. Abrí primero tu Portal del Socio.");
+        return;
+      }
+
+      registerAttendance(memberToken);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gymCode]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-6 text-center text-text-primary">

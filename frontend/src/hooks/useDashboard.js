@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getDashboardData } from "../services/dashboard.service";
 import { getCached, isCacheFresh, clearCached } from "../utils/cache";
@@ -16,19 +16,7 @@ export function useDashboard() {
   const [error, setError] =
     useState(null);
 
-  useEffect(() => {
-    loadDashboard();
-
-    function onDashboardRefresh() {
-      clearCached(CACHE_KEY);
-      loadDashboard();
-    }
-
-    window.addEventListener("dashboard-refresh", onDashboardRefresh);
-    return () => window.removeEventListener("dashboard-refresh", onDashboardRefresh);
-  }, []);
-
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     if (isCacheFresh(CACHE_KEY, TTL)) {
       setDashboardData(getCached(CACHE_KEY));
       setLoading(false);
@@ -38,21 +26,29 @@ export function useDashboard() {
     try {
       setLoading(true);
       setError(null);
-
-      const data =
-        await getDashboardData();
-
+      const data = await getDashboardData();
       setDashboardData(data);
-    } catch (error) {
-      console.error(error);
-
-      setError(
-        "No se pudo cargar el dashboard",
-      );
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo cargar el dashboard");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      loadDashboard();
+    });
+
+    function onDashboardRefresh() {
+      clearCached(CACHE_KEY);
+      loadDashboard();
+    }
+
+    window.addEventListener("dashboard-refresh", onDashboardRefresh);
+    return () => window.removeEventListener("dashboard-refresh", onDashboardRefresh);
+  }, [loadDashboard]);
 
   return {
     dashboardData,

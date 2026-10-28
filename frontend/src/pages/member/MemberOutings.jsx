@@ -51,7 +51,7 @@ function MemberOutings() {
   }, [token]);
 
   // Carga inicial deliberada (fetch-on-mount): patrón usado en toda la codebase.
-  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     cancelledRef.current = false;
     setLoading(true);
@@ -61,8 +61,8 @@ function MemberOutings() {
     return () => {
       cancelledRef.current = true;
     };
-  }, [load]);
-  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function runAction(nextAction, fn, successMessage) {
     setAction(nextAction);

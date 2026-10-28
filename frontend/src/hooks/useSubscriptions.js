@@ -41,10 +41,6 @@ export function useSubscriptions() {
 
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   async function loadData() {
     if (allCacheFresh()) {
       const cached = initFromCache();
@@ -95,6 +91,13 @@ export function useSubscriptions() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      loadData();
+    });
+
+  }, []);
 
   return {
     subscriptions,

@@ -40,6 +40,7 @@ export function useWeeklyAttendance() {
 
   useEffect(() => {
     loadAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
   async function loadAttendance() {

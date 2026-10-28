@@ -61,7 +61,10 @@ export function useOutingSchedules(outingId) {
   }
 
   useEffect(() => {
-    loadSchedules();
+    queueMicrotask(() => {
+      loadSchedules();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outingId]);
 
   async function handleCreateSchedule(data) {

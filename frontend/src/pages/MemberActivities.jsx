@@ -10,6 +10,7 @@ import { txt } from "../utils/labels";
 import {
   getAvailableActivities,
   enrollMemberPublic,
+  unenrollMemberFromActivity,
 } from "../services/activitiesPublic.service";
 
 function formatTime(timeStr) {
@@ -98,15 +99,35 @@ function MemberActivities() {
   async function handleSelectSchedule(newScheduleId) {
     if (!picker || isOperativeBlocked) return;
     setSubmittingId(newScheduleId);
+    const oldScheduleId = picker.schedule;
     try {
-      await unenrollMemberFromActivity(token, picker.schedule);
-      await enrollMemberPublic(token, newScheduleId);
-      toast.success("Inscripción actualizada correctamente");
-      closePicker();
-      reload();
+      await unenrollMemberFromActivity(token, oldScheduleId);
+      try {
+        await enrollMemberPublic(token, newScheduleId);
+        toast.success("Inscripción actualizada correctamente");
+        closePicker();
+        reload();
+        return;
+      } catch (enrollErr) {
+        try {
+          await enrollMemberPublic(token, oldScheduleId);
+          toast.error(
+            enrollErr.message ||
+              "No se pudo inscribir al nuevo horario. Se restauró el horario anterior.",
+          );
+        } catch (rollbackErr) {
+          toast.error(
+            rollbackErr.message ||
+              "Error al actualizar inscripción y no se pudo restaurar el horario anterior. Recarga la página.",
+          );
+        }
+        reload();
+        return;
+      }
     } catch (err) {
       toast.error(err.message || "Error al actualizar inscripción");
       reload();
+      return;
     } finally {
       setSubmittingId(null);
     }

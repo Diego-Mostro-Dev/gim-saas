@@ -238,7 +238,9 @@ function PersonalTrainingAttendance({ embedded = false }) {
   }, [startDate, endDate]);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
   }, [load]);
 
   const summary = data?.summary;

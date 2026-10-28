@@ -55,11 +55,13 @@ function PublicRoutine() {
   }
 
   useEffect(() => {
-    if (swapDate && token) {
-      getPublicSlots(token, swapDate).then(setSwapDateSlots).catch(() => {});
-    } else {
-      setSwapDateSlots([]);
-    }
+    queueMicrotask(() => {
+      if (swapDate && token) {
+        getPublicSlots(token, swapDate).then(setSwapDateSlots).catch(() => {});
+      } else {
+        setSwapDateSlots([]);
+      }
+    });
   }, [swapDate, token]);
 
   function openSwapModal(schedule) {
@@ -130,7 +132,7 @@ function PublicRoutine() {
       await cancelPublicScheduleChangeRequest(token, id);
       toast.success("Solicitud cancelada");
       await refreshRoutine();
-    } catch (error) {
+    } catch {
       toast.error("Error al cancelar la solicitud");
     }
   }
@@ -141,7 +143,7 @@ function PublicRoutine() {
       await cancelPublicScheduleSwapRequest(token, id);
       toast.success("Solicitud cancelada");
       await refreshRoutine();
-    } catch (error) {
+    } catch {
       toast.error("Error al cancelar la solicitud");
     }
   }

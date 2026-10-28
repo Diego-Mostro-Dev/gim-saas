@@ -80,7 +80,8 @@ export function useScheduleSwapWatcher() {
         window.dispatchEvent(
           new CustomEvent("schedule-swaps-refreshed", { detail: current }),
         );
-      } catch (err) {
+      } catch {
+        // Polling errors are non-fatal; retry on next tick.
       }
     }
 

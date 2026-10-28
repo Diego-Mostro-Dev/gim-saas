@@ -79,7 +79,8 @@ export function useScheduleChangeWatcher() {
         window.dispatchEvent(
           new CustomEvent("schedule-changes-refreshed", { detail: current }),
         );
-      } catch (err) {
+      } catch {
+        // Polling errors are non-fatal; retry on next tick.
       }
     }
 

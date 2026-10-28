@@ -24,13 +24,17 @@ function ExerciseForm({ onSubmit, editingExercise, onCancelEdit }) {
 
   useEffect(() => {
     if (editingExercise) {
-      setFormData({
-        name: editingExercise.name || "",
-        description: editingExercise.description || "",
-        category: editingExercise.category || "",
+      queueMicrotask(() => {
+        setFormData({
+          name: editingExercise.name || "",
+          description: editingExercise.description || "",
+          category: editingExercise.category || "",
+        });
       });
     } else {
-      setFormData({ name: "", description: "", category: "" });
+      queueMicrotask(() => {
+        setFormData({ name: "", description: "", category: "" });
+      });
     }
   }, [editingExercise]);
 

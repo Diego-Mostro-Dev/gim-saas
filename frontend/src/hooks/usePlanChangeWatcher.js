@@ -79,7 +79,8 @@ export function usePlanChangeWatcher() {
         window.dispatchEvent(
           new CustomEvent("plan-changes-refreshed", { detail: current }),
         );
-      } catch (err) {
+      } catch {
+        // Polling errors are non-fatal; retry on next tick.
       }
     }
 

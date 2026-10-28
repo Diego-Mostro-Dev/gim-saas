@@ -1,4 +1,4 @@
-import { apiFetch, fetchAllPages } from "./api";
+import { apiFetch } from "./api";
 import { setCached } from "../utils/cache";
 
 export async function getActivitySchedules(activityId) {

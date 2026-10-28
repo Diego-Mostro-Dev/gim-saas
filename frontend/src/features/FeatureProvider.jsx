@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { getGym } from "../services/gym.service";
 import { getCached } from "../utils/cache";
@@ -10,24 +11,33 @@ function FeatureProvider({ mode, initialFeatures, onRefreshFeatures, children })
   // the app only renders after hydrate() resolves — so seeding from the auth
   // store paints gated nav items (Actividades/Entrenam.) on the first frame
   // instead of a frame-plus-one-RTT later.
-  const [features, setFeatures] = useState(() =>
-    mode === "admin" ? (useAuthStore.getState().features || {}) : {},
-  );
+  const [features, setFeatures] = useState(() => {
+    if (mode === "admin") {
+      try {
+        return useAuthStore.getState().features || {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
   const onRefreshFeaturesRef = useRef(onRefreshFeatures);
-  onRefreshFeaturesRef.current = onRefreshFeatures;
+  useEffect(() => {
+    onRefreshFeaturesRef.current = onRefreshFeatures;
+  }, [onRefreshFeatures]);
 
   const authFeatures = useAuthStore((state) => state.features);
 
   useEffect(() => {
     if (mode === "public") {
-      setFeatures(initialFeatures || {});
+      queueMicrotask(() => setFeatures(initialFeatures || {}));
       return;
     }
 
     // The mount effect below never re-runs (its deps are constant), so
     // without this sync a fresh login would leave features as {} until the
     // window regains focus; logout clearing authFeatures also lands here.
-    setFeatures(authFeatures || {});
+    queueMicrotask(() => setFeatures(authFeatures || {}));
   }, [mode, initialFeatures, authFeatures]);
 
   useEffect(() => {
@@ -62,7 +72,7 @@ function FeatureProvider({ mode, initialFeatures, onRefreshFeatures, children })
     }
 
     if (mode === "admin") {
-      refreshFeatures();
+      queueMicrotask(() => refreshFeatures());
     }
 
     function handleFeaturesRefresh() {

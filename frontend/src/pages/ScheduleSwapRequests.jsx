@@ -109,7 +109,12 @@ function ScheduleSwapRequests() {
   }
 
   useEffect(() => {
-    loadRequests();
+
+    const id = setTimeout(() => {
+      loadRequests();
+    }, 0);
+    return () => clearTimeout(id);
+
   }, []);
 
   useEffect(() => {
@@ -122,35 +127,43 @@ function ScheduleSwapRequests() {
   }, []);
 
   useEffect(() => {
-    if (approvalTarget) {
-      const updated = requests.find((r) => r.id === approvalTarget.id);
-      if (!updated || updated.status !== "pending") {
-        setApprovalTarget(null);
-        if (updated?.status === "approved") {
-          toast.success("Intercambio aprobado por otro administrador.");
-        } else if (updated?.status === "rejected") {
-          toast.success("Intercambio rechazado por otro administrador.");
-        } else {
-          toast.success("La solicitud ya no está pendiente.");
-        }
+    if (!approvalTarget) return;
+    const updated = requests.find((r) => r.id === approvalTarget.id);
+    if (!updated || updated.status !== "pending") {
+      const status = updated?.status;
+      const currentId = approvalTarget.id;
+      queueMicrotask(() => {
+        setApprovalTarget((prev) => (prev?.id === currentId ? null : prev));
+      });
+      if (status === "approved") {
+        toast.success("Intercambio aprobado por otro administrador.");
+      } else if (status === "rejected") {
+        toast.success("Intercambio rechazado por otro administrador.");
+      } else if (updated) {
+        toast.success("La solicitud ya no está pendiente.");
       }
     }
+  }, [requests, approvalTarget]);
 
-    if (rejectionTarget) {
-      const updated = requests.find((r) => r.id === rejectionTarget.id);
-      if (!updated || updated.status !== "pending") {
-        setRejectionTarget(null);
+  useEffect(() => {
+    if (!rejectionTarget) return;
+    const updated = requests.find((r) => r.id === rejectionTarget.id);
+    if (!updated || updated.status !== "pending") {
+      const status = updated?.status;
+      const currentId = rejectionTarget.id;
+      queueMicrotask(() => {
+        setRejectionTarget((prev) => (prev?.id === currentId ? null : prev));
         setRejectionNotes("");
-        if (updated?.status === "approved") {
-          toast.success("Intercambio aprobado por otro administrador.");
-        } else if (updated?.status === "rejected") {
-          toast.success("Intercambio rechazado por otro administrador.");
-        } else {
-          toast.success("La solicitud ya no está pendiente.");
-        }
+      });
+      if (status === "approved") {
+        toast.success("Intercambio aprobado por otro administrador.");
+      } else if (status === "rejected") {
+        toast.success("Intercambio rechazado por otro administrador.");
+      } else if (updated) {
+        toast.success("La solicitud ya no está pendiente.");
       }
     }
-  }, [requests]);
+  }, [requests, rejectionTarget]);
 
   const stats = {
     pending: requests.filter((r) => r.status === "pending").length,

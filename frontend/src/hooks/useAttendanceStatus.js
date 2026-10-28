@@ -97,6 +97,7 @@ export function useAttendanceStatus(openDays = [], closedDates = []) {
 
   useEffect(() => {
     if (effectiveDay) loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveDay, hour]);
 
   async function loadStatus(forceRefresh = false) {

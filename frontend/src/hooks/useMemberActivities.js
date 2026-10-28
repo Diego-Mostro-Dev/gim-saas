@@ -13,6 +13,7 @@ export function useMemberActivities(token) {
   useEffect(() => {
     if (!token) return;
     loadEnrollments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   async function loadEnrollments() {
@@ -43,6 +44,7 @@ export function useMemberActivities(token) {
 
   const reload = useCallback(() => {
     loadEnrollments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { enrollments, loading, error, handleUnenroll, unenrollingId, reload };

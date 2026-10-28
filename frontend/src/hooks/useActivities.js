@@ -23,22 +23,22 @@ export function useActivities() {
 
   const [error, setError] = useState(null);
 
-  async function loadActivities() {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getActivities();
-      setActivities(data);
-    } catch (err) {
-      console.error(err);
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadActivities();
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getActivities();
+        setActivities(data);
+      } catch (err) {
+        console.error(err);
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+
   }, []);
 
   async function handleCreateActivity(data) {

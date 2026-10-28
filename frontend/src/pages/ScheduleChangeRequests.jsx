@@ -78,7 +78,10 @@ function ScheduleChangeRequests() {
   }
 
   useEffect(() => {
-    loadRequests();
+    queueMicrotask(() => {
+      loadRequests();
+    });
+
   }, []);
 
   useEffect(() => {
@@ -91,35 +94,43 @@ function ScheduleChangeRequests() {
   }, []);
 
   useEffect(() => {
-    if (approvalTarget) {
-      const updated = requests.find((r) => r.id === approvalTarget.id);
-      if (!updated || updated.status !== "pending") {
-        setApprovalTarget(null);
-        if (updated?.status === "approved") {
-          toast.success("Solicitud aprobada por otro administrador.");
-        } else if (updated?.status === "rejected") {
-          toast.success("Solicitud rechazada por otro administrador.");
-        } else {
-          toast.success("La solicitud ya no está pendiente.");
-        }
+    if (!approvalTarget) return;
+    const updated = requests.find((r) => r.id === approvalTarget.id);
+    if (!updated || updated.status !== "pending") {
+      const status = updated?.status;
+      const currentId = approvalTarget.id;
+      queueMicrotask(() => {
+        setApprovalTarget((prev) => (prev?.id === currentId ? null : prev));
+      });
+      if (status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else if (updated) {
+        toast.success("La solicitud ya no está pendiente.");
       }
     }
+  }, [requests, approvalTarget]);
 
-    if (rejectionTarget) {
-      const updated = requests.find((r) => r.id === rejectionTarget.id);
-      if (!updated || updated.status !== "pending") {
-        setRejectionTarget(null);
+  useEffect(() => {
+    if (!rejectionTarget) return;
+    const updated = requests.find((r) => r.id === rejectionTarget.id);
+    if (!updated || updated.status !== "pending") {
+      const status = updated?.status;
+      const currentId = rejectionTarget.id;
+      queueMicrotask(() => {
+        setRejectionTarget((prev) => (prev?.id === currentId ? null : prev));
         setRejectionNotes("");
-        if (updated?.status === "approved") {
-          toast.success("Solicitud aprobada por otro administrador.");
-        } else if (updated?.status === "rejected") {
-          toast.success("Solicitud rechazada por otro administrador.");
-        } else {
-          toast.success("La solicitud ya no está pendiente.");
-        }
+      });
+      if (status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else if (updated) {
+        toast.success("La solicitud ya no está pendiente.");
       }
     }
-  }, [requests]);
+  }, [requests, rejectionTarget]);
 
   const filteredRequests = requests.filter((r) => {
     if (filter !== "all") {

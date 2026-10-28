@@ -136,6 +136,7 @@ class PersonalTrainingAssignmentSerializer(serializers.ModelSerializer):
         queryset=UserProfile.objects.none(),
         write_only=True,
     )
+    trainer_profile_id = serializers.SerializerMethodField()
     trainer_name = serializers.SerializerMethodField()
     trainer_gender = serializers.SerializerMethodField()
     trainer_phone = serializers.SerializerMethodField()
@@ -166,6 +167,7 @@ class PersonalTrainingAssignmentSerializer(serializers.ModelSerializer):
             "member_address",
             "is_comp",
             "trainer_id",
+            "trainer_profile_id",
             "trainer_name",
             "trainer_gender",
             "trainer_phone",
@@ -203,6 +205,10 @@ class PersonalTrainingAssignmentSerializer(serializers.ModelSerializer):
 
     def get_member_address(self, obj):
         return obj.member.address or None
+
+    def get_trainer_profile_id(self, obj):
+        profile = getattr(obj.trainer, "profile", None)
+        return profile.id if profile else None
 
     def get_trainer_name(self, obj):
         return obj.trainer_name

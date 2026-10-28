@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Search, Filter, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useMembers } from "../../hooks/useMembers";
@@ -68,7 +68,7 @@ function RoutineAssignment() {
       );
 
       setSelectedMembers([]);
-    } catch (error) {
+    } catch {
       toast.error("No se pudo asignar la rutina.");
     } finally {
       setIsSubmitting(false);
