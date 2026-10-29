@@ -84,10 +84,17 @@ export async function removePersonalTrainingSession(id, date) {
   });
 }
 
-export async function renewPersonalTrainingPackage(id, additionalSessions) {
+export async function renewPersonalTrainingPackage(
+  id,
+  additionalSessions,
+  allowUnpaid = false
+) {
   return apiFetch(`/api/personal-training/assignments/${id}/renew/`, {
     method: "POST",
-    body: JSON.stringify({ additional_sessions: additionalSessions }),
+    body: JSON.stringify({
+      additional_sessions: additionalSessions,
+      allow_unpaid: allowUnpaid,
+    }),
     headers: { "Content-Type": "application/json" },
   });
 }

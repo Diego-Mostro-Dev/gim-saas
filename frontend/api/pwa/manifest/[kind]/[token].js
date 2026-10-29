@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     );
     res.setHeader("cache-control", "public, max-age=3600, must-revalidate");
     res.end(body);
-  } catch (err) {
+  } catch {
     res.status(502).end("Bad gateway");
   }
 }

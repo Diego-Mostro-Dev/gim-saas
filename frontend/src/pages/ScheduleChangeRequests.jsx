@@ -16,8 +16,11 @@ import MemberIdentity from "../components/common/MemberIdentity";
 const STATUS_LABELS = {
   pending: "Pendiente",
   approved: "Aprobado",
+  executed: "Aprobado",
   rejected: "Rechazado",
   cancelled: "Cancelado",
+  cancelled_by_member: "Cancelado por el socio",
+  cancelled_by_staff: "Cancelado",
 };
 
 const FILTERS = [
@@ -26,6 +29,12 @@ const FILTERS = [
   { key: "approved", label: "Aprobadas" },
   { key: "rejected", label: "Rechazadas" },
 ];
+
+// El flujo escribe `executed` al aprobar (approve → executed). El filtro
+// "Aprobadas" debe cubrir ambos estados o la lista queda vacía.
+const FILTER_STATUSES = {
+  approved: ["approved", "executed"],
+};
 
 function ScheduleChangeRequests() {
   const [requests, setRequests] = useState([]);
@@ -69,7 +78,10 @@ function ScheduleChangeRequests() {
   }
 
   useEffect(() => {
-    loadRequests();
+    queueMicrotask(() => {
+      loadRequests();
+    });
+
   }, []);
 
   useEffect(() => {
@@ -82,38 +94,49 @@ function ScheduleChangeRequests() {
   }, []);
 
   useEffect(() => {
-    if (approvalTarget) {
-      const updated = requests.find((r) => r.id === approvalTarget.id);
-      if (!updated || updated.status !== "pending") {
-        setApprovalTarget(null);
-        if (updated?.status === "approved") {
-          toast.success("Solicitud aprobada por otro administrador.");
-        } else if (updated?.status === "rejected") {
-          toast.success("Solicitud rechazada por otro administrador.");
-        } else {
-          toast.success("La solicitud ya no está pendiente.");
-        }
+    if (!approvalTarget) return;
+    const updated = requests.find((r) => r.id === approvalTarget.id);
+    if (!updated || updated.status !== "pending") {
+      const status = updated?.status;
+      const currentId = approvalTarget.id;
+      queueMicrotask(() => {
+        setApprovalTarget((prev) => (prev?.id === currentId ? null : prev));
+      });
+      if (status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else if (updated) {
+        toast.success("La solicitud ya no está pendiente.");
       }
     }
+  }, [requests, approvalTarget]);
 
-    if (rejectionTarget) {
-      const updated = requests.find((r) => r.id === rejectionTarget.id);
-      if (!updated || updated.status !== "pending") {
-        setRejectionTarget(null);
+  useEffect(() => {
+    if (!rejectionTarget) return;
+    const updated = requests.find((r) => r.id === rejectionTarget.id);
+    if (!updated || updated.status !== "pending") {
+      const status = updated?.status;
+      const currentId = rejectionTarget.id;
+      queueMicrotask(() => {
+        setRejectionTarget((prev) => (prev?.id === currentId ? null : prev));
         setRejectionNotes("");
-        if (updated?.status === "approved") {
-          toast.success("Solicitud aprobada por otro administrador.");
-        } else if (updated?.status === "rejected") {
-          toast.success("Solicitud rechazada por otro administrador.");
-        } else {
-          toast.success("La solicitud ya no está pendiente.");
-        }
+      });
+      if (status === "approved") {
+        toast.success("Solicitud aprobada por otro administrador.");
+      } else if (status === "rejected") {
+        toast.success("Solicitud rechazada por otro administrador.");
+      } else if (updated) {
+        toast.success("La solicitud ya no está pendiente.");
       }
     }
-  }, [requests]);
+  }, [requests, rejectionTarget]);
 
   const filteredRequests = requests.filter((r) => {
-    if (filter !== "all" && r.status !== filter) return false;
+    if (filter !== "all") {
+      const matchStatuses = FILTER_STATUSES[filter] || [filter];
+      if (!matchStatuses.includes(r.status)) return false;
+    }
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -139,8 +162,11 @@ function ScheduleChangeRequests() {
     const colors = {
       pending: "bg-warning-bg dark:bg-warning/15 text-warning-text dark:text-warning",
       approved: "bg-success-bg dark:bg-success/15 text-success-text dark:text-success",
+      executed: "bg-success-bg dark:bg-success/15 text-success-text dark:text-success",
       rejected: "bg-danger-bg dark:bg-danger/15 text-danger-text dark:text-danger",
       cancelled: "bg-muted-bg text-muted-text",
+      cancelled_by_member: "bg-muted-bg text-muted-text",
+      cancelled_by_staff: "bg-muted-bg text-muted-text",
     };
     return (
       <span className={`${base} ${colors[status] || colors.pending}`}>
@@ -307,10 +333,15 @@ function ScheduleChangeRequests() {
                   </p>
                   {req.effective_date && (
                     <p className="text-xs text-text-secondary">
-                      Vigente:{" "}
+                      Próxima clase del horario pedido:{" "}
                       {formatHumanDate(req.effective_date)}
                     </p>
                   )}
+                  {/* ACC-10: el backend no tiene vigencia futura: el cambio
+                      se aplica al aprobarlo, así que la UI no lo promete. */}
+                  <p className="text-xs text-text-secondary">
+                    Al aprobarlo el cambio se aplica de inmediato.
+                  </p>
                 </div>
               </div>
                 {statusBadge(req.status)}
@@ -419,7 +450,9 @@ function ScheduleChangeRequests() {
           <div className="w-full max-w-md rounded-3xl border border-border bg-surface-modal p-4 sm:p-6 shadow-2xl">
               {rejectionTarget.effective_date && (
                 <div className="mt-3 rounded-xl bg-surface-input px-3 py-2">
-                  <p className="text-xs text-text-secondary">Vigente desde</p>
+                  <p className="text-xs text-text-secondary">
+                    Próxima clase del horario pedido
+                  </p>
                   <p className="text-sm text-text-primary">
                     {formatHumanDate(rejectionTarget.effective_date)}
                   </p>

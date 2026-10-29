@@ -1,4 +1,4 @@
-import unicodedata
+import logging
 
 from django.db import transaction
 from django.utils import timezone
@@ -23,19 +23,19 @@ from .attachments import (
     signed_attachment_url,
     upload_member_attachment,
 )
+from .insurance import normalize_insurance_name
 from .models import HealthInsurance, Member, MemberAttachment
 
 import json
 
 
+logger = logging.getLogger(__name__)
+
+
 def _normalize_name(name):
     """Normaliza un nombre para comparación: minúsculas, sin acentos y
     con espacios colapsados. Evita typos como 'IaPOZ' vs 'IAPOS'."""
-    if not name:
-        return ""
-    text = unicodedata.normalize("NFD", name)
-    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
-    return " ".join(text.lower().split())
+    return normalize_insurance_name(name)
 
 
 class _NullablePkField(serializers.PrimaryKeyRelatedField):
@@ -106,6 +106,7 @@ class MemberSerializer(serializers.ModelSerializer):
     insurance_name = serializers.SerializerMethodField()
     insurance_session_price = serializers.SerializerMethodField()
     insurance_sellado_amount = serializers.SerializerMethodField()
+    insurance_unverified = serializers.SerializerMethodField()
     insurance = serializers.PrimaryKeyRelatedField(
         queryset=HealthInsurance.objects.all(),
         required=False,
@@ -142,11 +143,13 @@ class MemberSerializer(serializers.ModelSerializer):
             "insurance_name",
             "insurance_session_price",
             "insurance_sellado_amount",
+            "insurance_unverified",
             "insurance",
             "discount_id",
             "discount_name",
             "discount_percent",
             "active",
+            "deleted_at",
             "entry_mode",
             "is_comp",
             "schedules",
@@ -164,7 +167,7 @@ class MemberSerializer(serializers.ModelSerializer):
             "outing_enrollments",
         ]
 
-        read_only_fields = ["gym", "active"]
+        read_only_fields = ["gym", "active", "deleted_at"]
 
     def _active_subscription(self, obj):
         """Most recent subscription whose start_date is in the past (or today).
@@ -245,6 +248,16 @@ class MemberSerializer(serializers.ModelSerializer):
         if obj.insurance_id is None or obj.insurance.sellado_amount is None:
             return None
         return str(obj.insurance.sellado_amount)
+
+    def get_insurance_unverified(self, obj):
+        """True when the member has an obra social text with no configured one.
+
+        Fase K5 (ACC-23): el texto de obra social que no coincide con
+        ninguna obra del gym se quedaba en silencio: el socio quedaba con
+        coseguro 0 sin que nadie lo supiera. Este flag lo hace visible en el
+        panel (badge y filtro) para que el staff lo enlace con un clic.
+        """
+        return obj.insurance_id is None and bool((obj.health_insurance or "").strip())
 
     def get_pending_attachments_count(self, obj):
         """
@@ -397,7 +410,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
         if qs.exists():
             raise serializers.ValidationError(
-                "Ya existe un socio con ese teléfono."
+                "Ya existe un socio con ese teléfono en este gimnasio."
             )
 
         return value
@@ -444,10 +457,23 @@ class MemberSerializer(serializers.ModelSerializer):
         if not normalized:
             return
 
-        for ins in HealthInsurance.objects.filter(gym=gym):
+        configured = list(HealthInsurance.objects.filter(gym=gym))
+        for ins in configured:
             if _normalize_name(ins.name) == normalized:
                 attrs["insurance"] = ins
                 return
+
+        # Fase K5 (ACC-23): el texto no matchea ninguna obra del gym. No se
+        # bloquea el alta (perder el socio por un typo es peor), pero el
+        # coseguro queda sin definir: el aviso en el log y el flag
+        # ``insurance_unverified`` en el panel lo hacen visible para que el
+        # staff lo enlace con un clic.
+        logger.warning(
+            "Obra social '%s' sin configurar en el gym '%s': el socio queda "
+            "sin coseguro definido hasta que se la enlace (K5 · ACC-23).",
+            name,
+            gym.name,
+        )
 
     def validate_date_of_birth(self, value):
         if value and value > timezone.localdate():
@@ -677,7 +703,7 @@ class PublicMemberDataSerializer(serializers.ModelSerializer):
 
         if qs.exists():
             raise serializers.ValidationError(
-                "Ya existe un socio con ese teléfono."
+                "Ya existe un socio con ese teléfono en este gimnasio."
             )
 
         return value

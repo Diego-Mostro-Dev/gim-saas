@@ -30,6 +30,7 @@ function toForm(gym, catalog) {
     max_session_recoveries_per_month: String(gym.max_session_recoveries_per_month ?? ""),
     default_schedule_capacity:
       gym.default_schedule_capacity == null ? "" : String(gym.default_schedule_capacity),
+    checkin_window_minutes: String(gym.checkin_window_minutes ?? 0),
     seo_title: gym.seo_title || "",
     seo_description: gym.seo_description || "",
     seo_keywords: gym.seo_keywords || "",
@@ -82,6 +83,7 @@ function buildPayload(form) {
   setNum("max_schedule_changes_per_month");
   setNum("max_session_recoveries_per_month");
   setNum("default_schedule_capacity");
+  setNum("checkin_window_minutes");
 
   payload.allow_plan_changes = form.allow_plan_changes;
   payload.allow_schedule_changes = form.allow_schedule_changes;
@@ -311,6 +313,19 @@ export default function AdminGymEdit() {
                 min={1}
                 value={form.default_schedule_capacity}
                 onChange={(e) => set({ default_schedule_capacity: e.target.value })}
+              />
+            </Field>
+            <Field
+              label="Ventana de check-in (minutos)"
+              hint="Minutos antes del bloque en los que se puede marcar asistencia. 0 = sin ventana."
+            >
+              <input
+                className={inputCls}
+                type="number"
+                min={0}
+                max={1440}
+                value={form.checkin_window_minutes}
+                onChange={(e) => set({ checkin_window_minutes: e.target.value })}
               />
             </Field>
           </Card>

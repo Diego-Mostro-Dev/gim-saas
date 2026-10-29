@@ -89,7 +89,11 @@ class Activity(models.Model):
                 old = None
             if old is not None and old.active and not self.active:
                 super().save(*args, **kwargs)
-                self.schedules.filter(active=True).update(active=False)
+                # Los horarios que se apagan acá vuelven con la oferta; los
+                # que el staff apagó a mano se quedan apagados (ADD-04).
+                self.schedules.filter(active=True).update(
+                    active=False, auto_deactivated=True
+                )
                 # ADD-01 (Fase D): desactivar la oferta corta el cobro de sus
                 # inscriptos (baja inscripciones y cancela los ítems). Va acá,
                 # en la transición, para cubrir todos los caminos de baja.
@@ -115,6 +119,15 @@ class ActivitySchedule(models.Model):
     end_time = models.TimeField(verbose_name="Hora fin")
     capacity = models.PositiveIntegerField(verbose_name="Capacidad")
     active = models.BooleanField(default=True, verbose_name="Activo")
+    auto_deactivated = models.BooleanField(
+        default=False,
+        verbose_name="Desactivado con la oferta",
+        help_text=(
+            "El horario se apagó porque se desactivó la actividad, no a "
+            "propósito. Al reactivar la oferta vuelve con ella; un horario "
+            "apagado a mano queda apagado (ADD-04, Fase K2)."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado")
 

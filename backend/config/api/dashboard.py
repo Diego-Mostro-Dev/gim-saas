@@ -79,6 +79,7 @@ class DashboardSummaryView(APIView):
             gym=gym,
             end_date__gte=today,
             end_date__lte=today + timedelta(days=7),
+            member__deleted_at__isnull=True,
         )
 
         expiring_soon = expiring_base.count()
@@ -106,7 +107,11 @@ class DashboardSummaryView(APIView):
         events = []
 
         # 1. Payment events
-        for pay in Payment.objects.filter(gym=gym).select_related("member").order_by("-paid_at")[:LIMIT * 5]:
+        for pay in Payment.objects.filter(
+            gym=gym,
+        ).filter(
+            Q(member__isnull=True) | Q(member__deleted_at__isnull=True)
+        ).select_related("member").order_by("-paid_at")[:LIMIT * 5]:
             member_name = (
                 f"{pay.member.first_name} {pay.member.last_name}"
                 if pay.member else pay.member_name
@@ -121,7 +126,10 @@ class DashboardSummaryView(APIView):
             ))
 
         # 2. Subscription events (new subscriptions)
-        for sub in Subscription.objects.filter(gym=gym).select_related("member", "plan").order_by("-created_at")[:LIMIT * 5]:
+        for sub in Subscription.objects.filter(
+            gym=gym,
+            member__deleted_at__isnull=True,
+        ).select_related("member", "plan").order_by("-created_at")[:LIMIT * 5]:
             events.append((
                 sub.created_at,
                 {
@@ -146,7 +154,10 @@ class DashboardSummaryView(APIView):
             ))
 
         # 4. RoutineAssignment events
-        for ra in RoutineAssignment.objects.filter(gym=gym).select_related("member").order_by("-assigned_at")[:LIMIT * 5]:
+        for ra in RoutineAssignment.objects.filter(
+            gym=gym,
+            member__deleted_at__isnull=True,
+        ).select_related("member").order_by("-assigned_at")[:LIMIT * 5]:
             events.append((
                 ra.assigned_at,
                 {

@@ -6,7 +6,7 @@ export async function getMemberEnrollments(token) {
 
 export async function unenrollMemberFromActivity(token, scheduleId) {
   return apiFetch(`/api/activities/public/${token}/`, {
-    method: "POST",
+    method: "DELETE",
     skipAuth: true,
     body: JSON.stringify({ schedule_id: scheduleId }),
   });

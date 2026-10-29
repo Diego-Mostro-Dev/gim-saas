@@ -12,6 +12,7 @@ from django.utils import timezone
 from attendance.models import AttendanceSchedule, ScheduleSwapRequest
 from attendance.utils import compute_effective_occupancy
 from activities.no_show_service import deduct_missed_sessions
+from members.query import only_alive_members
 from .domain import ScheduleDomain, SubscriptionConflictError, SubscriptionDomain
 
 from .models import PlanChangeRequest, Subscription, SubscriptionItem, PlannedSchedule
@@ -284,6 +285,35 @@ def ensure_pt_items_for_active_assignments(member, subscription):
         )
 
 
+_MISSING_PLAN_ITEM_REPORTED = set()
+
+
+def _report_missing_plan_item(subscription):
+    """Report a subscription with no active plan item (Fase K5 · DIN-17).
+
+    The total is built only from the price snapshots, so a missing plan item
+    means the period has no contract price at all. Guessing the live plan
+    price used to invent a debt nobody ever owed (and to contradict the
+    ``paid`` flag); now the gap is reported and the legacy rows are fixed by
+    the migration ``0024_backfill_missing_plan_items``.
+
+    The report fires once per subscription per process: the members and
+    subscriptions endpoints recompute totals for many rows at a time and
+    would otherwise repeat the same line for each of them.
+    """
+    key = subscription.pk
+    if key in _MISSING_PLAN_ITEM_REPORTED:
+        return
+    if len(_MISSING_PLAN_ITEM_REPORTED) >= 1000:
+        _MISSING_PLAN_ITEM_REPORTED.clear()
+    _MISSING_PLAN_ITEM_REPORTED.add(key)
+    logger.error(
+        "Suscripción %s sin ítem de plan activo: el total se calcula sólo "
+        "con los ítems que tiene (K5 · DIN-17).",
+        key,
+    )
+
+
 def calculate_subscription_total(subscription, apply_discount=True):
     """Return the total amount to pay for a subscription.
 
@@ -309,9 +339,10 @@ def calculate_subscription_total(subscription, apply_discount=True):
     ``apply_discount=False`` yields the undiscounted contract total for
     display.
 
-    Defensive fallback: a subscription created before the SubscriptionItem
-    backfill may lack a plan item; only then is the current plan price used
-    as a last resort.
+    Fase K5 (DIN-17): a subscription without an active plan item is a data
+    problem, not a price to guess. The total is whatever its items say (zero
+    if that is all there is) and the gap is reported in the log; the legacy
+    rows are fixed by the migration ``0024_backfill_missing_plan_items``.
     """
     total = Decimal("0")
     has_plan_item = False
@@ -323,8 +354,8 @@ def calculate_subscription_total(subscription, apply_discount=True):
             has_plan_item = True
         total += item.price_snapshot
 
-    if not has_plan_item and subscription.plan is not None:
-        total += subscription.plan.price
+    if not has_plan_item:
+        _report_missing_plan_item(subscription)
 
     if not apply_discount:
         return total
@@ -845,6 +876,7 @@ def gym_activity_package_debt(gym):
             modality="package",
             session_price__isnull=False,
         )
+        .filter(member__deleted_at__isnull=True)
         .select_related("member", "schedule__activity")
     )
     return _package_debt_entries(pending_enrollments, include_member=True)
@@ -882,6 +914,7 @@ def gym_personal_training_package_debt(gym):
             modality="package",
             session_price__isnull=False,
         )
+        .filter(member__deleted_at__isnull=True)
         .select_related("service", "member")
     )
     return _pt_package_debt_entries(pending_assignments, include_member=True)
@@ -919,6 +952,7 @@ def gym_outing_package_debt(gym):
             modality="package",
             session_price__isnull=False,
         )
+        .filter(member__deleted_at__isnull=True)
         .select_related("member", "schedule__outing")
     )
     return _outing_package_debt_entries(pending_enrollments, include_member=True)
@@ -1025,7 +1059,9 @@ def gym_sellado_debt(gym, member=None):
         active=True,
         sellado_amount__isnull=False,
         sellado_paid=False,
-    ).select_related("member", "schedule__activity")
+    ).filter(member__deleted_at__isnull=True).select_related(
+        "member", "schedule__activity"
+    )
     if member is not None:
         enrollments = enrollments.filter(member=member)
     for e in enrollments:
@@ -1047,7 +1083,9 @@ def gym_sellado_debt(gym, member=None):
         active=True,
         sellado_amount__isnull=False,
         sellado_paid=False,
-    ).select_related("member", "service")
+    ).filter(member__deleted_at__isnull=True).select_related(
+        "member", "service"
+    )
     if member is not None:
         assignments = assignments.filter(member=member)
     for a in assignments:
@@ -1186,7 +1224,7 @@ def gym_outstanding_subscriptions(gym):
     from payments.models import Payment
 
     subscriptions = list(
-        Subscription.objects.filter(gym=gym)
+        only_alive_members(Subscription.objects.filter(gym=gym))
         .select_related("member__discount", "plan", "gym")
         .prefetch_related("items__activity", "items__outing", "items__plan")
         .order_by("start_date", "created_at")
@@ -1208,7 +1246,7 @@ def gym_outstanding_subscriptions(gym):
     credit_by_subscription = consumed_credit_by_subscription(subscription_ids)
 
     earliest_first_created = dict(
-        Subscription.objects.filter(gym=gym)
+        only_alive_members(Subscription.objects.filter(gym=gym))
         .values("member")
         .annotate(first_created=Min("created_at"))
         .values_list("member", "first_created")

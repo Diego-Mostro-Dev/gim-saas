@@ -64,7 +64,7 @@ function AttendanceAnalytics() {
 
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(!initialFresh);
-  const [refreshing, setRefreshing] = useState(false);
+  const [, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
@@ -97,7 +97,9 @@ function AttendanceAnalytics() {
   }, [startDate, endDate]);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
   }, [load]);
 
   return (
@@ -211,7 +213,7 @@ function AttendanceAnalytics() {
               </h2>
               {data.top_slots.length > 0 ? (
                 <div className="space-y-2">
-                  {data.top_slots.map((slot, i) => (
+                  {data.top_slots.map((slot) => (
                     <div
                       key={`${slot.day}-${slot.hour}`}
                       className="flex items-center justify-between rounded-xl bg-surface-input px-3 py-2"

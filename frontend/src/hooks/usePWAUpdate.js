@@ -10,13 +10,16 @@ export function usePWAUpdate() {
   const dismissUpdate = usePWAStore((s) => s.dismissUpdate);
   const applyUpdate = usePWAStore((s) => s.applyUpdate);
 
+  const stableDismiss = useCallback(() => dismissUpdate(), [dismissUpdate]);
+  const stableApply = useCallback(() => applyUpdate(), [applyUpdate]);
+
   return {
     updateAvailable,
     isUpdating,
     currentBuildId,
     previousBuildId,
     appVersion,
-    dismissUpdate: useCallback(dismissUpdate, []),
-    applyUpdate: useCallback(applyUpdate, []),
+    dismissUpdate: stableDismiss,
+    applyUpdate: stableApply,
   };
 }

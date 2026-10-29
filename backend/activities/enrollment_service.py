@@ -95,7 +95,10 @@ class EnrollmentService:
             )
 
             active_count = Enrollment.objects.filter(
-                gym=gym, schedule=locked_schedule, active=True
+                gym=gym,
+                schedule=locked_schedule,
+                active=True,
+                member__deleted_at__isnull=True,
             ).count()
             if active_count >= locked_schedule.capacity:
                 raise EnrollmentError("El horario alcanzó su capacidad máxima.")
@@ -252,7 +255,7 @@ class EnrollmentService:
             enrollment.active = False
             enrollment.save(update_fields=["active"])
 
-            _cancel_activity_items(member, schedule.activity)
+            _cancel_activity_items(member, schedule.activity, enrollment)
 
             if sub is not None:
                 locked_sub = Subscription.objects.select_for_update().get(
@@ -303,7 +306,7 @@ def _ensure_activity_item(subscription, activity, price=None):
     )
 
 
-def _cancel_activity_items(member, activity):
+def _cancel_activity_items(member, activity, exclude_enrollment=None):
     """Cancel active activity items for a given activity across the member's
     non-expired subscriptions.
 
@@ -311,8 +314,25 @@ def _cancel_activity_items(member, activity):
     current period and every already-created future period (e.g. an
     auto-renewed subscription for next month). Historical (expired)
     subscriptions are left untouched to preserve immutability.
+
+    The item is **per offer**, not per schedule: it is only cancelled once
+    the member has no other active enrollment of the same activity. Without
+    that guard, leaving the Monday schedule of an activity the member was
+    also enrolled in on Wednesday cancelled the single item of the offer:
+    the member kept the Wednesday spot but stopped paying for it (ADD-28,
+    Fase K2). Same criterion as PT (``_cancel_pt_items``).
     """
     from django.utils import timezone
+
+    other_active = Enrollment.objects.filter(
+        member=member,
+        schedule__activity=activity,
+        active=True,
+    )
+    if exclude_enrollment is not None:
+        other_active = other_active.exclude(pk=exclude_enrollment.pk)
+    if other_active.exists():
+        return
 
     today = timezone.localdate()
 

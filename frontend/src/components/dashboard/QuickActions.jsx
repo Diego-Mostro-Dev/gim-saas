@@ -1,7 +1,6 @@
 import {
   UserPlus,
   CreditCard,
-  QrCode,
   Dumbbell,
   DollarSign,
   CheckCircle,

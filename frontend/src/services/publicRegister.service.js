@@ -24,3 +24,10 @@ export async function getPublicPlans(gymCode) {
 export async function getPublicActivities(gymCode) {
   return apiFetch(`/api/public/activities/${gymCode}/`, { skipAuth: true });
 }
+
+// Obras sociales configuradas por el gym (Fase K5 · ACC-23): con esta lista
+// el alta pública ofrece un select y el texto libre queda como excepción,
+// en vez de ser la única forma de cargar la obra social.
+export async function getPublicHealthInsurances(gymCode) {
+  return apiFetch(`/api/public/health-insurances/${gymCode}/`, { skipAuth: true });
+}

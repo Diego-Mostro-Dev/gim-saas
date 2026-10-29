@@ -61,8 +61,9 @@ export function useActivitySchedules(activityId) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadSchedules();
-  }, [activityId]);
+  }, [activityId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreateSchedule(data) {
     try {

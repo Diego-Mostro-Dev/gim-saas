@@ -100,7 +100,7 @@ function ExerciseRow({ exercise, index, total, onMoveUp, onMoveDown, onEdit, onR
   const restMode = exercise.rest_mode || "between_sets";
   const restModeLabel = REST_MODES.find(function (rm) { return rm.value === restMode; })?.label || restMode;
   const restDisplay = formatRestDisplay(exercise.rest_seconds);
-  const nextRestDisplay = String(exercise.next_exercise_rest_seconds || 0) + "s";
+  // const _nextRestDisplay = String(exercise.next_exercise_rest_seconds || 0) + "s";
   const restLabel = restMode !== "none"
     ? " \u00b7 " + restDisplay + " descanso (" + restModeLabel.toLowerCase() + ")"
     : " \u00b7 sin descanso";

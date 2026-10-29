@@ -13,15 +13,17 @@ function getStoredBuildId() {
 function persistBuildId(id) {
   try {
     localStorage.setItem(BUILD_ID_KEY, id);
-  } catch {}
+  } catch {
+    // ignore
+  }
 }
 
 const usePWAStore = create((set, get) => ({
   updateAvailable: false,
   _isUpdating: false,
-  currentBuildId: __BUILD_ID__,
+  currentBuildId: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null,
   previousBuildId: getStoredBuildId(),
-  appVersion: __APP_VERSION__,
+  appVersion: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null,
   _updateSW: null,
 
   canInstall: false,

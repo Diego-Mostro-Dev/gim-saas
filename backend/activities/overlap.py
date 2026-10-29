@@ -1,61 +1,57 @@
-from datetime import datetime, timedelta
-
-from attendance.models import AttendanceSchedule
+from core.overlap import (
+    CONFLICT_ACTIVITY,
+    CONFLICT_GYM_SCHEDULE,
+    CONFLICT_OUTING,
+    CONFLICT_PT,
+    SlotConflict,
+    check_member_slot,
+)
+from core.times import slot_end
 from gyms.labels import msg
-from personal_training.models import PersonalTrainingAssignment
-from subscriptions.domain import SubscriptionDomain
-from .models import Enrollment
 
 
 def validate_enrollment(member, schedule):
-    active_gym_schedules = list(
-        AttendanceSchedule.objects.filter(
-            member=member, active=True
-        ).select_related("slot")
-    )
+    """Revisa que el horario no choque con nada de la agenda del socio.
 
-    if active_gym_schedules:
-        _check_gym_schedule_overlap(active_gym_schedules, schedule)
-
-    _check_activity_overlap(member, schedule)
-    _check_pt_overlap(member, schedule)
-
-
-def _check_gym_schedule_overlap(active_gym_schedules, target_schedule):
-    for gs in active_gym_schedules:
-        if gs.slot.day != target_schedule.day:
-            continue
-
-        gym_start = gs.slot.hour
-        gym_end = _add_hour(gs.slot.hour)
-
-        if _times_overlap(
-            gym_start, gym_end,
-            target_schedule.start_time, target_schedule.end_time,
-        ):
-            gym = target_schedule.activity.service.gym
-            raise ValueError(msg(gym, "errors.fixed_schedule_overlap"))
+    El choque se valida contra las cuatro fuentes: el horario fijo del
+    gimnasio, las actividades, las salidas y el entrenamiento personal.
+    Las salidas se agregaron en la Fase K2 (ADD-16): sin esa dimensión el
+    socio podía quedar anotado en una salida y en una actividad a la misma
+    hora.
+    """
+    try:
+        check_member_slot(
+            member,
+            schedule.day,
+            schedule.start_time,
+            schedule.end_time,
+            exclude={"activity": schedule.pk},
+        )
+    except SlotConflict as conflict:
+        raise ValueError(_conflict_message(conflict, schedule))
 
 
-def _check_activity_overlap(member, target_schedule):
-    gym = SubscriptionDomain.resolve_gym(member)
-    overlapping = Enrollment.objects.filter(
-        gym=gym,
-        member=member,
-        active=True,
-        schedule__day=target_schedule.day,
-    ).exclude(schedule=target_schedule).select_related("schedule")
+def _conflict_message(conflict, schedule):
+    gym = schedule.activity.service.gym
 
-    for enrollment in overlapping:
-        existing = enrollment.schedule
-        if _times_overlap(
-            existing.start_time, existing.end_time,
-            target_schedule.start_time, target_schedule.end_time,
-        ):
-            raise ValueError(
-                "El miembro ya está inscripto en una actividad cuyo horario "
-                "se superpone con esta actividad."
-            )
+    if conflict.code == CONFLICT_GYM_SCHEDULE:
+        return msg(gym, "errors.fixed_schedule_overlap")
+    if conflict.code == CONFLICT_ACTIVITY:
+        return (
+            "El miembro ya está inscripto en una actividad cuyo horario "
+            "se superpone con esta actividad."
+        )
+    if conflict.code == CONFLICT_OUTING:
+        return (
+            "El miembro ya está inscripto en una salida cuyo horario "
+            "se superpone con esta actividad."
+        )
+    if conflict.code == CONFLICT_PT:
+        return (
+            "El miembro tiene un entrenamiento personal cuyo horario "
+            "se superpone con esta actividad."
+        )
+    return "El horario se superpone con otro compromiso del miembro."
 
 
 def validate_schedule_batch(schedules):
@@ -82,26 +78,6 @@ def validate_schedule_batch(schedules):
                     )
 
 
-def _check_pt_overlap(member, target_schedule):
-    gym = SubscriptionDomain.resolve_gym(member)
-    overlapping = PersonalTrainingAssignment.objects.filter(
-        gym=gym,
-        member=member,
-        active=True,
-        day=target_schedule.day,
-    )
-
-    for assignment in overlapping:
-        if _times_overlap(
-            assignment.start_time, assignment.end_time,
-            target_schedule.start_time, target_schedule.end_time,
-        ):
-            raise ValueError(
-                "El miembro tiene un entrenamiento personal cuyo horario "
-                "se superpone con esta actividad."
-            )
-
-
 def validate_gym_activity_overlap(gym_slots, activity_schedules):
     """Validate that gym schedule slots don't overlap with activity schedules.
 
@@ -114,7 +90,8 @@ def validate_gym_activity_overlap(gym_slots, activity_schedules):
     """
     for slot in gym_slots:
         gym_start = slot.hour
-        gym_end = _add_hour(slot.hour)
+        # ADD-05: duración real del bloque del gym.
+        gym_end = slot_end(slot)
         for schedule in activity_schedules:
             if slot.day != schedule.day:
                 continue
@@ -140,6 +117,3 @@ def _times_overlap(start_a, end_a, start_b, end_b):
     return start_a < end_b and start_b < end_a
 
 
-def _add_hour(t):
-    dt = datetime.combine(datetime.today(), t) + timedelta(hours=1)
-    return dt.time()

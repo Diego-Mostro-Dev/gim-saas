@@ -37,7 +37,9 @@ function OutingEnrollmentRequests({ onChanged }) {
 
   useEffect(() => {
     cancelledRef.current = false;
-    load();
+    queueMicrotask(() => {
+      load();
+    });
     return () => {
       cancelledRef.current = true;
     };

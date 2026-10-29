@@ -34,8 +34,10 @@ from config.api.params import parse_date
 from config.api.throttles import MemberPortalTokenThrottle
 from members.eligibility import MemberEligibility
 from subscriptions.domain import SubscriptionDomain
-from .recovery_service import RecoveryError, _add_hour, use_recovery
+from core.times import slot_end
+from .recovery_service import RecoveryError, use_recovery
 from .checkin_discount import count_activity_sessions, count_outing_sessions
+from .utils import checkin_window_message, within_checkin_window
 
 
 DAY_BY_WEEKDAY = {
@@ -104,7 +106,9 @@ class PublicCheckinView(APIView):
             if scheduled_recovery.kind == "training":
                 slot = scheduled_recovery.used_slot
                 window_start = slot.hour
-                window_end = _add_hour(slot.hour)
+                # ADD-05: la ventana del recupero usa la duración real del
+                # bloque, no 60 minutos fijos.
+                window_end = slot_end(slot)
             elif scheduled_recovery.kind == "pt":
                 assignment = scheduled_recovery.pt_assignment
                 window_start = assignment.start_time
@@ -170,11 +174,13 @@ class PublicCheckinView(APIView):
             ).exists()
 
             if already_used:
+                # ACC-04: mismo criterio que el check-in normal.
                 return Response(
                     {
                         "success": False,
                         "message": "Ya registraste asistencia para este intercambio hoy",
-                    }
+                    },
+                    status=status.HTTP_409_CONFLICT,
                 )
 
             slot = approved_swap.destination_slot
@@ -228,11 +234,14 @@ class PublicCheckinView(APIView):
         )
 
         if already_registered:
+            # ACC-04: 409 y no 200 con success:false. El front distingue el
+            # error por el status y no redirige como si fuera un éxito.
             return Response(
                 {
                     "success": False,
                     "message": "Ya registraste asistencia hoy",
-                }
+                },
+                status=status.HTTP_409_CONFLICT,
             )
 
         # Resolve the member's active schedule for today so the attendance
@@ -257,6 +266,29 @@ class PublicCheckinView(APIView):
                 {
                     "success": False,
                     "message": "No tienes un horario reservado para hoy.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # ACC-02: la ventana de check-in la define cada gimnasio (0 = sin
+        # ventana). Se mira el bloque del socio y también el resto de sus
+        # bloques del día: si tiene dos, puede entrar por cualquiera.
+        member_slots = [
+            item.slot
+            for item in AttendanceSchedule.objects.filter(
+                gym=gym,
+                member=member,
+                active=True,
+                slot__day=today_day,
+            )
+            .select_related("slot")
+            .order_by("slot__hour")
+        ]
+        if not within_checkin_window(gym, member_slots, timezone.localtime().time()):
+            return Response(
+                {
+                    "success": False,
+                    "message": checkin_window_message(gym, member_slots),
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )

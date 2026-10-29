@@ -63,11 +63,16 @@ class SessionService:
         return deleted
 
     @staticmethod
-    def renew_package(assignment, additional_sessions):
+    def renew_package(assignment, additional_sessions, allow_unpaid=False):
         """Staff renews the package adding N more sessions.
 
         El sellado NO se vuelve a pedir: se cobra una vez por inscripción
         (Fase D / DIN-18).
+
+        `allow_unpaid` is the explicit override: renewing a package with
+        sessions pending collection used to fail with a 400 and leave the
+        staff without a way to renew (ADD-22, Fase K2). The rule stays as
+        the default; the staff can now renew anyway on purpose.
         """
         if assignment.modality != "package":
             raise SessionError("La asignación no es de modalidad paquete.")
@@ -83,7 +88,8 @@ class SessionService:
             raise SessionError("La cantidad de sesiones debe ser mayor a cero.")
 
         if (
-            assignment.session_price is not None
+            not allow_unpaid
+            and assignment.session_price is not None
             and assignment.remaining_amount is not None
             and assignment.remaining_amount > 0
         ):

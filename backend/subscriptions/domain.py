@@ -660,7 +660,10 @@ class ScheduleDomain:
         cap = slot.capacity or gym.default_schedule_capacity
         if cap is not None:
             current_count = AttendanceSchedule.objects.filter(
-                gym=gym, slot=slot, active=True
+                gym=gym,
+                slot=slot,
+                active=True,
+                member__deleted_at__isnull=True,
             ).count()
             if current_count >= cap:
                 raise ScheduleError(
@@ -755,7 +758,10 @@ class ScheduleDomain:
             cap = slot.capacity or gym.default_schedule_capacity
             if cap is not None:
                 current_count = AttendanceSchedule.objects.filter(
-                    gym=gym, slot=slot, active=True,
+                    gym=gym,
+                    slot=slot,
+                    active=True,
+                    member__deleted_at__isnull=True,
                 ).exclude(member=member).count()
                 already_has = (
                     key in current

@@ -35,6 +35,7 @@ import {
   renewPersonalTrainingPackage,
   rejectPersonalTrainingChangeRequest,
   unassignPersonalTraining,
+  updatePersonalTrainingAssignment,
   updatePersonalTrainingService,
 } from "../services/personalTraining.service";
 import {
@@ -146,7 +147,10 @@ function ServicesPanel() {
   }
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
+
   }, []);
 
   function handleCreate() {
@@ -500,7 +504,10 @@ function AssignmentsPanel() {
   }
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
   return (
@@ -567,6 +574,7 @@ function AssignmentCard({ assignment, onChanged }) {
   const [action, setAction] = useState(null);
   const [additional, setAdditional] = useState("5");
   const [busy, setBusy] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const isPackage = assignment.modality === "package";
 
@@ -681,6 +689,17 @@ function AssignmentCard({ assignment, onChanged }) {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1.5">
+          {assignment.active && (
+            <button
+              onClick={() => setShowEdit(true)}
+              disabled={busy}
+              className="rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-surface-hover disabled:opacity-50"
+            >
+              <span className="flex items-center gap-1">
+                <Pencil size={13} /> Editar
+              </span>
+            </button>
+          )}
           {isPackage && (
             <button
               onClick={() =>
@@ -708,15 +727,6 @@ function AssignmentCard({ assignment, onChanged }) {
             </button>
           )}
           {isPackage && (
-            <button
-              onClick={() => setAction("renew")}
-              disabled={busy}
-              className="rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-surface-hover disabled:opacity-50"
-            >
-              Renovar
-            </button>
-          )}
-          {isPackage && !assignment.is_comp && (
             <button
               onClick={() => setAction("renew")}
               disabled={busy}
@@ -799,17 +809,29 @@ function AssignmentCard({ assignment, onChanged }) {
             placeholder="Sesiones"
           />
           <button
-            onClick={() =>
+            onClick={() => {
+              // El backend exige cobrar antes de renovar. El staff puede
+              // renovar igual a propósito: se le pregunta y se manda
+              // allow_unpaid.
+              const adeuda = Number(assignment.remaining_amount) > 0;
+              if (adeuda) {
+                const ok = window.confirm(
+                  `El socio tiene ${formatCurrency(assignment.remaining_amount)} sin cobrar. ` +
+                    "¿Renovar el paquete igual?",
+                );
+                if (!ok) return;
+              }
               run(
                 () =>
                   renewPersonalTrainingPackage(
                     assignment.id,
                     Number(additional),
+                    adeuda,
                   ),
                 "renovar el paquete",
                 "Paquete renovado",
-              )
-            }
+              );
+            }}
             disabled={busy || !additional || Number(additional) <= 0}
             className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
           >
@@ -834,6 +856,179 @@ function AssignmentCard({ assignment, onChanged }) {
             `Sellado pendiente (${formatCurrency(assignment.sellado_amount)}).`}
         </p>
       )}
+
+      {showEdit && assignment.active && (
+        <EditAssignmentModal
+          assignment={assignment}
+          onClose={() => setShowEdit(false)}
+          onChanged={() => {
+            setShowEdit(false);
+            onChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditAssignmentModal({ assignment, onClose, onChanged }) {
+  const [trainers, setTrainers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    trainer_id: assignment.trainer_profile_id || "",
+    day: assignment.day || "monday",
+    start_time: String(assignment.start_time || "08:00").slice(0, 5),
+    end_time: String(assignment.end_time || "09:00").slice(0, 5),
+  });
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const trainerData = await getPersonalTrainers();
+        setTrainers(trainerData.filter((t) => t.role === "trainer"));
+      } catch (err) {
+        toast.error(err.message || "Error al cargar datos");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (submitting) return;
+    if (form.end_time <= form.start_time) {
+      toast.error("La hora de fin debe ser posterior a la hora de inicio.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await updatePersonalTrainingAssignment(assignment.id, {
+        trainer_id: form.trainer_id ? Number(form.trainer_id) : undefined,
+        day: form.day,
+        start_time: form.start_time,
+        end_time: form.end_time,
+      });
+      toast.success("Asignación actualizada");
+      onChanged();
+    } catch (err) {
+      toast.error(err.message || "Error al actualizar la asignación");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-surface-elevated shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-text-primary">
+            Editar asignación
+          </h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-text-secondary transition hover:bg-surface-input hover:text-text-primary"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-secondary">
+              Socio
+            </label>
+            <div className="rounded-lg border border-border bg-surface-input px-2.5 py-2 text-sm text-text-primary">
+              {assignment.member?.first_name} {assignment.member?.last_name}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-secondary">
+              Entrenador
+            </label>
+            <select
+              value={form.trainer_id}
+              onChange={(e) =>
+                setForm({ ...form, trainer_id: e.target.value })
+              }
+              className="w-full rounded-lg border border-border bg-surface-input px-2.5 py-2 text-sm text-text-primary outline-none"
+              disabled={loading || submitting}
+            >
+              <option value="">Seleccionar</option>
+              {trainers.map((trainer) => (
+                <option key={trainer.id} value={trainer.id}>
+                  {trainer.first_name} {trainer.last_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-text-secondary">
+                Día
+              </label>
+              <select
+                value={form.day}
+                onChange={(e) => setForm({ ...form, day: e.target.value })}
+                className="w-full rounded-lg border border-border bg-surface-input px-2.5 py-2 text-sm text-text-primary outline-none"
+                disabled={submitting}
+              >
+                {DAY_ORDER.map((day) => (
+                  <option key={day} value={day}>
+                    {DAY_NAMES[day]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-text-secondary">
+                Inicio
+              </label>
+              <input
+                type="time"
+                value={form.start_time}
+                onChange={(e) =>
+                  setForm({ ...form, start_time: e.target.value })
+                }
+                className="w-full rounded-lg border border-border bg-surface-input px-2.5 py-2 text-sm text-text-primary outline-none"
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-text-secondary">
+                Fin
+              </label>
+              <input
+                type="time"
+                value={form.end_time}
+                onChange={(e) =>
+                  setForm({ ...form, end_time: e.target.value })
+                }
+                className="w-full rounded-lg border border-border bg-surface-input px-2.5 py-2 text-sm text-text-primary outline-none"
+                disabled={submitting}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-border px-4 py-2 text-sm text-text-primary transition hover:bg-surface-input"
+              disabled={submitting}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !form.trainer_id}
+              className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+            >
+              {submitting ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -853,6 +1048,16 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
   const [freeData, setFreeData] = useState(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const fetchSeq = useRef(0);
+
+  // El horario elegido se ajusta solo cuando no está libre. Antes se lo
+  // hacía en silencio (ADD-24): el staff veía un horario que no era el
+  // que había elegido.
+  function notifySlotAdjusted(fixed) {
+    if (!fixed?.changed || !fixed.start) return;
+    toast.info(
+      `El horario no estaba disponible: se ajustó a las ${fixed.start} - ${fixed.end}.`,
+    );
+  }
 
   function fetchFreeSlots(member, serviceId, trainerId) {
     if (!member || !serviceId || !trainerId) {
@@ -890,6 +1095,9 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
             end_time: fixed.end,
           };
         });
+        // El horario se ajusta en silencio: si se movió, se avisa (ADD-24).
+        const fixed = reconcileSlot(res, form.day, form.start_time, form.end_time);
+        if (fixed.changed) notifySlotAdjusted(fixed);
       })
       .catch((err) => {
         if (seq !== fetchSeq.current) return;
@@ -1193,6 +1401,15 @@ function AssignModal({ existingMembers, onClose, onCreated }) {
                               end_time: fixed.end,
                             };
                           });
+                          // Si el horario del día nuevo no está libre, se
+                          // movió solo: hay que avisarlo (ADD-24).
+                          const fixed = reconcileSlot(
+                            freeData,
+                            day,
+                            form.start_time,
+                            form.end_time,
+                          );
+                          notifySlotAdjusted(fixed);
                         }}
                         className={inputClass}
                       >
@@ -1402,7 +1619,10 @@ function ChangeRequestsPanel() {
   }
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAll]);
 
   async function handleReview(id, approve) {

@@ -24,7 +24,6 @@ import {
   RefreshCw,
   ShieldAlert,
   Stethoscope,
-  Trash2,
   UserPlus,
   Wallet,
   XCircle,
@@ -113,7 +112,7 @@ const CAMPOS = [
     color: "muted",
     resumen: "Read-only en la API.",
     detalle:
-      "El alta siempre arranca activo y el formulario de la ficha no lo cambia. No hay baja lógica: ver Eliminar.",
+      "El alta siempre arranca activo y el formulario no lo cambia. La baja lógica lo pasa a inactivo y lo saca de los listados; se administra desde “Dados de baja”.",
   },
 ];
 
@@ -174,7 +173,7 @@ const ADJUNTOS = [
 ];
 
 const NO_HACE = [
-  "No tiene “dar de baja” ni “reactivar socio”: solo borrado real y, aparte, recuperación de la suscripción (cobros).",
+  "No borra fichas de forma definitiva: la baja es lógica y se puede reactivar. Aparte está la recuperación de la suscripción (cobros).",
   "No genera un código/número de socio: el nº de afiliado se carga a mano.",
   "No impide repetir email ni documento: solo el teléfono es único por gimnasio.",
   "No deja al socio auto-darse cortesía ni descuento desde el link público.",
@@ -620,10 +619,10 @@ function EditarYBorrar() {
     <Card>
       <div className="flex items-center gap-2">
         <Pencil size={18} className="text-info-text dark:text-info" />
-        <h2 className="text-lg font-bold text-text-primary">Editar, cortesía y eliminar</h2>
+        <h2 className="text-lg font-bold text-text-primary">Editar, cortesía y dar de baja</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Editar la ficha es simple; dos cosas tienen letra chica: la cortesía y el borrado.
+        Editar la ficha es simple; dos cosas tienen letra chica: la cortesía y la baja lógica.
       </p>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
@@ -663,17 +662,21 @@ function EditarYBorrar() {
 
         <div className="rounded-xl border border-border bg-surface p-4">
           <div className="flex items-center gap-2">
-            <Trash2 size={16} className="text-danger-text dark:text-danger" />
-            <p className="text-sm font-semibold text-text-primary">Eliminar</p>
+            <Ban size={16} className="text-danger-text dark:text-danger" />
+            <p className="text-sm font-semibold text-text-primary">Dar de baja</p>
           </div>
           <ul className="mt-3 space-y-2">
             <li className="flex items-start gap-2 text-xs text-text-secondary">
-              <XCircle size={13} className="mt-0.5 shrink-0 text-danger-text dark:text-danger" />
-              Borrado real, sin vuelta atrás. La UI avisa “no se puede deshacer”.
+              <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-success-text dark:text-success" />
+              Baja lógica: deja de aparecer en los listados y su portal responde 404.
             </li>
             <li className="flex items-start gap-2 text-xs text-text-secondary">
-              <XCircle size={13} className="mt-0.5 shrink-0 text-danger-text dark:text-danger" />
-              Arrastra suscripciones, asistencias, inscripciones y adjuntos. Los pagos quedan sin socio.
+              <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-success-text dark:text-success" />
+              Conserva pagos, asistencias, inscripciones y adjuntos; apaga la renovación automática.
+            </li>
+            <li className="flex items-start gap-2 text-xs text-text-secondary">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-warning-text dark:text-warning" />
+              No borra la ficha. Se reactiva desde “Dados de baja”; si el teléfono o un cupo se ocupó, hay que resolverlo primero.
             </li>
           </ul>
         </div>
@@ -687,10 +690,11 @@ function RecuperarSocio() {
     <Card>
       <div className="flex items-center gap-2">
         <RefreshCw size={18} className="text-info-text dark:text-info" />
-        <h2 className="text-lg font-bold text-text-primary">Recuperar (no es reactivar la ficha)</h2>
+        <h2 className="text-lg font-bold text-text-primary">Recuperar suscripción (no es reactivar la ficha)</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Recuperar es un flujo de cobros: reabre la suscripción, no la ficha.
+        Recuperar es un flujo de cobros: reabre la suscripción, no la ficha. Reactivar una ficha
+        dada de baja es otra acción, desde “Dados de baja”.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -711,8 +715,9 @@ function RecuperarSocio() {
       <div className="mt-4 flex items-start gap-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning-text dark:bg-warning/15 dark:text-warning">
         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
         <span>
-          Ojo: la marca “es recuperable” de la lista y la acción real no siempre coinciden. Detalle
-          completo en <span className="font-medium">AUDITORIA-PAGOS.md §6</span>.
+          Recuperar no cambia <span className="font-medium">deleted_at</span>: un socio dado de
+          baja primero se reactiva desde “Dados de baja” y recién después se recupera su
+          suscripción.
         </span>
       </div>
     </Card>
@@ -771,7 +776,7 @@ export default function MembersFlow() {
           <p className="mt-2 max-w-3xl text-sm text-text-secondary">
             Cómo funcionan hoy los socios, en forma visual e interactiva: la ficha, las dos formas de
             alta, qué crea el alta, el portal con enlace mágico, los adjuntos, editar/cortesía,
-            eliminar vs. recuperar y qué no hace el sistema.
+            dar de baja/reactivar vs. recuperar la suscripción y qué no hace el sistema.
           </p>
         </div>
 

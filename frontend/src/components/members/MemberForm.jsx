@@ -38,18 +38,21 @@ function MemberForm({
   activitiesAvailable,
   availableInsurances,
   availableDiscounts,
+  focusInsurance = false,
 }) {
   const [expandedActivity, setExpandedActivity] = useState(null);
 
   const insurances = availableInsurances || [];
 
-  // Combobox de obra social
+  // Combobox de obra social. Con ``focusInsurance`` el combo ya viene
+  // desplegado: es el atajo desde el badge "obra social sin verificar" para
+  // enlazar al socio con la obra configurada de un clic (Fase K5 · ACC-23).
   const [insuranceQuery, setInsuranceQuery] = useState(() => {
     if (!formData) return "";
     const sel = insurances.find((i) => i.id === Number(formData.insurance));
     return sel ? sel.name : formData.health_insurance || "";
   });
-  const [insuranceOpen, setInsuranceOpen] = useState(false);
+  const [insuranceOpen, setInsuranceOpen] = useState(focusInsurance);
   const insuranceBoxRef = useRef(null);
 
   useEffect(() => {

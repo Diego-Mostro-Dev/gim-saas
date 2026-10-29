@@ -73,10 +73,17 @@ export async function removeOutingSession(enrollmentId, date) {
   });
 }
 
-export async function renewOutingEnrollment(enrollmentId, additionalSessions) {
+export async function renewOutingEnrollment(
+  enrollmentId,
+  additionalSessions,
+  allowUnpaid = false
+) {
   return apiFetch(`${API_OUTINGS}/enrollments/${enrollmentId}/renew/`, {
     method: "POST",
-    body: JSON.stringify({ additional_sessions: additionalSessions }),
+    body: JSON.stringify({
+      additional_sessions: additionalSessions,
+      allow_unpaid: allowUnpaid,
+    }),
   });
 }
 

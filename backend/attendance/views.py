@@ -76,7 +76,9 @@ def _build_class_items_by_day(gym, days):
         Prefetch(
             "enrollments",
             queryset=Enrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -135,7 +137,9 @@ def _build_outing_items_by_day(gym, days):
         Prefetch(
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -191,7 +195,9 @@ def _build_class_items_for_status(gym, day, selected_time):
         Prefetch(
             "enrollments",
             queryset=Enrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -243,7 +249,9 @@ def _build_outing_items_for_status(gym, day, selected_time):
         Prefetch(
             "enrollments",
             queryset=OutingEnrollment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             ).select_related("member").prefetch_related(
                 _member_subscription_prefetch()
             ),
@@ -300,6 +308,7 @@ class WeeklyScheduleView(APIView):
                     gym=gym,
                     swap_date=target_date,
                     status="approved",
+                    member__deleted_at__isnull=True,
                 ).select_related(
                     "origin_schedule__slot", "destination_slot", "member"
                 ).prefetch_related("member__subscription_set")
@@ -322,6 +331,7 @@ class WeeklyScheduleView(APIView):
             gym=gym,
             slot__day__in=days,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member",
             "slot",
@@ -424,8 +434,11 @@ class WeeklyScheduleView(APIView):
             return {}
 
         slot_ids = set(
-            AttendanceSchedule.objects.filter(gym=gym, active=True)
-            .values_list("slot_id", flat=True)
+            AttendanceSchedule.objects.filter(
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
+            ).values_list("slot_id", flat=True)
         )
         if approved_swaps:
             slot_ids.update(swap.destination_slot_id for swap in approved_swaps)
@@ -467,6 +480,7 @@ def members_by_schedule(request):
         slot__day=day,
         slot__hour=hour,
         active=True,
+        member__deleted_at__isnull=True,
     ).select_related("member__insurance", "member", "slot")
 
     result = [
@@ -492,6 +506,7 @@ def members_by_schedule(request):
                 origin_schedule__slot__hour=hour,
                 swap_date=target_date,
                 status="approved",
+                member__deleted_at__isnull=True,
             ).values_list("origin_schedule_id", flat=True)
         )
         result = [r for r in result if r["schedule_id"] not in swap_out_ids]
@@ -503,6 +518,7 @@ def members_by_schedule(request):
             destination_slot__hour=hour,
             swap_date=target_date,
             status="approved",
+            member__deleted_at__isnull=True,
         ).select_related("member__insurance", "member")
 
         for swap in swaps_in:
@@ -554,6 +570,7 @@ def attendance_status(request):
         slot__day=day,
         slot__hour=hour,
         active=True,
+        member__deleted_at__isnull=True,
     ).select_related(
         "member__insurance",
         "member",
@@ -600,6 +617,7 @@ def attendance_status(request):
             origin_schedule__slot__hour=hour,
             swap_date=target_date,
             status="approved",
+            member__deleted_at__isnull=True,
         ).values_list("origin_schedule_id", flat=True)
     )
     result = [r for r in result if r["schedule_id"] not in swap_out_ids]
@@ -611,6 +629,7 @@ def attendance_status(request):
         destination_slot__hour=hour,
         swap_date=target_date,
         status="approved",
+        member__deleted_at__isnull=True,
     ).select_related(
         "member__insurance", "member", "origin_schedule__slot", "destination_slot"
     ).prefetch_related("member__subscription_set"))
@@ -663,6 +682,7 @@ def attendance_status(request):
         orphaned_attendances = Attendance.objects.filter(
             gym=gym,
             member__gym=gym,
+            member__deleted_at__isnull=True,
             date=today,
             schedule__isnull=True,
             swap_request__isnull=True,
@@ -832,6 +852,20 @@ class ScheduleSlotBulkCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        # ADD-05: la duración real del bloque (60 minutos por defecto).
+        try:
+            duration_minutes = int(data.get("duration_minutes", 60))
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "La duración debe ser un número de minutos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if duration_minutes < 15 or duration_minutes > 480:
+            return Response(
+                {"detail": "La duración debe estar entre 15 y 480 minutos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         existing = set(
             ScheduleSlot.objects.filter(
                 gym=gym,
@@ -849,7 +883,15 @@ class ScheduleSlotBulkCreateView(APIView):
                 if key in existing:
                     skipped.append({"day": day, "hour": slot_time.strftime("%H:%M")})
                 else:
-                    to_create.append(ScheduleSlot(gym=gym, day=day, hour=slot_time, capacity=capacity))
+                    to_create.append(
+                        ScheduleSlot(
+                            gym=gym,
+                            day=day,
+                            hour=slot_time,
+                            capacity=capacity,
+                            duration_minutes=duration_minutes,
+                        )
+                    )
 
         created = ScheduleSlot.objects.bulk_create(to_create)
 
@@ -878,6 +920,7 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ScheduleChangeRequest.objects.filter(
             gym=self.request.user.profile.gym,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member__insurance", "member", "current_schedule__slot", "requested_slot", "reviewed_by"
         ).prefetch_related("gym__closed_dates")
@@ -917,8 +960,42 @@ class ScheduleChangeRequestViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
 
                 if new_status == "executed":
-                    current_schedule = instance.current_schedule
+                    current_schedule = AttendanceSchedule.objects.select_for_update().get(
+                        pk=instance.current_schedule_id
+                    )
                     requested_slot = instance.requested_slot
+
+                    # ACC-14: al aprobar hay que re-verificar que el horario
+                    # viejo siga activo. Si el staff editó a mano la ficha del
+                    # socio con el pedido pendiente, aprobar dejaba al socio
+                    # con dos horarios activos.
+                    if not current_schedule.active:
+                        return Response(
+                            {
+                                "detail": (
+                                    "El horario del socio cambió desde que se hizo el "
+                                    "pedido: el socio tiene que volver a pedirlo."
+                                )
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # ...y que el socio no quede con más horarios de los que
+                    # permite su plan (el pedido reemplaza uno por otro).
+                    active_schedules = list(
+                        AttendanceSchedule.objects.select_for_update().filter(
+                            member=instance.member, active=True
+                        ).select_related("slot")
+                    )
+                    requested_already_active = any(
+                        s.slot_id == requested_slot.id for s in active_schedules
+                    )
+                    target_count = len(active_schedules) - 1 + (
+                        0 if requested_already_active else 1
+                    )
+                    ScheduleDomain.enforce_weekly_visits(
+                        member=instance.member, target_count=target_count
+                    )
 
                     current_schedule.active = False
                     current_schedule.save(update_fields=["active"])
@@ -1018,7 +1095,7 @@ def attendance_analytics(request):
     )
 
     top_members = (
-        Member.objects.filter(gym=gym)
+        Member.all_objects.filter(gym=gym)
         .annotate(
             num_attendances=Count("attendances", filter=Q(
                 attendances__date__gte=start_date,
@@ -1067,6 +1144,7 @@ class ScheduleSwapRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ScheduleSwapRequest.objects.filter(
             gym=self.request.user.profile.gym,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member__insurance", "member", "origin_schedule__slot", "destination_slot", "reviewed_by"
         )
@@ -1112,6 +1190,7 @@ def _get_recovery(request, recovery_pk):
     return SessionRecovery.objects.filter(
         gym=gym,
         pk=recovery_pk,
+        member__deleted_at__isnull=True,
     ).select_related("member", "activity", "granted_by").first()
 
 
@@ -1122,6 +1201,7 @@ class SessionRecoveryListCreateView(APIView):
         gym = request.user.profile.gym
         qs = SessionRecovery.objects.filter(
             gym=gym,
+            member__deleted_at__isnull=True,
         ).select_related(
             "member",
             "activity",

@@ -1,10 +1,13 @@
-import { Pencil, Trash2, Share2, Link, Paperclip } from "lucide-react";
+import { Pencil, Trash2, Share2, Link, Paperclip, RotateCcw } from "lucide-react";
 import { formatHumanDate } from "../../utils/date.utils";
 
 function MemberCard({
   member,
+  isDeleted = false,
   onEdit,
+  onFixInsurance,
   onDelete,
+  onReactivate,
   onSharePortal,
   onCopyPortalLink,
   onViewPayments,
@@ -45,9 +48,25 @@ function MemberCard({
               {member.first_name} {member.last_name}
             </p>
 
+            {member.insurance_unverified && (
+              <button
+                type="button"
+                onClick={() => onFixInsurance && onFixInsurance(member)}
+                className="mt-0.5 block w-fit rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text hover:underline dark:bg-warning/15 dark:text-warning"
+              >
+                Obra social sin verificar
+              </button>
+            )}
+
             <p className="truncate text-sm text-text-secondary">{member.phone}</p>
 
             <p className="truncate text-xs text-text-secondary">{member.email}</p>
+
+            {isDeleted && (
+              <span className="mt-1 inline-block rounded-md bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger-text dark:bg-danger/15 dark:text-danger">
+                Dado de baja
+              </span>
+            )}
 
             {member.document_number && (
               <p className="mt-0.5 truncate text-xs text-text-secondary">
@@ -95,19 +114,31 @@ function MemberCard({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => onEdit(member)}
-            className="rounded-lg bg-info-bg p-3 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/20"
-          >
-            <Pencil size={16} />
-          </button>
+          {isDeleted ? (
+            <button
+              onClick={() => onReactivate(member)}
+              className="flex items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-sm font-medium text-success-text transition hover:bg-success/20 dark:bg-success/15 dark:text-success"
+            >
+              <RotateCcw size={16} />
+              Reactivar
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => onEdit(member)}
+                className="rounded-lg bg-info-bg p-3 text-info-text dark:bg-info/15 dark:text-info transition hover:bg-info/20"
+              >
+                <Pencil size={16} />
+              </button>
 
-          <button
-            onClick={() => onDelete(member.id)}
-            className="rounded-lg bg-danger-bg dark:bg-danger/15 p-3 text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
-          >
-            <Trash2 size={16} />
-          </button>
+              <button
+                onClick={() => onDelete(member.id)}
+                className="rounded-lg bg-danger-bg dark:bg-danger/15 p-3 text-danger-text dark:text-danger transition hover:bg-danger-bg dark:hover:bg-danger/20"
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 

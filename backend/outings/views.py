@@ -38,7 +38,7 @@ from .serializers import (
     StaffOutingEnrollmentRequestSerializer,
 )
 from .session_service import SessionError, SessionService
-from config.api.params import as_error_detail, validate_choice
+from config.api.params import as_error_detail, parse_bool, validate_choice
 
 
 class OutingsGuardMixin:
@@ -57,7 +57,10 @@ class OutingViewSet(OutingsGuardMixin, GymModelViewSet):
         qs = qs.select_related("trainer").annotate(
             enrolled_count=Count(
                 "schedules__enrollments",
-                filter=Q(schedules__enrollments__active=True),
+                filter=Q(
+                    schedules__enrollments__active=True,
+                    schedules__enrollments__member__deleted_at__isnull=True,
+                ),
                 distinct=True,
             ),
             schedule_count=Count(
@@ -90,10 +93,18 @@ class OutingViewSet(OutingsGuardMixin, GymModelViewSet):
 
         outing.active = True
         outing.save(update_fields=["active"])
-        OutingSchedule.objects.filter(outing=outing).update(active=True)
 
-        serializer = self.get_serializer(outing)
-        return Response(serializer.data)
+        restored = 0
+        if parse_bool(request.data.get("restore_schedules"), default=True):
+            # Sólo vuelven los horarios que se apagaron con la oferta: los
+            # que el staff apagó a mano siguen apagados (ADD-15, Fase K2).
+            restored = OutingSchedule.objects.filter(
+                outing=outing, auto_deactivated=True
+            ).update(active=True, auto_deactivated=False)
+
+        data = self.get_serializer(outing).data
+        data["restored_schedules"] = restored
+        return Response(data)
 
     @action(detail=False, methods=["get"])
     def trainers(self, request):
@@ -168,7 +179,9 @@ class OutingScheduleViewSet(OutingsGuardMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         schedule.active = False
-        schedule.save(update_fields=["active"])
+        # Apagado a mano: no vuelve con la oferta (ADD-15, Fase K2).
+        schedule.auto_deactivated = False
+        schedule.save(update_fields=["active", "auto_deactivated"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -190,6 +203,7 @@ class ScheduleOutingEnrollmentViewSet(
             gym=gym,
             schedule=schedule,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related("member", "member__insurance").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),
@@ -293,7 +307,8 @@ class OutingEnrollmentRequestViewSet(
 
     def get_queryset(self):
         qs = OutingEnrollmentRequest.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            member__deleted_at__isnull=True,
         ).select_related(
             "member",
             "schedule__outing__trainer",
@@ -384,6 +399,7 @@ class OutingEnrollmentActionViewSet(
         return OutingEnrollment.objects.filter(
             gym=gym,
             active=True,
+            member__deleted_at__isnull=True,
         ).select_related("member__insurance", "member", "schedule__outing").annotate(
             used_sessions_count=Count("session_records"),
             last_session_date=Max("session_records__date"),
@@ -448,10 +464,11 @@ class OutingEnrollmentActionViewSet(
     def renew(self, request, pk=None):
         enrollment = self.get_object()
         additional_sessions = request.data.get("additional_sessions")
+        allow_unpaid = parse_bool(request.data.get("allow_unpaid"))
 
         try:
             enrollment = SessionService.renew_package(
-                enrollment, additional_sessions
+                enrollment, additional_sessions, allow_unpaid=allow_unpaid
             )
         except SessionError as e:
             return Response(

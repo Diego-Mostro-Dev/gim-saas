@@ -75,7 +75,7 @@ function MemberData() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, navigate]);
 
   function setField(field, value) {
     setForm((prev) => ({

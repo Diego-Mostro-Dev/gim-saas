@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useEffect, useState, useCallback } from "react";
 
 const STORAGE_KEY = "theme";
@@ -8,7 +9,9 @@ function getStoredTheme() {
     if (stored === "light" || stored === "dark" || stored === "system") {
       return stored;
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
   return "system";
 }
 
@@ -27,7 +30,9 @@ export function ThemeProvider({ children }) {
   const setTheme = useCallback((t) => {
     try {
       localStorage.setItem(STORAGE_KEY, t);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     setThemeState(t);
   }, []);
 

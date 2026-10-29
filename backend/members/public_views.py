@@ -3,6 +3,7 @@ import logging
 from datetime import time
 
 from django.shortcuts import get_object_or_404
+from django.db.utils import IntegrityError
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -23,7 +24,7 @@ from config.api.throttles import (
     PublicMemberRateThrottle,
     PublicRegisterRateThrottle,
 )
-from .models import MemberAttachment, portal_member_or_404
+from .models import HealthInsurance, MemberAttachment, portal_member_or_404
 
 
 VALID_SERVICES = frozenset({"gym", "activities"})
@@ -220,6 +221,19 @@ class PublicRegisterView(APIView):
             )
         except RegistrationError as e:
             return Response(e.detail, status=e.status_code)
+        except IntegrityError as exc:
+            # ACC-19: el teléfono es único por gym.
+            if "unique_member_phone_per_gym" not in str(exc):
+                raise
+            return Response(
+                {
+                    "phone": (
+                        "Ya existe un socio con ese teléfono en este "
+                        "gimnasio."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             PublicMemberSerializer(member).data,
@@ -278,6 +292,40 @@ class PublicPlansView(APIView):
                 "weekly_visits": p.weekly_visits,
             }
             for p in plans
+        ])
+
+
+class PublicHealthInsurancesView(APIView):
+    """Obras sociales configuradas por el gym, para el alta pública.
+
+    Fase K5 (ACC-23): el alta pública mandaba la obra social como texto
+    libre, así que casi nunca coincidía con el nombre configurado y el
+    socio quedaba sin coseguro definido. Con esta lista, el formulario
+    público puede ofrecer un select con las obras del gym (y dejar la
+    opción de escribir otra).
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, gym_code):
+        gym = get_object_or_404(
+            Gym,
+            onboarding_code=gym_code,
+        )
+
+        insurances = HealthInsurance.objects.filter(
+            gym=gym,
+            active=True,
+        ).order_by("name")
+
+        return Response([
+            {
+                "id": ins.id,
+                "name": ins.name,
+                "session_price": str(ins.session_price),
+            }
+            for ins in insurances
         ])
 
 

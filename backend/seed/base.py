@@ -39,7 +39,7 @@ class BaseSeeder:
         self.stats = {}
 
     def needs_seeding(self):
-        existing = Member.objects.filter(gym=self.gym).count()
+        existing = Member.all_objects.filter(gym=self.gym).count()
         if existing > 0:
             return self.force
         return True
@@ -47,7 +47,7 @@ class BaseSeeder:
     def cleanup_phase1(self):
         Payment.objects.filter(gym=self.gym).delete()
         Subscription.objects.filter(gym=self.gym).delete()
-        Member.objects.filter(gym=self.gym).delete()
+        Member.all_objects.filter(gym=self.gym).delete()
         if not self.preserve_plans:
             MembershipPlan.objects.filter(gym=self.gym).delete()
 
@@ -361,8 +361,34 @@ class BaseSeeder:
                     subscription_end_date=historical_sub.end_date,
                 ))
 
+        # Historical payments for the inactive members' expired period, so the
+        # ``paid=True`` flag is backed by money (Fase K8 · DIN-20).
+        inactive_mids = sorted(
+            mid for mid in subs_by_member
+            if not self._is_active_member.get(mid, True)
+        )
+        for mid in inactive_mids:
+            for expired_sub in subs_by_member[mid]:
+                payments.append(Payment(
+                    gym=self.gym,
+                    subscription=expired_sub,
+                    member=expired_sub.member,
+                    member_name=f"{expired_sub.member.first_name} {expired_sub.member.last_name}",
+                    plan_name=expired_sub.plan.name,
+                    amount=expired_sub.plan.price,
+                    payment_method=self._pick_payment_method(),
+                    paid_at=self.ref_datetime - timedelta(days=70),
+                    subscription_end_date=expired_sub.end_date,
+                ))
+
         created = Payment.objects.bulk_create(payments)
         self.stats["payments"] = len(created)
+
+        # Ensure money invariants hold for seeded data (Fase K8 · DIN-20)
+        from subscriptions.services import sync_subscription_paid
+
+        for subscription in Subscription.objects.filter(gym=self.gym):
+            sync_subscription_paid(subscription)
 
     def cleanup_phase3(self):
         RoutineAssignment.objects.filter(gym=self.gym).delete()

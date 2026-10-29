@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   getOutings,
@@ -24,7 +24,7 @@ export function useOutings() {
 
   const [error, setError] = useState(null);
 
-  async function loadOutings() {
+  const loadOutings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -36,11 +36,13 @@ export function useOutings() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadOutings();
-  }, []);
+    queueMicrotask(() => {
+      loadOutings();
+    });
+  }, [loadOutings]);
 
   async function handleCreateOuting(data) {
     try {

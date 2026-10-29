@@ -74,7 +74,9 @@ def validate_activity_schedules(gym, raw_schedules):
         seen.add(schedule_id)
 
         enrolled_count = Enrollment.objects.filter(
-            schedule=schedule, active=True
+            schedule=schedule,
+            active=True,
+            member__deleted_at__isnull=True,
         ).count()
         if enrolled_count >= schedule.capacity:
             raise ValueError(

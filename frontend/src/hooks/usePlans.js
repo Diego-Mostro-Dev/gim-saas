@@ -43,7 +43,10 @@ export function usePlans() {
   }
 
   useEffect(() => {
-    loadPlans();
+    queueMicrotask(() => {
+      loadPlans();
+    });
+
   }, []);
 
   async function handleCreatePlan(data) {

@@ -8,7 +8,7 @@ import { execSync } from 'child_process'
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 function getBuildId() {
-  if (process.env.VERCEL_GIT_COMMIT_SHA) {
+  if (typeof process !== 'undefined' && process.env && process.env.VERCEL_GIT_COMMIT_SHA) {
     return process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 8)
   }
   try {

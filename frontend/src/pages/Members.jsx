@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 
-import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil, X, Info, CheckCircle2, Paperclip } from "lucide-react";
+import { Search, Plus, DollarSign, LayoutGrid, Table, Download, Pencil, X, Info, CheckCircle2, Paperclip, Archive, RotateCcw } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
@@ -53,8 +53,19 @@ const RECOVERY_FILTERS = [
 
 function Members() {
   const { gym } = useGym();
-  const { members, loading, refreshing, error, createNewMember, editMember, removeMember } =
-    useMembers();
+  const {
+    members,
+    deletedMembers,
+    deletedLoading,
+    loading,
+    refreshing,
+    error,
+    createNewMember,
+    editMember,
+    deactivateMember,
+    reactivateMember,
+    loadDeletedMembers,
+  } = useMembers();
 
   const {
     showForm,
@@ -77,9 +88,20 @@ function Members() {
 
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Fase K5 (ACC-23): filtro de las fichas con obra social escrita que el
+  // gym no tiene configurada (coseguro sin definir).
+  const [insuranceUnverifiedOnly, setInsuranceUnverifiedOnly] = useState(false);
+
+  // Al tocar el badge "obra social sin verificar" se abre la edición del
+  // socio con el combo de obras sociales ya desplegado: enlazar es un clic.
+  const [focusInsurance, setFocusInsurance] = useState(false);
+
+
   const [viewMode, setViewMode] = useState("cards");
 
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
 
   const dayLabels = {
     monday: "Lun",
@@ -155,12 +177,27 @@ function Members() {
     toast.success("Listado exportado a CSV");
   }
 
-  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [memberToDeactivate, setMemberToDeactivate] = useState(null);
+
+  const displayedMembers = showDeleted ? deletedMembers : members;
 
   const { filteredMembers } = useFilteredMembers({
-    members,
+    members: displayedMembers,
     searchTerm,
+    insuranceUnverifiedOnly: showDeleted ? false : insuranceUnverifiedOnly,
   });
+
+  // Fase K5 (ACC-23): cuántas fichas tienen obra social escrita sin obra
+  // configurada en el gym (coseguro sin definir).
+  const unverifiedInsuranceCount = useMemo(
+    () => members.filter((m) => m.insurance_unverified).length,
+    [members]
+  );
+
+  function openInsuranceFix(member) {
+    setFocusInsurance(true);
+    openEditForm(member);
+  }
 
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
 
@@ -358,6 +395,8 @@ function Members() {
 
       resetForm();
 
+      setFocusInsurance(false);
+
       closeForm();
     } catch (error) {
       console.error(error);
@@ -369,22 +408,49 @@ function Members() {
     }
   }
 
-  function handleOpenDeleteModal(id) {
-    setMemberToDelete(id);
+  function handleOpenDeactivateModal(id) {
+    setMemberToDeactivate(id);
 
-    setShowDeleteModal(true);
+    setShowDeactivateModal(true);
   }
 
-  async function handleDeleteMember() {
+  async function handleDeactivateMember() {
     try {
-      await removeMember(memberToDelete);
+      await deactivateMember(memberToDeactivate);
 
-      toast.success("Miembro eliminado");
+      toast.success("Socio dado de baja");
     } catch (error) {
       console.error(error);
 
-      toast.error("No se pudo eliminar el miembro");
+      toast.error(error?.message || "No se pudo dar de baja al socio");
     }
+  }
+
+  async function handleReactivateMember(member) {
+    try {
+      await reactivateMember(member.id);
+
+      toast.success("Socio reactivado");
+    } catch (error) {
+      console.error(error);
+
+      toast.error(error?.message || "No se pudo reactivar al socio");
+    }
+  }
+
+  async function handleToggleDeleted() {
+    if (showDeleted) {
+      setShowDeleted(false);
+      setSearchTerm("");
+      return;
+    }
+
+    setShowDeleted(true);
+    setFocusInsurance(false);
+    closeForm();
+    setInsuranceUnverifiedOnly(false);
+    setSearchTerm("");
+    await loadDeletedMembers();
   }
 
   async function handleViewPayments(member) {
@@ -737,12 +803,26 @@ function Members() {
           )}
 
           <button
-            onClick={handleExportCsv}
-            className="flex items-center gap-1.5 rounded-xl bg-surface-elevated px-3 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+            onClick={handleToggleDeleted}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
+              showDeleted
+                ? "bg-blue-500 text-white hover:bg-blue-600"
+                : "bg-surface-elevated text-text-primary hover:bg-surface-input"
+            }`}
           >
-            <Download size={16} />
-            Exportar CSV
+            <Archive size={16} />
+            {showDeleted ? "Volver a socios" : "Dados de baja"}
           </button>
+
+          {!showDeleted && (
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 rounded-xl bg-surface-elevated px-3 py-2 text-sm font-medium text-text-primary transition hover:bg-surface-input"
+            >
+              <Download size={16} />
+              Exportar CSV
+            </button>
+          )}
 
           <div className="flex items-center rounded-xl border border-border bg-surface-elevated p-1">
             <button
@@ -770,19 +850,22 @@ function Members() {
             </button>
           </div>
 
-          <button
-            onClick={() => {
-              if (showForm) {
-                closeForm();
-              } else {
-                openCreateForm();
-              }
-            }}
-            className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-          >
-            <Plus size={18} />
-            {showForm ? "Cerrar" : "Nuevo"}
-          </button>
+          {!showDeleted && (
+            <button
+              onClick={() => {
+                if (showForm) {
+                  setFocusInsurance(false);
+                  closeForm();
+                } else {
+                  openCreateForm();
+                }
+              }}
+              className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+            >
+              <Plus size={18} />
+              {showForm ? "Cerrar" : "Nuevo"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -793,18 +876,44 @@ function Members() {
         </div>
       )}
 
+      {showDeleted && (
+        <div className="mb-6 rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary">
+          Socios dados de baja. El historial de pagos, asistencias e
+          inscripciones se conserva; podés reactivarlos cuando quieras.
+        </div>
+      )}
+
       {/* SEARCH */}
       <div className="mb-6 flex items-center gap-2 rounded-xl border border-border bg-surface-elevated px-4 py-3">
         <Search size={18} className="text-text-secondary" />
 
         <input
           type="text"
-          placeholder="Buscar miembro..."
+          placeholder={
+            showDeleted ? "Buscar socio dado de baja..." : "Buscar miembro..."
+          }
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
         />
       </div>
+
+      {/* OBRAS SOCIALES SIN VERIFICAR (Fase K5 · ACC-23) */}
+      {!showDeleted && unverifiedInsuranceCount > 0 && (
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => setInsuranceUnverifiedOnly(!insuranceUnverifiedOnly)}
+            className={`rounded-xl border px-3 py-2 text-sm transition-colors ${
+              insuranceUnverifiedOnly
+                ? "border-warning bg-warning/10 text-text-primary"
+                : "border-border bg-surface-elevated text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            Obra social sin verificar ({unverifiedInsuranceCount})
+          </button>
+        </div>
+      )}
 
       {/* FORM */}
       {showForm && !loadingSlots && availableSlots.length === 0 && !editingMember && !activitiesEnabled && (
@@ -818,9 +927,10 @@ function Members() {
         </div>
       )}
 
-      {showForm && (editingMember || availableSlots.length > 0 || activitiesEnabled) && (
+      {!showDeleted && showForm && (editingMember || availableSlots.length > 0 || activitiesEnabled) && (
         <div ref={formRef}>
           <MemberForm
+            key={`${editingMember ? editingMember.id : "new"}-${focusInsurance ? "fix" : ""}`}
             gym={gym}
             formData={formData}
             setFormData={setFormData}
@@ -835,14 +945,21 @@ function Members() {
             activitiesAvailable={activitiesEnabled}
             availableInsurances={availableInsurances}
             availableDiscounts={availableDiscounts}
+            focusInsurance={focusInsurance}
           />
         </div>
       )}
 
       {/* LIST */}
-      {filteredMembers.length === 0 ? (
+      {deletedLoading ? (
         <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
-          No se encontraron miembros
+          Cargando socios dados de baja...
+        </div>
+      ) : filteredMembers.length === 0 ? (
+        <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm text-text-secondary shadow-sm">
+          {showDeleted
+            ? "No hay socios dados de baja"
+            : "No se encontraron miembros"}
         </div>
       ) : viewMode === "cards" ? (
         <div className="space-y-3">
@@ -850,8 +967,11 @@ function Members() {
             <MemberCard
               key={member.id}
               member={member}
+              isDeleted={showDeleted}
               onEdit={openEditForm}
-              onDelete={handleOpenDeleteModal}
+              onFixInsurance={openInsuranceFix}
+              onDelete={handleOpenDeactivateModal}
+              onReactivate={handleReactivateMember}
               onSharePortal={handleSharePortal}
               onCopyPortalLink={handleCopyPortalLink}
               onViewPayments={handleViewPayments}
@@ -896,9 +1016,21 @@ function Members() {
                           </>
                         )}
                       </div>
-                      <span className="font-medium text-text-primary">
-                        {member.first_name} {member.last_name}
-                      </span>
+                      <div>
+                        <span className="font-medium text-text-primary">
+                          {member.first_name} {member.last_name}
+                        </span>
+
+                        {member.insurance_unverified && (
+                          <button
+                            type="button"
+                            onClick={() => openInsuranceFix(member)}
+                            className="mt-1 block w-fit rounded-md bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text hover:underline dark:bg-warning/15 dark:text-warning"
+                          >
+                            Obra social sin verificar
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </td>
 
@@ -928,38 +1060,48 @@ function Members() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    {showDeleted ? (
                       <button
-                        onClick={() => handleViewPayments(member)}
-                        className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
-                        title="Historial de pagos"
+                        onClick={() => handleReactivateMember(member)}
+                        className="flex items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-xs font-medium text-success-text transition hover:bg-success/20 dark:bg-success/15 dark:text-success"
                       >
-                        Historial
+                        <RotateCcw size={14} />
+                        Reactivar
                       </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleViewPayments(member)}
+                          className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
+                          title="Historial de pagos"
+                        >
+                          Historial
+                        </button>
 
-                      <button
-                        onClick={() => handleViewAttachments(member)}
-                        className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
-                        title="Adjuntos"
-                      >
-                        <span className="flex items-center gap-1">
-                          <Paperclip size={16} />
-                          {member.pending_attachments_count > 0 && (
-                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold text-warning-text dark:text-warning">
-                              {member.pending_attachments_count}
-                            </span>
-                          )}
-                        </span>
-                      </button>
+                        <button
+                          onClick={() => handleViewAttachments(member)}
+                          className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
+                          title="Adjuntos"
+                        >
+                          <span className="flex items-center gap-1">
+                            <Paperclip size={16} />
+                            {member.pending_attachments_count > 0 && (
+                              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold text-warning-text dark:text-warning">
+                                {member.pending_attachments_count}
+                              </span>
+                            )}
+                          </span>
+                        </button>
 
-                      <button
-                        onClick={() => openEditForm(member)}
-                        className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
-                        title="Editar"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                    </div>
+                        <button
+                          onClick={() => openEditForm(member)}
+                          className="rounded-lg bg-info-bg dark:bg-info/15 p-2 text-info-text dark:text-info transition hover:bg-info/30"
+                          title="Editar"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -969,22 +1111,22 @@ function Members() {
       )}
 
       <ConfirmModal
-        isOpen={showDeleteModal}
-        title="Eliminar miembro"
-        message="Esta acción no se puede deshacer"
-        confirmText="Eliminar"
+        isOpen={showDeactivateModal}
+        title="Dar de baja al socio"
+        message="Dejará de aparecer en los listados y no se le renovará el plan. El historial de pagos y asistencias se conserva; podés reactivarlo desde “Dados de baja”."
+        confirmText="Dar de baja"
         cancelText="Cancelar"
         onClose={() => {
-          setShowDeleteModal(false);
+          setShowDeactivateModal(false);
 
-          setMemberToDelete(null);
+          setMemberToDeactivate(null);
         }}
         onConfirm={async () => {
-          await handleDeleteMember();
+          await handleDeactivateMember();
 
-          setShowDeleteModal(false);
+          setShowDeactivateModal(false);
 
-          setMemberToDelete(null);
+          setMemberToDeactivate(null);
         }}
       />
 

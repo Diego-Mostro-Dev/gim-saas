@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { DAY_NAMES } from "../constants/days";
 import { useMemberActivities } from "../hooks/useMemberActivities";
+import { txt } from "../utils/labels";
 import {
   getAvailableActivities,
   enrollMemberPublic,
@@ -14,12 +15,12 @@ import {
 
 function formatTime(timeStr) {
   if (!timeStr) return "";
-  const [h, m] = timeStr.split(":");
-  return `${h.padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
+  const [h, m] = String(timeStr).split(":").map(Number);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function MemberActivities() {
-  const { token, isOperativeBlocked } = useOutletContext();
+  const { token, gym, isOperativeBlocked } = useOutletContext();
   const navigate = useNavigate();
   const { enrollments, loading, error, handleUnenroll, unenrollingId, reload } =
     useMemberActivities(token);
@@ -98,15 +99,35 @@ function MemberActivities() {
   async function handleSelectSchedule(newScheduleId) {
     if (!picker || isOperativeBlocked) return;
     setSubmittingId(newScheduleId);
+    const oldScheduleId = picker.schedule;
     try {
-      await unenrollMemberFromActivity(token, picker.schedule);
-      await enrollMemberPublic(token, newScheduleId);
-      toast.success("Inscripción actualizada correctamente");
-      closePicker();
-      reload();
+      await unenrollMemberFromActivity(token, oldScheduleId);
+      try {
+        await enrollMemberPublic(token, newScheduleId);
+        toast.success("Inscripción actualizada correctamente");
+        closePicker();
+        reload();
+        return;
+      } catch (enrollErr) {
+        try {
+          await enrollMemberPublic(token, oldScheduleId);
+          toast.error(
+            enrollErr.message ||
+              "No se pudo inscribir al nuevo horario. Se restauró el horario anterior.",
+          );
+        } catch (rollbackErr) {
+          toast.error(
+            rollbackErr.message ||
+              "Error al actualizar inscripción y no se pudo restaurar el horario anterior. Recarga la página.",
+          );
+        }
+        reload();
+        return;
+      }
     } catch (err) {
       toast.error(err.message || "Error al actualizar inscripción");
       reload();
+      return;
     } finally {
       setSubmittingId(null);
     }

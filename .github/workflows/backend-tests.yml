@@ -101,10 +101,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
-      # Sólo build por ahora: `pnpm lint` hoy falla con deudas preexistentes
-      # (reglas nuevas de react-hooks v7 + globals virtuales sin declarar en
-      # eslint.config.js). Meterlo al CI tal cual lo dejaría rojo sin arreglar
-      # nada de Fase J; queda como REF-05 (⚪) para una tarea de frontend.
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
       - name: Build
         working-directory: frontend
         run: pnpm build

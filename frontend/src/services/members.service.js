@@ -111,10 +111,20 @@ export async function createMember(memberData) {
   });
 }
 
-export async function deleteMember(id) {
-  return apiFetch(`/api/members/${id}/`, {
-    method: "DELETE",
+export async function deactivateMember(id) {
+  return apiFetch(`/api/members/${id}/deactivate/`, {
+    method: "POST",
   });
+}
+
+export async function reactivateMember(id) {
+  return apiFetch(`/api/members/${id}/reactivate/`, {
+    method: "POST",
+  });
+}
+
+export async function getDeletedMembers() {
+  return fetchAllPages("/api/members/?deleted=1");
 }
 
 export async function updateMember(

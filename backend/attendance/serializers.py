@@ -15,11 +15,14 @@ from .models import (
 )
 from .recovery_service import effective_status
 from .utils import (
+    check_schedule_change_limits,
+    checkin_window_message,
     compute_effective_occupancy,
     count_member_week_attendances,
     count_schedule_changes_used_this_month,
     has_effective_capacity,
     member_service_label,
+    within_checkin_window,
 )
 
 from members.eligibility import MemberEligibility
@@ -195,9 +198,19 @@ class AttendanceScheduleSerializer(MemberIdentityMixin, serializers.ModelSeriali
 class ScheduleSlotSerializer(serializers.ModelSerializer):
     class Meta:
         model = ScheduleSlot
-        fields = ["id", "day", "hour", "capacity", "gym"]
+        fields = ["id", "day", "hour", "duration_minutes", "capacity", "gym"]
         read_only_fields = ["gym"]
         validators = []
+
+    def validate_duration_minutes(self, value):
+        # ADD-05: el bloque del gym tiene duración real. Menos de 15
+        # minutos no es un turno de entrenamiento y más de 8 horas es un
+        # error de carga.
+        if value < 15 or value > 480:
+            raise serializers.ValidationError(
+                "La duración debe estar entre 15 y 480 minutos."
+            )
+        return value
 
     def validate(self, attrs):
         request = self.context.get("request")
@@ -240,6 +253,15 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
         schedule = attrs.get("schedule")
         swap_request = attrs.get("swap_request")
+
+        # ACC-03: el path público valida GymClosedDate y el de staff no, así
+        # que el staff podía marcar asistencia en un día cerrado.
+        if GymClosedDate.objects.filter(
+            gym=gym, date=timezone.localdate()
+        ).exists():
+            raise serializers.ValidationError(
+                msg(gym, "checkin.closed_today")
+            )
 
         if swap_request:
             if swap_request.gym != gym:
@@ -319,6 +341,17 @@ class AttendanceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"Alcanzaste el límite de {weekly_limit} visitas semanales de tu plan."
             )
+
+        # ACC-02: la ventana de check-in la define cada gimnasio (0 = sin
+        # ventana). El staff tampoco puede cargar una asistencia fuera de
+        # ella el mismo día.
+        if slot is not None and (
+            attrs.get("date") or timezone.localdate()
+        ) == timezone.localdate():
+            if not within_checkin_window(gym, [slot], timezone.localtime().time()):
+                raise serializers.ValidationError(
+                    checkin_window_message(gym, [slot])
+                )
 
         attrs["_slot"] = slot
         return attrs
@@ -496,6 +529,18 @@ class ScheduleChangeRequestSerializer(
 
         self.validate_gym_allows_changes(gym)
 
+        # CFG-04: el staff no puede saltear el cooldown ni el máximo mensual
+        # de cambios de horario (misma regla que el path público).
+        limit_member = member
+        if limit_member is None and current_schedule is not None:
+            limit_member = current_schedule.member
+        if limit_member is not None:
+            limit_error = check_schedule_change_limits(
+                gym, limit_member, for_staff=True
+            )
+            if limit_error:
+                raise serializers.ValidationError(limit_error)
+
         if current_schedule is not None and current_schedule.gym != gym:
             raise serializers.ValidationError({
                 "current_schedule": msg(gym, "errors.current_schedule_not_in_gym")
@@ -543,6 +588,7 @@ class ScheduleChangeRequestSerializer(
                     gym=gym,
                     slot=requested_slot,
                     active=True,
+                    member__deleted_at__isnull=True,
                 ).count()
                 if current_count >= cap:
                     raise serializers.ValidationError(
@@ -702,26 +748,11 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
 
         self.validate_gym_allows_changes(gym)
 
-        cooldown_hours = gym.schedule_change_cooldown_hours
-        latest = ScheduleChangeRequest.objects.filter(
-            member=member,
-            status__in=["pending", "approved", "executed"],
-        ).order_by("-requested_at").first()
-        if latest:
-            elapsed = (timezone.now() - latest.requested_at).total_seconds()
-            if elapsed < cooldown_hours * 3600:
-                remaining_hours = int((cooldown_hours * 3600 - elapsed) / 3600)
-                raise serializers.ValidationError(
-                    f"Debes esperar {remaining_hours} hora(s) antes de solicitar otro cambio."
-                )
-
-        if (
-            count_schedule_changes_used_this_month(member)
-            >= gym.max_schedule_changes_per_month
-        ):
-            raise serializers.ValidationError(
-                f"Has alcanzado el límite de {gym.max_schedule_changes_per_month} cambios de horario este mes."
-            )
+        # Cooldown y límite mensual: la misma regla que usa el staff
+        # (helper compartido, CFG-04).
+        limit_error = check_schedule_change_limits(gym, member)
+        if limit_error:
+            raise serializers.ValidationError(limit_error)
 
         if current_schedule is not None and current_schedule.gym != gym:
             raise serializers.ValidationError({
@@ -760,6 +791,7 @@ class PublicScheduleChangeRequestSerializer(serializers.ModelSerializer):
                     gym=gym,
                     slot=requested_slot,
                     active=True,
+                    member__deleted_at__isnull=True,
                 ).count()
                 if current_count >= cap:
                     raise serializers.ValidationError(

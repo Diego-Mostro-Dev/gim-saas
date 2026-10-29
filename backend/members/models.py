@@ -73,6 +73,23 @@ class HealthInsurance(models.Model):
         return self.name
 
 
+class MemberQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def deleted(self):
+        return self.filter(deleted_at__isnull=False)
+
+
+class AliveMemberManager(models.Manager.from_queryset(MemberQuerySet)):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
+class AllMemberManager(models.Manager.from_queryset(MemberQuerySet)):
+    pass
+
+
 class Member(models.Model):
     class EntryMode(models.TextChoices):
         GYM = "GYM", "Gimnasio"
@@ -228,9 +245,35 @@ class Member(models.Model):
         verbose_name="Fecha de creación",
     )
 
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Dado de baja el",
+    )
+
+    objects = AliveMemberManager()
+    all_objects = AllMemberManager()
+
     class Meta:
         verbose_name = "Miembro"
         verbose_name_plural = "Miembros"
+        base_manager_name = "all_objects"
+        default_manager_name = "objects"
+        constraints = [
+            # Fase K5 (ACC-19): el teléfono identifica al socio dentro del
+            # gym (es el login del portal), así que no puede repetirse. El
+            # teléfono vacío queda fuera del constraint: hay socios sin
+            # teléfono y no es motivo para bloquearlos.
+            models.UniqueConstraint(
+                fields=["gym", "phone"],
+                condition=(
+                    ~models.Q(phone="")
+                    & models.Q(deleted_at__isnull=True)
+                ),
+                name="unique_member_phone_per_gym",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.access_token:
@@ -279,6 +322,20 @@ class Member(models.Model):
 
         self.rotate_access_token(now=now)
         return self.access_token
+
+    def soft_delete(self, now=None):
+        now = now or timezone.now()
+        self.deleted_at = now
+        self.active = False
+        self.save(update_fields=["deleted_at", "active"])
+        self.subscription_set.filter(auto_renew=True).update(auto_renew=False)
+        return self
+
+    def reactivate(self):
+        self.deleted_at = None
+        self.active = True
+        self.save(update_fields=["deleted_at", "active"])
+        return self
 
     def __str__(self):
         return (

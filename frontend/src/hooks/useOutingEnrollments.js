@@ -40,7 +40,10 @@ export function useOutingEnrollments(scheduleId, outingId) {
   }
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleId, outingId]);
 
   async function handleUnenroll(memberId) {

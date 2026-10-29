@@ -27,22 +27,6 @@ export default function Checkin() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!gymCode) {
-      setMessage("Código inválido");
-      return;
-    }
-
-    const memberToken = localStorage.getItem("member_token");
-
-    if (!memberToken) {
-      setMessage("No pudimos identificarte. Abrí primero tu Portal del Socio.");
-      return;
-    }
-
-    registerAttendance(memberToken);
-  }, [gymCode]);
-
   function goToPortal(memberToken) {
     redirectTimerRef.current = setTimeout(() => {
       navigate(`/routine/${memberToken}`);
@@ -55,6 +39,14 @@ export default function Checkin() {
         method: "POST",
         skipAuth: true,
       });
+
+      // ACC-04: el backend responde 409 cuando la asistencia ya estaba
+      // registrada. Si aun así llega un 200 con success:false, no se
+      // redirige como si fuera un éxito.
+      if (data?.success === false) {
+        setMessage(data?.message || "No pudimos registrar tu asistencia");
+        return;
+      }
 
       setMessage(data?.message || "Asistencia registrada");
       setRedirecting(true);
@@ -85,11 +77,33 @@ export default function Checkin() {
         setMessage(
           error?.message || "No podés registrar tu asistencia en este momento."
         );
+      } else if (error?.status === 409) {
+        // ACC-04: la asistencia de hoy ya estaba registrada.
+        setMessage(error?.message || "Ya registraste asistencia hoy");
       } else {
         setMessage(error?.message || "No pudimos registrar tu asistencia");
       }
     }
   }
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (!gymCode) {
+        setMessage("Código inválido");
+        return;
+      }
+
+      const memberToken = localStorage.getItem("member_token");
+
+      if (!memberToken) {
+        setMessage("No pudimos identificarte. Abrí primero tu Portal del Socio.");
+        return;
+      }
+
+      registerAttendance(memberToken);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gymCode]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-6 text-center text-text-primary">

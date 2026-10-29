@@ -97,6 +97,14 @@ class Gym(models.Model):
         ),
     )
 
+    checkin_window_minutes = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Ventana de check-in (minutos)",
+        help_text=(
+            "Minutos antes del bloque en los que se puede marcar asistencia. "
+            "0 = sin ventana (no se filtra la hora). ACC-02, Fase K4."
+        ),
+    )
     allow_plan_changes = models.BooleanField(default=True, verbose_name="Permitir cambios de plan")
     allow_schedule_changes = models.BooleanField(default=True, verbose_name="Permitir cambios de horario")
     schedule_change_cooldown_hours = models.PositiveIntegerField(default=168, verbose_name="Horas de espera entre cambios")

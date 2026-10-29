@@ -65,8 +65,12 @@ export function dayIntervals(freeData, day) {
 export function reconcileSlot(freeData, day, start, end) {
   const intervals = dayIntervals(freeData, day);
   const duration = freeData?.duration_minutes || DEFAULT_DURATION;
-  if (isFree(intervals, start, end)) return { start, end };
+  if (isFree(intervals, start, end)) return { start, end, changed: false };
   const nextStart = firstFreeStart(intervals, duration);
   const nextEnd = nextStart ? firstFreeEnd(intervals, nextStart, duration) : "";
-  return { start: nextStart, end: nextEnd };
+  return {
+    start: nextStart,
+    end: nextEnd,
+    changed: nextStart !== start || nextEnd !== end,
+  };
 }

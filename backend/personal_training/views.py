@@ -34,7 +34,12 @@ from .serializers import (
     PersonalTrainingServiceSerializer,
     TrainerSerializer,
 )
-from config.api.params import as_error_detail, parse_int, validate_choice
+from config.api.params import (
+    as_error_detail,
+    parse_bool,
+    parse_int,
+    validate_choice,
+)
 from .session_service import SessionError, SessionService
 
 
@@ -105,7 +110,8 @@ class PersonalTrainingAssignmentViewSet(
 
     def get_queryset(self):
         qs = PersonalTrainingAssignment.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            member__deleted_at__isnull=True,
         ).select_related(
             "member", "member__insurance", "trainer", "trainer__profile", "service"
         ).annotate(
@@ -262,10 +268,11 @@ class PersonalTrainingAssignmentViewSet(
     def renew(self, request, pk=None):
         assignment = self.get_object()
         additional_sessions = request.data.get("additional_sessions")
+        allow_unpaid = parse_bool(request.data.get("allow_unpaid"))
 
         try:
             assignment = SessionService.renew_package(
-                assignment, additional_sessions
+                assignment, additional_sessions, allow_unpaid=allow_unpaid
             )
         except SessionError as e:
             return Response(
@@ -305,7 +312,8 @@ class PersonalTrainingChangeRequestViewSet(
 
     def get_queryset(self):
         qs = PersonalTrainingChangeRequest.objects.filter(
-            gym=self.get_gym()
+            gym=self.get_gym(),
+            member__deleted_at__isnull=True,
         ).select_related("member", "member__insurance", "assignment", "assignment__service", "assignment__trainer", "reviewed_by")
         status_filter = self.request.query_params.get("status")
         if status_filter:
@@ -438,7 +446,9 @@ class PersonalTrainingAttendanceView(APIView):
 
         assignments = (
             PersonalTrainingAssignment.objects.filter(
-                gym=gym, active=True
+                gym=gym,
+                active=True,
+                member__deleted_at__isnull=True,
             )
             .select_related(
                 "member",

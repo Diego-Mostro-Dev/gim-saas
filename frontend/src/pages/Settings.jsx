@@ -198,9 +198,11 @@ function Settings() {
     end_time: "20:00",
     step_minutes: 60,
     capacity: "",
+    duration_minutes: 60,
   });
   const [editingSlotId, setEditingSlotId] = useState(null);
   const [editCapacity, setEditCapacity] = useState("");
+  const [editDuration, setEditDuration] = useState("60");
 
   const [closedDates, setClosedDates] = useState([]);
   const [loadingClosedDates, setLoadingClosedDates] = useState(false);
@@ -591,6 +593,7 @@ function Settings() {
         start_time: batchForm.start_time,
         end_time: batchForm.end_time,
         step_minutes: Number(batchForm.step_minutes),
+        duration_minutes: Number(batchForm.duration_minutes) || 60,
       };
       if (batchForm.capacity !== "") {
         data.capacity = Number(batchForm.capacity);
@@ -608,6 +611,7 @@ function Settings() {
         start_time: "08:00",
         end_time: "20:00",
         step_minutes: 60,
+        duration_minutes: 60,
         capacity: "",
       });
       setShowBatchForm(false);
@@ -627,12 +631,16 @@ function Settings() {
       } else {
         data.capacity = null;
       }
+      const duration = Number(editDuration);
+      if (!Number.isNaN(duration) && duration > 0) {
+        data.duration_minutes = duration;
+      }
       await updateSlot(id, data);
-      toast.success("Capacidad actualizada");
+      toast.success("Horario actualizado");
       setEditingSlotId(null);
       loadSlots();
     } catch (error) {
-      toast.error(error.message || "Error al actualizar capacidad");
+      toast.error(error.message || "Error al actualizar el horario");
     }
   }
 
@@ -650,6 +658,7 @@ function Settings() {
   function startEdit(slot) {
     setEditingSlotId(slot.id);
     setEditCapacity(slot.capacity ?? "");
+    setEditDuration(slot.duration_minutes ?? 60);
   }
 
   const [prevGymId, setPrevGymId] = useState(null);
@@ -1978,6 +1987,26 @@ function Settings() {
 
               <div className="flex-1 basis-24">
                 <label className="mb-1.5 block text-xs font-medium text-text-secondary">
+                  Duración
+                </label>
+                <input
+                  type="number"
+                  min="15"
+                  max="480"
+                  step="15"
+                  value={batchForm.duration_minutes}
+                  onChange={(e) =>
+                    setBatchForm({
+                      ...batchForm,
+                      duration_minutes: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary outline-none"
+                />
+              </div>
+
+              <div className="flex-1 basis-24">
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">
                   Capacidad
                 </label>
                 <input
@@ -2054,6 +2083,18 @@ function Settings() {
                         className="w-16 rounded-lg border border-border bg-surface-input px-2 py-1 text-xs text-text-primary outline-none"
                       />
 
+                      <input
+                        type="number"
+                        min="15"
+                        max="480"
+                        step="15"
+                        placeholder="Min."
+                        title="Duración del bloque en minutos"
+                        value={editDuration}
+                        onChange={(e) => setEditDuration(e.target.value)}
+                        className="w-16 rounded-lg border border-border bg-surface-input px-2 py-1 text-xs text-text-primary outline-none"
+                      />
+
                       <button
                         onClick={() => handleUpdateCapacity(slot.id)}
                         className="rounded-lg bg-success-bg dark:bg-success/15 p-1 text-success-text dark:text-success transition hover:bg-success/30"
@@ -2073,6 +2114,10 @@ function Settings() {
                       {slot.capacity !== null && slot.capacity !== undefined
                         ? `Cap: ${slot.capacity}`
                         : "Cap. por defecto"}
+                      {slot.duration_minutes &&
+                      slot.duration_minutes !== 60
+                        ? ` · ${slot.duration_minutes} min`
+                        : ""}
                     </span>
                   )}
                 </div>

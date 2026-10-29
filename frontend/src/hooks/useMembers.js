@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 
 import {
   getMembers,
+  getDeletedMembers,
   createMember,
-  deleteMember,
+  deactivateMember as deactivateMemberRequest,
+  reactivateMember as reactivateMemberRequest,
   updateMember,
 } from "../services/members.service";
 import { getCached, isCacheFresh, clearCached } from "../utils/cache";
@@ -13,6 +15,8 @@ const TTL = 5 * 60 * 1000;
 
 export function useMembers() {
   const [members, setMembers] = useState(() => getCached(CACHE_KEY) || []);
+  const [deletedMembers, setDeletedMembers] = useState([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
   const [loading, setLoading] = useState(() => !isCacheFresh(CACHE_KEY, TTL));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -64,6 +68,20 @@ export function useMembers() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+  async function loadDeletedMembers() {
+    try {
+      setDeletedLoading(true);
+      setError(null);
+      const data = await getDeletedMembers();
+      setDeletedMembers(data);
+      return data;
+    } catch (err) {
+      setError(err.message || "Error al cargar socios dados de baja");
+    } finally {
+      setDeletedLoading(false);
+    }
+  }
+
   async function createNewMember(data) {
     const newMember = await createMember(data);
     setMembers((prev) => [newMember, ...prev]);
@@ -82,20 +100,46 @@ export function useMembers() {
     return updated;
   }
 
-  async function removeMember(id) {
-    await deleteMember(id);
+  async function deactivateMember(id) {
+    const updated = await deactivateMemberRequest(id);
+
     setMembers((prev) => prev.filter((m) => m.id !== id));
+    setDeletedMembers((prev) => {
+      if (prev.some((m) => m.id === id)) {
+        return prev.map((m) => (m.id === id ? updated : m));
+      }
+      return [updated, ...prev];
+    });
     clearCached(CACHE_KEY);
+    return updated;
+  }
+
+  async function reactivateMember(id) {
+    const updated = await reactivateMemberRequest(id);
+
+    setDeletedMembers((prev) => prev.filter((m) => m.id !== id));
+    setMembers((prev) => {
+      if (prev.some((m) => m.id === id)) {
+        return prev.map((m) => (m.id === id ? updated : m));
+      }
+      return [updated, ...prev];
+    });
+    clearCached(CACHE_KEY);
+    return updated;
   }
 
   return {
     members,
+    deletedMembers,
+    deletedLoading,
     loading,
     refreshing,
     error,
     createNewMember,
     editMember,
-    removeMember,
+    deactivateMember,
+    reactivateMember,
+    loadDeletedMembers,
     reload: loadMembers,
   };
 }
