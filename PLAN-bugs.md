@@ -66,7 +66,7 @@ El registro vivo está en **`BUGS.md`**. Este documento es el plan; aquél es el
 | **K6. Baja lógica de socios** | ACC-20 (`Member.deleted_at`). | Tests de baja/reactivación + filtros de listados | ✅ **hecha** (2026-10-25; `Member.deleted_at` + managers `objects`/`all_objects`, `DELETE` → 405, `POST deactivate`/`reactivate`, filtros en todos los listados operativos y validación de teléfono/capacidad al reactivar; pestaña "Dados de baja" en el panel; 26 tests nuevos; 553 tests) |
 | **K7. Higiene de frontend y CI** | REF-05 (lint a 0 y bloqueante en el CI), ADD-19, ADD-03. | `pnpm lint` en 0 + `pnpm build` + suite completa | ✅ |
 | **K8. Higiene de seed / dinero** | DIN-20 (armonizar seed con arnés de invariantes). | Arnés I1–I8 en 0 tras seed (sin violaciones de `seed/base.py`). | ✅ |
-| **K9. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging | ⬜ |
+| **K9. Cierre y release** | `RELEASE-CHECKLIST.md`, `BUGS.md` final, merge a `main` y monitoreo. | Checklist ejecutada de punta a punta en staging + producción | ✅ **hecha** (2026-10-29; merge `db4c98d` desplegado en Render, migraciones aplicadas, `monitor.sh` sin avisos, invariantes prod GymDemo/GymDev 0 y `sinkro-prueba` 3 aceptado) |
 
 **Orden obligatorio**: A → B → C → D → E → F → G → H → I → J → K0 → K1 → K2 → K3 → K4 → K5 →
 K6 → K7 → K8 → K9. La B es el "GPS": una vez que existe la red de invariantes, cada fix de C-F se
@@ -399,6 +399,12 @@ soporta). `ADD-03`: el cambio de horario del portal, atómico o muerto.
 cerrado, merge `development` → `main` (que despliega Render vía `Procfile`) y monitoreo con
 `scripts/monitor.sh`.
 **Gate:** checklist ejecutada de punta a punta en staging + `monitor.sh` verde.
+
+**Hecha (2026-10-29):** merge `development` → `main` (`db4c98d`) desplegado por Render con las
+migraciones de K5/K6 aplicadas; `monitor.sh` sin avisos (health, latencias, backup, CI y tareas
+programadas); invariantes en producción con `GymDemo`/`GymDev` en 0 (`sinkro-prueba` conserva 3
+por ser gym de prueba); datos demo reparados y `paid_at` backdateado a su período original. Queda
+sólo la confirmación manual de Sentry.
 
 #### Corte mínimo publicable
 
