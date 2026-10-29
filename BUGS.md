@@ -1,7 +1,7 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
-Estado: **2026-10-28** — Fases A a J hechas; **Fase K: K0 a K8 hechas, K9 (cierre y
-release) en curso**. Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
+Estado: **2026-10-29** — Fases A a J hechas; **Fase K: K0 a K9 hechas (release cerrado)**.
+Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
 De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **0 abiertos**
 y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
@@ -279,7 +279,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   (`PTSelladoRenewalTests`).
 
 ### DIN-20 · El seed deja violaciones de dinero en el arnés
-- **Severidad:** BAJO · **Estado:** 🔴 · **Sub-fase:** K8 (higiene de seed)
+- **Severidad:** BAJO · **Estado:** 🟢 (Fase K8) · **Sub-fase:** K8 (higiene de seed)
 - **Detectado por:** K5, al correr el arnés de invariantes sobre la copia local de staging
   después de `DIN-17`.
 - **Explicación:** de las 27 violaciones que quedan en el arnés, ninguna viene de código de
@@ -292,6 +292,13 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Criterio de aceptación:** correr `seed` sobre una base limpia deja 0 violaciones de
   `check_money_invariants` (o el seed documenta explícitamente las que necesita y el arnés las
   excluye por gym).
+- **Resolución Fase K8:** `seed/base.py` registra los pagos de las suscripciones vencidas de
+  socios inactivos y sincroniza `sync_subscription_paid` después del `bulk_create`; el seed nuevo
+  deja el arnés en 0.
+- **Producción (2026-10-29):** se repararon en sitio 9 pagos y 8 créditos de los gyms demo
+  (`GymDemo`, `GymDev`) y se backdateó su `paid_at` al período original para no inflar el revenue
+  del mes; ambos gyms quedaron en 0 violaciones. `sinkro-prueba` conserva sus 3 violaciones por
+  decisión de negocio (gym de prueba).
 
 ---
 
@@ -1177,7 +1184,7 @@ Postgres 16 descartable en `/tmp`.
 | `pnpm lint` (frontend, bloqueante en CI) | 🟢 0 problemas |
 | `pnpm lint` (frontend) | 🟢 0 problemas (`REF-05` cerrado en K7) |
 | `audit_money_bugs` | 🟢 sin "armados" nuevos |
-| Arnés de invariantes (I1–I8) | 🟢 27 violaciones, todas de `seed/base.py` (`DIN-20`); ninguna de código |
+| Arnés de invariantes (I1–I8) | 🟢 K8: seed corregido; producción GymDemo/GymDev 0 y `sinkro-prueba` 3 aceptado |
 | Migraciones pendientes | 🟢 ninguna |
 
 > La Fase K **no** puede darse por cerrada con el lint en rojo: `REF-05` es bloqueante del

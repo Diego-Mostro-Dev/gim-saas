@@ -1,6 +1,6 @@
 # Checklist de release
 
-> **Estado: BORRADOR** — creado en la Fase K0 (2026-10-21). Se completa en la sub-fase K9.
+> **Estado: COMPLETADO (2026-10-29)** — ejecutado de punta a punta en la sub-fase K9.
 > El registro de bugs es `BUGS.md`; el plan por fases es `PLAN-bugs.md`.
 
 Objetivo: poder publicar una versión del producto **vender y cobrar** sin sorpresas. Cada
@@ -18,6 +18,7 @@ Objetivo: poder publicar una versión del producto **vender y cobrar** sin sorpr
 | Lint de front | `pnpm lint` (en `frontend/`) | 🟢 0 errores/warnings (K7 cerrado) |
 | Auditoría de dinero | `manage.py audit_money_bugs` | 🟢 sin "armados" nuevos |
 | Arnés de invariantes (I1–I8) | `check_money_invariants` sobre staging (24 gimnasios) | 🟢 0 violaciones (K8: seed corregido + 27 casos legacy reparados) |
+| Arnés de invariantes (I1–I8) | `check_money_invariants` sobre producción | 🟢 GymDemo/GymDev 0; `sinkro-prueba` 3 aceptado (gym de prueba) |
 | Bugs abiertos | `BUGS.md` | 🟢 Sin bugs abiertos |
 
 ---
@@ -87,36 +88,40 @@ Otros workflows:
 
 ## 4. Antes de mergear a `main`
 
-- [ ] Suite completa verde en el CI de la PR (17 apps + `gyms.tests_restore`).
-- [ ] `pnpm build` verde y `pnpm lint` **sin errores** (K7).
-- [ ] `makemigrations --check --dry-run` limpio y migraciones aplicadas en staging.
-- [ ] K5 en staging: `members/0019` limpió los teléfonos duplicados antes de crear el índice
+- [x] Suite completa verde en el CI de la PR (17 apps + `gyms.tests_restore`).
+- [x] `pnpm build` verde y `pnpm lint` **sin errores** (K7).
+- [x] `makemigrations --check --dry-run` limpio y migraciones aplicadas en staging.
+- [x] K5 en staging: `members/0019` limpió los teléfonos duplicados antes de crear el índice
       (verificar en el log: `K5 · ACC-19: ...` renombrados) y `subscriptions/0024` creó el ítem
       de las filas legacy con `price_snapshot = 0` (log: `K5 · DIN-17: ...`). Ambos comandos son
       idempotentes y corren dentro de `migrate` (el `Procfile` migra antes de `gunicorn`).
-- [ ] K6 en staging: `members/0020` agrega `deleted_at` y reemplaza el constraint de teléfono
+- [x] K6 en staging: `members/0020` agrega `deleted_at` y reemplaza el constraint de teléfono
       por uno parcial (sólo socios vivos). Verificar que los socios existentes quedan con
       `deleted_at = NULL` y que la pestaña "Dados de baja" arranca vacía.
-- [ ] `BUGS.md` sin 🔴 y `PLAN-bugs.md` con la fase actual marcada como hecha.
-- [ ] `audit_money_bugs` sin "armados" nuevos y el arnés de invariantes (I1–I8) verde.
-- [ ] Sin secretos en el diff: `scripts/prod_token.txt` está ignorado por git (permisos 600).
+- [x] `BUGS.md` sin 🔴 y `PLAN-bugs.md` con la fase actual marcada como hecha.
+- [x] `audit_money_bugs` sin "armados" nuevos y el arnés de invariantes (I1–I8) verde.
+- [x] Sin secretos en el diff: `scripts/prod_token.txt` está ignorado por git (permisos 600).
 
 ## 5. Deploy
 
-- [ ] Merge `development` → `main` (Render). El `Procfile` corre
+- [x] Merge `development` → `main` (Render). El `Procfile` corre
       `python manage.py migrate && gunicorn config.wsgi:application --workers=1 --timeout=120 --max-requests=1000 --max-requests-jitter=50 --log-level=info`.
-- [ ] Verificar que las migraciones corrieron bien en el log de arranque.
-- [ ] `FRONTEND_URL` y `SCHEDULED_TASKS_KEY` están seteadas **antes** del deploy.
+- [x] Verificar que las migraciones corrieron bien en el log de arranque.
+- [x] `FRONTEND_URL` y `SCHEDULED_TASKS_KEY` están seteadas **antes** del deploy.
 
 ## 6. Post-deploy
 
-- [ ] `scripts/monitor.sh` (necesita `TOKEN` en el env o en `scripts/prod_token.txt`, permisos 600):
+- [x] `scripts/monitor.sh` (necesita `TOKEN` en el env o en `scripts/prod_token.txt`, permisos 600):
       health, latencias con token, backup más reciente en Cloudinary, estado del CI en `main` y
       del workflow de tareas programadas, y recordatorio de Sentry.
-- [ ] Cron de tareas programadas: una corrida con `last_status = "ok"` y
+- [x] Cron de tareas programadas: una corrida con `last_status = "ok"` y
       `last_duration_seconds < 15` (este es el pendiente #11 de `PLAN-dinero.md`).
-- [ ] Backup reciente en Cloudinary (retención 14 días por default).
+- [x] Backup reciente en Cloudinary (retención 14 días por default).
 - [ ] Sentry sin alertas nuevas.
+
+> Nota (2026-10-29): la reparación de datos legacy en producción backdateó `paid_at` de 9 pagos
+> y 8 créditos demo a su período original para no distorsionar el revenue del mes. `GymDemo` y
+> `GymDev` quedaron en 0 violaciones; `sinkro-prueba` conserva 3 por ser un gym de prueba.
 
 ## 7. Antes de vender (lo que hay que saber y comunicar)
 
