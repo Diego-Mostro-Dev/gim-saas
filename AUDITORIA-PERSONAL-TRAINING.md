@@ -4,6 +4,10 @@
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para
 > no ensuciar el texto.
+>
+> **Estado:** secciones 1–5 verificadas en la Fase 5.5. Las secciones 6–13 siguen
+> pendientes de las fases 5.6 y 5.7; el documento completo se marcará como
+> `Verificado` al cerrar la Fase 5.7.
 
 ---
 
@@ -14,17 +18,19 @@
   actividades, no hay grupos ni cupos: cada asignación es exclusiva de un socio
   con un trainer.
 - El módulo entero sólo existe si el gimnasio tiene habilitada la **feature
-  "Entrenamiento personal"** (`personal_training`). Si no, ni el staff ni el portal
-  lo ven y la API responde "feature deshabilitada". El flag por defecto es `False`.
-- Se habilita desde el panel de administración del gimnasio (el mismo catálogo
-  data-driven de features). La API vive bajo `/api/personal-training/`.
+  "Entrenamiento personal"** (`personal_training`). El flag viene **apagado por
+  defecto**; si no está activo, ni el staff ni el portal lo ven y la API responde
+  "feature deshabilitada".
+- Se habilita desde el **panel de administración del gimnasio** (el catálogo
+  data-driven de features). La API vive bajo `/api/personal-training/` y todos sus
+  endpoints pasan por el guard de la feature.
 
 ### Referencia
-- Feature: `backend/gyms/features.py:20-24` (`FEATURE_PERSONAL_TRAINING =
-  "personal_training"`), `:38-46` (catálogo) y `:85-96` (`personal_training_enabled` /
-  `require_personal_training`); toggle admin `backend/gyms/admin.py:11`.
-- Guard de la API: `backend/personal_training/views.py:41-44`
-  (`PersonalTrainingGuardMixin`); rutas `backend/personal_training/urls.py:19-59`.
+- Feature: `backend/gyms/features.py · FEATURE_PERSONAL_TRAINING`,
+  `feature_catalog`, `personal_training_enabled` y `require_personal_training`.
+- Toggle del admin: `backend/gyms/admin.py · GymAdminForm`.
+- Guard y rutas: `backend/personal_training/views.py · PersonalTrainingGuardMixin`;
+  `backend/personal_training/urls.py · router.register`.
 
 ---
 
@@ -42,26 +48,40 @@
   - **Género del entrenador/a** (`trainer_gender`): **Varón**, **Mujer** o
     **Varón o mujer**. Restringe qué trainers pueden tomar esa oferta.
   - **Activo**: el interruptor de publicación (baja lógica).
-- **Regla clave**: una oferta **"por sesiones" no tiene cuota mensual**. El backend
-  **fuerza `monthly_price = 0`** cuando la modalidad es por sesiones, para que el
-  socio no pague el paquete *y* la cuota todos los meses.
+- **Regla de precio**: en modalidad **mensual** el precio mensual debe ser
+  **mayor a 0**; en modalidad **por sesiones** el backend fuerza
+  `monthly_price = 0`, para que el socio no pague el paquete *y* una cuota mensual.
 - Al crear una oferta sin elegir servicio, se le asigna el servicio agrupador por
   defecto **"Entrenamiento personal"** (slug `personal_training`) del gimnasio.
-- **Eliminar** en la API es siempre **baja lógica** (`active = False`): nunca se
-  borra la fila. Se puede **reactivar**.
-- Varias asignaciones activas de la **misma oferta** comparten **una sola línea de
-  facturación** en la suscripción del socio (no se duplica la cuota).
+- **Baja lógica**: `DELETE` en la API pone `active = False`; nunca se borra la fila.
+  Si la oferta estaba activa, darla de baja también **da de baja sus asignaciones
+  activas** y **corta el cobro de PT** en las suscripciones no vencidas. El detalle
+  del flujo queda en §11.
+- **Reactivar** una oferta sólo la vuelve a publicar: no reactiva asignaciones ni
+  líneas de cobro canceladas.
+- Varias asignaciones activas de la **misma oferta mensual** comparten **una sola
+  línea de facturación** en la suscripción del socio (no se duplica la cuota). Los
+  paquetes por sesiones no crean cuota mensual.
 
 ### Referencia
-- Modelo: `backend/personal_training/models.py:44-105`
-  (`PersonalTrainingService`); modalidad `:21-24,73-82`; precio mensual `:66-72`;
-  duración `:83-86`; género `:37-41,87-93`; activo `:94`; nombre único `:98-102`.
-- Precio forzado a 0 en "por sesiones": `backend/personal_training/serializers.py:74-93`.
-- Servicio por defecto: `backend/plans/models.py:53-64`
-  (`PlanService.get_default_personal_training_service`, slug `personal_training`);
-  asignación al crear `backend/personal_training/serializers.py:95-102`.
-- Baja lógica y reactivar: `backend/personal_training/views.py:74-85`.
-- Línea única por oferta: `_ensure_pt_item` `backend/personal_training/assignment_service.py:303-335`.
+- Modelo y campos: `backend/personal_training/models.py · PersonalTrainingService`,
+  `PersonalTrainingService.Meta`; modalidad y género
+  `backend/personal_training/models.py · BILLING_MODE_CHOICES`,
+  `TRAINER_GENDER_CHOICES`.
+- Precio: `backend/core/mixins.py · BillingPriceMixin.apply_billing_price_rules`;
+  `backend/personal_training/serializers.py · PersonalTrainingServiceSerializer.validate`,
+  `PersonalTrainingServiceSerializer.validate_name`,
+  `PersonalTrainingServiceSerializer.create`.
+- Servicio por defecto:
+  `backend/plans/models.py · Service.get_default_personal_training_service`.
+- Baja y reactivación: `backend/personal_training/models.py · PersonalTrainingService.save`;
+  `backend/personal_training/views.py · PersonalTrainingServiceViewSet.destroy`,
+  `PersonalTrainingServiceViewSet.reactivate`;
+  `backend/personal_training/assignment_service.py · cut_service_billing`;
+  `backend/subscriptions/services.py · cancel_addon_items`.
+- Línea mensual única:
+  `backend/personal_training/assignment_service.py · _ensure_pt_item`.
+- Pantalla: `frontend/src/pages/PersonalTrainingSettings.jsx · ServicesPanel`.
 
 ---
 
@@ -70,16 +90,25 @@
 - El **entrenador/a** es un **usuario del sistema** con rol `trainer` del gimnasio
   (no texto libre). El endpoint de trainers lista los `UserProfile` del gimnasio
   con ese rol, con su nombre, email, género, teléfono y WhatsApp.
+- **Dónde se carga**: se crea y gestiona desde *Staff*, no desde la pantalla de
+  entrenamiento personal. Allí se define el rol `trainer`, el género y el WhatsApp
+  que después se usan para filtrar y validar las asignaciones.
 - La oferta puede **restringir el género** del trainer. Al asignar (o al rotar el
   trainer de una asignación) se valida compatibilidad.
 - El trainer **no carga nada**: ve su agenda en modo lectura y no puede registrar
-  sesiones ni cobrar (esa restricción la pone la pantalla, no el backend).
+  sesiones ni cobrar. **Limitación**: esa restricción la pone la pantalla, no el
+  backend; la API no distingue owner/admin de trainer. `ProfessorRoute` redirige al
+  trainer a `/trainer-agenda`.
 
 ### Referencia
-- Endpoint: `backend/personal_training/views.py:88-96` (`TrainerViewSet`);
-  serializer `backend/personal_training/serializers.py:118-136` (`TrainerSerializer`).
-- Compatibilidad de género: `_gender_compatible` `backend/personal_training/assignment_service.py:294-300`;
-  validación al asignar `:41-45` y al rotar `:171-173`.
+- Endpoint y serializer: `backend/personal_training/views.py · TrainerViewSet`;
+  `backend/personal_training/serializers.py · TrainerSerializer`.
+- Carga desde Staff: `frontend/src/pages/Staff.jsx · Staff`.
+- Restricción de pantalla: `frontend/src/App.jsx · ProfessorRoute`;
+  `frontend/src/pages/TrainerAgenda.jsx · TrainerAgenda`.
+- Compatibilidad de género:
+  `backend/personal_training/assignment_service.py · _gender_compatible`,
+  `AssignmentService.check_assignment_inputs`, `AssignmentService.update_assignment`.
 
 ---
 
@@ -97,20 +126,31 @@
   - **Sellado / coseguro** (`sellado_amount`, `sellado_paid`): monto opcional único
     que cobra el gimnasio (p. ej. la obra social), con su marca de cobrado.
   - **Activa**: baja lógica al desvincular.
-- Reglas estructurales: la hora de fin debe ser **posterior** a la de inicio; no
-  puede haber dos asignaciones **activas** iguales para el mismo socio, mismo día
-  y misma hora de inicio.
+- **Reglas estructurales**:
+  - La hora de fin debe ser **posterior** a la de inicio.
+  - No puede haber dos asignaciones **activas** con el mismo **gimnasio, socio, día
+    y hora de inicio** (restricción `unique_active_pt_assignment`). Esa restricción
+    no impide por sí sola otros solapes de horario ni incluye al trainer: los
+    solapes se validan en el servicio.
+  - `duration_minutes` de la oferta **no se valida contra el bloque**: sólo se usa
+    para calcular las franjas que se ofrecen al asignar.
 - No hay **cupo** ni **lista de espera**: el horario es 1:1 y punto.
+- **Edición**: desde la tarjeta de la asignación se puede cambiar **trainer, día y
+  horario**. La oferta **no** se cambia desde la pantalla; requeriría desvincular y
+  volver a asignar.
 
 ### Referencia
-- Modelo: `backend/personal_training/models.py:108-265`
-  (`PersonalTrainingAssignment`); modalidad `:26-29,154-163`; paquete `:164-195`;
-  activo `:197`; `end > start` y único activo `:211-221`; propiedades
-  `used_sessions` / `total_amount` / `remaining_amount` / `exhausted` `:230-254`.
+- Modelo y restricciones:
+  `backend/personal_training/models.py · PersonalTrainingAssignment`,
+  `PersonalTrainingAssignment.Meta`.
+- Edición:
+  `backend/personal_training/assignment_service.py · AssignmentService.update_assignment`.
+- Pantalla: `frontend/src/pages/PersonalTrainingSettings.jsx · AssignmentsPanel`,
+  `AssignmentCard`, `EditAssignmentModal`.
 
 ---
 
-## 5. Quién lo carga (todo)
+## 5. Quién lo carga y qué se valida
 
 - **Sólo el staff** carga entrenamiento personal. No hay autoasignación ni carga en
   el alta/onboarding: el socio **no** se puede asignar solo un entrenamiento.
@@ -120,33 +160,51 @@
   - **Trainer**: sólo consulta su agenda.
   - **Socio**: desde su portal puede **pedir un cambio de horario** (ver §8), pero
     no darse de alta.
-- Al asignar, el sistema valida (en este orden):
+- **Decisión de negocio**: el PT es **a domicilio**, por eso la dirección del socio
+  es obligatoria. El trainer es un **usuario del sistema** y no un texto libre; no
+  hay autoasignación.
+- Al **crear** una asignación, el sistema valida en este orden:
   1. El gimnasio tiene la **feature** habilitada.
-  2. La **oferta** y el **trainer** pertenecen al gimnasio.
-  3. El usuario elegido tiene **rol trainer**.
+  2. La **oferta** y su **servicio subyacente** pertenecen al gimnasio.
+  3. El **trainer** pertenece al gimnasio y el usuario tiene **rol trainer**.
   4. El **género** del trainer es compatible con la oferta.
-  5. El **socio es elegible** para operar (no está bloqueado por falta de pago). La
-     aprobación de una solicitud del socio **sí** puede saltear este chequeo.
-  6. El socio tiene **dirección cargada** (el entrenamiento es **a domicilio**).
+  5. El **socio es elegible** para operar (no está bloqueado por falta de pago).
+  6. El socio tiene **dirección cargada**.
   7. **No hay solapamiento** con: el horario fijo de gimnasio del socio, sus
-     **actividades**, sus **otros PT**, ni los **otros PT del trainer** (un trainer
-     no puede estar en dos lugares a la vez).
-- La pantalla ofrece las **franjas libres** por día (según la duración de la
-  oferta). El backend las calcula a partir de las ventanas de apertura del
-  gimnasio menos los intervalos ocupados; el frontend las presenta.
+     **actividades**, sus **salidas**, sus **otros PT**, ni los **otros PT del
+     trainer** (un trainer no puede estar en dos lugares a la vez).
+- Al **editar** una asignación (incluida la aprobación de un cambio de horario,
+  ver §8) se usa `update_assignment`, que revalida **género** y **solape** para el
+  nuevo día/horario/trainer. **No** vuelve a chequear elegibilidad ni dirección.
+- **Limitación**: las **franjas libres** se calculan desde las ventanas de apertura
+  del gimnasio menos el horario de gimnasio, actividades y PT del socio, y PT del
+  trainer; **no descuentan salidas**. Por eso una franja puede mostrarse como libre
+  y luego ser rechazada con `CONFLICT_OUTING`. La disponibilidad tampoco valida
+  elegibilidad ni dirección: eso se controla al confirmar el alta.
+- **Limitación**: la pantalla de asignación sólo ofrece socios con **suscripción
+  activa** y **sin otra asignación PT activa**. El backend no impone esa unicidad
+  por socio: permite varias asignaciones activas si cambian día y hora. La pantalla
+  es más restrictiva que la API.
 
 ### Referencia
-- Alta: `AssignmentService.assign_member` `backend/personal_training/assignment_service.py:47-154`;
-  chequeos estáticos `check_assignment_inputs` `:24-45`; elegibilidad `:108-110`;
-  dirección `:112-116`; validación de solapamiento `:118-121`.
-- Solapamiento: `backend/personal_training/overlap.py:11-109` (gimnasio `:37-48`,
-  actividades `:51-67`, PT del socio `:70-84`, PT del trainer `:87-100`).
-- Serializer de alta: `backend/personal_training/serializers.py:337-360`.
-- Franjas libres: `backend/personal_training/availability.py:10-165`;
-  endpoint `backend/personal_training/views.py:146-193`;
-  utilidades del frontend `frontend/src/utils/ptAvailability.js`.
-- Alta/onboarding **no** carga PT (sólo actividades y gimnasio):
-  `backend/members/services.py:184-207`.
+- Alta: `backend/personal_training/assignment_service.py · AssignmentService.assign_member`,
+  `AssignmentService.check_assignment_inputs`, `_gender_compatible`;
+  `backend/personal_training/serializers.py · PersonalTrainingAssignmentSerializer.create`,
+  `PersonalTrainingAssignmentSerializer.validate`.
+- Edición y baja:
+  `backend/personal_training/assignment_service.py · AssignmentService.update_assignment`,
+  `AssignmentService.unassign_member`;
+  `PersonalTrainingAssignmentSerializer.update`.
+- Solapes: `backend/personal_training/overlap.py · validate_assignment`,
+  `_check_trainer_pt_overlap`; `backend/core/overlap.py · check_member_slot`,
+  `_check_outing`, `SlotConflict`, `CONFLICT_OUTING`.
+- Franjas: `backend/personal_training/availability.py · available_slots`,
+  `free_intervals`;
+  `backend/personal_training/views.py · PersonalTrainingAssignmentViewSet.available_slots`;
+  `frontend/src/utils/ptAvailability.js · reconcileSlot`.
+- Pantalla: `frontend/src/pages/PersonalTrainingSettings.jsx · AssignModal`,
+  `AssignmentsPanel`, `AssignmentCard`, `EditAssignmentModal`.
+- Alta/onboarding sin PT: `backend/members/services.py · RegistrationService.register`.
 
 ---
 
