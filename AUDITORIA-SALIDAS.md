@@ -22,9 +22,8 @@
 > `frontend/src/components/outings`
 > Tests: `backend/outings/tests.py`,
 > `backend/outings/tests_deactivation.py`,
-> `backend/outings/tests_phase_k2.py` (pendientes de ejecución en CI)
-> Estado: En curso Fase 5.4 — secciones 1–7 verificadas contra el código;
-> secciones 8–9 reescritas. Tests de `outings` pendientes de CI.
+> `backend/outings/tests_phase_k2.py`
+> Estado: verificado
 
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito

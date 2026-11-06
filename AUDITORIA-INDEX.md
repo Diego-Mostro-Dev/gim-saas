@@ -47,7 +47,7 @@ Estados posibles:
 | 11 | `AUDITORIA-ASISTENCIAS.md` | 4 | Check-in, planilla, cupos, descuentos y recuperaciones | `backend/attendance` | `Verificado` |
 | 12 | `AUDITORIA-HORARIOS.md` | 4 | Cambios permanentes, intercambios, límites y aprobaciones | `backend/attendance` | `Verificado` |
 | 13 | `AUDITORIA-ACTIVIDADES.md` | 5.1–5.2 | Actividades, horarios, inscripciones, cobro, sesiones y no-show | `backend/activities` | `Verificado` |
-| 14 | `AUDITORIA-SALIDAS.md` | 5.3–5.4 | Salidas, horarios, inscripciones, solicitudes, sesiones y cobro | `backend/outings` | `En curso Fase 5.4` |
+| 14 | `AUDITORIA-SALIDAS.md` | 5.3–5.4 | Salidas, horarios, inscripciones, solicitudes, sesiones y cobro | `backend/outings` | `Verificado` |
 | 15 | `AUDITORIA-PERSONAL-TRAINING.md` | 5 | Oferta, trainers, asignaciones, paquetes, sesiones y agenda | `backend/personal_training` | `Pendiente Fase 5` |
 | 16 | `AUDITORIA-RUTINAS.md` | 6 | Ejercicios, plantillas, asignación, ejecución y progreso | `backend/routines` | `Pendiente Fase 6` |
 | 17 | `AUDITORIA-COMUNIDAD.md` | 6 | Locales adheridos, feature toggle y tarjeta pública | `backend/community` | `Pendiente Fase 6` |
