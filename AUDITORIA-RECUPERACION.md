@@ -1,5 +1,13 @@
 # Auditoría de Recuperación — Cómo funciona hoy "Recuperar socios"
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: recuperación de suscripción (flujo de cobros para reactivar acceso), condiciones, caso A/B y límites.
+> No cubre recuperación de clases/sesiones (ver AUDITORIA-ASISTENCIAS.md / recovery_service).
+> Documentos relacionados: `AUDITORIA-PAGOS.md`, `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-MIEMBROS.md`
+> Código cubierto: `backend/subscriptions`, `backend/attendance/recovery_service.py`, `frontend/src/pages/RecoverMembers.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Escrito en lenguaje simple para servir de base a un manual de gimnasios. Las
 > referencias de código van aparte, en letra chica, para no ensuciar el texto.

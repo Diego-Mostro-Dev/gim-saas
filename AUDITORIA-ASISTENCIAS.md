@@ -1,5 +1,12 @@
 # Auditoría de asistencias — Cómo funciona hoy el sistema
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: registro de asistencia (QR público vs planilla staff), reglas de acceso/pago, cupos, límite semanal, recuperaciones de clases, asistencias de actividad/PT, no-show/faltas. No cubre recuperación de suscripción (ver AUDITORIA-RECUPERACION.md).
+> Documentos relacionados: `AUDITORIA-RECUPERACION.md`, `AUDITORIA-HORARIOS.md`, `AUDITORIA-ACTIVIDADES.md`, `AUDITORIA-PERSONAL-TRAINING.md`, `AUDITORIA-MIEMBROS.md`, `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-PAGOS.md`
+> Código cubierto: `backend/attendance`, `frontend/src/pages/Attendance.jsx`, `frontend/src/pages/Checkin.jsx`, `frontend/src/pages/AttendanceQR.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para

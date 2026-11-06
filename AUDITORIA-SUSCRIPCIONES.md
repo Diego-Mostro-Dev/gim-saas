@@ -1,5 +1,13 @@
 # Auditoría de suscripciones — Cómo funciona hoy el sistema
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: origen, creación, renovación, cortesía, descuentos, prorrateo, crédito y conflictos de período.
+> No cubre cobros ni bloqueo de acceso salvo lo que impacta en el período.
+> Documentos relacionados: `AUDITORIA-MIEMBROS.md`, `AUDITORIA-PAGOS.md`, `AUDITORIA-PLANES.md`, `AUDITORIA-RECUPERACION.md`
+> Código cubierto: `backend/subscriptions`, `frontend/src/pages/Subscriptions.jsx`, `frontend/src/components/subscriptions/MemberSubscriptionCard.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para

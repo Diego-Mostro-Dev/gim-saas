@@ -1,5 +1,14 @@
 # Auditoría de Miembros — Cómo funciona hoy la ficha del socio
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: alta, ficha, portal, adjuntos, baja lógica (soft delete), reactivación, filtros y validaciones de socios. No cubre cobros ni asistencias salvo cuando impactan en la ficha.
+> Documentos relacionados: `AUDITORIA-PAGOS.md`, `AUDITORIA-SUSCRIPCIONES.md`,
+> `AUDITORIA-USUARIOS-Y-ACCESOS.md`, `AUDITORIA-RECUPERACION.md`
+> Código cubierto: `backend/members`, `frontend/src/pages/Members.jsx`,
+> `frontend/src/pages/Register.jsx`, `frontend/src/pages/member/MemberData.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para
@@ -32,16 +41,19 @@ En ambos casos, **quién elige los servicios define el "modo de ingreso" (`entry
 - **ACTIVITY_ONLY** — solo eligió actividades, sin gimnasio.
 
 ### Referencia
-- Servicio de alta: `backend/members/services.py:101-208` (`RegistrationService.register`).
-- Alta staff: `backend/members/views.py:83-218` (`MemberViewSet.create`).
-- Auto-registro público: `backend/members/public_views.py:31-212` (`PublicRegisterView`,
-  link por `onboarding_code`).
-- Privilegios forzados en el público: `backend/members/public_views.py:168-173`
+- Servicio de alta: `backend/members/services.py · RegistrationService.register`.
+- Alta staff: `backend/members/views.py · MemberViewSet.create`.
+- Auto-registro público: `backend/members/public_views.py · PublicRegisterView`
+  (link por `onboarding_code`).
+- Privilegios forzados en el público:
+  `backend/members/public_views.py · PublicRegisterView._onboarding_register`
   (`is_comp=False`, `discount_id` descartado).
-- `entry_mode`: `backend/members/views.py:107` y `backend/members/public_views.py:82`
+- `entry_mode`: `backend/members/views.py · MemberViewSet.create` y
+  `backend/members/public_views.py · PublicRegisterView._onboarding_register`
   (`GYM` / `ACTIVITY_ONLY`).
-- Exige ≥1 horario de gimnasio: `backend/members/views.py:119-123` y
-  `backend/members/public_views.py:95-99`.
+- Exige ≥1 horario de gimnasio:
+  `backend/members/views.py · MemberViewSet.create` y
+  `backend/members/public_views.py · PublicRegisterView._onboarding_register`.
 
 ---
 
@@ -75,17 +87,21 @@ Estos son los campos del socio y las reglas que arrastran:
   `affiliate_number` es el único identificador afiliatorio y se carga a mano.
 
 ### Referencia
-- Campos del modelo: `backend/members/models.py:75-228` (incluye `phone:110-113`,
-  `health_insurance:138-142`, `insurance:157-165`, `affiliate_number:144-148`,
-  `discount:212-223`, `is_comp:203-210`, `photo:104-108`, `active:198-201`).
-- Teléfono único por gimnasio: `backend/members/serializers.py:481-511` (`validate_phone`).
+- Campos del modelo: `backend/members/models.py · Member` (incluye `phone`,
+  `health_insurance`, `insurance`, `affiliate_number`, `discount`, `is_comp`,
+  `photo`, `active`).
+- Teléfono único por gimnasio:
+  `backend/members/serializers.py · MemberSerializer.validate_phone` y la
+  constraint `unique_member_phone_per_gym` en `backend/members/models.py · Member`.
 - Sin unicidad en email/documento: no hay `unique=True` en el modelo.
-- Enlace automático de obra social: `backend/members/serializers.py:531-558`
-  (`_autolink_insurance`).
-- Fecha de nacimiento no futura: `backend/members/serializers.py:560-565`.
-- `active` read-only en el staff: `backend/members/serializers.py:161`
-  (`read_only_fields = ["gym", "active"]`) y en el público
-  `backend/members/serializers.py:717`.
+- Enlace automático de obra social:
+  `backend/members/serializers.py · MemberSerializer._autolink_insurance`.
+- Fecha de nacimiento no futura:
+  `backend/members/serializers.py · MemberSerializer.validate_date_of_birth`.
+- `active` read-only en el staff:
+  `backend/members/serializers.py · MemberSerializer.Meta`
+  (`read_only_fields = ["gym", "active", "deleted_at"]`) y en el público
+  `backend/members/serializers.py · PublicMemberSerializer.Meta`.
 
 ---
 
@@ -118,19 +134,27 @@ Importante: el alta **NO crea entrenamiento personal ni inscripciones a salidas*
 Esos servicios se suman después, por sus propios flujos.
 
 ### Referencia
-- Orquestación atómica: `backend/members/services.py:143` (`transaction.atomic`) y
-  `:144-206` (creación de ficha, suscripción, actividades y horarios).
-- Regla "gimnasio exige plan": `backend/members/services.py:137-141`.
-- Suscripción del plan elegido: `backend/members/services.py:148-157`.
-- Cortesía → plan base pagado: `backend/members/services.py:159-170`.
-- Solo actividades → plan base: `backend/members/services.py:172-182`.
-- Inscripciones a actividades (saltean elegibilidad): `backend/members/services.py:184-196`
+- Orquestación atómica: `backend/members/services.py · RegistrationService.register`
+  (`transaction.atomic` y creación de ficha, suscripción, actividades y horarios).
+- Regla "gimnasio exige plan":
+  `backend/members/services.py · RegistrationService.register`.
+- Suscripción del plan elegido:
+  `backend/members/services.py · RegistrationService.register`.
+- Cortesía → plan base pagado:
+  `backend/members/services.py · RegistrationService.register`.
+- Solo actividades → plan base:
+  `backend/members/services.py · RegistrationService.register`.
+- Inscripciones a actividades (saltean elegibilidad):
+  `backend/members/services.py · RegistrationService.register`
   (`skip_eligibility_check=True`).
-- Horarios de gimnasio: `backend/members/services.py:198-206`.
+- Horarios de gimnasio:
+  `backend/members/services.py · RegistrationService.register`.
 - **No** crea PT ni salidas: no hay llamadas a esos servicios en `register`
-  (`backend/members/services.py:101-208`).
-- Validación de plan (no puede ser el plan base): `backend/members/views.py:193-200`,
-  `backend/members/public_views.py:181-188` y `backend/members/serializers.py:470-479`.
+  (`backend/members/services.py · RegistrationService.register`).
+- Validación de plan (no puede ser el plan base):
+  `backend/members/views.py · MemberViewSet.create`,
+  `backend/members/public_views.py · PublicRegisterView._onboarding_register` y
+  `backend/members/serializers.py · MemberSerializer.validate_plan_id`.
 
 ---
 
@@ -169,18 +193,22 @@ Qué NO puede hacer (campos protegidos / bloqueados):
 - La cortesía (`is_comp`) nunca se bloquea.
 
 ### Referencia
-- Generación automática del token: `backend/members/models.py:234-243` (`save`).
-- TTL: `backend/config/settings.py:103-105` (`MEMBER_ACCESS_TOKEN_TTL_DAYS`, default 30).
-- Rotación conservando el previo: `backend/members/models.py:257-280`
-  (`rotate_access_token`, `maybe_rotate_access_token`).
-- Resolución del token (acepta el previo): `backend/members/models.py:289-306`
-  (`resolve_public_portal_member`); endpoints de "token vigente" en el docstring.
-- Datos del portal (GET/PATCH, 403 por pago): `backend/members/views.py:320-372`.
-- Campos editables y read-only del portal: `backend/members/serializers.py:744-773`
-  (`PublicMemberDataSerializer`, `read_only_fields` incluye `entry_mode`, `active`, `photo`).
-- Foto: `backend/members/views.py:375-405` (`PublicMemberPhotoView`).
-- Gate único de elegibilidad: `backend/members/eligibility.py:31-77`
-  (`can_operate` / `block_reason`; `is_comp` exento en `:65-66`).
+- Generación automática del token: `backend/members/models.py · Member.save`.
+- TTL: `backend/config/settings.py` (`MEMBER_ACCESS_TOKEN_TTL_DAYS`, default 30).
+- Rotación conservando el previo:
+  `backend/members/models.py · Member.rotate_access_token` y
+  `backend/members/models.py · Member.maybe_rotate_access_token`.
+- Resolución del token (acepta el previo):
+  `backend/members/models.py · resolve_public_portal_member`; endpoints de
+  "token vigente" en el docstring.
+- Datos del portal (GET/PATCH, 403 por pago):
+  `backend/members/views.py · PublicMemberDataView`.
+- Campos editables y read-only del portal:
+  `backend/members/serializers.py · PublicMemberDataSerializer`
+  (`read_only_fields` incluye `entry_mode`, `active`, `photo`).
+- Foto: `backend/members/views.py · PublicMemberPhotoView`.
+- Gate único de elegibilidad: `backend/members/eligibility.py · MemberEligibility`
+  (`can_operate` / `block_reason`; `is_comp` exento).
 
 ---
 
@@ -200,12 +228,14 @@ mandar una orden médica o un comprobante de transferencia.
 - Al borrar un adjunto, el archivo se limpia también de Cloudinary.
 
 ### Referencia
-- Categorías: `backend/members/models.py:309-314` (`MemberAttachment.Category`).
-- Listar/subir sin bloqueo por pago: `backend/members/public_views.py:269-316`.
-- Borrar solo si no fue revisado: `backend/members/public_views.py:333-349`.
-- Revisión del staff: `backend/members/views.py:436-455` (acción `review`).
-- Limpieza en Cloudinary: `backend/members/models.py:364-379` y señal
-  `:381-383` (`post_delete`).
+- Categorías: `backend/members/models.py · MemberAttachment.Category`.
+- Listar/subir sin bloqueo por pago:
+  `backend/members/public_views.py · PublicMemberAttachmentListView`.
+- Borrar solo si no fue revisado:
+  `backend/members/public_views.py · PublicMemberAttachmentDetailView`.
+- Revisión del staff: `backend/members/views.py · MemberAttachmentViewSet.review`.
+- Limpieza en Cloudinary: `backend/members/models.py · MemberAttachment` y señal
+  `backend/members/models.py · _member_attachment_post_delete` (`post_delete`).
 
 ---
 
@@ -227,48 +257,39 @@ guardar:
 - Toda esta transición se hace de forma **atómica**.
 
 ### Referencia
-- Update y transición de cortesía: `backend/members/serializers.py:609-652`
-  (`MemberSerializer.update`); persistir `is_comp` antes de `mutate_membership`
-  en `:627-641`.
-- Elección de plan al quitar cortesía: `backend/members/serializers.py:684-710`
-  (`_resolve_plan_for_comp_off`).
-- Sincronización de horarios: `backend/members/serializers.py:643-651`.
+- Update y transición de cortesía:
+  `backend/members/serializers.py · MemberSerializer.update` (persiste `is_comp`
+  antes de `mutate_membership`).
+- Elección de plan al quitar cortesía:
+  `backend/members/serializers.py · MemberSerializer._resolve_plan_for_comp_off`.
+- Sincronización de horarios:
+  `backend/members/serializers.py · MemberSerializer.update`.
 
 ---
 
-## 7. Eliminar vs. recuperar
+## 7. Dar de baja vs. recuperar
 
 Son dos cosas **completamente distintas**:
 
-- **Eliminar un socio** es un **borrado real (hard delete)**, sin vuelta atrás. No
-  existe "dar de baja" ni "archivar": el botón Eliminar borra la ficha y, en cascada,
-  sus suscripciones, asistencias, inscripciones a actividades y adjuntos (limpiando
-  Cloudinary). Los pagos que tenía **no se borran**: quedan con el socio en blanco
-  (`SET_NULL`). La UI lo advierte con "Esta acción no se puede deshacer".
-- **Recuperar un socio** es otra cosa: **no reactiva la ficha**, sino que **reabre su
-  suscripción**. Es un flujo de cobros (no de miembros) y se explica en la Auditoría
-  de Pagos, §6. Solo aplica si el socio **no tiene deuda pendiente**; abre un ciclo
-  nuevo desde hoy hasta fin de mes, pendiente de pago.
-
-**No existe un endpoint de "reactivar socio"** ni una baja lógica de la ficha.
+- **Dar de baja un socio** es una **baja lógica (soft delete)**: la ficha no se borra. `Member.soft_delete()` marca `deleted_at`, pone `active=False`, guarda y **apaga `auto_renew=True`** en las suscripciones vigentes del socio. El socio desaparece de los listados operativos por defecto (`AliveMemberManager` filtra `deleted_at__isnull=True`). Sus suscripciones, asistencias, inscripciones y adjuntos no se borran.
+- **Reactivar un socio** vuelve a poner `deleted_at = NULL` y `active = True` vía `Member.reactivate()`. Antes de reactivar: (1) solo funciona si está dado de baja; (2) valida que no exista otro socio activo con el mismo teléfono en el gimnasio (400 si hay conflicto); (3) valida capacidades/horarios con `members.reactivation.validate_reactivation_capacity()` (revisa cupos en gimnasio/actividades/salidas/PT) y devuelve 400 con `conflicts` si hay problemas; (4) también se protege con `IntegrityError` por restricción única de teléfono. **No vuelve a encender `auto_renew`** automáticamente. No crea un ciclo de cobro nuevo.
+- **Recuperar un socio/suscripción** es otro flujo: **no reactiva la ficha por sí solo**, es un flujo de cobros/recuperación de suscripción. Se explica en `AUDITORIA-RECUPERACION.md`.
 
 ### Referencia
-- Borrado real: `MemberViewSet` no sobreescribe `destroy`
-  (`backend/members/views.py:83-455`), por lo que el DELETE de `ModelViewSet` borra en
-  cascada. Advertencia en UI: `frontend/src/pages/Members.jsx:960-964`.
-- Pagos con socio en blanco: `backend/payments/models.py` (`member = SET_NULL`).
-- Recuperar suscripción: `backend/subscriptions/services.py:1333-1410` (`recover_member`).
-- "Es recuperable" en la lista de socios: `backend/members/serializers.py:258-410`
-  (`is_recoverable`) — ojo, tiene un desajuste conocido con `recover_member`,
-  ya señalado en el flujo de suscripciones.
-- Detalle del flujo de recuperación: `AUDITORIA-PAGOS.md` §6.
+- Baja lógica: `backend/members/views.py · MemberViewSet.deactivate`, `backend/members/models.py · Member.soft_delete`.
+- Reactivación: `backend/members/views.py · MemberViewSet.reactivate`, `backend/members/models.py · Member.reactivate`.
+- Validación reactivación: `backend/members/reactivation.py · validate_reactivation_capacity`.
+- Filtro de socios vivos: `backend/members/models.py · AliveMemberManager`, `backend/members/models.py · MemberQuerySet.alive`.
+- Admin: `backend/members/admin.py · deactivate_members`, `backend/members/admin.py · reactivate_members`.
+- Tests: `backend/members/tests_phase_k6.py`.
+- Advertencia en UI: `frontend/src/pages/Members.jsx · Members`.
+- Pagos con socio en blanco: `backend/payments/models.py · Payment` (`member = SET_NULL`).
 
 ---
 
 ## 8. Lo que el sistema NO hace hoy (para no prometerlo en el manual)
 
-- **No tiene "dar de baja" ni "reactivar socio"**: solo existe borrado real y, aparte,
-  la recuperación de la suscripción (que es de cobros).
+- **No borra la ficha al dar de baja**: la baja es lógica (soft delete); la ficha queda archivada con `deleted_at` y se puede reactivar. La recuperación de la suscripción es otro flujo de cobros.
 - **No genera un código/número de socio**: el `affiliate_number` se carga a mano.
 - **No impide repetir email ni documento**: solo el teléfono es único por gimnasio.
 - **No permite al socio auto-darse cortesía ni descuento** desde el link público.
@@ -292,8 +313,7 @@ Son dos cosas **completamente distintas**:
   cortan apenas rota.
 - **El teléfono único por gimnasio** puede frenar un alta legítima si dos personas
   comparten un mismo teléfono (ej. una familia).
-- **El borrado es real y en cascada**: eliminar una ficha se lleva suscripciones,
-  asistencias, inscripciones y adjuntos, sin papelera.
+- **La baja lógica no borra datos**: la ficha queda archivada con `deleted_at`/`active=False` y puede reactivarse; `auto_renew` se apaga al dar de baja y no se reactiva automáticamente. El borrado real ya no está expuesto desde la API del staff.
 - **`is_recoverable` (lectura) no coincide del todo con `recover_member`** (acción):
   la lista puede mostrar un socio como recuperable y luego rechazar la recuperación.
 - **Quitar la cortesía exige elegir un plan pago**: si el staff no lo elige, el cambio
@@ -304,10 +324,11 @@ Son dos cosas **completamente distintas**:
 ---
 
 ### Notas de entorno para leer el código
-- Zona horaria: `America/Argentina/Buenos_Aires` (`backend/config/settings.py:461`).
+- Zona horaria: `America/Argentina/Buenos_Aires` (`backend/config/settings.py`).
 - Toda consulta del staff se filtra automáticamente por el gimnasio del usuario
-  logueado (`backend/core/mixins.py:4-19`).
+  logueado (`backend/core/mixins.py · GymQuerysetMixin`).
 - La lógica de "puede operar" vive en un solo lugar:
-  `backend/members/eligibility.py:31-77`; toda operación del socio debería pasar por ahí.
+  `backend/members/eligibility.py · MemberEligibility`; toda operación del socio
+  debería pasar por ahí.
 - El flujo visual equivalente de este documento está en
   `frontend/src/dev/MembersFlow.jsx` (página solo-dev).

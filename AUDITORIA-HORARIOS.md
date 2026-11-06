@@ -1,5 +1,12 @@
 # Auditoría de cambios de horario — Cómo funciona hoy el sistema
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: horarios de gimnasio (ScheduleSlot/AttendanceSchedule), solicitudes de cambio permanente, intercambios, cooldown/anticipación/límite mensual/conteo combinado, cupos/solapes, fechas cerradas, aprobación staff/socio. Efectos en asistencia/check-in.
+> Documentos relacionados: `AUDITORIA-ASISTENCIAS.md`, `AUDITORIA-ACTIVIDADES.md`, `AUDITORIA-SALIDAS.md`, `AUDITORIA-PERSONAL-TRAINING.md`, `AUDITORIA-MIEMBROS.md`, `AUDITORIA-RECUPERACION.md`
+> Código cubierto: `backend/attendance`, `backend/gyms`, `frontend/src/pages/Attendance.jsx`, `frontend/src/pages/ScheduleChangeRequests.jsx`, `frontend/src/pages/ScheduleSwapRequests.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para

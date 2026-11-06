@@ -1,5 +1,31 @@
 # Auditoría de Actividades — Cómo funciona hoy el sistema
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-11-05
+> Alcance: definición, horarios, inscripción y cobro de actividades; incluye
+> la baja desde el portal, el registro de sesiones y faltas, y el ciclo de
+> activación/reactivación de la oferta. También cubre los problemas conocidos.
+> Documentos relacionados: `AUDITORIA-SALIDAS.md`,
+> `AUDITORIA-PERSONAL-TRAINING.md`, `AUDITORIA-ASISTENCIAS.md`,
+> `AUDITORIA-HORARIOS.md`, `AUDITORIA-NUCLEO-REGLAS.md`,
+> `AUDITORIA-PAGOS.md`, `AUDITORIA-SUSCRIPCIONES.md`,
+> `AUDITORIA-RECUPERACION.md`
+> Código cubierto: `backend/activities`,
+> `backend/attendance/checkin_discount.py`,
+> `backend/attendance/recovery_service.py`,
+> `backend/core/session_invariants.py`, `backend/core/overlap.py`,
+> `frontend/src/pages/Activities.jsx`, `frontend/src/pages/ActivitySchedules.jsx`,
+> `frontend/src/pages/ScheduleEnrollments.jsx`,
+> `frontend/src/pages/MemberActivities.jsx`,
+> `frontend/src/pages/member/ActivityDashboard.jsx`,
+> `frontend/src/components/activities`
+> Tests: `backend/activities/tests_deactivation.py`,
+> `backend/activities/tests_sessions_invariants.py`,
+> `backend/activities/tests_phase_g.py`,
+> `backend/activities/tests_phase_k2.py`,
+> `backend/activities/tests_phase_k3.py`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para
@@ -17,14 +43,17 @@
   - **Nombre**: único dentro del gimnasio. No puede repetirse (ni entre
     actividades de servicios distintos del mismo gimnasio).
   - **Profesor/a**: sólo un nombre de texto libre; no es un usuario del sistema.
-  - **Precio mensual**: cuánto cuesta la actividad por mes. Al inscribir a un
-    socio se crea una **línea de facturación** (`SubscriptionItem`) dentro de su
-    suscripción, con el precio congelado.
+  - **Precio mensual**: cuánto cuesta la actividad por mes. En la modalidad
+    mensual, al inscribir a un socio se crea (o reutiliza) una **línea de
+    facturación** (`SubscriptionItem`) dentro de su suscripción, con el precio
+    congelado. En la modalidad por sesiones se fuerza a **$0** y la oferta se
+    cobra por paquete.
   - **Modalidad de cobro** (`billing_mode`): **Mensual** o **Por sesiones**.
     - **Mensual**: se factura una cuota fija por mes, como cualquier plan.
-    - **Por sesiones**: la actividad **no** se cobra por mes; el staff inscribe
-      a cada socio en un **paquete de N sesiones** con un coseguro por sesión
-      (ver §4).
+    - **Por sesiones**: al inscribir, el staff elige entre **mensual** (sin
+      cargo mensual: el precio de la oferta queda en $0 y la actividad se
+      considera incluida en la membresía) o **paquete de N sesiones** con un
+      coseguro por sesión (ver §4).
   - **Activo**: el interruptor de publicación. Desactivarlo **también apaga
     todos sus horarios** (ver §6).
 - Una actividad sólo existe si el gimnasio tiene habilitada la **feature
@@ -32,23 +61,28 @@
   API responde "feature deshabilitada".
 
 ### Referencia
-- Modelo: `backend/activities/models.py:37-97` (`Activity`); `billing_mode`
-  mensual/sesiones `:19-22,59-68`; precio congelado como `SubscriptionItem`
-  `:52-58`; nombre único por servicio `:76`.
+- Modelo: `backend/activities/models.py · Activity`; modalidad y precio
+  mensual en `backend/activities/models.py · Activity.billing_mode` y
+  `backend/activities/models.py · Activity.monthly_price`.
 - Creación con servicio del gimnasio y nombre único:
-  `backend/activities/services.py:7-12` y `_validate_name_unique` `:29-36`.
-- Servicio por defecto: `backend/activities/serializers.py:76-83`
-  (`PlanService.get_default_activities_service`).
-- Feature: `backend/gyms/features.py:20` (`FEATURE_ACTIVITIES`) y
-  `:72-82` (`activities_enabled` / `require_activities`); catálogo
-  `:29-37`. El flag por defecto es `False` (se habilita al crear el gimnasio).
+  `backend/activities/services.py · ActivityService.create_activity` y
+  `backend/activities/services.py · _validate_name_unique`.
+- Servicio por defecto: `backend/plans/models.py · Service.get_default_activities_service`
+  (invocado desde `backend/activities/serializers.py · ActivitySerializer.create`).
+- Feature: `backend/gyms/features.py · FEATURE_ACTIVITIES` y
+  `backend/gyms/features.py · activities_enabled` / `require_activities`;
+  catálogo en `backend/gyms/features.py · FEATURE_CATALOG`. El flag por defecto
+  es `False` (se habilita al crear el gimnasio).
+- Precio forzado en modo sesiones:
+  `backend/core/mixins.py · BillingPriceMixin.apply_billing_price_rules`,
+  aplicado desde `backend/activities/serializers.py · ActivitySerializer.validate`.
 
 ---
 
 ## 2. Los horarios de la actividad
 
-- Cada actividad tiene **uno o más horarios** (`ActivitySchedule`): **día**,
-  **hora de inicio**, **hora de fin** y **capacidad** (cupo de socios).
+- Cada actividad puede tener **uno o más horarios** (`ActivitySchedule`):
+  **día**, **hora de inicio**, **hora de fin** y **capacidad** (cupo de socios).
 - Reglas de carga:
   - La hora de fin debe ser **posterior** a la de inicio.
   - No puede haber **dos horarios activos que se superpongan** dentro de la
@@ -61,11 +95,12 @@
   desactivar el **único horario activo** de una actividad activa (ver §6).
 
 ### Referencia
-- Modelo: `backend/activities/models.py:100-131` (`ActivitySchedule`); único
-  actividad+día+inicio `:118`; `end > start` `:119-124`.
-- Validaciones de solapamiento y fin posterior: `backend/activities/serializers.py:109-156`
-  (`validate` `:122-126`, `_validate_no_overlap` `:147-156`).
-- Filtro de activos: `backend/activities/views.py:96-102`.
+- Modelo: `backend/activities/models.py · ActivitySchedule`; unicidad
+  actividad+día+inicio y `end > start` en `ActivitySchedule.Meta`.
+- Validaciones de solapamiento y fin posterior:
+  `backend/activities/serializers.py · ActivityScheduleSerializer.validate` y
+  `backend/activities/serializers.py · ActivityScheduleSerializer._validate_no_overlap`.
+- Filtro de activos: `backend/activities/views.py · ActivityScheduleViewSet.get_queryset`.
 
 ---
 
@@ -75,39 +110,45 @@ Hay **tres caminos** para inscribir a un socio a un horario de actividad:
 
 | Camino | Quién lo hace | Detalle |
 |--------|---------------|---------|
-| **Alta / onboarding** | El staff, al registrar al socio (o el admin del gimnasio) | Se eligen actividades y horarios en conjunto con el alta; no se re-chequea la elegibilidad de pago |
+| **Alta / onboarding** | El staff, al registrar al socio (o el admin del gimnasio) | Se eligen actividades y horarios en conjunto con el alta; sólo se saltea la elegibilidad de pago (cupo, duplicado y solapes se siguen validando) |
 | **Staff** | El personal, desde la pantalla de inscripciones del horario | Puede elegir modalidad mensual o paquete y fijar el coseguro |
-| **Portal del socio** | El propio socio, con su token | Sólo puede autoinscribirse a actividades **mensuales** (no a las "por sesiones") |
+| **Portal del socio** | El propio socio, con su token | Sólo puede autoinscribirse a actividades con `billing_mode="monthly"`; las "por sesiones" requieren al staff |
 
 Reglas que valida el sistema al inscribir:
 
 - El gimnasio debe tener la feature **Actividades** habilitada.
 - El socio debe poder operar (no estar bloqueado por falta de pago), salvo en el
-  alta/onboarding, donde se saltea el chequeo.
+  alta/onboarding, donde se saltea **sólo** la elegibilidad de pago.
 - El horario debe tener **cupo**: se toma un bloqueo (`select_for_update`) sobre
   el horario para que dos inscripciones simultáneas no se pasen de la capacidad.
 - El socio **no puede estar ya inscripto** en ese mismo horario (responde 409).
 - El socio **no puede tener otro horario que se superponga** ese día, ni con su
-  **horario de gimnasio**, ni con **otra actividad**, ni con su **entrenamiento
-  personal**.
+  **horario de gimnasio**, ni con **otra actividad**, ni con una **salida**, ni
+  con su **entrenamiento personal**. El bloque de gimnasio se compara con su
+  duración real.
 - Las actividades **por sesiones** no se pueden autoinscribir desde el portal:
   responden "Esta actividad requiere inscripción por el staff".
 
 ### Referencia
-- Alta/onboarding: `backend/members/services.py:184-196`
-  (`EnrollmentService.enroll_member(..., skip_eligibility_check=True)`).
-- Staff: `backend/activities/views.py:162-224` (`ScheduleEnrollmentViewSet.enroll`).
-- Portal: `backend/activities/public_views.py:39-80`
-  (`PublicMemberEnrollmentsView.post`) y `:203-241`
-  (`PublicMemberEnrollView.post`).
-- Servicio central: `backend/activities/enrollment_service.py:23-133`;
-  elegibilidad `:75-77`; lock de capacidad `:86-105`; duplicado 409 `:99-105`.
-- Solapamientos: `backend/activities/overlap.py:10-102` (gimnasio `:24-37`,
-  actividad `:40-58`, entrenamiento personal `:85-102`).
-- Autoinscripción bloqueada para "por sesiones": `backend/activities/public_views.py:65-69,227-231`.
+- Alta/onboarding: `backend/members/services.py · RegistrationService.register`
+  (llama a `EnrollmentService.enroll_member` con `skip_eligibility_check=True`).
+- Staff: `backend/activities/views.py · ScheduleEnrollmentViewSet.enroll`.
+- Portal: `backend/activities/public_views.py · PublicMemberEnrollmentsView.post`
+  y `backend/activities/public_views.py · PublicMemberEnrollView.post`.
+- Servicio central:
+  `backend/activities/enrollment_service.py · EnrollmentService.enroll_member`
+  (elegibilidad, lock de capacidad y control de duplicado dentro del método).
+- Solapamientos: `backend/core/overlap.py · check_member_slot` es la fuente de
+  verdad; `backend/activities/overlap.py · validate_enrollment` sólo traduce el
+  conflicto. La duración del bloque de gimnasio sale de
+  `backend/core/times.py · slot_end`.
+- Autoinscripción bloqueada para "por sesiones":
+  `backend/activities/public_views.py · PublicMemberEnrollmentsView.post` y
+  `backend/activities/public_views.py · PublicMemberEnrollView.post`.
 - Listado de horarios con cupo para el portal:
-  `backend/activities/public_views.py:83-128` y `:131-200`
-  (excluye `billing_mode="sessions"` y los horarios sin cupo).
+  `backend/activities/public_views.py · PublicGymActivitiesView.get` y
+  `backend/activities/public_views.py · PublicAvailableActivitiesView.get`
+  (excluyen `billing_mode="sessions"` y los horarios sin cupo).
 
 ---
 
@@ -119,35 +160,57 @@ Reglas que valida el sistema al inscribir:
   nació prorrateada, también se prorratea. Si el socio ya tenía la línea, **no
   se actualiza el precio** salvo que sea cortesía.
 - **Pase de cortesía** (`is_comp`): la línea de actividad se factura en **$0**.
-- **Actividad por sesiones (paquete)**: sólo se puede inscribir si la actividad
-  tiene `billing_mode="sessions"`. El staff define:
-  - **Total de sesiones** del paquete.
-  - **Coseguro por sesión** (`session_price`). Para socios de cortesía es $0.
-  - **Sellado/coseguro** (`sellado_amount`, opcional).
-  - El sistema no cobra por adelantado el paquete: se registran **pagos
-    parciales** que descuentan del total (`session_price × total_sesiones`).
+- **Actividad por sesiones**: la actividad tiene `billing_mode="sessions"` y el
+  staff elige al inscribir:
+  - **Mensual**: no agrega un cargo mensual. El precio de la oferta está
+    forzado a $0; la inscripción queda incluida en la membresía y la UI la
+    muestra como "sin cargo".
+  - **Paquete de N sesiones**: el staff define:
+    - **Total de sesiones** del paquete.
+    - **Coseguro por sesión** (`session_price`). Para socios de cortesía es $0.
+    - **Sellado/coseguro** (`sellado_amount`, opcional).
+    - El sistema no cobra por adelantado el paquete: se registran **pagos
+      parciales** que descuentan del total (`session_price × total_sesiones`).
 - **Cobro del paquete**: cada cobro crea un `Payment` con concepto `coseguro`.
-  El monto acumulado (`Enrollment.amount_paid`) se sincroniza desde esos pagos:
-  **los pagos son la fuente de verdad**. No se puede cobrar más que el total
-  pendiente.
-- **Baja (desinscribir)**: la inscripción se marca inactiva y se **cancelan las
-  líneas de facturación de esa actividad** en el período actual y en los
-  períodos futuros ya generados (los períodos históricos no se tocan).
+  El monto acumulado (`Enrollment.amount_paid`) se sincroniza desde esos pagos,
+  **excluyendo los pagos de sellado**: **los pagos son la fuente de verdad**. No
+  se puede cobrar más que el total pendiente.
+- **Sellado**: se registra como un `Payment` con concepto `sellado`, por el
+  monto exacto configurado; no suma a `amount_paid` y se refleja en el flag
+  `sellado_paid`.
+- **Baja (desinscribir)**: la inscripción se marca inactiva. El ítem de
+  facturación de la actividad se cancela **sólo si el socio no tiene otra
+  inscripción activa de la misma actividad** (el ítem es por oferta, no por
+  horario), y se cancelan las líneas del período actual y de los futuros ya
+  generados; los períodos históricos no se tocan.
+- **Baja desde el portal**: el socio puede darse de baja con un `DELETE` a la
+  URL pública, enviando `schedule_id` en el cuerpo. No se exige elegibilidad de
+  pago. Las actividades `billing_mode="sessions"` no permiten esta baja: deben
+  gestionarla por el staff.
 
 ### Referencia
-- Línea de actividad: `backend/activities/enrollment_service.py:107-119` y
-  `_ensure_activity_item` `:262-299` (precio prorrateado `:293-295`; si ya
-  existe no se actualiza salvo override `:281-285`).
-- Paquete: `backend/activities/enrollment_service.py:35-68`; datos del paquete
-  en `backend/activities/models.py:163-204`.
-- Cobro del paquete: `backend/activities/enrollment_service.py:135-227`
-  (`Payment(concept="coseguro")` `:210-222`); sincronización de
-  `amount_paid` en `backend/payments/services.py:14-64`
-  (`enrollment_sessions_paid`, `sync_enrollment_paid`).
-- Baja: `backend/activities/enrollment_service.py:229-259` y
-  `_cancel_activity_items` `:302-320`.
-- Propiedades del paquete: `total_amount` / `remaining_amount` / `exhausted`
-  `backend/activities/models.py:237-257`.
+- Línea de actividad:
+  `backend/activities/enrollment_service.py · EnrollmentService.enroll_member`
+  y `backend/activities/enrollment_service.py · _ensure_activity_item`; el
+  prorrateo sale de `backend/subscriptions/services.py · prorated_price_for`.
+- Paquete:
+  `backend/activities/enrollment_service.py · EnrollmentService.enroll_member`;
+  datos del paquete en `backend/activities/models.py · Enrollment`.
+- Cobro del paquete:
+  `backend/activities/enrollment_service.py · EnrollmentService.record_package_payment`;
+  sincronización en `backend/payments/services.py · enrollment_sessions_paid` y
+  `backend/payments/services.py · sync_enrollment_paid`.
+- Sellado: `backend/payments/services.py · sellado_paid_exists` y
+  `backend/payments/services.py · set_sellado_paid`.
+- Baja:
+  `backend/activities/enrollment_service.py · EnrollmentService.unenroll_member`
+  y `backend/activities/enrollment_service.py · _cancel_activity_items`.
+- Baja desde el portal:
+  `backend/activities/public_views.py · PublicMemberEnrollmentsView.delete`.
+- Propiedades del paquete:
+  `backend/activities/models.py · Enrollment.total_amount`,
+  `backend/activities/models.py · Enrollment.remaining_amount` y
+  `backend/activities/models.py · Enrollment.exhausted`.
 
 ---
 
@@ -158,7 +221,7 @@ paquete. Hay cuatro formas de que se registre una sesión:
 
 | Origen | Cuándo pasa |
 |--------|-------------|
-| **Automática** (`auto`) | El socio hace **check-in** dentro de la ventana horaria de la clase; el sistema descuenta 1 sesión solo |
+| **Automática** (`auto`) | El socio hace **check-in** y la regla ACC-08 identifica su inscripción de paquete; el sistema descuenta 1 sesión solo |
 | **Manual** (`manual`) | El staff la registra a mano desde la inscripción |
 | **Recuperación** (`recovery`) | El socio recupera una clase faltada en otro día (flujo de recuperaciones) |
 | **No asistió** (`no_show`) | El socio **no** fue y la clase ya pasó: la tarea programada descuenta 1 sesión |
@@ -167,38 +230,82 @@ Detalles:
 
 - El registro es **idempotente por (inscripción, fecha, horario)**: repetir el
   mismo día no duplica ni cobra dos veces.
-- La sesión **automática se traga los errores**: si ya estaba registrada o el
-  paquete está agotado, el socio igual puede entrar al gimnasio.
+- La sesión **automática se traga los errores**: si ya estaba registrada, la
+  inscripción está inactiva o el paquete está agotado, el socio igual puede
+  entrar al gimnasio.
+- **Check-in automático (ACC-08)**: como el check-in sólo conoce el día y no a
+  qué clase fue el socio, se descuenta sólo cuando la asistencia es
+  inequívoca:
+  - una sola inscripción de paquete activa ese día → se descuenta siempre,
+    aunque el socio haya entrado fuera de la ventana horaria;
+  - varias inscripciones ese día → se descuentan sólo las que caen dentro de
+    su ventana horaria;
+  - ninguna coincide con la ventana → no se descuenta ninguna;
+  - el check-in de staff sin hora sólo descuenta el caso inequívoco de una
+    sola inscripción.
 - El **job de no-asistencia** corre junto con el mantenimiento de suscripciones
   (cada ~6 h, con el tráfico de la app o por cron):
-  - Sólo descuenta fechas de clase **estrictamente anteriores a hoy**.
-  - **Saltea** los días en que el gimnasio estuvo cerrado.
-  - **No supera** el total del paquete (nunca deja "sesiones restantes"
-    negativas).
-  - Las **recuperaciones pendientes** cubren las faltas más recientes (una
-    falta + su recuperación cuesta 1 sesión, no 2).
-  - Avanza un **marcador** (`no_show_scan_until`) para no re-procesar: si el
-    staff quita una falta a mano, no se vuelve a descontar.
-- El staff puede **quitar** una sesión (corrección) y **renovar** el paquete
-  agregando sesiones extra.
+  - sólo procesa inscripciones activas de paquete cuyo horario y actividad
+    sigan activos, y socios no eliminados;
+  - sólo descuenta fechas de clase **estrictamente anteriores a hoy**;
+  - **saltea** los días en que el gimnasio estuvo cerrado;
+  - no descuenta fechas anteriores a la inscripción ni a la creación del
+    horario (ADD-07);
+  - **no supera** el total del paquete (nunca deja "sesiones restantes"
+    negativas);
+  - cada **recuperación programada** cubre **exactamente una** falta
+    (ADD-27). Las recuperaciones vencidas no cubren nada y una recuperación ya
+    usada no vuelve a perdonar faltas nuevas. Si la falta ya estaba cobrada,
+    otorgar la recuperación borra el `no_show` más reciente; si todavía no se
+    cobró, el barrido protege la falta más reciente y la ata a la recuperación;
+  - si el paquete está agotado, la falta **no se cobra ahora pero tampoco se
+    pierde**: queda pendiente hasta que el staff agregue sesiones. En ese caso
+    el **marcador** (`no_show_scan_until`) no avanza sobre la deuda pendiente
+    (ADD-29);
+  - en el caso normal, avanza el marcador para no re-procesar: si el staff
+    quita una falta a mano, no se vuelve a descontar.
+- El staff puede **registrar** una sesión, **quitar** una (corrección) y
+  **renovar** el paquete agregando sesiones extra.
+- **Renovación**: por defecto rechaza renovar si quedan sesiones sin cobrar;
+  `allow_unpaid` es el override explícito del staff. No vuelve a pedir el
+  sellado y, en actividades, refresca el coseguro por sesión según la obra
+  social actual del socio.
+- **Diferencia con entrenamiento personal (PT)**: comparten el motor de faltas
+  y recuperaciones, pero el registro de PT es único por `(asignación, fecha)`
+  sin horario y su renovación no actualiza el coseguro según la obra social.
+- La suite verifica invariantes read-only de los paquetes: sesiones consumidas
+  = registros, nunca más que el total, fechas del día correcto y posteriores a
+  la creación del horario, sin sesiones en días cerrados, a lo sumo una por
+  fecha y recuperaciones respaldadas por una recuperación usada (P1–P6).
 
 ### Referencia
-- Modelo: `backend/activities/models.py:260-307` (`ActivitySessionRecord`),
-  orígenes `:29-34`, unicidad `:299-304`.
-- Registro/borrado/renovación: `backend/activities/session_service.py:16-133`
-  (`record_session` `:17-49`, `record_auto` `:51-65`, `remove_session`
-  `:67-82`, `renew_package` `:84-133`).
-- Check-in automático: `backend/attendance/public_views.py:55-77`.
-- Acciones del staff: `backend/activities/views.py:270-340`
-  (`record_session`, `remove_session`, `renew`) y `record_payment` `:342-360`.
-- Job de no-asistencia: `backend/activities/no_show_service.py:1-22`
-  (reglas) y `:152-256` (`deduct_missed_activity_enrollments`,
-  `deduct_missed_sessions`); cadencia ~6 h en
-  `backend/subscriptions/services.py:1982-2012`
-  (`SCHEDULED_TASKS_INTERVAL_SECONDS`, corre en `run_scheduled_tasks` `:2061-2062`).
-- Recuperación cancela la falta: `backend/activities/no_show_service.py:259-280`
-  (`cancel_recovered_no_show`), invocada desde
-  `backend/attendance/recovery_service.py:479`.
+- Modelo: `backend/activities/models.py · ActivitySessionRecord`, orígenes en
+  `backend/activities/models.py · SESSION_SOURCE_CHOICES` y unicidad en
+  `backend/activities/models.py · ActivitySessionRecord.Meta`.
+- Registro/borrado/renovación:
+  `backend/activities/session_service.py · SessionService.record_session`,
+  `backend/activities/session_service.py · SessionService.record_auto`,
+  `backend/activities/session_service.py · SessionService.remove_session` y
+  `backend/activities/session_service.py · SessionService.renew_package`.
+- Check-in automático:
+  `backend/attendance/public_views.py · PublicCheckinView._handle_checkin`,
+  `backend/attendance/checkin_discount.py · count_activity_sessions` y
+  `backend/attendance/checkin_discount.py · _discount_candidates`.
+- Acciones del staff:
+  `backend/activities/views.py · EnrollmentActionViewSet.record_session`,
+  `backend/activities/views.py · EnrollmentActionViewSet.remove_session` y
+  `backend/activities/views.py · EnrollmentActionViewSet.renew`.
+- Job de no-asistencia:
+  `backend/activities/no_show_service.py · deduct_missed_activity_enrollments`,
+  `backend/activities/no_show_service.py · _deduct_activity_enrollment` y
+  `backend/activities/no_show_service.py · deduct_missed_sessions`; cadencia en
+  `backend/subscriptions/services.py · SCHEDULED_TASKS_INTERVAL_SECONDS` y
+  ejecución en `backend/subscriptions/services.py · run_scheduled_tasks`.
+- Recuperación cancela la falta:
+  `backend/activities/no_show_service.py · cancel_recovered_no_show`, invocada
+  desde `backend/attendance/recovery_service.py · grant_scheduled`; consumo en
+  `backend/attendance/recovery_service.py · use_recovery`.
+- Invariantes: `backend/core/session_invariants.py · check_session_invariants`.
 
 ---
 
@@ -206,36 +313,55 @@ Detalles:
 
 - **Desactivar una actividad** (desde el botón de la tarjeta, que en realidad es
   un `DELETE` lógico):
-  - marca la actividad como inactiva,
-  - **desactiva en cascada todos sus horarios activos**,
-  - deja de ofrecerse en el portal y en la autoinscripción,
-  - **no toca las inscripciones ni la facturación** de los socios que ya estaban
-    anotados (ver §8).
+  - marca la actividad como inactiva;
+  - **desactiva en cascada todos sus horarios activos** y los marca con
+    `auto_deactivated=True`, para distinguirlos de los apagados a mano;
+  - deja de ofrecerse en el portal y en la autoinscripción;
+  - **corta el cobro**: da de baja las inscripciones activas y cancela el ítem
+    de la actividad en las suscripciones no vencidas, resincronizando el saldo
+    (ADD-01). Los períodos históricos no se tocan.
 - **Eliminar** en la API es siempre baja lógica: nunca se borra la fila.
-- **Reactivar una actividad** vuelve a activarla y **reactiva TODOS sus
-  horarios**, incluidos los que se habían desactivado a mano antes. El portal y
-  el staff tienen dos caminos visuales ("Restaurar horarios anteriores" vs
-  "Crear nuevos horarios"), pero el backend **siempre restaura todos**.
+- **Reactivar una actividad** vuelve a activarla. El parámetro
+  `restore_schedules` viene en `True` por defecto y **sólo reactiva los
+  horarios que se habían apagado con la oferta** (`auto_deactivated=True`).
+  Los horarios que el staff apagó a mano **siguen apagados** (ADD-04). La
+  respuesta informa cuántos se restauraron en `restored_schedules`. Con
+  `restore_schedules=False` no vuelve ningún horario.
 - Un horario **nuevo activo** en una actividad inactiva **activa la actividad
   automáticamente** (permite el camino "crear horarios nuevos": la actividad
   queda activa al cargar el primero).
-- **No se puede desactivar el último horario activo** de una actividad activa
-  (responde 400). Para apagarla entera hay que desactivar la actividad.
+- La **baja de un horario** (botón de eliminar, `DELETE`) no permite desactivar
+  el **último horario activo** de una actividad activa (responde 400). Para
+  apagarla entera hay que desactivar la actividad.
+- Un horario inactivo se puede **reactivar individualmente** con un `PATCH` que
+  envía `active=true`; no cambia el estado de la actividad.
 - No se puede guardar una actividad como activa **sin ningún horario activo**.
+- En el frontend, "Restaurar horarios anteriores" llama a la reactivación con
+  restauración selectiva; "Crear nuevos horarios" lleva a cargar un horario
+  nuevo, que activa la actividad al guardarse. "Restaurar horarios anteriores"
+  ya no revive los horarios apagados a propósito.
 
 ### Referencia
-- Cascada al desactivar: `backend/activities/models.py:79-94`
-  (`Activity.save` — `schedules.filter(active=True).update(active=False)`).
-- Baja lógica: `backend/activities/views.py:65-69` (`destroy`).
-- Reactivar todos los horarios: `backend/activities/views.py:71-80`
-  (`reactivate`).
-- Auto-activar al crear horario: `backend/activities/views.py:108-116`
-  (`perform_create`).
-- Último horario activo: `backend/activities/views.py:118-129` (`destroy`).
-- Activar sin horarios activos: `backend/activities/serializers.py:85-90`
-  (`update`).
-- Listado activos/inactivos: `backend/activities/views.py:53-59`;
-  servicio frontend `frontend/src/services/activities.service.js:41-49`.
+- Cascada al desactivar, marca de horarios y corte de cobro:
+  `backend/activities/models.py · Activity.save`,
+  `backend/activities/models.py · ActivitySchedule.auto_deactivated` y
+  `backend/activities/enrollment_service.py · cut_activity_billing`.
+- Baja lógica: `backend/activities/views.py · ActivityViewSet.destroy`.
+- Reactivación selectiva:
+  `backend/activities/views.py · ActivityViewSet.reactivate`.
+- Auto-activar al crear horario:
+  `backend/activities/views.py · ActivityScheduleViewSet.perform_create`.
+- Último horario activo:
+  `backend/activities/views.py · ActivityScheduleViewSet.destroy`.
+- Activar sin horarios activos:
+  `backend/activities/serializers.py · ActivitySerializer.update`.
+- Listado activos/inactivos:
+  `backend/activities/views.py · ActivityScheduleViewSet.get_queryset`;
+  servicio frontend `frontend/src/services/activities.service.js · reactivateActivity`.
+- Restauración desde la UI:
+  `frontend/src/pages/Activities.jsx · handleRestoreSchedules`;
+  reactivación individual en
+  `frontend/src/pages/ActivitySchedules.jsx · handleReactivateSchedule`.
 
 ---
 
@@ -267,61 +393,57 @@ Detalles:
 
 Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
 
-1. **Desactivar una actividad no corta el cobro.** La cascada sólo apaga los
-   horarios: las inscripciones siguen activas y la línea de facturación de la
-   actividad **sigue cobrándose**. Para que deje de facturar hay que
-   desinscribir a cada socio.
-2. **Inscripciones huérfanas en el portal.** Si se desactiva un horario o una
-   actividad, el socio la sigue viendo (secciones "Horarios no disponibles" /
-   "Actividades no disponibles") y, en actividades mensuales, puede reasignarse
-   a otro horario. Las "por sesiones" sólo ven el aviso "consultá en recepción".
-3. **Cambiar de horario puede dejar al socio sin ninguno.** El cambio hace
+1. **Desactivar un horario suelto oculta la inscripción y no corta el cobro.**
+   Si se desactiva un horario (no la actividad entera), la inscripción sigue
+   activa y la línea de facturación de la actividad mensual **sigue
+   cobrándose**. Además, el portal filtra las inscripciones por horario y
+   actividad activos, así que esa inscripción desaparece de la lista: el socio
+   no ve el aviso de "Horarios no disponibles" ni puede reasignarse desde esa
+   pantalla. Desactivar la actividad completa sí corta el cobro (ADD-01); la
+   baja de un horario suelto no.
+2. **Cambiar de horario puede dejar al socio sin ninguno.** El cambio hace
    primero la baja y después la inscripción al horario nuevo. Si la inscripción
-   falla (cupo lleno, choque horario), la baja **ya se hizo** y el socio queda
-   sin ese horario hasta reasignarse.
-4. **"Restaurar horarios" es engañoso.** La pantalla ofrece restaurar o crear
-   horarios nuevos, pero reactivar la actividad **siempre revive todos los
-   horarios**, incluso los que el staff había apagado a propósito.
-5. **El chequeo de choque de gimnasio asume bloques de 1 hora.** El solapamiento
-   con el horario de gimnasio se calcula como "hora + 1 h", así que un bloque de
-   más de una hora puede no detectarse bien.
-6. **El portal del socio puede romperse al mostrar una actividad desactivada.**
-   El bloque "Actividades no disponibles" usa `gym` y `txt(...)` que **no están
-   definidos en ese componente** (`MemberActivities.jsx:338`): al renderizar
-   ese caso, el socio ve un error en lugar del aviso.
-7. **Las faltas descuentan aunque el socio nunca haya ido.** El job de
-   no-asistencia toma como asistida cualquier fecha sin registro; un feriado no
-   cargado o una clase caída descuentan igual una sesión del paquete.
-8. **El paquete se puede cobrar de más por fuera del flujo.** El tope de cobro
-   vive en `record_package_payment`; si un pago se carga por otra vía (pago
-   general de suscripción), la sección de "saldo pendiente" del paquete puede
-   quedar desincronizada.
+   falla (cupo lleno, choque horario), el frontend intenta restaurar el horario
+   anterior; si esa restauración también falla, el socio queda sin ese horario
+   hasta reasignarse.
+3. **Las faltas descuentan aunque el socio nunca haya ido.** El job de
+   no-asistencia toma como faltada cualquier fecha de clase sin registro; un
+   feriado no cargado o una clase caída descuentan igual una sesión del paquete.
+4. **El saldo del paquete se puede desincronizar por pagos generales.** El tope
+   de cobro vive en `record_package_payment`; si un pago se carga por otra vía
+   (pago general de suscripción), ese pago no queda asociado a la inscripción y
+   no descuenta `amount_paid`, así que la sección de "saldo pendiente" del
+   paquete puede quedar desincronizada.
 
 ### Referencia
-- Cascada que no toca inscripciones ni facturación: `backend/activities/models.py:90-93`.
-- Estado de las inscripciones por actividad desactivada en el portal:
-  `frontend/src/pages/MemberActivities.jsx:157-353`.
-- Baja-antes-de-alta: `frontend/src/pages/MemberActivities.jsx:98-113`.
-- Reactivar todo: `backend/activities/views.py:71-80`; el parámetro
-  `restore_schedules` que manda el frontend no se usa
-  `frontend/src/services/activities.service.js:45-49`.
-- Choque de gimnasio = 1 hora: `backend/activities/overlap.py:29-30,143-145`.
-- `gym`/`txt` sin definir: `frontend/src/pages/MemberActivities.jsx:338`.
-- Faltas por fechas sin registro: `backend/activities/no_show_service.py:61-107`.
+- Horario suelto sin corte de cobro y oculto en el portal:
+  `backend/activities/views.py · ActivityScheduleViewSet.destroy`,
+  `backend/activities/public_views.py · PublicMemberEnrollmentsView.get` y
+  `backend/activities/tests_deactivation.py · ActivityPortalOrphanTests`.
+- Baja-antes-de-alta con rollback:
+  `frontend/src/pages/MemberActivities.jsx · handleSelectSchedule`.
+- Faltas por fechas sin registro:
+  `backend/activities/no_show_service.py · deduct_missed_activity_enrollments`
+  y `backend/activities/no_show_service.py · _deduct_activity_enrollment`.
+- Saldo desincronizado por pagos generales:
+  `backend/activities/enrollment_service.py · EnrollmentService.record_package_payment`,
+  `backend/payments/services.py · enrollment_sessions_paid` y
+  `backend/payments/services.py · sync_enrollment_paid`.
 
 ---
 
 ### Notas de entorno para leer el código
 
-- Zona horaria: `America/Argentina/Buenos_Aires` (`backend/config/settings.py:461`).
+- Zona horaria: `America/Argentina/Buenos_Aires`
+  (`backend/config/settings.py · TIME_ZONE`).
 - Toda operación de staff se filtra automáticamente por el gimnasio del usuario
-  logueado (`backend/core/mixins.py:4-19`); el portal público entra por código
-  del gimnasio o token del socio.
+  logueado (`backend/core/mixins.py · GymQuerysetMixin`); el portal público
+  entra por código del gimnasio o token del socio.
 - Los endpoints de actividades exigen la feature `activities`
-  (`backend/activities/views.py:28-31` y `require_activities` en
-  `backend/activities/public_views.py`).
+  (`backend/activities/views.py · ActivitiesGuardMixin` y
+  `backend/gyms/features.py · require_activities`).
 - Los "por sesiones" comparten motor de sesiones y de faltas con entrenamiento
-  personal (`backend/activities/no_show_service.py` también procesa
-  `PersonalTrainingAssignment`).
+  personal (`backend/activities/no_show_service.py · deduct_missed_sessions`
+  también procesa `PersonalTrainingAssignment`).
 - El flujo visual de esta feature vive en `frontend/src/dev/ActivitiesFlow.jsx`
   (sólo desarrollo) y se alimenta de este documento.

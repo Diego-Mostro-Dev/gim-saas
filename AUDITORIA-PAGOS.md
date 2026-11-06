@@ -1,5 +1,13 @@
 # Auditoría de Pagos — Cómo funciona hoy el sistema de cobros
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: cobros, estados, deuda, saldo a favor, bloqueo por impago, renovación automática y relación con el acceso.
+> No cubre recuperación de suscripción (ver AUDITORIA-RECUPERACION.md).
+> Documentos relacionados: `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-MIEMBROS.md`, `AUDITORIA-RECUPERACION.md`
+> Código cubierto: `backend/payments`, `frontend/src/pages/Payments.jsx`, `frontend/src/pages/member/MemberPayments.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para

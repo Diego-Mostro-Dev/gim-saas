@@ -1,0 +1,908 @@
+# Plan completo — Actualización de auditorías contra el código
+
+## 1. Objetivo
+
+Dejar las auditorías descriptivas alineadas con el código actual, de modo que sirvan como **base confiable del estado real del sistema**: qué hace hoy, qué no hace, qué reglas aplica y dónde vive cada cosa.
+
+Alcance:
+
+- Actualizar **in-place** las 13 auditorías existentes.
+- Crear **5 auditorías nuevas** para módulos sin cobertura.
+- Crear un **índice general** de auditorías.
+- No modificar código de producto.
+- No convertir las auditorías en un registro de bugs: los bugs siguen en `BUGS.md`.
+
+Baseline inicial: commit **`f5b4b07`** (29/10/2026), rama actual. Fecha de verificación: **30/10/2026**.
+
+---
+
+## 2. Estado inicial detectado
+
+- 13 archivos `AUDITORIA-*.md`, ~3.588 líneas y ~630 referencias a código.
+- La mayoría se escribió antes de las fases A–K; el código cambió después.
+- Desfasajes concretos:
+  - `AUDITORIA-MIEMBROS.md` afirma que no existe baja lógica ni reactivación; hoy existen `Member.deleted_at`, `deactivate` y `reactivate`.
+  - `AUDITORIA-CONFIGURACION.md` salta de la sección 2 a la 19: está incompleta.
+  - Pagos y suscripciones no reflejan prorrateo, crédito, invariantes de dinero ni la eliminación del fallback de precio.
+  - Actividades, salidas y PT no reflejan auto-desactivación, solapes compartidos ni los cambios de no-show/recuperaciones.
+  - Hay 2 rutas inexistentes y 3 referencias con líneas fuera de rango.
+- Módulos sin auditoría: `accounts`, `profiles`, `admins`, `core`, `seed` y operaciones/despliegue.
+
+---
+
+## 3. Convenciones de las auditorías
+
+### Cabecera obligatoria
+
+Cada documento empieza con:
+
+```text
+Verificado contra: <commit>
+Fecha: <fecha>
+Alcance: <qué cubre y qué no>
+Documentos relacionados: <enlaces>
+```
+
+### Referencias híbridas
+
+Referencia canónica por archivo y símbolo:
+
+```text
+backend/members/services.py · RegistrationService.register
+frontend/src/pages/Members.jsx · MemberList
+```
+
+Opcionalmente, snapshot de líneas al final del documento:
+
+```text
+backend/members/services.py:101-208 (al commit f5b4b07)
+```
+
+Reglas:
+
+- El símbolo es la referencia principal.
+- La línea exacta solo se usa como dato histórico.
+- Si no hay símbolo estable, se referencia archivo + sección funcional.
+- No se mezclan líneas antiguas con símbolos nuevos.
+
+### Contenido
+
+Cada auditoría mantiene estas secciones:
+
+1. Qué es y para qué sirve.
+2. Cómo funciona hoy, en lenguaje simple.
+3. Reglas y casos borde.
+4. Qué ve cada rol / pantalla.
+5. Lo que el sistema NO hace hoy.
+6. Problemas o decisiones de negocio vigentes.
+7. Referencias técnicas.
+8. Snapshot de referencias, si aplica.
+
+### Límites
+
+- `AUDITORIA-*.md`: describe comportamiento actual.
+- `BUGS.md`: registra defectos, severidad y estado.
+- `PLAN-bugs.md`: plan de corrección.
+- Si una auditoría detecta un bug nuevo, se documenta como problema y se propone su alta en `BUGS.md`; no se arregla código en esta tarea.
+- Las decisiones de negocio se marcan como tales, no como bugs.
+
+---
+
+## 4. Documentos incluidos
+
+### Existentes a actualizar
+
+| Documento | Código principal | Pantallas / flujos |
+|---|---|---|
+| `AUDITORIA-MIEMBROS.md` | `backend/members` | Members, Register, MemberData, MemberAttachments |
+| `AUDITORIA-PLANES.md` | `backend/plans` | Plans, PlanForm, PlanChangeModal |
+| `AUDITORIA-SUSCRIPCIONES.md` | `backend/subscriptions` | Subscriptions, MemberSubscriptionCard |
+| `AUDITORIA-PAGOS.md` | `backend/payments`, `subscriptions` | Payments, MemberPayments |
+| `AUDITORIA-RECUPERACION.md` | `subscriptions`, `attendance/recovery_service` | RecoverMembers |
+| `AUDITORIA-ASISTENCIAS.md` | `backend/attendance` | Attendance, Checkin, AttendanceQR |
+| `AUDITORIA-HORARIOS.md` | `attendance`, `gyms`, schedule requests | ScheduleChangeRequests, ScheduleSwapRequests |
+| `AUDITORIA-ACTIVIDADES.md` | `backend/activities` | Activities, ActivitySchedules, MemberActivities |
+| `AUDITORIA-SALIDAS.md` | `backend/outings` | Outings, OutingSchedules, OutingEnrollments |
+| `AUDITORIA-PERSONAL-TRAINING.md` | `backend/personal_training` | PT Settings, Attendance, TrainerAgenda, MemberPT |
+| `AUDITORIA-RUTINAS.md` | `backend/routines` | Routines, PublicRoutine, MemberWorkout |
+| `AUDITORIA-COMUNIDAD.md` | `backend/community` | CommunityPanel, CommunityPublicPage, MemberCommunity |
+| `AUDITORIA-CONFIGURACION.md` | `backend/gyms`, `config` | Settings, admin de gimnasio |
+
+### Nuevas auditorías
+
+| Documento | Código principal | Contenido |
+|---|---|---|
+| `AUDITORIA-USUARIOS-Y-ACCESOS.md` | `accounts`, `profiles`, `core/permissions` | Login, logout, refresh, tokens, contraseñas, onboarding de dueño, roles, permisos |
+| `AUDITORIA-ADMIN-SAAS.md` | `admins` | Superusuario central, alta de gimnasios, features, configuración inicial, scoping |
+| `AUDITORIA-NUCLEO-REGLAS.md` | `core` | Scoping por gym, permisos, solapes, horarios, emails, invariantes de dinero/sesiones, helpers de test |
+| `AUDITORIA-SEED-DEMO.md` | `seed` | Datos demo, fases de seed, aislamiento, `force`, `preserve_plans`, invariantes |
+| `AUDITORIA-OPERACIONES.md` | `config`, `.github`, `scripts` | Settings, entorno, CI, tareas programadas, backups/restore, monitoreo y despliegue |
+
+### Documento de índice
+
+| Documento | Contenido |
+|---|---|
+| `AUDITORIA-INDEX.md` | Tabla de las 18 auditorías, alcance, código cubierto, documentos relacionados, commit y fecha de verificación |
+
+---
+
+## 5. Fases de ejecución
+
+### Fase 0 — Baseline, método e índice inicial
+
+Objetivo: congelar el estado de referencia y dejar listo el andamiaje.
+
+Tareas:
+
+1. Registrar baseline: `f5b4b07`, fecha, rama y alcance.
+2. Construir mapa `auditoría → app → endpoints → pantallas → tests`.
+3. Crear la plantilla común de auditoría.
+4. Definir el formato híbrido de referencias.
+5. Crear el borrador de `AUDITORIA-INDEX.md`.
+6. Diseñar el validador de referencias:
+   - verifica que el archivo exista;
+   - verifica que el símbolo aparezca;
+   - verifica rangos de línea del snapshot;
+   - falla ante referencias canónicas rotas y avisa sobre líneas desactualizadas.
+7. Aplicar la plantilla a un documento piloto, preferentemente `AUDITORIA-MIEMBROS.md`.
+
+Entregables:
+
+- Plantilla aprobada.
+- Mapa de cobertura.
+- `AUDITORIA-INDEX.md` inicial.
+- Validador de referencias.
+- Documento piloto actualizado.
+
+Criterio de cierre:
+
+- El piloto pasa el validador.
+- El índice lista las 18 auditorías.
+- La plantilla no deja dudas sobre formato, alcance y referencias.
+
+---
+
+### Fase 1 — Identidad y administración
+
+Documentos:
+
+- `AUDITORIA-USUARIOS-Y-ACCESOS.md`
+- `AUDITORIA-ADMIN-SAAS.md`
+
+Tareas:
+
+1. Documentar login, logout, refresh y `/me`.
+2. Documentar expiración y rotación de token.
+3. Documentar cambio de contraseña, reseteo con token y código de 6 dígitos, y reset administrativo.
+4. Documentar onboarding de dueño y creación de gimnasio desde alta pública.
+5. Documentar roles `owner`, `staff`, `professor`, `trainer`.
+6. Documentar `must_change_password`, perfil, gimnasio y género del trainer.
+7. Documentar permisos: superusuario, dueño, gestor de rutinas y scoping por gimnasio.
+8. Documentar el panel central: listar/crear/editar gimnasios, features, servicios y planes iniciales.
+9. Revisar frontend: Login, ForgotPassword, ResetPassword, ChangePassword, Staff, onboarding y páginas admin.
+10. Cruzar con `accounts/tests.py`, `profiles/tests.py`, `admins/tests.py` y `core/tests_admin_scoping.py`.
+
+Criterio de cierre:
+
+- Ambos documentos completos y con referencias híbridas válidas.
+- Tests `accounts`, `profiles`, `admins` y `core` verdes.
+
+---
+
+### Fase 2 — Núcleo, seed y operaciones
+
+Documentos:
+
+- `AUDITORIA-NUCLEO-REGLAS.md`
+- `AUDITORIA-SEED-DEMO.md`
+- `AUDITORIA-OPERACIONES.md`
+
+Tareas:
+
+1. Documentar `GymQuerysetMixin` y el filtrado automático por gimnasio.
+2. Documentar `BillingPriceMixin` y las reglas de precio de ofertas.
+3. Documentar `core/overlap.py`: solapes entre gimnasio, actividades, salidas y PT.
+4. Documentar `core/times.py`: duración real de bloques y cálculo de fin.
+5. Documentar `core/permissions.py`: superusuario, dueño y gestor de rutinas.
+6. Documentar `core/email.py` y plantillas de reseteo.
+7. Documentar invariantes de dinero y sesiones.
+8. Documentar helpers de test y admin scoping.
+9. Documentar seed: fases, datos demo, `needs_seeding`, `force`, `preserve_plans`, limpieza e aislamiento.
+10. Documentar operaciones: settings, `.env`, URLs, middleware, throttles, tareas programadas, CI, backups, restore, monitor y despliegue.
+11. Revisar tests de `core` y `seed`.
+
+Criterio de cierre:
+
+- Los 3 documentos completos.
+- Referencias válidas.
+- Tests `core` y `seed` verdes.
+- `AUDITORIA-INDEX.md` actualizado con estas auditorías.
+
+---
+
+### Fase 3 — Dinero y socios
+
+Documentos:
+
+- `AUDITORIA-MIEMBROS.md`
+- `AUDITORIA-PLANES.md`
+- `AUDITORIA-SUSCRIPCIONES.md`
+- `AUDITORIA-PAGOS.md`
+- `AUDITORIA-RECUPERACION.md`
+
+Tareas por documento:
+
+**Miembros**
+- Corregir la sección de eliminación: ya no es hard delete.
+- Documentar baja lógica, `deleted_at`, `deactivate`, `reactivate` y filtros.
+- Documentar teléfono único por gimnasio y validación al reactivar.
+- Documentar obra social, autolink y obra sin match.
+- Documentar alta staff y alta pública.
+- Documentar portal, adjuntos, edición y diferencias entre baja y recuperación de suscripción.
+- Actualizar “Lo que NO hace” y “Problemas”.
+
+**Planes**
+- Revisar catálogo, plan base oculto, ciclo de vida, elección en alta y cambios de plan.
+- Documentar validaciones de precio y reglas de ofertas.
+- Reflejar el estado actual del cambio de plan y del crédito.
+
+**Suscripciones**
+- Documentar origen de suscripciones, renovación automática, cortesía, descuentos y roles.
+- Incorporar prorrateo del primer ciclo.
+- Incorporar aplicación de crédito y conflictos de período.
+- Actualizar problemas y decisiones de negocio.
+
+**Pagos**
+- Documentar ciclo de cobro, días de vencimiento/bloqueo, estados y capacidades del socio.
+- Documentar medios de pago, deuda, saldo a favor y recuperación.
+- Reflejar `initial_pending`, bloqueo y renovación.
+- Revisar la relación con check-in con descuento.
+
+**Recuperación**
+- Documentar condiciones, deuda, caso B, badge “recuperable” y pantalla del staff.
+- Marcar como decisión de negocio lo que corresponda: recuperación sin prorrateo, aplicación de saldo, orden de chequeos.
+- Aclarar que no es recuperación de clases.
+
+Criterio de cierre:
+
+- Los 5 documentos reflejan K5/K6 y las fases F.
+- Referencias válidas.
+- Tests `members`, `plans`, `subscriptions` y `payments` verdes.
+
+---
+
+### Fase 4 — Acceso, asistencia y horarios
+
+Documentos:
+
+- `AUDITORIA-ASISTENCIAS.md`
+- `AUDITORIA-HORARIOS.md`
+
+Tareas:
+
+1. Documentar las dos formas de registrar asistencia.
+2. Documentar reglas de check-in: ventana, estado de pago, bloqueo, cupos y descuentos.
+3. Documentar planilla del staff y diferencias con el check-in del socio.
+4. Documentar recuperaciones, intercambios y sesiones de actividad.
+5. Documentar permisos por rol.
+6. Documentar no-show y faltas.
+7. Documentar cambios de horario: permanentes e intercambios.
+8. Documentar cooldown, anticipación, cupo, límite mensual y conteo combinado.
+9. Documentar el camino del staff y la aprobación.
+10. Documentar fechas cerradas y feriados.
+11. Actualizar problemas y eliminar referencias a bugs ya cerrados.
+
+Criterio de cierre:
+
+- Ambos documentos reflejan K4 y los fixes ACC/CFG.
+- Referencias válidas.
+- Tests de `attendance` verdes.
+
+---
+
+### Fase 5 — Add-ons (dividida en subfases)
+
+La fase original se divide para ejecutar cada bloque en una sesión separada y no agotar el contexto. Cada subfase lee **solo** sus secciones y su código, edita únicamente ese alcance y ejecuta el validador más los tests de su módulo.
+
+#### Fase 5.1 — Actividades: definición, horarios, inscripción y cobro
+
+Documento:
+
+- `AUDITORIA-ACTIVIDADES.md`, secciones 1–4 (`:10-153`).
+
+Tareas:
+
+1. Documentar concepto, unicidad de nombre y pertenencia a servicio/gimnasio.
+2. Documentar horarios, duración de bloques y validación de solapes compartida.
+3. Documentar inscripción, bajas y reinscripciones sin huérfanos.
+4. Documentar cobro mensual, origen del precio y relación con el servicio.
+5. Revisar backend (`models`, `serializers`, `enrollment_service`, `overlap`, `views`, `public_views`) y frontend (`Activities`, `ActivitySchedules`).
+6. Actualizar problemas y decisiones de negocio de las secciones 1–4.
+
+Criterio de cierre:
+
+- Secciones 1–4 reescritas con referencias híbridas válidas.
+- Tests de `activities` verdes.
+
+#### Fase 5.2 — Actividades: sesiones, no-show y ciclo de vida
+
+Documento:
+
+- `AUDITORIA-ACTIVIDADES.md`, secciones 5–8 (`:154-327`).
+
+Tareas:
+
+1. Documentar registro de sesiones, no-show y recuperaciones.
+2. Incorporar auto-desactivación de horarios y activación/desactivación/reactivación.
+3. Documentar consumo de sesiones y diferencias con PT.
+4. Actualizar “Lo que NO hace”, problemas y decisiones de negocio.
+5. Revisar `session_service`, `no_show_service`, tests de desactivación e invariantes, y frontend (`ScheduleEnrollments`, `MemberActivities`, `member/ActivityDashboard`).
+
+Criterio de cierre:
+
+- Documento completo con referencias válidas.
+- Tests de `activities` verdes.
+
+#### Fase 5.3 — Salidas: definición, horarios, inscripción, solicitudes y cobro
+
+Documento:
+
+- `AUDITORIA-SALIDAS.md`, secciones 1–5 (`:10-194`).
+- Cabecera de `AUDITORIA-SALIDAS.md`: verificar contra `f5b4b07`, fecha
+  `2026-11-05`, alcance de secciones 1–5 y estado parcial (“secciones 1–5
+  verificadas; 6–9 pendientes de Fase 5.4”).
+- `AUDITORIA-INDEX.md`, fila 14: actualizar a `Fase 5.3` y estado
+  `En curso Fase 5.3`; pasará a `5.3–5.4` / `Verificado` al cerrar 5.4.
+
+Decisiones tomadas:
+
+- Actualizar el índice al terminar 5.3, dejando claro que el documento todavía
+  no está completo.
+- Incluir en las secciones 1–5 los hallazgos nuevos detectados durante la
+  revisión, como comportamiento actual o limitación, sin corregir código.
+- No ejecutar tests locales en la sesión de edición: la validación de
+  `outings` queda para CI después de publicar los cambios.
+
+Alcance y límites:
+
+- Reescribir sólo las secciones 1–5; no tocar las secciones 6–9, que quedan
+  para Fase 5.4.
+- No modificar código de producto, tests, modelos ni comportamiento.
+- No corregir bugs ni discrepancias de UI encontradas: sólo documentarlas.
+- Mantener el lenguaje simple del manual y separar las referencias técnicas.
+- Usar referencias híbridas por símbolo (`backend/... · Clase.metodo`), sin
+  rangos de línea nuevos.
+- Dejar constancia de que §8 y §9 pueden contradecir temporalmente el texto
+  nuevo hasta que se actualicen en 5.4.
+
+Tareas:
+
+1. Documentar diferencia con actividades y trainer como usuario del sistema.
+2. Documentar horarios, validación de solapes y duración de bloques.
+3. Documentar inscripción, bajas y reinscripciones sin huérfanos.
+4. Documentar el flujo de solicitudes del socio y su aprobación.
+5. Documentar cobro mensual y origen del precio.
+6. Revisar backend (`models`, `serializers`, `enrollment_service`, `enrollment_request_service`, `overlap`, `views`, `public_views`, `core/overlap`, `core/mixins`, `payments/services`, `subscriptions/services`) y frontend (`Outings`, `OutingSchedules`, `OutingEnrollments`, `components/outings`).
+7. Actualizar problemas y decisiones de negocio de las secciones 1–5.
+
+Detalle de cambios:
+
+**§1 — Qué es una salida y cómo se paga**
+
+- Documentar salida, gimnasio, servicio, feature `salidas` y nombre único por
+  gimnasio.
+- Aclarar que el trainer es un usuario del sistema:
+  - el modelo acepta un `User`;
+  - la API de staff limita las opciones a usuarios con rol `trainer` del mismo
+    gimnasio;
+  - no hay constraint de rol a nivel modelo.
+- Documentar punto de encuentro, recorrido, distancia Haversine y duración.
+- Explicar `BillingPriceMixin`:
+  - modo `monthly`: precio mensual obligatorio y mayor a 0;
+  - modo `sessions`: precio mensual forzado a 0;
+  - en una salida por sesiones el staff puede inscribir en modalidad mensual o
+    paquete;
+  - la modalidad mensual dentro de una salida por sesiones no genera cuota
+    mensual; sólo el paquete genera cobro por sesiones.
+- Aclarar que “$0 mensual” no significa necesariamente salida gratis: en modo
+  sesiones el cobro real está en el paquete.
+- Documentar la discrepancia del formulario: la ayuda visual sugiere
+  “0 = incluida en la membresía”, pero el backend rechaza precio mensual 0 en
+  modo mensual. No corregir la UI.
+- Referencias: `Outing`, `OutingSerializer`,
+  `BillingPriceMixin.apply_billing_price_rules`,
+  `Service.get_default_outings_service`, `FEATURE_OUTINGS`, `require_outings`.
+
+**§2 — Horarios**
+
+- Reemplazar la afirmación desactualizada de que “las salidas no validan
+  solapes”.
+- Documentar campos del horario, unicidad salida+día+inicio, `end > start` en
+  API y base, filtro de activos y baja lógica.
+- Documentar solape interno de la misma salida al crear/editar horario.
+- Documentar validación de agenda del socio al inscribir o solicitar:
+  `backend/outings/overlap.py · validate_enrollment` y
+  `backend/core/overlap.py · check_member_slot`, con conflictos contra
+  gimnasio, actividades, otras salidas y entrenamiento personal.
+- Aclarar que la validación de agenda ocurre en la inscripción/solicitud, no al
+  crear el horario.
+- Aclarar que `duration_minutes` es informativa; el bloque real usa
+  `start_time` y `end_time`.
+- Referencias: `OutingSchedule`, `OutingSchedule.Meta`,
+  `OutingScheduleSerializer.validate`, `_validate_no_overlap`,
+  `OutingScheduleViewSet.get_queryset`, `validate_enrollment`.
+
+**§3 — Inscripción, bajas y reinscripciones**
+
+- Documentar los dos caminos:
+  - staff: exige salida y horario activos; valida feature, gimnasio,
+    elegibilidad, modalidad, solape, cupo y duplicado; toma lock del horario con
+    `select_for_update`; crea la línea mensual si corresponde;
+  - portal: crea solicitud, valida elegibilidad, cupo, duplicado y solape; no
+    toma lock ni reserva cupo; bloquea salidas por sesiones.
+- Documentar que una solicitud pendiente no reserva cupo y que la aprobación
+  vuelve a validar, por lo que puede fallar si el horario se llenó.
+- Documentar que puede haber una solicitud pendiente de inscripción y una de
+  baja al mismo tiempo: la unicidad es por socio+tipo, no global.
+- Documentar bajas:
+  - staff puede dar de baja sin chequeo de elegibilidad;
+  - el portal exige elegibilidad para solicitar la baja;
+  - se marca la inscripción inactiva y se corta la facturación.
+- Documentar ADD-28:
+  - el ítem es por oferta, no por horario;
+  - si queda otro horario activo de la misma salida, el ítem no se cancela;
+  - se cancela al dar de baja el último horario activo.
+- Documentar reinscripciones:
+  - se crea una nueva fila de inscripción;
+  - si el ítem anterior fue cancelado, se crea uno nuevo al precio actual;
+  - si el ítem sigue activo, se reutiliza.
+- Verificar y documentar si el guard por oferta distingue modalidad cuando un
+  socio mezcla mensual y paquete en la misma salida.
+- Referencias: `OutingEnrollmentService.enroll_member`, `unenroll_member`,
+  `_ensure_outing_item`, `_cancel_outing_items`,
+  `ScheduleOutingEnrollmentViewSet.enroll`, `unenroll`, `OutingEnrollment.Meta`.
+
+**§4 — Solicitudes y aprobación**
+
+- Documentar tipos `enroll`/`unenroll` y estados `pending`, `approved`,
+  `rejected`, `cancelled_by_member`, `cancelled_by_staff`.
+- Documentar creación de solicitud de inscripción: sólo salidas mensuales;
+  valida elegibilidad, cupo, duplicado y solape; no reserva cupo.
+- Documentar creación de solicitud de baja: exige inscripción propia activa,
+  elegibilidad y una pendiente por tipo.
+- Documentar aprobación:
+  - revalida estado activo de salida/horario;
+  - revalida cupo, duplicado y solape;
+  - saltea elegibilidad de pago;
+  - responde 410 si la salida ya no está activa;
+  - si falla, la solicitud queda pendiente.
+- Documentar que la aprobación de baja opera sobre `request.schedule`, no
+  directamente sobre `request.enrollment`; verificar el caso de una solicitud
+  vieja que podría dar de baja una reinscripción posterior.
+- Documentar rechazo y cancelación: rechazo/approve guardan revisor, fecha y
+  notas; cancelación sólo cambia estado, sin revisor.
+- Documentar portal: lista inscripciones activas, solicitudes y salidas
+  disponibles; `available_outings` excluye salidas por sesiones, horarios ya
+  inscriptos, horarios con solicitud pendiente y horarios llenos.
+- Referencias: `OutingEnrollmentRequest`, `OutingEnrollmentRequest.Meta`,
+  `OutingEnrollmentRequestService`, `PublicMemberOutingsView.get`,
+  `PublicOutingEnrollmentRequestView.post/delete`, `_available_outings`.
+
+**§5 — Cobro**
+
+- Documentar salida mensual:
+  - crea o reutiliza un `SubscriptionItem` tipo `outing`;
+  - el precio nace de `outing.monthly_price`;
+  - se prorratea si la suscripción nació prorrateada;
+  - si el ítem activo ya existe, no se actualiza el precio salvo cortesía;
+  - si no hay suscripción vigente, verificar y documentar que no se crea ítem.
+- Documentar cortesía: línea mensual en $0, paquete con `session_price=0` y
+  pagos de paquete rechazados.
+- Documentar paquete:
+  - sólo en salidas `billing_mode="sessions"`;
+  - total de sesiones y precio por sesión definidos por staff;
+  - precio por sesión 0 permitido también para socios sin cortesía;
+  - pagos parciales con `Payment(concept="outing")`;
+  - `amount_paid` se sincroniza desde pagos;
+  - no se puede cobrar más que el total pendiente;
+  - deuda del paquete se suma a deuda del socio y del gimnasio.
+- Documentar baja:
+  - cancela ítems activos de la salida en suscripciones no vencidas;
+  - no toca períodos históricos;
+  - respeta ADD-28.
+- Documentar frontend: panel muestra “Por sesiones” y puede mostrar “Gratis”
+  cuando el precio mensual es 0; el modal permite mensual o paquete en salidas
+  por sesiones; la lista distingue mensual/paquete y muestra precio por sesión.
+- Referencias: `_ensure_outing_item`, `record_package_payment`,
+  `outing_sessions_paid`, `sync_outing_paid`, `member_outing_package_debt`,
+  `gym_outing_package_debt`, `_copy_outing_items`, `cancel_addon_items`.
+
+Problemas y decisiones de negocio a dejar explícitos:
+
+- Incorporar como notas “Importante” o “Decisión” dentro de 1–5, sin crear
+  secciones nuevas:
+  1. En modo sesiones la cuota mensual se fuerza a 0; el cobro real es el
+     paquete. La modalidad mensual dentro de una salida por sesiones no cobra
+     cuota.
+  2. En modo mensual el precio debe ser mayor a 0; para $0 hay que usar
+     cortesía. El formulario sugiere otra cosa.
+  3. Una solicitud pendiente no reserva cupo; la aprobación puede fallar
+     después.
+  4. El ítem de facturación es por oferta, no por horario.
+  5. La baja directa del staff no exige elegibilidad; la solicitud del portal
+     sí.
+  6. La aprobación saltea elegibilidad porque el staff ya la evaluó, pero no
+     saltea cupo, duplicado ni solape.
+- Verificar y documentar como comportamiento o limitación, sin corregir:
+  - mezcla de modalidades en la misma salida;
+  - solicitud de baja vieja que apunta al horario y no a la inscripción
+    original;
+  - inscripción mensual sin suscripción vigente;
+  - posible conteo de `available_spots` con socios eliminados.
+
+Verificación:
+
+1. Validar referencias:
+   `python3 scripts/check_audit_refs.py AUDITORIA-SALIDAS.md`.
+2. Confirmar que no queden referencias `backend/...:numero` en secciones 1–5.
+3. Confirmar con `git diff` que las secciones 6–9 no cambiaron.
+4. Publicar los cambios y dejar que CI ejecute los tests de `outings`; no
+   correrlos localmente en la sesión de edición.
+5. Revisar que cabecera e índice sean coherentes con el estado parcial.
+
+Criterio de cierre:
+
+- Secciones 1–5 reescritas con referencias híbridas válidas.
+- Secciones 6–9 intactas.
+- Cabecera e índice actualizados al estado parcial.
+- Tests de `outings` verdes en CI.
+- Sin cambios de código ni de tests.
+
+#### Fase 5.4 — Salidas: sesiones sin faltas y ciclo de vida
+
+Documento:
+
+- `AUDITORIA-SALIDAS.md`, secciones 6–9 (`:388-537`) y
+  `### Notas de entorno` (`:538-553`).
+
+Alcance:
+
+- Reescribir sólo §6–§9 y las notas finales.
+- No tocar §1–§5, código, tests ni commits.
+- Convertir las referencias numéricas restantes a referencias híbridas por
+  símbolo (`backend/... · Clase.metodo`).
+- No ejecutar tests localmente: validar con CI, igual que en Fase 5.3.
+
+Decisión de ejecución: dividir la fase en dos pasadas para evitar una edición
+masiva y facilitar la validación.
+
+##### 5.4a — Sesiones y ciclo de vida (§6–§7)
+
+Tareas:
+
+1. Reescribir §6 con el comportamiento actual:
+   - las sesiones sólo aplican a inscripciones de modalidad `package`;
+   - carga manual por staff y automática por check-in;
+   - registro idempotente por `(inscripción, fecha, horario)`;
+   - el registro automático se traga los errores y no impide el ingreso;
+   - el staff puede quitar una sesión y renovar el paquete;
+   - la renovación con saldo impago se rechaza por defecto, pero existe el
+     override explícito `allow_unpaid`;
+   - regla ACC-08: con una sola inscripción de paquete ese día se descuenta
+     aunque el check-in caiga fuera de la ventana; con varias, sólo se
+     descuentan las que caen en ventana; sin candidatos, no se descuenta;
+   - no existe job de no-asistencia ni recuperaciones para salidas.
+2. Reescribir §7 con el comportamiento actual:
+   - desactivar la salida apaga los horarios activos, los marca como
+     `auto_deactivated`, desactiva las inscripciones y corta la facturación;
+   - reactivar restaura sólo los horarios `auto_deactivated`; los apagados a
+     mano siguen apagados;
+   - `restore_schedules=false` permite reactivar sin restaurar horarios;
+   - crear un horario activo en una salida inactiva la activa;
+   - no se puede desactivar el último horario activo de una salida activa;
+   - no se puede guardar una salida activa sin horarios activos;
+   - documentar el flujo visual “Restaurar horarios anteriores” vs “Crear
+     nuevos horarios” y el estado de reactivación pendiente.
+3. Revisar `backend/outings/session_service.py`,
+   `backend/outings/models.py`, `backend/outings/views.py`,
+   `backend/attendance/checkin_discount.py`,
+   `backend/outings/serializers.py`, `backend/outings/public_views.py`,
+   `frontend/src/pages/Outings.jsx`,
+   `frontend/src/pages/OutingEnrollments.jsx`,
+   `frontend/src/pages/member/MemberOutings.jsx` y
+   `frontend/src/dev/OutingsFlow.jsx`.
+4. Revisar los tests de `tests_deactivation.py` y `tests_phase_k2.py`
+   (ADD-09, ADD-10, ADD-14, ADD-15, ADD-16, ADD-28).
+
+Cierre parcial:
+
+- §6–§7 reescritas con referencias por símbolo.
+- Validador sin errores.
+- §1–§5 y §8–§9 intactas.
+
+##### 5.4b — Límites, problemas y cierre (§8–§9)
+
+Tareas:
+
+1. Corregir afirmaciones desactualizadas de §8 y §9:
+   - §8 ya **sí valida solapes** al inscribir o solicitar, mediante
+     `backend/outings/overlap.py · validate_enrollment` y
+     `backend/core/overlap.py · check_member_slot`; no valida al crear
+     horarios;
+   - desactivar una salida **sí corta la facturación** y desactiva las
+     inscripciones (`backend/outings/models.py · Outing.save`,
+     `backend/outings/enrollment_service.py · cut_outing_billing`);
+   - el portal **ya oculta** inscripciones a horarios desactivados (ADD-10);
+   - el auto-conteo depende de ACC-08, no sólo de la ventana horaria;
+   - la renovación bloqueada por saldo impago es el comportamiento por defecto,
+     con override desde la UI;
+   - reactivar ya no revive todos los horarios: sólo los `auto_deactivated`.
+2. Conservar y verificar los límites que sigan vigentes: sin lista de espera,
+   sin inscripción en onboarding, sin autoinscripción de paquetes, sin no-show,
+   sin recuperaciones, sin cobro anticipado, sin versionado o actualización de
+   precios, sin notificaciones, sin distinción de roles en el backend y sin cupo
+   de gimnasio.
+3. Actualizar las notas de entorno y convertir sus referencias numéricas.
+4. Dejar explícitas las decisiones de negocio como notas “Importante” o
+   “Decisión” dentro de §6–§9, sin crear secciones nuevas.
+5. Mantener como riesgos actuales, si siguen vigentes:
+   - desincronización del saldo del paquete si se cobra por fuera del flujo;
+   - mezcla de modalidades y guard de ADD-28;
+   - solicitud de baja vieja que apunta al horario y no a la inscripción;
+   - conteo de cupos disponible sin filtrar socios eliminados.
+6. Actualizar la cabecera a documento completo y la fila 14 de
+   `AUDITORIA-INDEX.md` a `5.3–5.4` / `Verificado`, sólo con CI verde; si CI
+   sigue pendiente, dejar `En curso Fase 5.4`.
+
+Verificación:
+
+1. Validar referencias:
+   `python3 scripts/check_audit_refs.py AUDITORIA-SALIDAS.md`.
+2. Confirmar que no queden referencias `backend/...:numero` en §6–§9 ni en las
+   notas de entorno.
+3. Confirmar con `git diff` que §1–§5 no cambiaron.
+4. Publicar los cambios y dejar que CI ejecute los tests de `outings`; no
+   correrlos localmente en la sesión de edición.
+5. Revisar que cabecera e índice sean coherentes con el estado final.
+
+Criterio de cierre:
+
+- Documento completo, con §6–§9 y notas reescritas con referencias válidas.
+- §1–§5 intactas.
+- Cabecera e índice actualizados.
+- Tests de `outings` verdes en CI.
+- Sin cambios de código ni de tests.
+
+#### Fase 5.5 — Personal Training: oferta, trainers y asignaciones
+
+Documento:
+
+- `AUDITORIA-PERSONAL-TRAINING.md`, secciones 1–5 (`:10-152`).
+
+Tareas:
+
+1. Documentar la feature `personal_training` y su activación.
+2. Documentar la oferta, los trainers y la asignación 1:1.
+3. Documentar quién carga cada dato y la validación de solapes.
+4. Revisar backend (`models`, `serializers`, `availability`, `assignment_service`, `overlap`, `views`) y frontend (`PersonalTrainingSettings`, parte de oferta/trainers/asignaciones).
+5. Actualizar problemas y decisiones de negocio de las secciones 1–5.
+
+Criterio de cierre:
+
+- Secciones 1–5 reescritas con referencias híbridas válidas.
+- Tests de `personal_training` verdes.
+
+#### Fase 5.6 — Personal Training: cobro, paquetes y sesiones
+
+Documento:
+
+- `AUDITORIA-PERSONAL-TRAINING.md`, secciones 6–7 (`:153-255`).
+
+Tareas:
+
+1. Documentar cobro mensual vs paquete de sesiones y origen del precio.
+2. Documentar sellado, renovación, deuda y dónde se cobra.
+3. Documentar uso de sesiones, faltas y recuperaciones.
+4. Revisar `session_service`, servicios de cobro/paquetes y su cruce con `subscriptions`/`payments`, y frontend (`PersonalTrainingAttendance` y parte de precios de `PersonalTrainingSettings`).
+5. Actualizar problemas y decisiones de negocio de las secciones 6–7.
+
+Criterio de cierre:
+
+- Secciones 6–7 reescritas con referencias híbridas válidas.
+- Tests de sesiones y paquetes verdes.
+
+#### Fase 5.7 — Personal Training: flujos, agenda y cierre del documento
+
+Documento:
+
+- `AUDITORIA-PERSONAL-TRAINING.md`, secciones 8–13 (`:256-446`).
+
+Tareas:
+
+1. Documentar solicitudes de cambio de horario y su aprobación.
+2. Documentar agenda del trainer, portal del socio, asistencia y métricas.
+3. Documentar desvincular, reactivar y renovar.
+4. Actualizar “Lo que NO hace”, problemas y decisiones de negocio.
+5. Revisar `change_request_service`, `public_views`, tests `k2/k3/k7` y de desactivación, y frontend (`TrainerAgenda`, `MemberPersonalTraining`, `dev/PersonalTrainingFlow`).
+
+Criterio de cierre:
+
+- Documento completo con referencias válidas.
+- Tests de `personal_training` verdes.
+
+#### Fase 5.8 — Integración y cierre de Add-ons
+
+Documentos:
+
+- Los 3 documentos de la fase.
+
+Tareas:
+
+1. Contrastar diferencias entre actividades, salidas y PT, especialmente que salidas no tiene no-show.
+2. Revisar coherencia de terminología y enlaces cruzados.
+3. Revisar que las decisiones de negocio estén marcadas como tales.
+4. Actualizar `AUDITORIA-INDEX.md` con las filas 13–15 y su estado final.
+5. Ejecutar la validación global de la fase.
+
+Comandos de verificación:
+
+```bash
+python scripts/check_audit_refs.py AUDITORIA-ACTIVIDADES.md AUDITORIA-SALIDAS.md AUDITORIA-PERSONAL-TRAINING.md
+cd backend && python manage.py test activities outings personal_training
+```
+
+Criterio de cierre:
+
+- Las 3 auditorías reflejan K1–K3/K7.
+- Referencias válidas.
+- Tests de `activities`, `outings` y `personal_training` verdes.
+- Índice actualizado.
+
+---
+
+### Fase 6 — Rutinas y comunidad
+
+Documentos:
+
+- `AUDITORIA-RUTINAS.md`
+- `AUDITORIA-COMUNIDAD.md`
+
+Tareas:
+
+1. Documentar qué es una rutina y qué no.
+2. Documentar catálogo de ejercicios, armado, asignación y ejecución.
+3. Documentar progreso, registro y permisos.
+4. Documentar soft delete, unicidad de rutina activa y endpoint público.
+5. Documentar comunidad: modelo, feature toggle, gestión y tarjeta pública.
+6. Documentar soft delete, unicidad y estados de comunidad.
+7. Revisar cambios posteriores al 20/10.
+8. Actualizar problemas y decisiones de negocio.
+
+Criterio de cierre:
+
+- Ambos documentos revalidados contra el código actual.
+- Referencias válidas.
+- Tests de `routines` y `community` verdes.
+
+---
+
+### Fase 7 — Configuración e integración
+
+Documento:
+
+- `AUDITORIA-CONFIGURACION.md`
+
+Tareas:
+
+1. Reescribir el documento completo, corrigiendo el salto de secciones.
+2. Documentar datos básicos, pagos, planes y horarios, recuperación de clases, descuentos, obras sociales, fechas cerradas, horarios del gimnasio, QR, SEO, features y PWA.
+3. Documentar qué configura el dueño/staff y qué impacto tiene cada valor.
+4. Actualizar efectos cruzados entre módulos.
+5. Eliminar referencias a bugs ya cerrados y marcar decisiones de negocio.
+6. Revisar coherencia con las fases 1–6.
+7. Verificar enlaces cruzados entre todas las auditorías.
+
+Criterio de cierre:
+
+- Documento completo y sin contradicciones.
+- Referencias válidas.
+- Tests de `gyms` y `config` verdes.
+
+---
+
+### Fase 8 — Cierre y publicación
+
+Documentos:
+
+- Todos.
+- `AUDITORIA-INDEX.md`.
+
+Tareas:
+
+1. Ejecutar el validador de referencias sobre las 18 auditorías.
+2. Revisar que cada documento tenga cabecera, alcance y fecha.
+3. Revisar que no queden afirmaciones obsoletas de bugs ya cerrados.
+4. Revisar que las decisiones de negocio estén marcadas como tales.
+5. Revisar enlaces entre documentos.
+6. Revisar terminología y tono.
+7. Actualizar el índice con estado final.
+8. Ejecutar la suite completa del backend y el lint/build del frontend.
+9. Registrar el commit final de verificación en todas las cabeceras.
+
+Comandos de verificación:
+
+```bash
+python scripts/check_audit_refs.py AUDITORIA-*.md
+cd backend && python manage.py test subscriptions members attendance payments plans config activities outings gyms admins accounts personal_training routines community profiles seed core
+cd backend && python manage.py makemigrations --check --dry-run
+cd frontend && pnpm lint
+cd frontend && pnpm build
+```
+
+Criterio de cierre:
+
+- 0 rutas inexistentes.
+- 0 símbolos canónicos no encontrados.
+- 0 líneas de snapshot fuera de rango.
+- Suite backend verde.
+- Lint y build de frontend verdes.
+- Índice completo y actualizado.
+
+---
+
+## 6. Flujo de trabajo por documento
+
+1. Leer el documento actual completo.
+2. Extraer afirmaciones, reglas, pantallas y referencias.
+3. Identificar qué cambió desde la última verificación.
+4. Recorrer `models → serializers → services → views → frontend`.
+5. Cruzar con tests y con `BUGS.md`/`PLAN-bugs.md`.
+6. Reescribir el texto descriptivo.
+7. Reemplazar referencias por el formato híbrido.
+8. Actualizar “Lo que NO hace” y “Problemas”.
+9. Agregar snapshot de referencias si aporta precisión.
+10. Validar referencias y ejecutar los tests del módulo.
+11. Marcar el documento como verificado en el índice.
+
+---
+
+## 7. Riesgos y mitigaciones
+
+| Riesgo | Mitigación |
+|---|---|
+| Las auditorías vuelven a quedar obsoletas | Cabecera con commit/fecha, índice y validador de referencias |
+| Las líneas se desfasan | Referencias por símbolo; líneas solo como snapshot |
+| Se descubre un bug y se mezcla con la auditoría | Se documenta como problema y se propone alta en `BUGS.md`; no se arregla código |
+| Contradicciones entre documentos | Fase 7 de integración y revisión cruzada final |
+| Se documenta solo el backend y no la UI | Revisión obligatoria de pantallas y servicios del frontend |
+| El branch avanza durante la ejecución | Congelar baseline y actualizar cabeceras al commit final |
+| Se confunde decisión de negocio con bug | Marcarlas explícitamente y linkear `BUGS.md` |
+
+---
+
+## 8. Definition of Done
+
+- Las 13 auditorías existentes están actualizadas in-place.
+- Las 5 auditorías nuevas están creadas.
+- `AUDITORIA-INDEX.md` está completo.
+- Todas las auditorías tienen cabecera de verificación.
+- Todas las referencias canónicas resuelven a archivo y símbolo existentes.
+- No quedan afirmaciones obsoletas de funcionalidades ya cambiadas.
+- “Lo que NO hace” y “Problemas” reflejan el estado actual.
+- Las decisiones de negocio están marcadas y vinculadas.
+- El validador de referencias pasa sin errores.
+- La suite completa del backend pasa.
+- `pnpm lint` y `pnpm build` pasan.
+- No se modificó código de producto.
+- No se hicieron commits sin pedido explícito.
+
+---
+
+## 9. Supuestos
+
+- Se actualiza in-place.
+- Se usa referencia híbrida por símbolo + snapshot opcional de líneas.
+- Se incluyen las 5 auditorías nuevas y el índice.
+- El alcance es descriptivo: no se corrigen bugs en esta tarea.
+- Los hallazgos nuevos se documentan y, si corresponde, se propone su alta en `BUGS.md`.
+- Cada fase se cierra antes de empezar la siguiente.

@@ -1,5 +1,12 @@
 # Auditoría de Planes — Cómo funciona hoy el catálogo de planes
 
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-10-30
+> Alcance: catálogo de planes, plan base, precios, ciclo de vida y reglas de cambio. No cubre cobros, renovación ni recuperación.
+> Documentos relacionados: `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-PAGOS.md`, `AUDITORIA-MIEMBROS.md`
+> Código cubierto: `backend/plans`, `frontend/src/pages/Plans.jsx`, `frontend/src/components/plans/PlanChangeModal.jsx`
+> Estado: verificado
+
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Está pensado para servir de base a un manual para gimnasios, por eso está escrito
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para
