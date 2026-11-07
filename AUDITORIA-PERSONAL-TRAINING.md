@@ -5,8 +5,8 @@
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para
 > no ensuciar el texto.
 >
-> **Estado:** secciones 1–5 verificadas en la Fase 5.5. Las secciones 6–13 siguen
-> pendientes de las fases 5.6 y 5.7; el documento completo se marcará como
+> **Estado:** secciones 1–7 verificadas en las Fases 5.5–5.6. Las secciones 8–13
+> siguen pendientes de la Fase 5.7; el documento completo se marcará como
 > `Verificado` al cerrar la Fase 5.7.
 
 ---
@@ -210,104 +210,238 @@
 
 ## 6. Cómo se paga
 
-Hay **dos formas** de cobrar el entrenamiento personal, según la **modalidad de la
-asignación** (que a su vez depende de la modalidad de la oferta):
+Hay **dos modalidades** de asignación, y cada una se cobra distinto. La modalidad
+se guarda en la asignación (`monthly` o `package`); la pantalla la deriva del
+**modo de facturación de la oferta** (`billing_mode`): una oferta mensual genera
+asignaciones mensuales y una oferta "por sesiones" genera paquetes. El backend
+exige que la oferta esté en modo **"por sesiones"** para crear un paquete.
+
+**Limitación técnica:** como la pantalla deriva la modalidad del modo de
+facturación, no ofrece combinaciones raras; pero por API todavía se puede crear
+una asignación **mensual** sobre una oferta configurada **por sesiones**. No es
+un flujo que use la UI.
 
 ### Mensual
-- Al asignar se crea (o se reutiliza) una **línea de facturación**
-  (`SubscriptionItem` de tipo `personal_training`) dentro de la **suscripción
-  vigente** del socio.
-- El precio se toma de la **cuota mensual** de la oferta y queda **congelado**. Si
-  la suscripción nació **prorrateada**, la línea también se prorratea.
-- Para socios de **cortesía** (`is_comp`), la línea se factura en **$0**.
-- Se cobra **todos los meses** junto con la cuota del socio, como cualquier plan. No
-  tiene seguimiento de sesiones.
+- Al asignar, el sistema busca la **suscripción vigente** del socio y crea (o
+  reutiliza) una **línea de facturación** de tipo `personal_training`.
+- Varias asignaciones mensuales de la **misma oferta** comparten una sola línea
+  activa: no se cobra dos veces la misma oferta.
+- El precio sale de la **cuota mensual** de la oferta y queda guardado como
+  **precio del período** (`price_snapshot`). Si la suscripción nació
+  **prorrateada**, la línea también se prorratea.
+- El precio queda **fijo para el período ya emitido**: cambiar la cuota mensual
+  de la oferta no repricea ese período. Al copiarse al período siguiente se toma
+  el precio **vigente** de la oferta en ese momento.
+- Para socios de **cortesía** (`is_comp`), la línea se crea en **$0**.
+- Si la línea **ya existía**, el precio se **actualiza** al de la asignación
+  nueva: asignar un socio de cortesía a una oferta que ya tiene línea puede
+  dejarla en **$0** para todos los que la comparten.
+- La línea se **copia al período siguiente** junto con la suscripción, siempre que
+  la oferta siga activa y la feature de PT esté habilitada. Las ofertas en modo
+  paquete **no** se copian: los paquetes no generan cuota mensual.
+- Al desvincular la **última** asignación activa de una oferta, la línea se
+  cancela en las suscripciones no vencidas. Desactivar la oferta corta el cobro de
+  todas sus asignaciones.
+- **Limitación:** si el socio no tiene suscripción vigente, la asignación se crea
+  igual pero **sin línea de facturación**, así que no se cobra nada por mes.
 
-### Paquete de sesiones (por sesiones)
-- El staff define el **total de sesiones** y el **precio por sesión** (coseguro). El
-  monto por sesión es **obligatorio** (usar 0 si la obra social cubre o es sin
-  cargo).
-- Opcionalmente se define un **sellado / coseguro** (`sellado_amount`): un monto
-  **único** que el gimnasio cobra una sola vez por paquete.
+### Paquete de sesiones
+- El staff define el **total de sesiones**, el **precio por sesión** (obligatorio,
+  puede ser 0) y, opcionalmente, un **sellado**.
+- El total del paquete es **precio por sesión × total de sesiones**.
 - El sistema **no cobra el paquete por adelantado**: se registran **pagos
-  parciales** contra el total (`precio por sesión × total de sesiones`).
-- Cada cobro crea un `Payment` con concepto **`personal_training`**. El monto
-  acumulado (`amount_paid`) se **sincroniza desde esos pagos**: **los pagos son la
-  fuente de verdad**.
-- **No se puede cobrar más** que el saldo pendiente. A los socios de **cortesía** no
-  se les cobra.
-- El **sellado** se cobra aparte con concepto **`sellado`**: debe ser exactamente el
-  monto configurado, y una sola vez por paquete (mientras siga vigente).
+  parciales** con concepto `personal_training`. **Los pagos son la fuente de
+  verdad** del monto pagado (`amount_paid`), y el saldo pendiente es el total menos
+  lo pagado (nunca negativo).
+- **No se puede cobrar más** que el saldo pendiente. La validación existe en dos
+  capas: el servicio de la asignación y el serializador de pagos.
+- A los socios de **cortesía** no se les cobra: el precio por sesión queda en 0 y
+  no se les pide sellado.
+- El paquete **no genera cuota mensual** ni se renueva solo.
+
+### Sellado
+- Sólo se configura en **paquetes**; en una asignación mensual el backend lo
+  descarta.
+- Se cobra **aparte**, con concepto `sellado`, por el **monto exacto** configurado.
+- Es **único por asignación**: se cobra una vez y **no se repite al renovar** el
+  paquete (DIN-18). Sigue pagado aunque el paquete se agote o se reactive.
+- El estado `sellado_paid` se **recalcula desde los pagos**: si existe el pago de
+  sellado, queda pagado; si se borra, vuelve a pendiente.
+- A los socios de **cortesía** no se les cobra.
 
 ### Deuda
-- El saldo pendiente de los paquetes de PT se suma a la **deuda del socio** y a la
-  deuda del **gimnasio**, y aparece en **Pagos** y en el portal del socio.
+- La deuda por **paquetes de PT** y por **sellados** se suma a la deuda del socio
+  y a la del gimnasio.
+- **Paquetes:** sólo cuentan los que tienen saldo **mayor a cero**, asignación
+  **activa** y socio **no de cortesía**.
+- **Sellados:** sólo cuentan las asignaciones **activas** con sellado configurado
+  y **no cobrado**, de socios **no eliminados** y **no de cortesía**.
+- El **agregado** del socio combina suscripciones, paquetes (actividades, PT y
+  salidas) y sellados. El listado de deudores del gimnasio también incluye PT y
+  sellado.
+- Se ve en la pantalla de **Pagos** (el formulario lista los paquetes y sellados
+  pendientes), en **Recuperar socios** y en el **resumen del dashboard**. El portal
+  público de PT no muestra saldos.
 
 ### Dónde se cobra
-- El cobro real ocurre desde la pantalla de **Pagos** (el formulario de pago lista
-  los paquetes de PT y el sellado como ítems a cobrar) y desde **Recuperar socios**.
-- El endpoint `record_payment` de la asignación existe y funciona, pero la pantalla
-  de entrenamiento personal **no lo usa**.
+- La pantalla de **Pagos** cobra PT y sellado con el formulario genérico (grupos
+  "PT" y "Sellado").
+- **Recuperar socios** cobra los paquetes de PT llamando directamente al endpoint
+  `record_payment` de la asignación.
+- El endpoint existe y **está en uso**. No hay cobro automático al renovar ni al
+  agotarse el paquete: el cobro siempre lo registra el staff.
+
+### Problemas y decisiones de negocio
+- **Decisión:** la modalidad mensual se factura por suscripción; el paquete se
+  cobra por sesiones.
+- **Decisión:** el precio por sesión es obligatorio y puede ser 0 (obra social o
+  sin cargo).
+- **Decisión:** el sellado es único por asignación y no se repite al renovar.
+- **Decisión:** un socio de cortesía nunca paga sesiones ni sellado.
+- **Limitación:** una línea mensual compartida puede pasar a $0 si después se
+  asigna un socio de cortesía a la misma oferta en esa suscripción.
+- **Limitación:** sin suscripción vigente no se genera línea ni cobro mensual.
+- **Limitación:** la pantalla puede precargar un sellado al asignar en modalidad
+  mensual, pero el backend lo ignora.
+- **Inconsistencia documentada:** `backend/payments/views.py · PaymentViewSet.perform_destroy`
+  y `backend/subscriptions/services.py · member_sellado_debt` todavía documentan
+  que la renovación "resetea" el sellado; el comportamiento actual es el
+  contrario.
 
 ### Referencia
-- Línea mensual: `_ensure_pt_item` `backend/personal_training/assignment_service.py:303-335`
-  (prorrateo `:329-331`; cortesía $0 `:134`); tipo de ítem
-  `backend/subscriptions/models.py:205,241-242,299-300`.
-- Paquete: datos en `backend/personal_training/models.py:164-195`; totales
-  `:235-254`.
-- Cobro del paquete: `record_package_payment` `backend/personal_training/assignment_service.py:215-291`
-  (`Payment(concept="personal_training")` `:274-286`; tope del saldo `:266-272`;
-  cortesía `:235-238`); sincronización `backend/payments/services.py:26-33,69-78`
-  (`assignment_sessions_paid`, `sync_assignment_paid`).
-- Sellado: `backend/payments/serializers.py:185-199` (`_validate_sellado`);
-  `backend/payments/services.py:46-56` (`sellado_paid_exists`).
-- Deuda: `backend/subscriptions/services.py:812-846` y `:911-933`
-  (`member_personal_training_package_debt`, `gym_personal_training_package_debt`,
-  entradas `type="personal_training_package"`); se suma al listado `:1101`;
-  dashboard `backend/config/api/dashboard.py:220-225`.
-- Dónde se cobra: `frontend/src/components/payments/PaymentForm.jsx:129-179`
-  (grupos "PT" y "Sellado"); `frontend/src/pages/RecoverMembers.jsx:230,260-277`.
-- Continuidad entre períodos/renovaciones: `_copy_personal_training_items`
-  `backend/subscriptions/services.py:139-183`; reactivación `backend/subscriptions/domain.py:220,267-269,381-384`.
-- Baja de líneas: `_cancel_pt_items` `backend/personal_training/assignment_service.py:338-363`.
+- Línea mensual y alta: `backend/personal_training/assignment_service.py · AssignmentService.assign_member`,
+  `_ensure_pt_item`; tipo de ítem `backend/subscriptions/models.py · SubscriptionItem`.
+- Precio del período: `backend/subscriptions/services.py · prorated_price_for`.
+- Paquete: `backend/personal_training/models.py · PersonalTrainingAssignment`,
+  `PersonalTrainingAssignment.total_amount`, `PersonalTrainingAssignment.remaining_amount`,
+  `PersonalTrainingAssignment.exhausted`.
+- Cobro del paquete: `backend/personal_training/assignment_service.py · AssignmentService.record_package_payment`;
+  sincronización `backend/payments/services.py · assignment_sessions_paid`,
+  `sync_assignment_paid`.
+- Sellado: `backend/payments/serializers.py · PaymentSerializer._validate_sellado`;
+  `backend/payments/serializers.py · PaymentSerializer._validate_package_amount`;
+  `backend/payments/services.py · sellado_paid_exists`,
+  `set_sellado_paid`.
+- Deuda: `backend/subscriptions/services.py · member_personal_training_package_debt`,
+  `gym_personal_training_package_debt`, `_pt_package_debt_entries`,
+  `member_sellado_debt`, `gym_sellado_debt`, `member_total_outstanding_debt`,
+  `gym_debtor_member_ids`; resumen `backend/config/api/dashboard.py · DashboardSummaryView`.
+- Dónde se cobra: `frontend/src/components/payments/PaymentForm.jsx · pendingItems`;
+  `frontend/src/services/personalTraining.service.js · recordPersonalTrainingPayment`;
+  `frontend/src/pages/RecoverMembers.jsx`.
+- Continuidad entre períodos: `backend/subscriptions/services.py · _monthly_pt_service_ids`,
+  `_copy_personal_training_items`.
+- Baja de líneas: `backend/personal_training/assignment_service.py · _cancel_pt_items`,
+  `cut_service_billing`.
+- Pantalla de PT: `frontend/src/pages/PersonalTrainingSettings.jsx · AssignmentCard`,
+  `AssignModal`.
 
 ---
 
 ## 7. Cómo se usa (sesiones, faltas y renovación)
 
-- **Sólo los paquetes** tienen sesiones. Una asignación mensual no registra nada.
-- Hay **dos formas** de registrar una sesión (siempre del lado del staff; **no**
-  hay check-in automático por QR para PT como en las clases):
+### Qué asignaciones tienen sesiones
+- Sólo las de modalidad **paquete**. Una asignación mensual no registra sesiones
+  ni tiene progreso.
+
+### Registro de sesiones
+- El staff registra una sesión desde la asignación, indicando la **fecha** (por
+  defecto, hoy).
+- Orígenes posibles:
 
   | Origen | Cuándo pasa |
   |--------|-------------|
   | **Manual** (`manual`) | El staff la registra a mano desde la asignación |
-  | **Automática** (`auto`) | Reservado para automatismos internos; hoy la carga visible es manual |
-  | **No asistió** (`no_show`) | La crea el **job de faltas** (ver abajo) |
+  | **No asistió** (`no_show`) | La crea la tarea de faltas |
+  | **Automática** (`auto`) | Reservado para automatismos; hoy no hay carga visible que lo use |
 
 - El registro es **idempotente por (asignación, fecha)**: repetir el mismo día no
-  duplica ni cobra dos veces (responde 409).
-- El staff puede **quitar** una sesión (corrección) y **renovar** el paquete
-  agregando sesiones extra.
-- **A diferencia de las salidas, acá SÍ se descuentan las faltas**: un job diario
-  crea un registro `no_show` por cada clase esperada a la que el socio no asistió,
-  para todas las asignaciones de paquete activas. Así el paquete **se agota por
-  inasistencia**. El job avanza un **marcador** (`no_show_scan_until`) para no
-  contar dos veces la misma fecha.
-- **Renovar** agrega sesiones al total, **reactiva** la asignación y **resetea el
-  sellado** (`sellado_paid = False`). Para socios de cortesía deja el precio en $0.
-  **No se puede renovar si el socio tiene saldo sin cobrar**.
+  duplica ni cobra dos veces; responde **409**.
+- Se rechaza si la asignación no es paquete, está inactiva o el paquete ya se
+  agotó.
+- **Limitación:** no se valida que la fecha elegida corresponda al día del horario
+  ni al período de la asignación: se acepta cualquier fecha.
+
+### Quitar sesiones
+- El staff puede **borrar** el registro de una fecha para corregir.
+- Sólo aplica a paquetes; si no hay registro en esa fecha, responde **404**.
+- No toca pagos, deuda ni sellado. Puede borrar registros `manual`, `auto` o
+  `no_show` (no distingue el origen).
+
+### Renovación
+- Sólo aplica a **paquetes**.
+- **Suma** las sesiones indicadas al total y **reactiva** la asignación.
+- Para cortesía deja el precio por sesión en 0.
+- **No cobra**: no crea pagos. El cobro se registra después desde Pagos.
+- **No resetea el sellado**: se cobra una sola vez por asignación (DIN-18).
+- Si el socio tiene **sesiones sin cobrar**, la renovación se **bloquea por
+  defecto**. El staff puede forzarla de forma explícita (`allow_unpaid`); la
+  pantalla pregunta y confirma antes de hacerlo.
+- Al renovar, el total del paquete crece, así que las sesiones agregadas pueden
+  generar **nuevo saldo pendiente**.
+- Las sesiones ya usadas y sus registros se conservan.
+- **Limitación:** no hay tope máximo de sesiones por renovación.
+
+### Faltas y no asistencia
+- Una **tarea programada** (no un job diario fijo) corre con la cadencia
+  configurada: primero renueva suscripciones automáticas y después descuenta las
+  faltas.
+- Para PT sólo procesa asignaciones de **paquete activas**, con oferta activa y
+  socio no eliminado.
+- Recorre las fechas esperadas **desde el alta de la asignación** (o desde el
+  marcador `no_show_scan_until`) **hasta ayer**, salteando los días en que el
+  gimnasio estuvo cerrado. El día de hoy no se descuenta: el barrido llega hasta
+  ayer.
+- Por cada fecha esperada sin registro de sesión crea un registro `no_show`: así
+  el paquete **se agota también por inasistencia**.
+- **Cap:** nunca deja sesiones restantes negativas; si el paquete se agota, deja de
+  descontar.
+- El **marcador** `no_show_scan_until` evita contar dos veces la misma fecha.
+  Avanza sólo cuando no quedan faltas pendientes; si el paquete se agotó o el tope
+  truncó faltas, no avanza más allá de la última falta cobrada.
+
+### Recuperaciones de PT
+- PT usa el mismo motor de recuperaciones que las actividades, con tipo `pt` y
+  referencia a la asignación.
+- Una recuperación **programada** cubre la **falta más reciente**: así "falta +
+  recuperación" cuesta una sola sesión.
+- Al otorgar la recuperación se **borra** la falta más reciente que perdona; las
+  faltas ya perdonadas no se vuelven a descontar.
+- El descuento automático **respeta las recuperaciones en vuelo**: no descuenta las
+  últimas faltas que ya tienen una recuperación programada.
+- La recuperación se consume recién cuando el socio asiste el día programado; si
+  no la usa, vence.
+- La pantalla de **Asistencia PT** es de consulta (métricas y chips); el registro
+  real está en la configuración de PT.
+
+### Problemas y decisiones de negocio
+- **Decisión:** sólo los paquetes descuentan faltas; las asignaciones mensuales
+  (y las salidas) no lo hacen.
+- **Decisión:** PT comparte el motor de faltas y recuperaciones con actividades.
+- **Decisión:** renovar no cobra ni resetea el sellado.
+- **Decisión:** una deuda pendiente bloquea la renovación salvo confirmación
+  explícita del staff.
+- **Limitación:** registrar una sesión acepta cualquier fecha.
+- **Limitación:** quitar una sesión no distingue su origen.
+- **Limitación:** la renovación no tiene tope máximo.
 
 ### Referencia
-- Modelo de sesión: `backend/personal_training/models.py:31-35,268-309`
-  (`PersonalTrainingSessionRecord`); único por asignación+fecha `:301-306`.
-- Servicio de sesiones: `backend/personal_training/session_service.py:15-103`
-  (`record_session` `:16-46`, `remove_session` `:48-63`, `renew_package` `:65-102`;
-  bloqueo por saldo sin cobrar `:81-89`).
-- Faltas de PT: `deduct_missed_pt_assignments` `backend/activities/no_show_service.py:196-232`;
-  disparo del job en `backend/subscriptions/services.py:2062-2064`.
-- Acciones del staff: `backend/personal_training/views.py:206-296`
-  (`record_session`, `remove_session`, `renew`, `record_payment`).
+- Modelos: `backend/personal_training/models.py · PersonalTrainingAssignment`,
+  `PersonalTrainingSessionRecord`, `PersonalTrainingAssignment.used_sessions`,
+  `PersonalTrainingAssignment.exhausted`.
+- Servicio de sesiones: `backend/personal_training/session_service.py · SessionService.record_session`,
+  `SessionService.remove_session`, `SessionService.renew_package`.
+- Acciones del staff: `backend/personal_training/views.py · PersonalTrainingAssignmentViewSet.record_session`,
+  `PersonalTrainingAssignmentViewSet.remove_session`,
+  `PersonalTrainingAssignmentViewSet.renew`.
+- Faltas: `backend/activities/no_show_service.py · deduct_missed_sessions`,
+  `deduct_missed_pt_assignments`, `_deduct_pt_assignment`,
+  `_pending_pt_recovery_credits`, `_bind_pending_pt_recoveries`,
+  `cancel_recovered_no_show_pt`.
+- Disparo: `backend/subscriptions/services.py · run_scheduled_tasks`;
+  `backend/config/api/tasks.py · scheduled_tasks_endpoint`.
+- Pantallas: `frontend/src/pages/PersonalTrainingSettings.jsx · AssignmentCard`;
+  `frontend/src/pages/PersonalTrainingAttendance.jsx · AttendanceChips`.
 
 ---
 

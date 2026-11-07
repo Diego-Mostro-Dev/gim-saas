@@ -48,7 +48,7 @@ Estados posibles:
 | 12 | `AUDITORIA-HORARIOS.md` | 4 | Cambios permanentes, intercambios, límites y aprobaciones | `backend/attendance` | `Verificado` |
 | 13 | `AUDITORIA-ACTIVIDADES.md` | 5.1–5.2 | Actividades, horarios, inscripciones, cobro, sesiones y no-show | `backend/activities` | `Verificado` |
 | 14 | `AUDITORIA-SALIDAS.md` | 5.3–5.4 | Salidas, horarios, inscripciones, solicitudes, sesiones y cobro | `backend/outings` | `Verificado` |
-| 15 | `AUDITORIA-PERSONAL-TRAINING.md` | 5.5 | Oferta, trainers, asignaciones, paquetes, sesiones y agenda | `backend/personal_training` | `En curso Fase 5.5` |
+| 15 | `AUDITORIA-PERSONAL-TRAINING.md` | 5.5–5.6 | Oferta, trainers, asignaciones, paquetes, sesiones y agenda | `backend/personal_training` | `En curso Fase 5.6` |
 | 16 | `AUDITORIA-RUTINAS.md` | 6 | Ejercicios, plantillas, asignación, ejecución y progreso | `backend/routines` | `Pendiente Fase 6` |
 | 17 | `AUDITORIA-COMUNIDAD.md` | 6 | Locales adheridos, feature toggle y tarjeta pública | `backend/community` | `Pendiente Fase 6` |
 | 18 | `AUDITORIA-CONFIGURACION.md` | 7 | Datos del gimnasio, pagos, horarios, recuperación, features, SEO y PWA | `backend/gyms`, `backend/config` | `Pendiente Fase 7` |
