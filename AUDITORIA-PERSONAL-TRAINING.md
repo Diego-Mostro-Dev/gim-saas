@@ -5,9 +5,23 @@
 > en lenguaje simple. Las referencias de código van aparte, en letra chica, para
 > no ensuciar el texto.
 >
-> **Estado:** secciones 1–7 verificadas en las Fases 5.5–5.6. Las secciones 8–13
-> siguen pendientes de la Fase 5.7; el documento completo se marcará como
-> `Verificado` al cerrar la Fase 5.7.
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-11-10
+> Alcance: oferta, trainers y asignaciones 1:1; cobro mensual y por paquetes;
+> sesiones, faltas y recuperaciones; solicitudes de cambio de horario, agenda del
+> trainer y portal del socio; asistencia y ciclo de vida. También cubre los
+> problemas conocidos.
+> Documentos relacionados: `AUDITORIA-ACTIVIDADES.md`, `AUDITORIA-SALIDAS.md`,
+> `AUDITORIA-ASISTENCIAS.md`, `AUDITORIA-RECUPERACION.md`, `AUDITORIA-PAGOS.md`,
+> `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-NUCLEO-REGLAS.md`
+> Código cubierto: `backend/personal_training`,
+> `backend/activities/no_show_service.py`,
+> `backend/attendance/recovery_service.py`, `backend/core/overlap.py`,
+> `backend/gyms/features.py`,
+> `frontend/src/pages/PersonalTrainingSettings.jsx`,
+> `frontend/src/pages/PersonalTrainingAttendance.jsx`,
+> `frontend/src/pages/TrainerAgenda.jsx`,
+> `frontend/src/pages/MemberPersonalTraining.jsx`
 
 ---
 
@@ -447,125 +461,215 @@ un flujo que use la UI.
 
 ## 8. Solicitudes de cambio de horario
 
-- El socio **no** puede cambiar su horario por su cuenta: crea una **solicitud de
-  cambio** desde su portal.
-- Una solicitud pide un **día y horario nuevos**. El sistema valida:
-  - que la asignación esté **activa**,
-  - que la hora de fin sea posterior a la de inicio,
+- El socio **no puede cambiar su horario solo**: desde su portal crea una
+  **solicitud de cambio** y el staff la revisa. (El staff también puede editar la
+  asignación directamente, sin solicitud; ver §4.)
+- Una solicitud pide un **día y horario nuevos** para una asignación **activa**.
+  Al crearla se valida:
+  - que el día sea válido y la hora de fin posterior a la de inicio,
   - que el horario pedido **no sea idéntico** al actual,
-  - que **no exista ya una solicitud pendiente** para esa asignación (una a la vez),
-  - que **no haya solapamiento** con gimnasio, actividades, otros PT del socio ni PT
-    del trainer.
-- La solicitud nace **pendiente** y puede terminar en:
+  - que no exista **otra solicitud pendiente** para esa asignación (una por vez),
+  - que **no haya solapamiento** con el horario fijo del socio, sus actividades,
+    sus salidas, sus otros PT ni la agenda del trainer.
+- El portal ayuda con las **franjas libres**: los horarios en que el gimnasio
+  abre, ya restados el horario fijo, las actividades, los otros PT del socio y
+  del trainer, y recortados a la duración de la oferta. Si el socio cambia de
+  día y su elección ya no entra en una franja, la pantalla **reacomoda** la
+  selección a la primera franja libre y se lo avisa.
+- **Con falta de pago** el socio no puede pedir cambios: el backend rechaza la
+  creación y el portal deshabilita el botón.
+- La solicitud nace **pendiente** y termina en:
   - **ejecutada** (`executed`): el staff la aprobó y la asignación ya cambió de
     horario,
   - **rechazada** (`rejected`): el staff la descartó,
   - **cancelada por el socio** (`cancelled_by_member`),
   - **cancelada por el staff** (`cancelled_by_staff`).
-- El staff, desde la pestaña **Solicitudes**, **aprueba** o **rechaza**. Al aprobar
-  se **revalida el solapamiento** y recién ahí se actualiza el horario recurrente de
-  la asignación.
-- El estado `approved` existe en el modelo pero **no se usa**: la aprobación pasa
-  directo a `executed`.
+- El staff la revisa desde la pestaña **Solicitudes** de la pantalla de PT (con
+  filtro de estado, historial y notas). Al **aprobar** se **revalida el
+  solapamiento** y recién ahí se actualiza el horario recurrente de la
+  asignación; si algo falla, la solicitud queda pendiente. Al **rechazar** se
+  guarda quién revisó, cuándo y las notas.
+- El socio puede **cancelar** su solicitud mientras esté pendiente.
+- **Limitación:** la elegibilidad por pago se controla sólo cuando el socio crea
+  la solicitud desde el portal; ni el staff ni la aprobación la revalidan.
+- **Limitación:** desde la pantalla el staff sólo puede **aprobar o rechazar**.
+  La cancelación por staff y el borrado de solicitudes ya revisadas existen en
+  la API, pero no tienen botón; el borrado exige que la solicitud no esté
+  pendiente.
 
 ### Referencia
-- Modelo y estados: `backend/personal_training/models.py:312-396`; estados
-  `:319-326`; única solicitud pendiente `:380-386`.
-- Servicio: `backend/personal_training/change_request_service.py:13-144`
-  (`create_request` `:14-64`, `approve_request` `:66-116`, `reject_request` `:118-133`,
-  `cancel_request` `:135-143`).
-- Staff: `backend/personal_training/views.py:299-381`
-  (`approve`, `reject`, `cancel`, y `destroy` que exige cancelar antes de borrar).
-- Portal: `backend/personal_training/public_views.py:100-177` (crear) y listado en
-  `:41-52`; cancelación por el socio `:157-177`.
+- Modelo y estados: `backend/personal_training/models.py · PersonalTrainingChangeRequest`,
+  `STATUS_CHOICES`, `unique_pending_pt_change_request`.
+- Servicio: `backend/personal_training/change_request_service.py · ChangeRequestService.create_request`,
+  `ChangeRequestService.approve_request`, `ChangeRequestService.reject_request`,
+  `ChangeRequestService.cancel_request`; normalización de horas `_to_time`.
+- Solape: `backend/personal_training/overlap.py · validate_assignment`;
+  `backend/core/overlap.py · check_member_slot`.
+- Franjas libres: `backend/personal_training/availability.py · available_slots`,
+  `free_intervals`; para el staff
+  `backend/personal_training/views.py · PersonalTrainingAssignmentViewSet.available_slots`;
+  para el socio
+  `backend/personal_training/public_views.py · PublicMemberAvailableSlotsView`.
+- Staff: `backend/personal_training/views.py · PersonalTrainingChangeRequestViewSet.approve`,
+  `reject`, `cancel`, `destroy`.
+- Portal: `backend/personal_training/public_views.py · PublicMemberChangeRequestView`
+  (crear y cancelar) y listado en `PublicMemberPersonalTrainingView`.
+- Pantallas: `frontend/src/pages/PersonalTrainingSettings.jsx · ChangeRequestsPanel`;
+  `frontend/src/pages/MemberPersonalTraining.jsx · MemberPersonalTraining`;
+  reacomodo de franjas `frontend/src/utils/ptAvailability.js · reconcileSlot`,
+  `dayIntervals`.
 
 ---
 
 ## 9. La agenda del trainer y el portal del socio
 
-- **Agenda del trainer** (`/trainer-agenda`): pantalla de **sólo lectura**,
-  agrupada por día, con el contacto del socio y, en paquetes, el saldo de sesiones.
-  El trainer no registra ni cobra.
+- **Agenda del trainer** (`/trainer-agenda`): pantalla de **sólo lectura**.
+  Lista las asignaciones activas agrupadas por día, con el socio y su contacto
+  (WhatsApp y teléfono), la dirección, la oferta, la duración de la sesión y, en
+  paquetes, el progreso de sesiones y el saldo pendiente. No registra sesiones
+  ni cobra: no tiene acciones.
+- Los usuarios con rol **trainer** no ven la pantalla de administración de PT ni
+  la de asistencia: las rutas los mandan a su agenda. Esa separación la hace el
+  **frontend** (ver §12); el backend no distingue roles.
 - **Portal del socio** (`/routine/:token/personal-training`): el socio ve sus
-  asignaciones activas (servicio, trainer y su contacto, día y horario, dirección),
-  el **progreso** del paquete, el **sellado** y cuánto pagó; y puede **pedir un
-  cambio de horario** o cancelar una solicitud propia.
+  asignaciones activas (oferta, trainer y su contacto, día y horario, dirección)
+  y, en paquetes, el **progreso**, el aviso de **paquete agotado**, el **sellado**
+  y cuánto pagó. Desde acá puede **pedir un cambio de horario** (con las franjas
+  libres de §8) y **cancelar una solicitud propia** pendiente; las ya revisadas
+  quedan en el historial.
+- El portal no muestra saldos ni deuda del paquete (ver §6).
 
 ### Referencia
-- Agenda: `frontend/src/pages/TrainerAgenda.jsx`.
-- Portal: `frontend/src/pages/MemberPersonalTraining.jsx`; datos
-  `PublicMemberPersonalTrainingView` `backend/personal_training/public_views.py:25-54`
-  y `PublicAssignmentSerializer` `backend/personal_training/serializers.py:472-547`.
+- Agenda: `frontend/src/pages/TrainerAgenda.jsx · TrainerAgenda`.
+- Redirección de roles y rutas: `frontend/src/App.jsx · ProfessorRoute` (trainer
+  y profesor quedan fuera de las pantallas de staff).
+- Portal: `frontend/src/pages/MemberPersonalTraining.jsx · MemberPersonalTraining`;
+  datos `backend/personal_training/public_views.py · PublicMemberPersonalTrainingView`;
+  serializers `backend/personal_training/serializers.py · PublicAssignmentSerializer`,
+  `PublicChangeRequestSerializer`.
 
 ---
 
 ## 10. Asistencia y métricas
 
-- La pantalla de **Asistencia de entrenamiento personal** (también embebida como
-  pestaña "Entrenamiento" en la asistencia del gimnasio) muestra, para un rango de
-  fechas, un **resumen** (sesiones programadas, asistidas, no asistidas, pendientes
-  y tasa de asistencia) y el **desglose por trainer**, con cada asignación activa,
-  el socio y el estado de cada fecha esperada.
-- **Sólo los paquetes** tienen seguimiento; las asignaciones **mensuales** se listan
-  con `attendance: null` (sin seguimiento). Las fechas esperadas saltean los **días
-  cerrados** del gimnasio y arrancan desde la fecha de alta de la asignación (o el
-  inicio del rango, lo que sea posterior). Si el paquete ya está agotado, sólo se
-  listan las fechas que tienen registro.
+- La pantalla de **Asistencia de entrenamiento personal** es de **consulta**: no
+  registra sesiones ni cobra. Tiene ruta propia (`/personal-training-attendance`)
+  y, si el gimnasio tiene la feature, se embebe como pestaña **Entrenamiento**
+  en la asistencia del gimnasio.
+- Para un **rango de fechas** (fecha de inicio y fin obligatorias) devuelve un
+  **resumen**:
+  - sesiones **programadas** (`total_scheduled`),
+  - **asistidas** (`attended`),
+  - **no asistidas** (`no_show`),
+  - **pendientes** (`pending`: fecha esperada sin registro),
+  - **tasa de asistencia** (`attendance_rate`): `asistidas / (asistidas +
+    no asistidas)`, sin contar las pendientes,
+  - asignaciones activas (`active_assignments`) y trainers activos
+    (`active_trainers`).
+- El **desglose por trainer** lista cada asignación activa con la oferta, la
+  modalidad, el horario, el socio y, en paquetes, el progreso de sesiones. Cada
+  trainer se muestra con su contacto.
+- **Sólo los paquetes** tienen seguimiento; las asignaciones **mensuales** se
+  listan en el desglose con `attendance: null` ("sin seguimiento").
+- Las **fechas esperadas** de una asignación de paquete arrancan en el
+  **inicio del rango o la fecha de alta** de la asignación (lo que sea
+  posterior), avanzan por el día de la semana correspondiente y **saltean los
+  días cerrados** del gimnasio en el rango. El `end_date` se topa a **hoy**
+  (no hay futuro). Si el paquete ya está **agotado**, sólo se listan las fechas
+  que tienen registro.
+- El estado por fecha: **asistió** (cualquier registro que no sea `no_show`:
+  manual o de una recuperación), **no asistió** (registro `no_show` creado por
+  la tarea de faltas) o **pendiente** (fecha esperada sin registro). Se
+  muestran como chips por fecha.
+- Se puede filtrar por **trainer** (`trainer_id`); la pantalla recuerda el rango
+  elegido y cachea la respuesta por 5 minutos para no repetir la consulta.
 
 ### Referencia
-- Vista: `backend/personal_training/views.py:395-599`
-  (`PersonalTrainingAttendanceView`); fechas esperadas `:580-590`; días cerrados
-  `:433-437`.
-- Pantalla: `frontend/src/pages/PersonalTrainingAttendance.jsx`; servicio
-  `frontend/src/services/personalTraining.service.js:136-150`.
+- Vista y cálculo: `backend/personal_training/views.py · PersonalTrainingAttendanceView`
+  (parseo de fechas `_parse_date`, registros `_load_records`, fechas esperadas
+  `_expected_dates`, socio `_member_payload`).
+- Días cerrados: `backend/gyms/models.py · GymClosedDate`.
+- Pantalla: `frontend/src/pages/PersonalTrainingAttendance.jsx · PersonalTrainingAttendance`
+  (chips `AttendanceChips`, desglose `TrainerSection`, caché
+  `frontend/src/utils/cache.js · setCached`); embebida en
+  `frontend/src/pages/Attendance.jsx · Attendance`.
+- Servicio: `frontend/src/services/personalTraining.service.js · getPersonalTrainingAttendance`.
 
 ---
 
 ## 11. Desvincular, reactivar y renovar
 
-- **Desvincular** (el botón de eliminación hace un `DELETE`) es **baja lógica**: la
-  asignación queda inactiva. Además, si era la **última** asignación activa de esa
-  oferta, se **cancelan las líneas de facturación** de PT del servicio en las
-  suscripciones no vencidas (los períodos históricos no se tocan).
-- **Reactivar una oferta** la vuelve a activar (no toca asignaciones ni facturación
-  de los ya asignados).
-- **Renovar** un paquete agrega sesiones, reactiva la asignación y resetea el
-  sellado (ver §7).
+- **Desvincular un socio** (el botón de eliminación hace un `DELETE`) es **baja
+  lógica**: la asignación queda inactiva. Además:
+  - si era la **última** asignación activa de esa oferta para ese socio, se
+    **cancelan las líneas de facturación** de PT del servicio en las
+    suscripciones **no vencidas** (los períodos históricos no se tocan);
+  - el saldo de la suscripción se **resincroniza** en el mismo paso.
+  Desvincular **no borra** el historial: las sesiones registradas y los pagos
+  quedan.
+- **Desactivar una oferta** también es baja lógica. Al pasar de activa a inactiva,
+  el modelo detecta el cambio y corta el cobro: da de **baja todas las
+  asignaciones activas** de la oferta y cancela sus ítems en las suscripciones no
+  vencidas, resincronizando el saldo. Es el equivalente masivo de desvincular
+  socio por socio (Fase D).
+- **Reactivar una oferta** sólo la vuelve a publicar (`active = True`): **no**
+  reactiva las asignaciones ni las líneas de facturación cortadas. Cada socio hay
+  que reasignarlo (ver §2).
+- **Renovar un paquete** agrega sesiones al total, **reactiva** la asignación si
+  estaba desvinculada y **no vuelve a cobrar ni resetea el sellado** (DIN-18: el
+  sellado se cobra una vez por asignación; ver §6 y §7). Si el socio es de
+  **cortesía**, fuerza el precio por sesión a $0.
+- La renovación se **bloquea si el socio tiene saldo sin cobrar**, salvo que el
+  staff confirme **renovar igual** (`allow_unpaid`, override explícito de ADD-22).
+- **No hay tope** de sesiones a agregar ni **cobro automático**: el pago del
+  paquete se registra aparte (ver §6).
 
 ### Referencia
-- Baja lógica y cancelación de ítems: `unassign_member`
-  `backend/personal_training/assignment_service.py:196-213`; `_cancel_pt_items`
-  `:338-363`.
-- Reactivar oferta: `backend/personal_training/views.py:80-85`.
-- Renovar paquete: `backend/personal_training/session_service.py:65-102`.
+- Desvincular y cancelación de ítems:
+  `backend/personal_training/assignment_service.py · AssignmentService.unassign_member`,
+  `_cancel_pt_items`, `cut_service_billing`.
+- Corte al desactivar la oferta: `backend/personal_training/models.py · PersonalTrainingService.save`
+  y `backend/personal_training/views.py · PersonalTrainingServiceViewSet.destroy`.
+- Reactivar la oferta: `backend/personal_training/views.py · PersonalTrainingServiceViewSet.reactivate`.
+- Renovar: `backend/personal_training/views.py · PersonalTrainingAssignmentViewSet.renew`;
+  reglas en `backend/personal_training/session_service.py · SessionService.renew_package`.
+- Tests de cobertura: `backend/personal_training/tests_deactivation.py · PTServiceDeactivationBillingTests`,
+  `PTSelladoRenewalTests`.
+- Pantalla: `frontend/src/pages/PersonalTrainingSettings.jsx · AssignmentCard`
+  (desvincular y renovar, con el aviso de renovación con saldo).
 
 ---
 
 ## 12. Lo que el sistema NO hace hoy (para no prometerlo en el manual)
 
-- **No autoasigna el socio**: no hay autoinscripción ni carga de PT en el
-  alta/onboarding; todo lo carga el staff.
-- **No tiene lista de espera ni cupos**: el horario es 1:1; no hay cola.
-- **No tiene check-in por QR para PT**: la sesión del paquete se carga a mano; el
-  origen "automático" existe en el modelo pero no hay un flujo de portal que lo
-  dispare como en las clases.
-- **No tiene recuperaciones**: no existe recuperar una sesión de PT faltada (a
-  diferencia de las actividades, sí se descuenta la falta).
-- **No cobra el paquete por adelantado**: sólo registra pagos parciales; no hay
-  pasarela ni link de pago de PT.
-- **No versiona precios en la asignación**: el precio queda congelado en la línea
-  de facturación (`SubscriptionItem`) o en el paquete; cambiar la oferta no toca a
-  los ya asignados.
-- **No actualiza el precio** de los socios ya asignados a una oferta mensual cuando
-  el gimnasio cambia el precio.
-- **No distingue roles en el backend**: cualquier usuario autenticado del gimnasio
-  que pase las validaciones puede crear/editar asignaciones por API; la restricción
-  de pantalla (owner vs trainer) la pone el frontend.
-- **No avisa por email ni WhatsApp** (aunque el portal muestra los datos de
+- **Decisión: no autoasigna al socio.** No hay autoinscripción ni carga de PT en
+  el alta/onboarding; todo lo carga el staff.
+- **Decisión: no hay lista de espera ni cupos.** El horario es 1:1; no hay cola
+  ni límite de socios por franja (sólo el solape del trainer).
+- **Decisión: no hay check-in por QR para PT.** La sesión del paquete se carga a
+  mano (staff) o por la tarea de faltas; el origen "automática" existe en el
+  modelo pero ningún flujo lo dispara (ver §7).
+- **Limitación: la recuperación de PT no tiene botón.** PT **sí** tiene
+  recuperaciones — comparte el motor con las actividades, con tipo `pt` (ver
+  §7) — pero la pantalla de otorgarlas sólo ofrece horario del gym y
+  actividades; para PT hoy hay que ir por la API.
+- **Decisión: no cobra el paquete por adelantado.** Sólo registra pagos
+  parciales; no hay pasarela ni link de pago de PT.
+- **Decisión: no versiona precios en la asignación.** El precio queda congelado
+  en la línea de facturación (`SubscriptionItem`) o en la asignación de
+  paquete; cambiar la oferta no toca a los ya asignados.
+- **Decisión: no actualiza el precio** de los socios ya asignados a una oferta
+  mensual cuando el gimnasio cambia el precio.
+- **Limitación: no distingue roles en el backend.** Cualquier usuario
+  autenticado del gimnasio que pase las validaciones puede crear/editar
+  asignaciones por API; la restricción de pantalla (owner/administrador) la
+  pone el frontend.
+- **Decisión: no avisa por email ni WhatsApp** (el portal muestra los datos de
   contacto del trainer).
-- **No valida la duración real** al cargar un horario: sólo exige fin posterior a
-  inicio; no obliga a que la duración coincida con los `duration_minutes` de la
-  oferta.
+- **Limitación: no valida la duración real** al cargar un horario: sólo exige
+  fin posterior a inicio; no obliga a que la duración coincida con los
+  `duration_minutes` de la oferta (el wizard sí recorta las franjas por
+  duración).
 
 ---
 
@@ -573,66 +677,64 @@ un flujo que use la UI.
 
 Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
 
-1. **El botón "Renovar" aparece duplicado.** En la tarjeta de una asignación de
-   paquete no-cortesía se renderizan **dos** botones "Renovar" (uno genérico y otro
-   para no-cortesía), ambos abren el mismo diálogo. Es un defecto visual, no cambia
-   la lógica.
-2. **Cambiar trainer/horario directo no está en la UI.** Existe el endpoint de
-   edición (`PATCH` de la asignación, que rota trainer/horario revalidando
-   solapamiento), pero la pantalla de PT sólo usa el flujo de **solicitudes de
-   cambio**. Editar a mano requiere la API.
-3. **El cobro de PT no vive en la pantalla de PT.** El endpoint `record_payment`
-   existe pero no se usa; los paquetes y el sellado se cobran desde **Pagos** /
-   **Recuperar socios**. Si alguien cobra por otra vía, `amount_paid` puede quedar
-   desincronizado hasta el próximo `sync_assignment_paid`.
-4. **Faltar agota el paquete.** El job de no-asistencia descuenta sesiones por cada
-   clase esperada no asistida; un socio que no asiste puede agotar el paquete sin
-   haber entrenado. No hay recuperaciones para compensar.
-5. **Renovar puede quedar bloqueado.** Si el socio tiene saldo sin cobrar del
-   paquete, la renovación se rechaza hasta que se cobre.
-6. **Desvincular la última asignación cancela el cobro, pero sólo en el período
-   vigente/futuro.** La cancelación de líneas aplica a suscripciones no vencidas;
-   los períodos ya generados y vencidos no se tocan por inmutabilidad.
-7. **El wizard de asignación puede "acomodar" el horario.** La lista de franjas se
-   arma con inicios alineados a la hora; si la duración de la oferta no encaja en
-   una franja, la selección se reconcilia con la primera franja libre, que puede no
-   ser la que el staff imaginaba.
-8. **Estado `approved` muerto.** El modelo admite `approved`, pero la aprobación
-   escribe `executed`; si algo consultara por `approved`, nunca lo encontraría.
-9. **Un trainer no puede estar en dos sesiones a la vez, pero sólo se valida por
-   día + solapamiento de horas.** Reasignar mal el día (por ejemplo sábado vs
-   domingo) no se detecta por error de carga, sólo se valida que no se superpongan
-   dentro del mismo día.
+1. **Renovar puede quedar bloqueado.** Si el socio tiene saldo sin cobrar del
+   paquete, la renovación se rechaza hasta cobrarlo (o hasta que el staff
+   confirme **renovar igual**, `allow_unpaid`).
+2. **Desvincular la última asignación cancela el cobro, pero sólo en el
+   período vigente/futuro.** La cancelación de líneas aplica a suscripciones no
+   vencidas; los períodos ya generados y vencidos no se tocan por
+   inmutabilidad.
+3. **El wizard de asignación puede "acomodar" el horario.** La lista de franjas
+   se arma con inicios alineados a la hora; si la duración de la oferta no
+   encaja en una franja, la selección se reconcilia con la primera franja
+   libre, que puede no ser la que el staff imaginaba.
+4. **Renovar tras desvincular cobra las faltas del período inactivo.** Mientras
+   la asignación está desvinculada la tarea de faltas la saltea, así que su
+   marca de agua (`no_show_scan_until`) no avanza; al renovarla, el próximo
+   barrido crea los `no_show` — y descuenta sesiones — por las fechas del
+   período en que el socio no estaba asignado. La pantalla de asistencia
+   también lista esas fechas como pendientes, porque las fechas esperadas
+   cuentan desde el alta de la asignación.
+5. **El solape del trainer se valida sólo dentro del mismo día.** Cargar la
+   asignación en otro día no dispara la validación de conflicto: un error de
+   día (por ejemplo, sábado en vez de domingo) no se detecta como solape.
+
+Ya corregidos de auditorías anteriores: el botón "Renovar" duplicado, la edición
+de trainer/horario desde la pantalla, el cobro de paquetes desde "Recuperar
+socios" (que usa `record_payment`), la compensación de faltas por recuperación
+(ADD-27) y el estado `approved` muerto (quitado de las choices del modelo).
 
 ### Referencia
-- Botón duplicado: `frontend/src/pages/PersonalTrainingSettings.jsx:698-715`.
-- Edición por API vs UI: `frontend/src/services/personalTraining.service.js:57-63`
-  (`updatePersonalTrainingAssignment`, sin uso en la pantalla); serializer
-  `backend/personal_training/serializers.py:362-375`.
-- Cobro por otra vía: `backend/personal_training/assignment_service.py:215-291`
-  (tope sólo en este flujo) y `backend/payments/services.py:69-78`.
-- Faltas: `backend/activities/no_show_service.py:196-232`.
-- Bloqueo por saldo: `backend/personal_training/session_service.py:81-89`.
-- Cancelación sólo no-vencida: `backend/personal_training/assignment_service.py:345-363`.
-- Reconciliación de franjas: `frontend/src/utils/ptAvailability.js:18-72`.
-- Estado muerto `approved`: `backend/personal_training/models.py:319-326` vs
-  `backend/personal_training/change_request_service.py:108`.
+- Bloqueo por saldo: `backend/personal_training/session_service.py · SessionService.renew_package`;
+  override `allow_unpaid` en `frontend/src/pages/PersonalTrainingSettings.jsx · AssignmentCard`.
+- Cancelación sólo no-vencida: `backend/personal_training/assignment_service.py · _cancel_pt_items`.
+- Reconciliación de franjas: `frontend/src/utils/ptAvailability.js · reconcileSlot`.
+- Faltas del período inactivo: `backend/activities/no_show_service.py · deduct_missed_pt_assignments`,
+  `_deduct_pt_assignment`; fechas esperadas
+  `backend/personal_training/views.py · _expected_dates`.
+- Solape del trainer: `backend/personal_training/overlap.py · _check_trainer_pt_overlap`.
 
 ---
 
 ### Notas de entorno para leer el código
 
-- Zona horaria: `America/Argentina/Buenos_Aires` (`backend/config/settings.py:461`).
+- Zona horaria: `America/Argentina/Buenos_Aires`
+  (`backend/config/settings.py · TIME_ZONE`).
 - Toda operación de staff se filtra automáticamente por el gimnasio del usuario
-  logueado (`backend/core/mixins.py`); el portal público entra por el token del
-  socio (`access_token`).
+  logueado (`backend/core/mixins.py · GymQuerysetMixin`); el portal público entra
+  por el token del socio (`access_token`).
 - Los endpoints de staff exigen la feature `personal_training`
-  (`backend/personal_training/views.py:41-44`); los públicos también
-  (`require_personal_training` en `backend/personal_training/public_views.py`).
+  (`backend/personal_training/views.py · PersonalTrainingGuardMixin`); los
+  públicos también (`backend/gyms/features.py · require_personal_training`).
 - El entrenamiento personal **comparte el motor de paquetes y de pagos** con
-  actividades y salidas (mismo `Payment` con distintos conceptos), y **comparte el
-  motor de faltas con las actividades** (a diferencia de las salidas).
-- La pantalla de PT se sirve sólo a owner/administrador (la ruta excluye profesor y
-  trainer): `frontend/src/App.jsx:100-109,191`.
-- El flujo visual de esta feature vive en `frontend/src/dev/PersonalTrainingFlow.jsx`
+  actividades y salidas (mismo `backend/payments/models.py · Payment` con
+  distintos conceptos), y **comparte el motor de faltas y recuperaciones** con las
+  actividades (a diferencia de las salidas):
+  `backend/activities/no_show_service.py · deduct_missed_pt_assignments`,
+  `backend/attendance/recovery_service.py · grant_scheduled`.
+- Las pantallas de administración y de asistencia de PT se sirven sólo a
+  owner/administrador (profesor y trainer son redirigidos):
+  `frontend/src/App.jsx · ProfessorRoute`.
+- El flujo visual de esta feature vive en
+  `frontend/src/dev/PersonalTrainingFlow.jsx · PersonalTrainingFlow`
   (sólo desarrollo) y se alimenta de este documento.

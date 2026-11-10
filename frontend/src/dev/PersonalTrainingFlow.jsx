@@ -272,7 +272,7 @@ const CICLO_VIDA = [
     titulo: "Renovar",
     icono: RefreshCw,
     descripcion:
-      "Agrega sesiones, reactiva y resetea el sellado. Bloquea si hay saldo sin cobrar.",
+      "Agrega sesiones y reactiva. El sellado ya está pagado: no se vuelve a cobrar. Bloquea si hay saldo sin cobrar.",
   },
   {
     titulo: "Desvincular",
@@ -420,14 +420,14 @@ const REGLAS_SOLICITUD = [
   "La hora de fin debe ser posterior a la de inicio.",
   "Al aprobar se revalida el solapamiento antes de aplicar el cambio.",
   "El socio crea y cancela; el staff aprueba o rechaza.",
-  "El estado “approved” existe en el modelo pero no se usa: la aprobación pasa directo a “ejecutada”.",
+  "La aprobación pasa directo a “ejecutada”: el estado “approved” se quitó del modelo.",
 ];
 
 const NO_HACE = [
   "No autoasigna al socio: no hay autoinscripción ni carga de PT en el alta/onboarding.",
   "No tiene lista de espera ni cupos: el horario es 1 a 1.",
   "No tiene check-in por QR para PT: la sesión se carga a mano.",
-  "No tiene recuperaciones: no se puede recuperar una sesión de PT faltada.",
+  "La recuperación de PT no tiene botón: el motor la comparte con las actividades, pero la pantalla sólo ofrece horario del gym y actividades.",
   "No cobra el paquete por adelantado ni tiene pasarela o link de pago de PT.",
   "No actualiza el precio de los socios ya asignados cuando la oferta cambia de precio.",
   "No distingue roles en el backend: la restricción owner vs trainer la pone el frontend.",
@@ -952,7 +952,7 @@ function SesionesYFaltas() {
         <h2 className="text-lg font-bold text-text-primary">Sesiones y no-asistencia</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Sólo los paquetes cuentan sesiones. Hay un origen manual y uno automático.
+        Sólo los paquetes cuentan sesiones. Hay un origen manual y el automático de las faltas.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -978,14 +978,14 @@ function SesionesYFaltas() {
         <p className="mt-2 text-xs text-warning-text dark:text-warning">
           A diferencia de las salidas, el job diario de no-asistencia descuenta una sesión por cada
           entrenamiento esperado al que el socio no fue. Un socio que falta puede agotar el paquete
-          sin haber entrenado. No hay recuperaciones para compensar.
+          sin haber entrenado. Una recuperación programada perdona exactamente una falta.
         </p>
       </div>
 
       <p className="mt-4 rounded-lg bg-info-bg px-3 py-2 text-sm text-info-text dark:bg-info/15 dark:text-info">
         El registro es idempotente por (asignación, fecha): el mismo día nunca se cobra dos veces.
-        Renovar agrega sesiones, reactiva la asignación y resetea el sellado; se bloquea si hay saldo
-        sin cobrar.
+        Renovar agrega sesiones y reactiva la asignación sin volver a cobrar el sellado; se bloquea
+        si hay saldo sin cobrar.
       </p>
     </Card>
   );

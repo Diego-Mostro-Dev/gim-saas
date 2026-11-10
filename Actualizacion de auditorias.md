@@ -715,20 +715,184 @@ Criterio de cierre:
 
 Documento:
 
-- `AUDITORIA-PERSONAL-TRAINING.md`, secciones 8–13 (`:256-446`).
+- `AUDITORIA-PERSONAL-TRAINING.md`, secciones 8–13 y `### Notas de entorno`
+  (usar nombres de sección, no rangos de línea: el `:256-446` original quedó
+  desactualizado).
+
+Alcance:
+
+- Reescribir sólo §8–§13 y las notas finales.
+- No tocar §1–§7, código de producto ni tests.
+- Convertir todas las referencias numéricas del tramo a referencias híbridas
+  (`backend/... · Símbolo`).
+- No ejecutar tests localmente: validar con CI, igual que en las fases 5.3–5.6.
+
+Decisión de ejecución: dividir la fase en dos pasadas para evitar una edición
+masiva y facilitar la validación: **5.7a** (§8–§11) y **5.7b** (§12–§13, notas y
+cierre).
+
+Contexto detectado antes de empezar (commit `3c4b680`, cierre de 5.6):
+
+- §8–§13 todavía usan referencias `archivo:línea`; §1–§7 ya usan el formato
+  híbrido.
+- Cabecera e índice siguen en estado parcial: el documento dice que §8–§13 están
+  pendientes y la fila 15 de `AUDITORIA-INDEX.md` dice `En curso Fase 5.6`.
+- Hay contradicciones internas que la 5.7 debe resolver:
+  - §12 dice que PT **no tiene recuperaciones** y §13 (punto 4) dice que no hay
+    forma de compensar faltas; §7 ya documenta recuperaciones tipo `pt` (ADD-27)
+    y `backend/personal_training/tests_phase_k3.py` las cubre.
+  - §13 (punto 3) dice que `record_payment` **no se usa**; §6 dice que **sí está
+    en uso** desde `frontend/src/pages/RecoverMembers.jsx`.
+  - §11 dice que renovar **resetea el sellado**; §6 y
+    `backend/personal_training/session_service.py · SessionService.renew_package`
+    (DIN-18, cubierto por `tests_deactivation.py`) dicen que el sellado **no se
+    vuelve a cobrar**.
+  - §13 (punto 1) afirma que el botón “Renovar” está duplicado; hoy se renderiza
+    una sola vez.
+  - §13 (punto 2) afirma que editar trainer/horario no está en la UI; hoy existe
+    el botón “Editar” y usa `updatePersonalTrainingAssignment` (ADD-19/K7).
+- El documento no tiene la cabecera canónica (`Verificado contra`, `Fecha`,
+  `Alcance`, `Documentos relacionados`, `Código cubierto`); al cerrar hay que
+  normalizarla como en `AUDITORIA-ACTIVIDADES.md` y `AUDITORIA-SALIDAS.md`.
+
+##### 5.7a — Solicitudes, agenda, asistencia y ciclo de vida (§8–§11)
 
 Tareas:
 
-1. Documentar solicitudes de cambio de horario y su aprobación.
-2. Documentar agenda del trainer, portal del socio, asistencia y métricas.
-3. Documentar desvincular, reactivar y renovar.
-4. Actualizar “Lo que NO hace”, problemas y decisiones de negocio.
-5. Revisar `change_request_service`, `public_views`, tests `k2/k3/k7` y de desactivación, y frontend (`TrainerAgenda`, `MemberPersonalTraining`, `dev/PersonalTrainingFlow`).
+1. Reescribir §8 (solicitudes de cambio de horario):
+   - quién inicia: sólo el socio desde el portal, sobre una asignación activa;
+   - qué pide y qué se valida: día válido, fin posterior al inicio, horario
+     distinto al actual, una sola solicitud pendiente por asignación, y solape
+     con horario fijo del socio, actividades, salidas, otros PT del socio y PT
+     del trainer (`validate_assignment` / `check_member_slot`);
+   - estados: `pending`, `executed`, `rejected`, `cancelled_by_member`,
+     `cancelled_by_staff`; aclarar que `approved` existe en el modelo pero está
+     muerto;
+   - staff: aprobar revalida el solape y actualiza el horario recurrente vía
+     `AssignmentService.update_assignment`; rechazar guarda revisor, fecha y
+     notas; cancelar desde staff; el `DELETE` exige cancelar antes de borrar;
+   - portal: crear y cancelar una solicitud propia; bloqueo por falta de pago
+     (`MemberEligibility.can_operate`); endpoint de franjas libres
+     (`PublicMemberAvailableSlotsView`) con `assignment_id` y
+     `duration_minutes`, y reconciliación de la franja en la UI.
+   - Referencias: `ChangeRequestService.create_request`, `approve_request`,
+     `reject_request`, `cancel_request`; `PersonalTrainingChangeRequest`;
+     `PersonalTrainingChangeRequestViewSet`; `PublicMemberChangeRequestView`,
+     `PublicMemberAvailableSlotsView`; `validate_assignment`.
+
+2. Reescribir §9 (agenda del trainer y portal del socio):
+   - agenda `/trainer-agenda`: sólo lectura, agrupada por día, con contacto del
+     socio y saldo de sesiones; sin acciones de registro ni cobro;
+   - portal: asignaciones activas, oferta, trainer y su contacto, día y horario,
+     dirección, progreso del paquete, sellado y cuánto pagó; pedir cambio, ver
+     franjas disponibles y cancelar una solicitud propia;
+   - verificar la ruta real en `frontend/src/App.jsx` y que la agenda no tenga
+     mutaciones.
+   - Referencias: `TrainerAgenda`, `MemberPersonalTraining`,
+     `PublicMemberPersonalTrainingView`, `PublicAssignmentSerializer`,
+     `PublicChangeRequestSerializer`.
+
+3. Reescribir §10 (asistencia y métricas):
+   - resumen por rango: sesiones programadas, asistidas, no asistidas, pendientes
+     y tasa de asistencia;
+   - desglose por trainer, con asignación, socio y estado por fecha esperada;
+   - sólo los paquetes tienen seguimiento; las asignaciones mensuales van con
+     `attendance: null`;
+   - fechas esperadas: desde el alta de la asignación o el inicio del rango, lo
+     que sea posterior, salteando días cerrados; si el paquete está agotado, sólo
+     se listan las fechas con registro;
+   - aclarar que la pantalla es de consulta y está embebida como pestaña en la
+     asistencia del gimnasio.
+   - Referencias: `PersonalTrainingAttendanceView`, `_expected_dates`,
+     `_load_records`, `_member_payload`; `PersonalTrainingAttendance`; servicio
+     `personalTraining.service`.
+
+4. Reescribir §11 (desvincular, reactivar y renovar) y corregir la contradicción
+   del sellado:
+   - desvincular: baja lógica (`active = False`); cancela ítems de PT sólo si no
+     queda otra asignación activa de la misma oferta; sólo suscripciones no
+     vencidas; resincroniza el saldo;
+   - desactivar/reactivar oferta: desactivar da de baja las asignaciones activas y
+     corta el cobro; reactivar sólo republica y **no** reactiva asignaciones ni
+     ítems (referir a §2);
+   - renovar: suma sesiones, reactiva la asignación y **no** vuelve a cobrar ni
+     resetea el sellado (DIN-18); el saldo impago bloquea salvo `allow_unpaid`;
+     no hay tope máximo; no cobra automáticamente.
+   - Referencias: `AssignmentService.unassign_member`, `_cancel_pt_items`,
+     `cut_service_billing`; `PersonalTrainingServiceViewSet.reactivate`;
+     `SessionService.renew_package`; `PersonalTrainingAssignmentViewSet.renew`;
+     `tests_deactivation.py`.
+
+5. Validar el tramo:
+   `python3 scripts/check_audit_refs.py AUDITORIA-PERSONAL-TRAINING.md` y
+   confirmar que no queden referencias `backend/...:número` ni
+   `frontend/...:número`.
+
+Criterio de cierre de 5.7a:
+
+- §8–§11 reescritas con referencias híbridas válidas.
+- §1–§7 y §12–§13 intactas.
+- Cabecera e índice en estado parcial (`En curso Fase 5.7`).
+
+##### 5.7b — Cierre del documento (§12–§13, notas, cabecera e índice)
+
+Tareas:
+
+1. Reescribir §12 (“Lo que NO hace”) contra el código actual:
+   - quitar “No tiene recuperaciones” e incorporar el comportamiento real
+     (ver §7): PT usa el mismo motor que actividades con tipo `pt`; una
+     recuperación perdona exactamente una falta; respeta las recuperaciones en
+     vuelo; si no se usa, vence;
+   - revalidar uno por uno: autoasignación/onboarding, lista de espera y cupos,
+     check-in por QR, cobro anticipado, versionado y actualización de precios,
+     distinción de roles en backend, avisos por email/WhatsApp y validación de la
+     duración real;
+   - marcar las decisiones de negocio como “Decisión” y las limitaciones como
+     “Limitación”, sin crear secciones nuevas.
+2. Reescribir §13 (“Problemas que pueden pasar”):
+   - eliminar los problemas ya corregidos y verificarlo con código y tests:
+     - botón “Renovar” duplicado (hoy hay uno solo; REF-05/ADD-19);
+     - edición directa de trainer/horario ausente en la UI (hoy existe “Editar” y
+       PATCH desde la pantalla; ADD-19/K7);
+     - `record_payment` sin uso (hoy lo usa `RecoverMembers`);
+     - “faltar agota el paquete sin compensación” (ADD-27/K3 y ADD-29);
+   - conservar y ajustar los que sigan vigentes: bloqueo por saldo, cancelación
+     sólo en períodos no vencidos, reconciliación de franjas, estado `approved`
+     muerto y solape del trainer validado sólo dentro del mismo día;
+   - agregar cualquier problema nuevo detectado en la revisión, sin tocar código.
+3. Convertir a híbridas las referencias numéricas de §12–§13 y de
+   `### Notas de entorno`; actualizar zona horaria, guard de la feature, motores
+   compartidos y flujo visual.
+4. Revisar `frontend/src/dev/PersonalTrainingFlow.jsx` y alinearlo con el texto
+   final si afirma algo que cambió (sólo contenido, sin lógica).
+5. Cerrar cabecera e índice:
+   - reemplazar el bloque “Estado” por la cabecera canónica (`Verificado contra`,
+     `Fecha`, `Alcance`, `Documentos relacionados`, `Código cubierto`) como en
+     `AUDITORIA-ACTIVIDADES.md` y `AUDITORIA-SALIDAS.md`;
+   - actualizar `AUDITORIA-INDEX.md`, fila 15: fase `5.5–5.7`, estado
+     `Verificado`, alcance con agenda, solicitudes y cierre.
+6. No modificar código de producto ni tests.
+
+Verificación:
+
+1. `python3 scripts/check_audit_refs.py AUDITORIA-PERSONAL-TRAINING.md`.
+2. Confirmar que no queden referencias `backend/...:número` ni
+   `frontend/...:número` en §8–§13 ni en las notas.
+3. `git diff` para confirmar que §1–§7 no cambiaron (salvo la cabecera) y que no
+   hay cambios de código ni tests.
+4. Publicar y dejar que CI ejecute `backend/personal_training` (incluye
+   `tests_phase_k2`, `tests_phase_k3`, `tests_phase_k7` y `tests_deactivation`);
+   no correrlos localmente.
+5. Revisar coherencia entre cabecera, índice y estado final.
 
 Criterio de cierre:
 
-- Documento completo con referencias válidas.
-- Tests de `personal_training` verdes.
+- Documento completo, sin afirmaciones desactualizadas ni contradicciones
+  internas, con referencias híbridas válidas.
+- §1–§7 intactas.
+- Cabecera canónica e índice actualizados a `5.5–5.7` / `Verificado`.
+- Tests de `personal_training` verdes en CI.
+- Sin cambios de código ni de tests.
 
 #### Fase 5.8 — Integración y cierre de Add-ons
 
