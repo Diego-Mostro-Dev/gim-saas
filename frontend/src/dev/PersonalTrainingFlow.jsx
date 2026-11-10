@@ -372,7 +372,7 @@ const ORIGENES_SESION = [
     icono: AlertTriangle,
     color: "warning",
     detalle:
-      "La crea el job diario de faltas para cada sesión esperada a la que el socio no fue. Por eso el paquete también se agota por inasistencia.",
+      "La crea la tarea programada de faltas para cada sesión esperada a la que el socio no fue. Por eso el paquete también se agota por inasistencia.",
   },
 ];
 
@@ -976,9 +976,10 @@ function SesionesYFaltas() {
           Acá SÍ se descuentan las faltas
         </p>
         <p className="mt-2 text-xs text-warning-text dark:text-warning">
-          A diferencia de las salidas, el job diario de no-asistencia descuenta una sesión por cada
-          entrenamiento esperado al que el socio no fue. Un socio que falta puede agotar el paquete
-          sin haber entrenado. Una recuperación programada perdona exactamente una falta.
+          A diferencia de las salidas, la tarea programada de no-asistencia descuenta una
+          sesión por cada entrenamiento esperado al que el socio no fue. Un socio que falta puede
+          agotar el paquete sin haber entrenado. Una recuperación programada perdona exactamente
+          una falta.
         </p>
       </div>
 

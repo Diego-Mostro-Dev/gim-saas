@@ -191,7 +191,7 @@ de las actividades, **el alta/onboarding no inscribe salidas**:
 - Una **reinscripción** crea una nueva fila de inscripción. Si la línea anterior
   había sido cancelada, se crea una nueva con el precio actual; si sigue activa,
   se reutiliza.
-- **Limitación**: el guard de ADD-28 mira cualquier inscripción activa de la
+- **Limitación:** el guard de ADD-28 mira cualquier inscripción activa de la
   salida, sin distinguir modalidad. Si un socio mezcla una inscripción mensual y
   una de paquete en la misma salida, dar de baja la mensual no cancela la línea
   mientras siga activa la de paquete. Se documenta el comportamiento, no se
@@ -223,6 +223,12 @@ de las actividades, **el alta/onboarding no inscribe salidas**:
 
 La inscripción del socio desde el portal no es inmediata: es una **solicitud**
 que el staff revisa.
+
+No confundir con las solicitudes de los otros add-ons: en entrenamiento
+personal el socio pide un **cambio de horario** de una asignación existente
+(`AUDITORIA-PERSONAL-TRAINING.md` §8) y en actividades no hay solicitudes: la
+autoinscripción mensual y la baja del portal son inmediatas
+(`AUDITORIA-ACTIVIDADES.md` §3).
 
 - El socio **crea** una solicitud desde su portal, de dos tipos:
   - **Inscripción** (`enroll`): a un horario mensual con cupo.
@@ -256,7 +262,7 @@ que el staff revisa.
   - Si falla la revalidación, la solicitud queda **pendiente**.
 - **Aprobación de baja**:
   - Cancela la inscripción y su facturación.
-  - **Limitación**: la aprobación busca el horario desde `request.schedule`, no
+  - **Limitación:** la aprobación busca el horario desde `request.schedule`, no
     desde la inscripción vinculada (`request.enrollment`). Si el socio se dio de
     baja y se reinscribió, una solicitud vieja podría apuntar al horario y no a la
     inscripción original. Se documenta como riesgo actual, no se corrige acá.
@@ -269,7 +275,7 @@ que el staff revisa.
     pedirlos.
   - `available_outings` excluye salidas "Por sesiones", horarios ya inscriptos,
     horarios con solicitud pendiente y horarios llenos.
-  - **Limitación**: el cálculo visual de cupos disponibles no filtra socios
+  - **Limitación:** el cálculo visual de cupos disponibles no filtra socios
     eliminados, aunque los controles de capacidad sí los excluyen.
 
 ### Referencia
@@ -339,7 +345,7 @@ que el staff revisa.
   facturación de esa salida en la suscripción vigente y en períodos futuros ya
   generados.
 - Los períodos históricos no se tocan.
-- **Limitación**: no se valida que el ítem mensual y el paquete correspondan a la
+- **Limitación:** no se valida que el ítem mensual y el paquete correspondan a la
   misma modalidad. El guard de ADD-28 ya descripto en §3 puede dejar una línea
   activa si el socio mantiene otra inscripción de la misma salida.
 
@@ -426,6 +432,9 @@ agotado; si no, responde error.
 - El staff puede **quitar una sesión** de una fecha (corrección). Se borran los
   registros de esa inscripción en esa fecha; si no hay ninguno, responde 404.
   Quitar una sesión no devuelve ni ajusta pagos.
+- **Limitación:** el registro acepta cualquier fecha, incluso un día en que el
+  gimnasio estuvo cerrado: no valida los días cerrados (`GymClosedDate`). La
+  tarea de faltas de actividades y PT sí los saltea, pero acá no existe.
 - El staff puede **renovar el paquete** agregando N sesiones. La renovación:
   - sólo aplica a paquetes;
   - agrega las sesiones al total y vuelve a dejar la inscripción activa;
@@ -441,11 +450,14 @@ agotado; si no, responde error.
 
 ### Por qué no hay faltas ni recuperaciones
 
-**A diferencia de las actividades, acá NO existe el job de no-asistencia**: si
-el socio falta, **no se le descuenta ninguna sesión**. Tampoco existen las
-**recuperaciones** para salidas. El paquete sólo baja por un check-in que el
-sistema pudo contar o por una carga manual del staff. Por eso un socio puede
-tener el paquete abierto indefinidamente si nunca asiste.
+**A diferencia de las actividades y del entrenamiento personal, acá NO existe
+la tarea de no-asistencia**: si el socio falta, **no se le descuenta ninguna
+sesión**. Tampoco existen las **recuperaciones** para salidas. El paquete sólo
+baja por un check-in que el sistema pudo contar o por una carga manual del
+staff. Por eso un socio puede tener el paquete abierto indefinidamente si nunca
+asiste. El motor compartido de faltas y recuperaciones recorre actividades y
+PT, pero no salidas (ver `AUDITORIA-ACTIVIDADES.md` §5 y
+`AUDITORIA-PERSONAL-TRAINING.md` §7).
 
 El staff ve sesiones usadas/total, si el paquete está agotado, la última fecha
 registrada y el saldo pendiente. El portal del socio muestra el mismo progreso,
@@ -590,33 +602,35 @@ activo; la creación por API no aplica esa validación.
 
 ## 8. Lo que el sistema NO hace hoy (para no prometerlo en el manual)
 
-- **No tiene lista de espera**: un horario lleno simplemente rechaza la
+- **Decisión: no hay lista de espera.** Un horario lleno simplemente rechaza la
   inscripción o la solicitud; no hay cola ni aviso de cupo liberado.
-- **No inscribe en el alta/onboarding**: a diferencia de las actividades, las
-  salidas sólo se cargan por el staff o por una solicitud aprobada.
-- **No autoinscribe salidas "por sesiones"**: el socio nunca puede tomar un
-  paquete solo; siempre lo carga el staff.
-- **No descuenta faltas**: no hay tarea de no-asistencia para salidas; el
-  paquete no se agota por inasistencia.
-- **No tiene recuperaciones**: no existe el concepto de recuperar una salida
-  faltada.
-- **No valida choques al crear o editar horarios** contra el gimnasio, otras
-  actividades, el entrenamiento personal u otras salidas; sólo impide que dos
-  horarios **de la misma salida** se superpongan. En cambio, **al inscribir o
-  solicitar** sí revisa la agenda del socio contra el gimnasio, las actividades,
-  otras salidas y el entrenamiento personal.
-- **No cobra el paquete por adelantado**: sólo registra pagos parciales del
-  precio por sesión; no hay pasarela ni link de pago de salidas.
-- **No versiona precios de salida**: el precio se congela en la línea de
-  facturación (`SubscriptionItem`) o en el paquete, no en la salida.
-- **No actualiza el precio** de los socios ya inscriptos a una salida mensual
-  cuando el gimnasio cambia el precio.
-- **No avisa por email ni WhatsApp** (aunque el portal muestra el teléfono y el
-  WhatsApp del entrenador para contactarlo).
-- **No distingue roles en el backend**: cualquier usuario autenticado del
-  gimnasio puede inscribir por API; la restricción de pantalla la pone el
-  frontend.
-- **No reserva cupo de gimnasio**: sólo controla el cupo del horario de salida.
+- **Decisión: no inscribe en el alta/onboarding.** A diferencia de las
+  actividades, las salidas sólo se cargan por el staff o por una solicitud
+  aprobada.
+- **Decisión: no autoinscribe salidas "por sesiones".** El socio nunca puede
+  tomar un paquete solo; siempre lo carga el staff.
+- **Decisión: no descuenta faltas.** No hay tarea de no-asistencia para
+  salidas; el paquete no se agota por inasistencia.
+- **Decisión: no tiene recuperaciones.** No existe el concepto de recuperar una
+  salida faltada.
+- **Decisión: no valida choques al crear o editar horarios** contra el
+  gimnasio, otras actividades, el entrenamiento personal u otras salidas; sólo
+  impide que dos horarios **de la misma salida** se superpongan. En cambio,
+  **al inscribir o solicitar** sí revisa la agenda del socio contra el
+  gimnasio, las actividades, otras salidas y el entrenamiento personal.
+- **Decisión: no cobra el paquete por adelantado.** Sólo registra pagos
+  parciales del precio por sesión; no hay pasarela ni link de pago de salidas.
+- **Decisión: no versiona precios de salida.** El precio se congela en la línea
+  de facturación (`SubscriptionItem`) o en el paquete, no en la salida.
+- **Decisión: no actualiza el precio** de los socios ya inscriptos a una salida
+  mensual cuando el gimnasio cambia el precio.
+- **Decisión: no avisa por email ni WhatsApp** (aunque el portal muestra el
+  teléfono y el WhatsApp del entrenador para contactarlo).
+- **Limitación: no distingue roles en el backend.** Cualquier usuario
+  autenticado del gimnasio puede inscribir por API; la restricción de pantalla
+  la pone el frontend.
+- **Decisión: no reserva cupo de gimnasio.** Sólo controla el cupo del horario
+  de salida.
 
 ### Referencia
 - Solapes internos al crear/editar un horario:
@@ -639,7 +653,7 @@ activo; la creación por API no aplica esa validación.
 Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
 
 1. **Faltar no descuenta sesión.** A diferencia de las actividades, un socio que
-   nunca asiste a una salida **no consume el paquete**: no hay job de
+   nunca asiste a una salida **no consume el paquete**: no existe tarea de
    no-asistencia. El saldo del paquete queda intacto y el socio puede no agotarlo
    nunca.
 2. **El auto-conteo puede quedar ambiguo.** La regla ACC-08 descuenta una sola
@@ -677,7 +691,7 @@ Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
    consultar en recepción.
 
 ### Referencia
-- Sin job de faltas para salidas: `backend/activities/no_show_service.py ·
+- Sin tarea de faltas para salidas: `backend/activities/no_show_service.py ·
   deduct_missed_sessions` (sólo actividades y PT;
   `backend/attendance/recovery_service.py · eligible_options` sólo actividades y
   PT).

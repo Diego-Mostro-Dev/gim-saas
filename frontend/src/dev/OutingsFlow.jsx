@@ -755,9 +755,10 @@ function RegistroDeSesiones() {
           Acá NO hay faltas ni recuperaciones
         </p>
         <p className="mt-2 text-xs text-warning-text dark:text-warning">
-          A diferencia de las actividades, no existe tarea de no-asistencia: si el socio falta,
-          no se le descuenta ninguna sesión. Tampoco se pueden recuperar salidas faltadas. El
-          paquete sólo baja con el check-in en la ventana o con la carga manual del staff.
+          A diferencia de las actividades y del entrenamiento personal, no existe tarea de
+          no-asistencia: si el socio falta, no se le descuenta ninguna sesión. Tampoco se pueden
+          recuperar salidas faltadas. El paquete sólo baja con el check-in en la ventana o con
+          la carga manual del staff.
         </p>
       </div>
 

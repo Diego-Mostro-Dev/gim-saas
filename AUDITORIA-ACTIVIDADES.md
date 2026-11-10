@@ -114,6 +114,11 @@ Hay **tres caminos** para inscribir a un socio a un horario de actividad:
 | **Staff** | El personal, desde la pantalla de inscripciones del horario | Puede elegir modalidad mensual o paquete y fijar el coseguro |
 | **Portal del socio** | El propio socio, con su token | Sólo puede autoinscribirse a actividades con `billing_mode="monthly"`; las "por sesiones" requieren al staff |
 
+A diferencia de las salidas y del entrenamiento personal, **no hay solicitudes
+que el staff apruebe**: la autoinscripción del portal (sólo mensuales) y la
+baja del portal son inmediatas (ver `AUDITORIA-SALIDAS.md` §4 y
+`AUDITORIA-PERSONAL-TRAINING.md` §8).
+
 Reglas que valida el sistema al inscribir:
 
 - El gimnasio debe tener la feature **Actividades** habilitada.
@@ -243,7 +248,7 @@ Detalles:
   - ninguna coincide con la ventana → no se descuenta ninguna;
   - el check-in de staff sin hora sólo descuenta el caso inequívoco de una
     sola inscripción.
-- El **job de no-asistencia** corre junto con el mantenimiento de suscripciones
+- La **tarea de no-asistencia** corre junto con el mantenimiento de suscripciones
   (cada ~6 h, con el tráfico de la app o por cron):
   - sólo procesa inscripciones activas de paquete cuyo horario y actividad
     sigan activos, y socios no eliminados;
@@ -273,6 +278,9 @@ Detalles:
 - **Diferencia con entrenamiento personal (PT)**: comparten el motor de faltas
   y recuperaciones, pero el registro de PT es único por `(asignación, fecha)`
   sin horario y su renovación no actualiza el coseguro según la obra social.
+- **Diferencia con las salidas**: las salidas no descuentan faltas ni tienen
+  recuperaciones; su paquete sólo baja por un check-in contado o por carga
+  manual del staff (ver `AUDITORIA-SALIDAS.md` §6).
 - La suite verifica invariantes read-only de los paquetes: sesiones consumidas
   = registros, nunca más que el total, fechas del día correcto y posteriores a
   la creación del horario, sin sesiones en días cerrados, a lo sumo una por
@@ -367,25 +375,28 @@ Detalles:
 
 ## 7. Lo que el sistema NO hace hoy (para no prometerlo en el manual)
 
-- **No tiene lista de espera**: un horario lleno simplemente rechaza la
+- **Decisión: no hay lista de espera.** Un horario lleno simplemente rechaza la
   inscripción; no hay cola ni aviso de cupo liberado.
-- **No aprueba ni vence nada solo**: la inscripción y la baja son inmediatas; no
-  hay estados intermedios ni aprobación.
-- **No avisa por email ni WhatsApp**: ni alta, ni baja, ni clases, ni faltas.
-- **No autoinscribe actividades "por sesiones"**: el socio nunca puede tomar un
-  paquete solo; siempre lo carga el staff.
-- **No cobra el paquete por adelantado**: sólo registra pagos parciales del
-  coseguro; no hay pasarela ni link de pago de actividades.
-- **No versiona precios de actividad**: no hay historial; el precio queda
-  congelado en la línea de facturación de cada socio, no en la actividad.
-- **No actualiza el precio** de los socios ya inscriptos a una actividad mensual
-  cuando el gimnasio cambia el precio de la actividad.
-- **No distingue roles en el backend**: cualquier usuario autenticado del
-  gimnasio puede inscribir por API; la restricción de pantalla la pone el
-  frontend.
-- **No respeta feriados** salvo los días de cierre cargados (`GymClosedDate`) al
-  descontar faltas.
-- **No reserva cupo de gimnasio** más allá del chequeo de choque horario.
+- **Decisión: no aprueba ni vence nada solo.** La inscripción y la baja son
+  inmediatas; no hay estados intermedios ni aprobación (a diferencia de las
+  salidas y de PT).
+- **Decisión: no avisa por email ni WhatsApp.** Ni alta, ni baja, ni clases, ni
+  faltas.
+- **Decisión: no autoinscribe actividades "por sesiones".** El socio nunca puede
+  tomar un paquete solo; siempre lo carga el staff.
+- **Decisión: no cobra el paquete por adelantado.** Sólo registra pagos
+  parciales del coseguro; no hay pasarela ni link de pago de actividades.
+- **Decisión: no versiona precios de actividad.** No hay historial; el precio
+  queda congelado en la línea de facturación de cada socio, no en la actividad.
+- **Decisión: no actualiza el precio** de los socios ya inscriptos a una
+  actividad mensual cuando el gimnasio cambia el precio de la actividad.
+- **Limitación: no distingue roles en el backend.** Cualquier usuario
+  autenticado del gimnasio puede inscribir por API; la restricción de pantalla
+  la pone el frontend.
+- **Decisión: no respeta feriados**, salvo los días de cierre cargados
+  (`GymClosedDate`) al descontar faltas.
+- **Decisión: no reserva cupo de gimnasio**, más allá del chequeo de choque
+  horario.
 
 ---
 
@@ -406,7 +417,7 @@ Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
    falla (cupo lleno, choque horario), el frontend intenta restaurar el horario
    anterior; si esa restauración también falla, el socio queda sin ese horario
    hasta reasignarse.
-3. **Las faltas descuentan aunque el socio nunca haya ido.** El job de
+3. **Las faltas descuentan aunque el socio nunca haya ido.** La tarea de
    no-asistencia toma como faltada cualquier fecha de clase sin registro; un
    feriado no cargado o una clase caída descuentan igual una sesión del paquete.
 4. **El saldo del paquete se puede desincronizar por pagos generales.** El tope

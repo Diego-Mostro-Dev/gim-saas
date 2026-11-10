@@ -898,29 +898,152 @@ Criterio de cierre:
 
 Documentos:
 
-- Los 3 documentos de la fase.
+- Los 3 documentos de la fase: `AUDITORIA-ACTIVIDADES.md`,
+  `AUDITORIA-SALIDAS.md` y `AUDITORIA-PERSONAL-TRAINING.md`.
+- `AUDITORIA-INDEX.md` (fila 13 y cabecera).
+- `AUDITORIA-MAPA-COBERTURA.md` (sólo verificación de las filas de add-ons).
+
+Alcance:
+
+- Fase de **coherencia entre documentos**: no se reescriben secciones enteras;
+  se corrigen divergencias puntuales detectadas al contrastar los tres.
+- No tocar código de producto ni tests; los dev flows sólo contenido, sin
+  lógica.
+- No ejecutar tests localmente: validar con CI, igual que en 5.3–5.7 (esto
+  reemplaza el comando `manage.py test` del borrador original de esta fase).
+- Los bugs nuevos que aparezcan al contrastar se documentan como problema y se
+  propone su alta en `BUGS.md`; no se arregla código.
+
+Decisión de ejecución: dividir en dos pasadas, como en 5.7: **5.8a**
+(contraste y correcciones por documento) y **5.8b** (cierre global: cabeceras,
+índice, mapa y validación).
+
+Contexto detectado antes de empezar (commit `12313e3`, cierre de 5.7):
+
+- Las tres auditorías están cerradas y `Verificado` (índice, filas 13–15); el
+  trabajo de 5.8 es de consistencia, no de revalidación masiva.
+- El código sigue en `f5b4b07`: los commits posteriores son sólo de docs.
+- **Cabeceras divergen de la plantilla**: `AUDITORIA-PLANTILLA.md` exige seis
+  campos; PT no tiene `Tests:` ni `Estado: verificado` (ACTIVIDADES y SALIDAS
+  sí).
+- **Marcado de decisiones**: PT §12–§13 marca **Decisión**/**Limitación**;
+  ACTIVIDADES no marca nada (§7–§8) y SALIDAS tiene 4 “Limitación” dispersas y
+  en otro formato.
+- **Enlaces cruzados**: sólo en “Documentos relacionados” de la cabecera; los
+  cuerpos no se referencian entre sí.
+- **Terminología de la baja**: actividades “dar de baja”, salidas “bajas”,
+  PT “desvincular”. Decisión: mantener el vocabulario propio de cada módulo,
+  pero explicitar la equivalencia donde se comparan.
+- La fila 13 del índice dice “no-show” (inglés) mientras el cuerpo de
+  ACTIVIDADES usa “faltas”/“no asistió”.
+- PT no lista `AUDITORIA-HORARIOS.md` en “Documentos relacionados”, aunque
+  valida solape contra el horario fijo del socio (`ScheduleSlot`).
+- SALIDAS no menciona los días cerrados (`GymClosedDate`) en todo el documento.
+
+##### 5.8a — Contraste y correcciones por documento
+
+Ejes de contraste (aplicar a los tres documentos):
+
+1. **Faltas**: actividades y PT descuentan con el job diario (motor compartido,
+   watermark ADD-29, perdón por recuperación ADD-27); salidas no. Cada documento
+   debe nombrar la divergencia y enlazar a los otros dos.
+2. **Recuperaciones**: actividades (`kind=activity`) y PT (`kind=pt`, sin botón
+   en la UI, hallazgo de 5.7) las tienen; salidas no. Enlaces al motor en
+   `AUDITORIA-RECUPERACION.md`.
+3. **Solicitudes del socio**: en salidas es un pedido de inscripción/cambio que
+   el staff aprueba; en PT es un cambio de horario; en actividades no hay
+   solicitudes (baja inmediata). Dejar explícito que la palabra significa cosas
+   distintas por módulo.
+4. **Cobro compartido**: mismos `Payment` con conceptos distintos
+   (`activity`/`outing`/`personal_training`); mensual con precio congelado en
+   el ítem; paquete con `amount_paid` resincronizado; sellado sólo PT; cobro
+   desde Pagos/Recuperar socios; períodos vencidos inmutables.
+5. **Ciclo de vida de la oferta**: activar/desactivar/reactivar con corte de
+   cobro (Fase D) en los tres; reactivar nunca restaura asignaciones ni ítems.
+6. **Solape y cupos**: motor compartido `backend/core/overlap.py`; actividades
+   valida cupo y solape del socio; salidas cupo del horario; PT 1:1 con solape
+   del trainer.
+7. **Portal público con token** y bloqueo por deuda (`MemberEligibility`).
+8. **Días cerrados** (`GymClosedDate`): salteados al descontar faltas y en las
+   fechas esperadas (actividades y PT); verificar qué hace salidas al registrar
+   sesiones en días cerrados y documentarlo si aplica.
 
 Tareas:
 
-1. Contrastar diferencias entre actividades, salidas y PT, especialmente que salidas no tiene no-show.
-2. Revisar coherencia de terminología y enlaces cruzados.
-3. Revisar que las decisiones de negocio estén marcadas como tales.
-4. Actualizar `AUDITORIA-INDEX.md` con las filas 13–15 y su estado final.
-5. Ejecutar la validación global de la fase.
+1. Leer los tres documentos completos contra estos ejes y anotar divergencias
+   (afirmación que contradice a otro documento, o silencio donde el lector
+   compararía).
+2. Corregir en `AUDITORIA-ACTIVIDADES.md`:
+   - §5 (sesiones y faltas): nombrar que PT comparte el motor y que las salidas
+     no descuentan (enlaces cruzados);
+   - §3 (inscripción): aclarar que no hay solicitudes, a diferencia de salidas;
+   - §7–§8: marcar **Decisión**/**Limitación** en el formato de PT §12–§13,
+     sin reestructurar las listas.
+3. Corregir en `AUDITORIA-SALIDAS.md`:
+   - §6.4 (por qué no hay faltas): enlazar a actividades y PT;
+   - §4 (solicitudes): aclarar la diferencia con PT y con actividades;
+   - §8–§9: marcar **Decisión**/**Limitación** como en PT; unificar el formato
+     de las 4 “Limitación” ya existentes si difiere.
+4. Corregir en `AUDITORIA-PERSONAL-TRAINING.md`:
+   - §7 (faltas): enlace cruzado a `AUDITORIA-ACTIVIDADES.md` §5 (comparte el
+     motor con actividades);
+   - §8 (solicitudes): aclarar la diferencia con las de salidas;
+   - verificar el marcado existente; ajustes puntuales sólo si el contraste lo
+     pide.
+5. Revisar los tres dev flows (`ActivitiesFlow.jsx`, `OutingsFlow.jsx`,
+   `PersonalTrainingFlow.jsx`) y alinear contenido si algo quedó contradictorio
+   tras el contraste (sólo contenido, sin lógica).
 
-Comandos de verificación:
+##### 5.8b — Cierre global (cabeceras, índice, mapa y validación)
 
-```bash
-python scripts/check_audit_refs.py AUDITORIA-ACTIVIDADES.md AUDITORIA-SALIDAS.md AUDITORIA-PERSONAL-TRAINING.md
-cd backend && python manage.py test activities outings personal_training
-```
+Tareas:
+
+1. Normalizar la cabecera de PT según `AUDITORIA-PLANTILLA.md`: agregar
+   `Tests:` (`backend/personal_training/tests.py`, `tests_deactivation.py`,
+   `tests_phase_k2.py`, `tests_phase_k3.py`, `tests_phase_k7.py`) y
+   `Estado: verificado`; agregar `AUDITORIA-HORARIOS.md` a documentos
+   relacionados. No tocar las fechas de ACTIVIDADES/SALIDAS (son sus fechas de
+   verificación reales).
+2. `AUDITORIA-INDEX.md`:
+   - fila 13: reemplazar “no-show” por “faltas” (terminología del cuerpo);
+   - confirmar filas 13–15: fase y estado finales ya cargados por 5.2/5.4/5.7;
+   - actualizar `Fecha:` de la cabecera del índice a la fecha de cierre de 5.8
+     (el `Verificado contra: f5b4b07` sigue vigente: el código no cambió).
+3. `AUDITORIA-MAPA-COBERTURA.md`: verificar las filas de los tres add-ons
+   (apps, endpoints, pantallas y tests) contra el estado final; editar sólo si
+   algo quedó desactualizado.
+4. Validación global:
+   - `python3 scripts/check_audit_refs.py AUDITORIA-ACTIVIDADES.md
+     AUDITORIA-SALIDAS.md AUDITORIA-PERSONAL-TRAINING.md AUDITORIA-INDEX.md`;
+   - confirmar que no quedan referencias `archivo:línea` en los tres
+     documentos;
+   - `git diff` para confirmar que no hay cambios de código ni tests.
+5. Commit único `docs(auditorias): cerrar add-ons y validar coherencia
+   (fase 5.8)` con cuerpo detallado; push a `development`.
+
+Verificación:
+
+1. Validador global de referencias (comando arriba).
+2. Sin referencias numéricas en los tres documentos.
+3. `git diff` acotado a los documentos de la fase (más índice/mapa si se
+   tocaron).
+4. CI ejecuta `backend-tests.yml` (incluye `activities`, `outings` y
+   `personal_training`), `pnpm lint` y `pnpm build`; no correr tests
+   localmente.
+5. Lectura final de los tres documentos para confirmar que las divergencias
+   anotadas en 5.8a quedaron resueltas.
 
 Criterio de cierre:
 
-- Las 3 auditorías reflejan K1–K3/K7.
-- Referencias válidas.
-- Tests de `activities`, `outings` y `personal_training` verdes.
-- Índice actualizado.
+- Los tres documentos cuentan lo mismo sobre los motores compartidos (faltas,
+  recuperaciones, cobro, solape, ciclo de vida) y nombran sus divergencias con
+  enlaces cruzados.
+- Decisiones de negocio y limitaciones marcadas en los tres, con el mismo
+  formato.
+- Cabecera de PT completa según la plantilla.
+- Índice y mapa actualizados; referencias válidas.
+- Tests de `activities`, `outings` y `personal_training` verdes en CI.
+- Sin cambios de código ni de tests.
 
 ---
 

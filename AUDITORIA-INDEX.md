@@ -1,7 +1,7 @@
 # Índice de auditorías
 
 > Verificado contra: `f5b4b07`
-> Fecha: 2026-10-30
+> Fecha: 2026-11-10
 > Alcance: estado, ubicación y cobertura de las 18 auditorías del sistema.
 > Documentos relacionados: `AUDITORIA-MAPA-COBERTURA.md`, `AUDITORIA-PLANTILLA.md`,
 > `Actualizacion de auditorias.md`
@@ -46,7 +46,7 @@ Estados posibles:
 | 10 | `AUDITORIA-RECUPERACION.md` | 3 | Recuperación de suscripción, deuda y casos A/B | `backend/subscriptions/services.py`, `backend/attendance/recovery_service.py` | `Verificado` |
 | 11 | `AUDITORIA-ASISTENCIAS.md` | 4 | Check-in, planilla, cupos, descuentos y recuperaciones | `backend/attendance` | `Verificado` |
 | 12 | `AUDITORIA-HORARIOS.md` | 4 | Cambios permanentes, intercambios, límites y aprobaciones | `backend/attendance` | `Verificado` |
-| 13 | `AUDITORIA-ACTIVIDADES.md` | 5.1–5.2 | Actividades, horarios, inscripciones, cobro, sesiones y no-show | `backend/activities` | `Verificado` |
+| 13 | `AUDITORIA-ACTIVIDADES.md` | 5.1–5.2 | Actividades, horarios, inscripciones, cobro, sesiones y faltas | `backend/activities` | `Verificado` |
 | 14 | `AUDITORIA-SALIDAS.md` | 5.3–5.4 | Salidas, horarios, inscripciones, solicitudes, sesiones y cobro | `backend/outings` | `Verificado` |
 | 15 | `AUDITORIA-PERSONAL-TRAINING.md` | 5.5–5.7 | Oferta, trainers, asignaciones, cobro, sesiones, faltas, solicitudes, agenda y asistencia | `backend/personal_training` | `Verificado` |
 | 16 | `AUDITORIA-RUTINAS.md` | 6 | Ejercicios, plantillas, asignación, ejecución y progreso | `backend/routines` | `Pendiente Fase 6` |

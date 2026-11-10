@@ -12,7 +12,8 @@
 > trainer y portal del socio; asistencia y ciclo de vida. También cubre los
 > problemas conocidos.
 > Documentos relacionados: `AUDITORIA-ACTIVIDADES.md`, `AUDITORIA-SALIDAS.md`,
-> `AUDITORIA-ASISTENCIAS.md`, `AUDITORIA-RECUPERACION.md`, `AUDITORIA-PAGOS.md`,
+> `AUDITORIA-ASISTENCIAS.md`, `AUDITORIA-HORARIOS.md`,
+> `AUDITORIA-RECUPERACION.md`, `AUDITORIA-PAGOS.md`,
 > `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-NUCLEO-REGLAS.md`
 > Código cubierto: `backend/personal_training`,
 > `backend/activities/no_show_service.py`,
@@ -22,6 +23,12 @@
 > `frontend/src/pages/PersonalTrainingAttendance.jsx`,
 > `frontend/src/pages/TrainerAgenda.jsx`,
 > `frontend/src/pages/MemberPersonalTraining.jsx`
+> Tests: `backend/personal_training/tests.py`,
+> `backend/personal_training/tests_deactivation.py`,
+> `backend/personal_training/tests_phase_k2.py`,
+> `backend/personal_training/tests_phase_k3.py`,
+> `backend/personal_training/tests_phase_k7.py`
+> Estado: verificado
 
 ---
 
@@ -431,7 +438,9 @@ un flujo que use la UI.
 ### Problemas y decisiones de negocio
 - **Decisión:** sólo los paquetes descuentan faltas; las asignaciones mensuales
   (y las salidas) no lo hacen.
-- **Decisión:** PT comparte el motor de faltas y recuperaciones con actividades.
+- **Decisión:** PT comparte el motor de faltas y recuperaciones con actividades
+  (detalles del motor en `AUDITORIA-ACTIVIDADES.md` §5); las salidas no lo
+  usan.
 - **Decisión:** renovar no cobra ni resetea el sellado.
 - **Decisión:** una deuda pendiente bloquea la renovación salvo confirmación
   explícita del staff.
@@ -464,6 +473,9 @@ un flujo que use la UI.
 - El socio **no puede cambiar su horario solo**: desde su portal crea una
   **solicitud de cambio** y el staff la revisa. (El staff también puede editar la
   asignación directamente, sin solicitud; ver §4.)
+- No confundir con las solicitudes de las salidas (`AUDITORIA-SALIDAS.md` §4),
+  que piden **inscribirse o darse de baja**: las de PT siempre cambian el
+  horario de una asignación ya existente.
 - Una solicitud pide un **día y horario nuevos** para una asignación **activa**.
   Al crearla se valida:
   - que el día sea válido y la hora de fin posterior a la de inicio,
