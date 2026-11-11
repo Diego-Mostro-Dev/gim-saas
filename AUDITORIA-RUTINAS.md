@@ -242,3 +242,183 @@ portal completo, no un bug de rutinas.
 
 ---
 
+## 6. Progreso y registro
+
+El progreso se guarda en `WorkoutSet`. Cada registro tiene:
+
+- La **asignación** y el **ejercicio de rutina** al que pertenece.
+- El **número de serie**.
+- Si está **completada** (`completed`) y **cuándo** (`completed_at`).
+- La **fecha** (`date`), que por defecto es **la fecha de hoy**.
+
+Hay una restricción que impide repetir el mismo `(asignación, ejercicio, serie,
+fecha)`: marcar y desmarcar actualiza el mismo registro (`update_or_create`), no
+crea duplicados.
+
+Punto clave: **sólo se registra el entrenamiento de hoy.** La fecha no se elige:
+siempre es `timezone.localdate()`. No hay historial entre días ni un "entrené el
+lunes". El progreso que ve el socio **se reinicia cada día** (RUT-08, decisión de
+negocio).
+
+Tampoco se guarda el peso o las repeticiones **reales** que hizo: eso es texto
+libre en la rutina, no un dato de la sesión.
+
+### Referencia
+- Modelo: `backend/routines/models.py · WorkoutSet`.
+- Vista pública de progreso: `backend/routines/views.py · PublicWorkoutProgressView`.
+- Serializer: `backend/routines/serializers.py · WorkoutSetSerializer`.
+- Pantalla: `frontend/src/pages/member/MemberWorkout.jsx · MemberWorkout`.
+
+---
+
+## 7. Permisos y accesos
+
+Hay **cuatro** niveles, y conviene no confundirlos:
+
+1. **Gestión con rol (backend).** Los cuatro ViewSets de gestión y el
+   `bulk-assign` pasan por `require_routine_manager`. Pueden gestionar
+   **dueño, staff y profesor**; el **trainer recibe 403** con el mensaje
+   `errors.routine_role_required`. Esto cubre crear/editar/borrar ejercicios,
+   plantillas y filas, asignar en lote y desactivar asignaciones.
+2. **Lectura autenticada sin rol (backend).** `GET member/<id>/`,
+   `GET active/` y `GET member/<id>/whatsapp/` sólo exigen `IsAuthenticated`.
+   **No** llaman a `require_routine_manager`. Por eso un **trainer** puede leer
+   la rutina de cualquier socio del gimnasio, listar todas las asignaciones
+   activas y obtener el mensaje de WhatsApp con el teléfono del socio. Es una
+   **Limitación** del sistema actual, no una decisión de negocio declarada (§9).
+3. **Interfaz (staff).** La ruta `/routines` está envuelta en
+   `RoutineManagerRoute`: trainer → `/trainer-agenda`, y cualquier rol fuera de
+   dueño/staff/profesor → `/dashboard`. El gating de la pantalla es sólo visual:
+   no reemplaza el control del backend.
+4. **Público (socio, sin login).** `public/<token>/` y
+   `public/<token>/progress/` **no piden autenticación** (sólo límites de
+   frecuencia). El token es la única credencial. El primer endpoint devuelve un
+   payload grande: la rutina, las suscripciones, los pagos, la deuda, la
+   asistencia y el estado de acceso. Es una **Decisión** de negocio (RUT-06): el
+   token del portal ES la credencial del socio y el portal necesita esos datos
+   para operar.
+
+El **estado de acceso** del socio (si puede entrenar o no) sale de
+`MemberEligibility.block_reason`: es la única fuente de verdad y también la usa
+el `POST` de progreso. Posibles motivos de bloqueo: `inactive` (ficha inactiva),
+`no_subscription` (ningún ciclo cubre hoy), `blocked` o `initial_pending`. Ojo:
+`pending` y `overdue` **no** bloquean el entrenamiento.
+
+Aparte, el **admin Django** de rutinas está recortado por gimnasio
+(`GymScopedAdminMixin`, REF-08): un usuario con acceso al admin sólo ve las filas
+de su gimnasio; el superusuario central ve todo.
+
+### Referencia
+- Gate de gestión: `backend/core/permissions.py · require_routine_manager`,
+  `backend/core/permissions.py · is_routine_manager`,
+  `backend/core/permissions.py · ROUTINE_MANAGER_ROLES`,
+  `backend/routines/views.py · RoutineManagerMixin`.
+- ViewSets y lecturas: `backend/routines/views.py · ExerciseViewSet`,
+  `backend/routines/views.py · RoutineTemplateViewSet`,
+  `backend/routines/views.py · RoutineAssignmentViewSet`,
+  `backend/routines/views.py · RoutineExerciseViewSet`,
+  `backend/routines/views.py · MemberRoutineView`,
+  `backend/routines/views.py · ActiveRoutinesView`,
+  `backend/routines/views.py · MemberRoutineWhatsappView`,
+  `backend/routines/views.py · BulkAssignRoutineView`.
+- Scoping por gym: `backend/core/mixins.py · GymQuerysetMixin`,
+  `backend/core/viewsets.py · GymModelViewSet`.
+- Ruta frontend: `frontend/src/App.jsx · RoutineManagerRoute`.
+- Payload público: `backend/routines/views.py · PublicRoutineView`,
+  `backend/routines/views.py · PublicWorkoutProgressView`,
+  `backend/routines/serializers.py · MemberPortalSerializer`.
+- Elegibilidad: `backend/members/eligibility.py · MemberEligibility.block_reason`.
+- Admin: `backend/routines/admin.py`, `backend/core/admin.py · GymScopedAdminMixin`.
+
+---
+
+## 8. Problemas que pueden pasar
+
+1. **El alta directa de asignaciones devuelve 500 si el socio ya tiene una
+   rutina activa.** `POST /api/routines/assignments/` (y un `PATCH` que reactive)
+   no captura el `IntegrityError` de `uniq_active_routine_per_member`; el
+   serializer sólo valida pertenencia al gimnasio y el handler global no lo
+   traduce. El `bulk-assign` sí lo maneja y responde `400`. Propuesto para
+   `BUGS.md`.
+2. **El `bulk-assign` descarta socios en silencio.** Si un ID es de otro
+   gimnasio, inexistente o de un socio eliminado, no se asigna y la respuesta
+   sigue siendo `200` con `assigned_members` contando sólo los encontrados. El
+   cliente no puede saber cuáles quedaron afuera. Propuesto para `BUGS.md`.
+3. **El trainer puede leer datos que no gestiona** (Limitación, no bug): rutina
+   del socio, listado de asignaciones activas y WhatsApp con teléfono. La
+   gestión sí está bloqueada; la lectura no.
+4. **Dos ejercicios o dos plantillas pueden llamarse igual** (Limitación): no hay
+   unicidad de nombre ni validación en el serializer. La pantalla muestra ambos
+   y el staff tiene que distinguirlos por descripción.
+5. **Dos filas de una rutina pueden compartir `order`** (Limitación): no hay
+   unicidad y el orden visual puede no ser el que el staff esperaba.
+
+Las decisiones de negocio no son problemas: el payload público con datos
+financieros (RUT-06), el reinicio diario del progreso (RUT-08) y el acceso de
+socios inactivos al portal están documentados como tales en §7, §6 y §9.
+
+### Referencia
+- Alta directa y constraint: `backend/routines/views.py · RoutineAssignmentViewSet`,
+  `backend/routines/models.py · RoutineAssignment`,
+  `backend/routines/serializers.py · RoutineAssignmentSerializer`,
+  `backend/config/api/exception_handler.py · api_exception_handler`.
+- Descarte silencioso: `backend/routines/views.py · BulkAssignRoutineView`.
+- Lecturas sin rol: `backend/routines/views.py · MemberRoutineView`,
+  `backend/routines/views.py · ActiveRoutinesView`,
+  `backend/routines/views.py · MemberRoutineWhatsappView`.
+- Falta de unicidad: `backend/routines/models.py · Exercise`,
+  `backend/routines/models.py · RoutineTemplate`,
+  `backend/routines/serializers.py · ExerciseSerializer`,
+  `backend/routines/serializers.py · RoutineTemplateSerializer`.
+- Tests que fijan el comportamiento: `backend/routines/tests_phase_h.py`.
+
+---
+
+## 9. Lo que el sistema NO hace hoy (para no prometerlo en el manual)
+
+- **Limitación: no exige rol para leer rutinas.** La gestión sí pide
+  dueño/staff/profesor; la lectura de `member/<id>/`, `active/` y `whatsapp/`
+  sólo pide login.
+- **Limitación: no garantiza nombres únicos** de ejercicios ni de plantillas.
+  Se pueden repetir dentro del mismo gimnasio.
+- **Limitación: no garantiza un `order` único** dentro de una plantilla.
+- **Decisión: no guarda historial de entrenamientos.** El progreso es siempre de
+  hoy y se reinicia cada día (RUT-08).
+- **Decisión: no guarda el peso ni las repeticiones reales** que hizo el socio.
+  `reps` y `weight` son texto libre de la rutina.
+- **Limitación: no valida que `reps` y `weight` sean números.** Acepta "10-12",
+  "al fallo" o "30 seg" a propósito.
+- **Decisión: no está gated por feature.** `backend/gyms/features.py` no incluye
+  rutinas: el módulo está disponible para todos los gimnasios.
+- **Decisión: no notifica al socio.** El staff arma y copia el link de WhatsApp
+  a mano desde la ficha; no hay email, push ni envío automático.
+- **Decisión: no autoasigna rutinas.** Todo se carga desde el panel.
+- **Decisión: no hay cupones ni descuentos** asociados a la rutina.
+
+---
+
+## 10. Notas de entorno para leer el código
+
+- Zona horaria `America/Argentina/Buenos_Aires`
+  (`backend/config/settings.py · TIME_ZONE`): define qué es "hoy" para el
+  progreso.
+- Los ViewSets de gestión filtran por el gimnasio del usuario
+  (`backend/core/mixins.py · GymQuerysetMixin`,
+  `backend/core/viewsets.py · GymModelViewSet`); el portal público entra por el
+  token del socio.
+- La app **no tiene** `services.py` ni `permissions.py` propios: la lógica vive
+  en las vistas y el gate de rol en `backend/core/permissions.py`.
+- Migraciones: `backend/routines/migrations/0001` a `0010`. La `0009` agrega el
+  soft delete (`is_active`) y la `0010` el índice único parcial
+  `uniq_active_routine_per_member`.
+- Tests: `backend/routines/tests_phase_h.py` (16 tests: rol, soft delete,
+  unicidad, lote atómico, ejercicio inactivo). Fuera de ese archivo la app no
+  tiene más cobertura.
+- Admin: `backend/routines/admin.py` usa `GymScopedAdminMixin` (REF-08).
+- Datos de ejemplo: `backend/seed/data/exercises.py`,
+  `backend/seed/data/routines.py`.
+- App instalable (PWA) del portal: id `/routine/`
+  (`backend/gyms/views.py · PwaMemberManifestView`).
+- Flujo dev relacionado: `frontend/src/dev/RoutinesFlow.jsx` (página interactiva
+  de este mismo documento). Para "recuperar", ver
+  `AUDITORIA-RECUPERACION.md`.
