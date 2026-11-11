@@ -3,9 +3,26 @@
 > Documento descriptivo: **lo que el sistema hace hoy**, verificado contra el código.
 > Escrito en lenguaje simple para servir de base a un manual de gimnasios. Las
 > referencias de código van aparte, en letra chica, para no ensuciar el texto.
-> Cubre **las rutinas de entrenamiento** (el plan que el gimnasio le arma a un
-> socio). No confundir con **entrenamiento personal** (otro módulo, ver §1) ni con
-> **recuperar clases/sesiones** (ver `AUDITORIA-RECUPERACION.md`).
+>
+> Verificado contra: `f5b4b07`
+> Fecha: 2026-11-11
+> Alcance: catálogo de ejercicios, armado de plantillas, asignación a socios,
+> ejecución desde el portal y registro de progreso. También cubre permisos,
+> accesos públicos, límites y problemas conocidos. No cubre entrenamiento
+> personal ni recuperación de clases/sesiones, salvo para desambiguar.
+> Documentos relacionados: `AUDITORIA-MIEMBROS.md`, `AUDITORIA-NUCLEO-REGLAS.md`,
+> `AUDITORIA-RECUPERACION.md`, `AUDITORIA-PAGOS.md`,
+> `AUDITORIA-SUSCRIPCIONES.md`, `AUDITORIA-COMUNIDAD.md`
+> Código cubierto: `backend/routines`, `backend/core/permissions.py`,
+> `backend/core/mixins.py`, `backend/core/viewsets.py`,
+> `backend/members/models.py`, `backend/members/eligibility.py`,
+> `backend/gyms/features.py`, `backend/config/api/exception_handler.py`,
+> `frontend/src/pages/Routines.jsx`, `frontend/src/pages/Members.jsx`,
+> `frontend/src/pages/member/MemberWorkout.jsx`,
+> `frontend/src/pages/member/MemberPortalLayout.jsx`,
+> `frontend/src/components/routines`, `frontend/src/dev/RoutinesFlow.jsx`
+> Tests: `backend/routines/tests_phase_h.py`
+> Estado: verificado
 
 ---
 
@@ -16,11 +33,17 @@ Se arma con cinco piezas, siempre en este orden:
 
 | Pieza | Qué es |
 |-------|--------|
-| **Ejercicio** (`Exercise`) | El movimiento del catálogo ("Press banca", "Sentadilla"). Es único por gimnasio. |
+| **Ejercicio** (`Exercise`) | El movimiento del catálogo ("Press banca", "Sentadilla"). |
 | **Plantilla de rutina** (`RoutineTemplate`) | Un plan con nombre ("Full body 3 días"). Agrupa una lista ordenada de ejercicios. |
 | **Ejercicio de rutina** (`RoutineExercise`) | Una fila del plan: qué ejercicio, en qué orden, cuántas series y repeticiones, cuánto descanso. |
 | **Asignación** (`RoutineAssignment`) | El enganche entre una plantilla y un socio. Es lo que hace que el socio "tenga" esa rutina. |
 | **Registro** (`WorkoutSet`) | Cada serie que el socio marca como hecha mientras entrena. |
+
+El catálogo es **de cada gimnasio**, pero **el nombre no es único**: hoy se pueden
+cargar dos ejercicios con el mismo nombre en el mismo gimnasio, y dos plantillas
+con el mismo nombre. No hay restricción en la base ni validación en el
+serializer. Es una **Limitación** del sistema actual (§9), no una regla de
+negocio.
 
 Lo que **NO** es una rutina:
 
@@ -35,9 +58,14 @@ Lo que **NO** es una rutina:
   `frontend/src/pages/member/MemberWorkout.jsx`.
 
 ### Referencia
-- Modelos: `backend/routines/models.py` — `Exercise` `:28-82`, `RoutineTemplate` `:85-114`, `RoutineExercise` `:117-209`, `RoutineAssignment` `:212-245`, `WorkoutSet` `:248-285`.
-- Registro del módulo: `backend/config/settings.py:158`, `backend/config/urls.py:37` (`api/routines/`).
-- Portal del socio: `frontend/src/App.jsx:121-133` (rutas `/routine/:token/*`).
+- Modelos: `backend/routines/models.py · Exercise`,
+  `backend/routines/models.py · RoutineTemplate`,
+  `backend/routines/models.py · RoutineExercise`,
+  `backend/routines/models.py · RoutineAssignment`,
+  `backend/routines/models.py · WorkoutSet`.
+- Registro del módulo: `backend/config/settings.py`, `backend/config/urls.py`.
+- Rutas del portal: `frontend/src/App.jsx`.
+- Página de horarios: `frontend/src/pages/PublicRoutine.jsx`.
 
 ---
 
@@ -46,7 +74,7 @@ Lo que **NO** es una rutina:
 El **catálogo** es la lista de movimientos disponibles del gimnasio. Cada
 `Exercise` tiene:
 
-- **Nombre** (obligatorio, hasta 100 caracteres).
+- **Nombre** (obligatorio, hasta 100 caracteres). No es único (§9).
 - **Descripción** (opcional).
 - **Categoría** (opcional): una de estas nueve — pecho, espalda, piernas, hombros,
   bíceps, tríceps, core, cardio, movilidad.
@@ -59,11 +87,14 @@ catálogo: `objects` (que oculta los inactivos, el que usa la pantalla) y
 desactiva todas sus filas de rutina** en todas las plantillas.
 
 ### Referencia
-- `backend/routines/models.py:28-82` (`Exercise`; categorías `:29-39`; `delete()` `:79-82`).
-- Soft delete: `models.py:8-25` (`SoftDeleteQuerySet`, `SoftDeleteManager`, `AllObjectsManager`).
-- `backend/routines/serializers.py:14-18` (`ExerciseSerializer`).
-- `backend/routines/views.py:53-56` (`ExerciseViewSet`).
-- Pantalla: `frontend/src/components/routines/ExerciseForm.jsx:3-14`, `ExerciseList.jsx:3-13`.
+- Modelo: `backend/routines/models.py · Exercise`.
+- Soft delete: `backend/routines/models.py · SoftDeleteQuerySet`,
+  `backend/routines/models.py · SoftDeleteManager`,
+  `backend/routines/models.py · AllObjectsManager`.
+- Serializer: `backend/routines/serializers.py · ExerciseSerializer`.
+- ViewSet: `backend/routines/views.py · ExerciseViewSet`.
+- Pantalla: `frontend/src/components/routines/ExerciseForm.jsx`,
+  `frontend/src/components/routines/ExerciseList.jsx`.
 
 ---
 
@@ -80,18 +111,33 @@ contenido son sus filas (`RoutineExercise`), que van en orden. Cada fila guarda:
 | `weight` | Peso. También es **texto libre**. |
 | `notes` | Notas para el socio. |
 | `rest_seconds` | Cuántos segundos descansar. |
-| `rest_mode` | Cuándo descansar: `entre series`, `al finalizar el ejercicio`, o `sin descanso`. |
+| `rest_mode` | Cuándo descansar: `between_sets` (entre series), `after_exercise` (al finalizar el ejercicio) o `none` (sin descanso). |
 | `next_exercise_rest_seconds` | Descanso extra antes del próximo ejercicio. |
-| `exercise_type` | Tipo: `fuerza`, `peso corporal` o `cardio`. Cambia cómo se muestra en el portal. |
+| `exercise_type` | Tipo: `strength` (fuerza), `bodyweight` (peso corporal) o `cardio`. Cambia cómo se muestra en el portal. |
 
 Reordenar es cambiar el `order`. Renombrar la rutina es editar la plantilla.
-Borrar una fila de rutina es borrado lógico (queda inactiva).
+Borrar una fila de rutina es borrado lógico (queda inactiva). Borrar la
+plantilla **también** desactiva sus filas y sus asignaciones.
+
+`RoutineExercise` **no tiene campo `gym`**: el gimnasio se deduce de la
+plantilla (`routine_template.gym`). Por eso su ViewSet no usa
+`GymModelViewSet`; el filtrado y la validación de pertenencia se hacen por la
+plantilla y por el serializer. El hallazgo RUT-05 no se reproduce: no es un
+desajuste.
+
+Tampoco hay unicidad de `order` dentro de una plantilla: dos filas pueden
+compartir el mismo número de orden. La pantalla ordena por `order`, así que el
+resultado queda estable pero no necesariamente con la intención del usuario.
 
 ### Referencia
-- `backend/routines/models.py:117-209` (`RoutineExercise`; tipos `:118-122`; modos de descanso `:124-128`; campos `:143-192`).
-- `backend/routines/serializers.py:57-93` (`RoutineExerciseSerializer`).
-- Endpoints: `backend/routines/views.py:59-62` (`RoutineTemplateViewSet`), `:70-80` (`RoutineExerciseViewSet`).
-- Pantalla: `frontend/src/components/routines/RoutineBuilder.jsx:4-14`, `RoutineTemplateForm.jsx`, `RoutineTemplateList.jsx`.
+- Modelo: `backend/routines/models.py · RoutineExercise`,
+  `backend/routines/models.py · RoutineTemplate`.
+- Serializer: `backend/routines/serializers.py · RoutineExerciseSerializer`.
+- ViewSets: `backend/routines/views.py · RoutineTemplateViewSet`,
+  `backend/routines/views.py · RoutineExerciseViewSet`.
+- Pantalla: `frontend/src/components/routines/RoutineBuilder.jsx`,
+  `frontend/src/components/routines/RoutineTemplateForm.jsx`,
+  `frontend/src/components/routines/RoutineTemplateList.jsx`.
 
 ---
 
@@ -100,28 +146,61 @@ Borrar una fila de rutina es borrado lógico (queda inactiva).
 La asignación se hace **en lote** desde la pestaña "Asignaciones": el staff elige
 una plantilla y uno o varios socios, y confirma. El endpoint
 `POST /api/routines/bulk-assign/` recibe `{ member_ids, routine_template }` y,
-**por cada socio**:
+**por cada socio encontrado**:
 
 1. **Desactiva** cualquier asignación activa previa del socio.
 2. **Crea** una asignación nueva (`active = True`) con la plantilla elegida.
 
-El resultado que ve el staff es "una sola rutina activa por socio". Pero eso es
-una **convención de la interfaz**, no una regla de la base de datos: no hay
-restricción de unicidad que impida dos activas, y el bucle del alta **no abre
-transacción ni bloqueo**. Un doble envío simultáneo puede dejar estados raros
-(ver §8).
+Todo el lote corre dentro de `transaction.atomic()`: si falla un alta, no queda
+un estado intermedio (unos socios con la rutina nueva y otros no). La regla "una
+sola rutina activa por socio" **sí está en la base**: hay un índice único parcial
+`(gym, member) WHERE active=True` (`uniq_active_routine_per_member`). Las
+asignaciones inactivas pueden repetirse sin límite.
+
+La respuesta es `200` con `assigned_members` (cuántos socios se asignaron) y el
+nombre de la rutina. Pero el endpoint **no avisa de los IDs que descartó**:
+
+- Busca los socios con `Member.objects.filter(gym=gym, id__in=member_ids)`.
+- `Member.objects` es el manager de socios **vivos**, así que un socio eliminado
+  (ACC-20) no aparece.
+- Un ID inexistente o de otro gimnasio tampoco aparece.
+- `assigned_members` cuenta sólo los encontrados y el cliente recibe `200`.
+
+Es decir: pedir 10 socios y asignar 7 devuelve `200` con `assigned_members: 7`,
+sin detalle de los 3 que quedaron afuera. Es el comportamiento que fija el test
+`test_bulk_assign_leaves_no_partial_state`.
 
 También se puede desactivar una asignación suelta con un `PATCH active=false`.
-La interfaz **no usa el DELETE** de asignaciones (y si lo usara, sería un borrado
-**duro**, porque `RoutineAssignment` no tiene borrado lógico).
+El ViewSet **no expone `DELETE`** (responde `405`): la baja es lógica
+(`active=False`) y la fila se conserva. La desactivación implícita del
+`bulk-assign` usa el mismo criterio.
+
+El alta directa de una asignación (`POST /api/routines/assignments/`) o un
+`PATCH` que reactive una asignación **no** manejan el `IntegrityError` del
+índice único. El serializer sólo valida que socio y plantilla sean del gimnasio;
+el ViewSet no sobreescribe `create`; y el handler global de excepciones sólo
+enriquece los errores de features. Si el socio ya tiene una rutina activa, el
+cliente recibe **500** en vez de un `400` legible (§8).
+
+El mensaje de WhatsApp con el link del portal y el detalle de la rutina se arma
+desde la ficha de socios (`Members.jsx` → `GET /api/routines/member/<id>/whatsapp/`).
+Ese endpoint incluye el teléfono del socio y usa el token vigente de su portal.
 
 ### Referencia
-- `backend/routines/views.py:272-337` (`BulkAssignRoutineView`; desactivar + crear `:313-332`).
-- `backend/routines/views.py:65-67` (`RoutineAssignmentViewSet`), `:244-267` (`ActiveRoutinesView`).
-- `backend/routines/models.py:212-245` (`RoutineAssignment`, sin `unique_together`).
-- `backend/routines/serializers.py:28-54` (`RoutineAssignmentSerializer`), `:151-196` (`ActiveRoutineSerializer`).
-- Pantalla: `frontend/src/components/routines/RoutineAssignment.jsx`, `ActiveRoutines.jsx`, `MemberRoutineModal.jsx`.
-- Servicios: `frontend/src/services/routines.service.js:102` (`getActiveRoutines`), `:112` (`bulkAssignRoutine`), `:125` (`deactivateAssignment`).
+- Endpoint en lote: `backend/routines/views.py · BulkAssignRoutineView`.
+- Alta/baja de asignaciones: `backend/routines/views.py · RoutineAssignmentViewSet`.
+- Listado de activas: `backend/routines/views.py · ActiveRoutinesView`.
+- Rutina de un socio: `backend/routines/views.py · MemberRoutineView`.
+- Mensaje de WhatsApp: `backend/routines/views.py · MemberRoutineWhatsappView`.
+- Modelo y constraint: `backend/routines/models.py · RoutineAssignment`.
+- Serializers: `backend/routines/serializers.py · RoutineAssignmentSerializer`,
+  `backend/routines/serializers.py · ActiveRoutineSerializer`.
+- Handler global: `backend/config/api/exception_handler.py · api_exception_handler`.
+- Pantallas: `frontend/src/components/routines/RoutineAssignment.jsx`,
+  `frontend/src/components/routines/ActiveRoutines.jsx`,
+  `frontend/src/components/routines/MemberRoutineModal.jsx`.
+- Servicios: `frontend/src/services/routines.service.js`.
+- Ficha de socios: `frontend/src/pages/Members.jsx`.
 
 ---
 
@@ -139,137 +218,27 @@ En `MemberWorkout` el socio:
   antes del próximo (según cómo se configuró cada fila).
 - Ve una **barra de progreso** (series hechas sobre el total).
 
-Si el socio está **bloqueado** (ver §7), la pantalla le impide registrar: el
+Si el socio está **bloqueado** (ver §7), la pantalla le muestra la rutina pero el
 `POST` de progreso responde **403 "Acceso suspendido por falta de pago."**.
 
-### Referencia
-- Portal: `frontend/src/pages/member/MemberPortalLayout.jsx:19`, `:169-205` (carga `routine`), `:448` (contexto).
-- Workout: `frontend/src/pages/member/MemberWorkout.jsx:17-69` (`RestTimer`), `:71-94` (carga de progreso), `:96` (lista de ejercicios).
-- Servicios: `frontend/src/services/routines.service.js:144` (`getWorkoutProgress`), `:148` (`toggleWorkoutSet`), `:162` (`getPublicRoutine`).
-- Endpoints: `backend/routines/views.py:83-116` (`MemberRoutineView`), `:340-412` (`PublicWorkoutProgressView`).
-- Bloqueo: `backend/routines/views.py:365-369`.
-
----
-
-## 6. Progreso y registro
-
-El progreso se guarda en `WorkoutSet`. Cada registro tiene:
-
-- La **asignación** y el **ejercicio de rutina** al que pertenece.
-- El **número de serie**.
-- Si está **completada** (`completed`) y **cuándo** (`completed_at`).
-- La **fecha** (`date`), que por defecto es **la fecha de hoy**.
-
-Hay una restricción que impide repetir el mismo `(asignación, ejercicio, serie,
-fecha)`: marcar y desmarcar actualiza el mismo registro (`update_or_create`), no
-crea duplicados.
-
-Punto clave: **sólo se registra el entrenamiento de hoy.** La fecha no se elige:
-siempre es `timezone.localdate()`. No hay historial entre días ni un "entrené el
-lunes". El progreso que ve el socio **se reinicia cada día**.
-
-Tampoco se guarda el peso o las repeticiones **reales** que hizo: eso es texto
-libre en la rutina, no un dato de la sesión.
+El link del portal usa el **token vigente** del socio. El sistema acepta también
+el token de **una generación anterior** (gracia de ACC-18) para no romper un
+link ya compartido cuando el token rota; un token de dos rotaciones atrás queda
+invalidado. Si el socio fue **eliminado** (baja lógica con `deleted_at`), su
+token da **404** en todos los endpoints públicos (ACC-20). Un socio **inactivo**
+pero no eliminado sigue entrando al portal: es una decisión de negocio del
+portal completo, no un bug de rutinas.
 
 ### Referencia
-- `backend/routines/models.py:248-285` (`WorkoutSet`; `date` `:272-275`; `unique_together` `:280-285`).
-- `backend/routines/views.py:354-357` (filtra por `timezone.localdate()`), `:400-409` (`update_or_create`).
-- `backend/routines/serializers.py:242-252` (`WorkoutSetSerializer`).
-- `frontend/src/pages/member/MemberWorkout.jsx:71-94`.
+- Portal: `frontend/src/pages/member/MemberPortalLayout.jsx · MemberPortalLayout`.
+- Workout: `frontend/src/pages/member/MemberWorkout.jsx · MemberWorkout`.
+- Servicios: `frontend/src/services/routines.service.js`.
+- Endpoints públicos: `backend/routines/views.py · PublicRoutineView`,
+  `backend/routines/views.py · PublicWorkoutProgressView`.
+- Resolución del token: `backend/members/models.py · portal_member_or_404`,
+  `backend/members/models.py · resolve_public_portal_member`,
+  `backend/members/models.py · portal_token_q`.
+- Bloqueo: `backend/members/eligibility.py · MemberEligibility.can_operate`.
 
 ---
 
-## 7. Permisos y accesos
-
-Hay tres niveles, y conviene no confundirlos:
-
-1. **Staff (con login).** Los endpoints de rutinas piden **sólo estar
-   autenticado** (`IsAuthenticated`) y filtran por el gimnasio del usuario
-   (`GymQuerysetMixin`). **No chequean el rol**: existe un helper `require_owner`
-   (sólo dueño), pero en rutinas **no se usa**. Es decir, cualquier usuario
-   autenticado del gimnasio (dueño, profesor, etc.) puede crear/editar/borrar
-   ejercicios y plantillas, y asignar rutinas.
-2. **Interfaz (staff).** El gating por rol es **sólo visual**: `HomeRedirect` y
-   `ProfessorRoute` empujan a ciertos usuarios, pero la ruta `/routines` **no**
-   está envuelta en `ProfessorRoute`, así que cualquier rol autenticado puede
-   abrirla.
-3. **Público (socio, sin login).** Los endpoints `public/<token>/` y
-   `public/<token>/progress/` **no piden autenticación** (sólo un límite de
-   frecuencia). El token es la única credencial. El primer endpoint devuelve un
-   payload grande: la rutina, las suscripciones, los pagos, la deuda y el estado
-   de acceso.
-
-El **estado de acceso** del socio (si puede entrenar o no) sale de
-`MemberEligibility.block_reason`: es la única fuente de verdad y también la usa
-el POST de progreso. Posibles motivos de bloqueo: `inactive` (ficha inactiva),
-`no_subscription` (ningún ciclo cubre hoy), `blocked` o `initial_pending`. Ojo:
-`pending` y `overdue` **no** bloquean el entrenamiento.
-
-### Referencia
-- Endpoints staff: `backend/routines/views.py:53-80`.
-- Scoping por gym: `backend/core/mixins.py:4-22`; `backend/core/viewsets.py:5-7`.
-- `require_owner` (no usado acá): `backend/core/permissions.py:20-31`.
-- Endpoints públicos: `backend/routines/views.py:340-412`, `:425-831`.
-- Ruta frontend sin `ProfessorRoute`: `frontend/src/App.jsx:189`; gating visual `:85-107`.
-- Elegibilidad: `backend/members/eligibility.py:31-77`.
-
----
-
-## 8. Posibles bugs / desajustes (documentar, no arreglar)
-
-1. **Sin control de rol en el backend.** Cualquier usuario autenticado del gym
-   puede administrar el catálogo y asignar rutinas: no se llama a `require_owner`.
-   — `backend/routines/views.py:53-80`, `:272-337`.
-2. **Asignación con DELETE duro.** `RoutineAssignment` no tiene borrado lógico y
-   el ViewSet expone `DELETE`. — `backend/routines/models.py:212-245`,
-   `backend/routines/views.py:65-67`.
-3. **Sin unicidad de rutina activa + alta sin transacción.** Nada impide dos
-   asignaciones activas para el mismo socio, y el bucle de `bulk-assign` no es
-   atómico ni bloquea: un doble envío puede dejar estados intermedios.
-   — `backend/routines/models.py:212-245`, `backend/routines/views.py:313-332`.
-4. **Ejercicios borrados que igual aparecen.** `MemberRoutineSerializer.get_exercises`
-   no filtra `is_active`, así que un ejercicio desactivado puede seguir mostrándose
-   en la rutina del socio. — `backend/routines/serializers.py:132-148`.
-5. **`RoutineExerciseViewSet` no usa `GymModelViewSet`.** A diferencia de los otros
-   tres ViewSets, hereda de `ModelViewSet` y **no inyecta el gym** en el alta;
-   depende sólo de la validación del serializer. — `backend/routines/views.py:70-80`.
-6. **Endpoints públicos sin autenticación.** `public/<token>/` y su progreso no
-   piden login (sólo throttle) y el payload incluye rutina, pagos, deuda y acceso.
-   — `backend/routines/views.py:340-412`, `:425-831`.
-7. **Sin tests.** No existe `backend/routines/tests.py` (sólo hay un `.pyc` viejo en
-   `__pycache__`). Es una de las pocas apps sin cobertura.
-8. **Registro sólo de hoy.** El progreso usa siempre la fecha actual y no hay
-   historial de entrenamientos. — `backend/routines/views.py:365-369`,
-   `backend/routines/models.py:272-275`.
-9. **Ruta `/routines` sin `ProfessorRoute`.** Cualquier rol autenticado puede abrir
-   la pantalla de rutinas. — `frontend/src/App.jsx:189`.
-10. **Trampa de nombres (no es un bug).** `frontend/src/pages/PublicRoutine.jsx` es
-    la página de **horarios**, no el workout; el workout real es
-    `frontend/src/pages/member/MemberWorkout.jsx`.
-
----
-
-## 9. Lo que el sistema NO hace hoy
-
-- No exige un rol para crear/editar/asignar rutinas.
-- No garantiza en la base una sola rutina activa por socio.
-- No guarda historial de entrenamientos (sólo de hoy) ni el peso/reps reales hechos.
-- No valida que `reps` y `weight` sean números (son texto libre).
-- No tiene tests automáticos.
-- No está gated por feature (`gyms/features.py` no incluye rutinas).
-- No hay notificación al socio: sólo el link de WhatsApp que arma el staff.
-
----
-
-## 10. Notas de entorno para leer el código
-
-- Zona horaria `America/Argentina/Buenos_Aires` (`backend/config/settings.py:461`):
-  define qué es "hoy" para el progreso.
-- Los ViewSets de rutinas filtran por el gimnasio del usuario (`backend/core/mixins.py:4-22`).
-- La app **no tiene** `services.py`, `permissions.py` ni `tests.py`: toda la lógica
-  vive en las vistas.
-- Migraciones: `backend/routines/migrations/0001` … `0009`.
-- Datos de ejemplo: `backend/seed/data/exercises.py`, `backend/seed/data/routines.py`.
-- App instalable (PWA) del portal: id `/routine/` (`backend/gyms/views.py:76`).
-- Flujo dev relacionado: `frontend/src/dev/RoutinesFlow.jsx` (página interactiva
-  de este mismo documento). Para "recuperar", ver `AUDITORIA-RECUPERACION.md`.
