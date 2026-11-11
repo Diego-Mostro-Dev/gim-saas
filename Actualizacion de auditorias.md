@@ -1047,29 +1047,311 @@ Criterio de cierre:
 
 ---
 
-### Fase 6 — Rutinas y comunidad
+### Fase 6 — Rutinas y comunidad (dividida en subfases)
+
+Como la fase 5, se divide para ejecutar cada bloque en una sesión separada y
+no agotar el contexto. Las 8 tareas del borrador original quedan cubiertas:
+la 1–4 en 6.1–6.2, la 5–6 en 6.3, la 7 es el contexto de abajo (incorporado a
+cada subfase) y la 8 en 6.2–6.3.
 
 Documentos:
 
 - `AUDITORIA-RUTINAS.md`
 - `AUDITORIA-COMUNIDAD.md`
+- `frontend/src/dev/RoutinesFlow.jsx` (sólo contenido, en 6.4).
+- `AUDITORIA-INDEX.md` (filas 16–17, en 6.5).
+- `AUDITORIA-MAPA-COBERTURA.md` (verificación de las filas 46–47, en 6.5).
+
+Alcance:
+
+- Dos módulos independientes: no comparten motor entre sí (a diferencia de
+  los add-ons de 5.8), así que la fase es la suma de dos revalidaciones, no
+  un contraste entre documentos.
+- No tocar código de producto ni tests; el dev flow sólo contenido, sin
+  lógica.
+- No ejecutar tests localmente: validar con CI, igual que en 5.3–5.8.
+- Los bugs nuevos que aparezcan se documentan como problema y se propone su
+  alta en `BUGS.md`; no se arregla código.
+
+Contexto detectado antes de empezar (commit `86d6735`, cierre de 5.8):
+
+- El código sigue en `f5b4b07`: todos los commits posteriores son de docs.
+- Los dos documentos están en estados muy distintos y la fase es asimétrica:
+  no conviene tratarlos igual.
+- **`AUDITORIA-RUTINAS.md` quedó desfasada de su propio código.** No se toca
+  desde `d8a6612` (16/10) y cuatro días después `bd09935` (Fase H, 20/10)
+  cerró 6 de sus 10 hallazgos; el documento los sigue reportando como bugs
+  vigentes:
+  - §4 dice que no hay unicidad de rutina activa y que el alta no es atómica:
+    la Fase H agregó `uniq_active_routine_per_member` (índice único parcial
+    `(gym, member) WHERE active=True`, migración 0010) y envolvió el
+    `bulk-assign` en `transaction.atomic()`.
+  - §7/§8.1 dicen que no hay control de rol: `require_routine_manager`
+    (dueño/staff/profesor; trainer recibe 403) gatea los ViewSets y el
+    `bulk-assign`.
+  - §8.2 dice que la asignación tiene DELETE duro: ahora es soft delete
+    (`active=False`) y el ViewSet no expone DELETE (405).
+  - §8.4 dice que un ejercicio desactivado sigue saliendo en la rutina:
+    `MemberRoutineSerializer.get_exercises` filtra `is_active=True`.
+  - §7/§8.9 dicen que `/routines` no tiene guard: existe `RoutineManagerRoute`
+    (trainer redirigido a su agenda).
+  - §8.7/§9 dicen que la app no tiene tests: existe
+    `backend/routines/tests_phase_h.py` (16 tests).
+- Cambios posteriores al 20/10 que tampoco cubre (tarea 7 del borrador):
+  - **ACC-20** (`1b38fd8`, 25/10): los listados de rutinas filtran socios
+    eliminados (`member__deleted_at__isnull=True`) y `Member.objects` pasó a
+    ser `AliveMemberManager`, así que el token de un socio eliminado da 404
+    en los endpoints públicos.
+  - **ACC-18** (`5a87ad3`, 20/10): todos los endpoints del portal resuelven el
+    token con `portal_member_or_404`, que acepta también
+    `access_token_previous` (gracia de una generación). Aplica a
+    `public/<token>/` y `public/<token>/progress/`, y el documento de rutinas
+    no lo menciona (el de comunidad sí).
+  - **REF-08** (`c54c1f6`, 20/10): el admin Django de rutinas y comunidad
+    quedó recortado por gimnasio (`GymScopedAdminMixin`).
+- **Permisos: el gate de rol es sólo de gestión, no de lectura.** Fase H puso
+  `RoutineManagerMixin`/`require_routine_manager` en los cuatro ViewSets y en
+  `bulk-assign`, pero `member/<id>/`, `active/` y `member/<id>/whatsapp/`
+  sólo exigen `IsAuthenticated`. Un trainer puede leer la rutina de un socio,
+  listar todas las asignaciones activas y obtener el WhatsApp con su teléfono.
+  La auditoría y el dev flow deben distinguir "gestión con rol" de "lectura
+  autenticada" y marcar el acceso del trainer al WhatsApp como limitación (o
+  decisión), no como si el 403 cubriera todo.
+- **`Exercise` no es único por gimnasio.** `AUDITORIA-RUTINAS.md` §1 lo afirma,
+  pero `Exercise` no tiene `unique_together`/`UniqueConstraint`,
+  `ExerciseSerializer` no valida duplicados y la migración 0008 no agrega la
+  restricción. Lo mismo pasa con el nombre de `RoutineTemplate`. Corregir la
+  afirmación y documentarlo como limitación.
+- **El alta directa de asignaciones no maneja el `IntegrityError`.** El
+  `bulk-assign` responde 400 al pisar `uniq_active_routine_per_member`, pero
+  `POST /api/routines/assignments/` (y un PATCH que reactive) no captura la
+  excepción: `api_exception_handler` sólo enriquece errores de features, así
+  que el cliente recibe **500**. Debe quedar como problema vigente en §8.
+- **El `bulk-assign` descarta socios inválidos en silencio.** Filtra con
+  `Member.objects.filter(gym=gym, id__in=member_ids)` (socios vivos) y
+  responde 200 con `assigned_members` contando sólo los encontrados. Un ID de
+  otro gimnasio, inexistente o de un socio eliminado (ACC-20) no se avisa; el
+  test `test_bulk_assign_leaves_no_partial_state` fija ese comportamiento.
+- Sin documentar también: el endpoint `member/<id>/whatsapp/` (mensaje de
+  bienvenida que copia el staff desde `Members.jsx`) y que las migraciones
+  llegan a 0010 (el documento dice "0001…0009").
+- Convenciones: sin cabecera canónica (le faltan `Tests:`, `Estado:` y el
+  formato de 6 campos), referencias numéricas inline (`:28-82`) en vez de
+  símbolos, y §8/§9 sin el marcado de decisiones que estandarizó la fase 5.
+- **`AUDITORIA-COMUNIDAD.md` está vigente contra su Fase I** (`68896f0`,
+  20/10, actualizada en el mismo commit): ya documenta el soft delete
+  (COM-04), la unicidad (COM-03), el rol owner-only, los throttles, la gracia
+  de un token viejo y el socio inactivo (COM-01). Le falta: cabecera canónica,
+  refs por símbolo, el 404 del socio eliminado (ACC-20), el admin gym-scoped
+  (REF-08) y las secciones "Lo que NO hace"/"Problemas" con marcado.
+- `RoutinesFlow.jsx` (830 líneas) arrastra el mismo desfase pre-Fase H en sus
+  bloques `PERMISOS`, `BUGS` y `NO_HACE`, y además en el aviso del bloque
+  "Cómo se asigna" (`AsignarRutina`, alrededor de la línea 293), que todavía
+  dice que la unicidad es "convención de la interfaz" y que el alta no es
+  atómica.
+- **`BUGS.md` enlaza a `AUDITORIA-COMUNIDAD.md §4.2`** (ficha COM-05, línea
+  1032). Por eso la reescritura de comunidad debe conservar la sección 4.2
+  (tarjeta pública) o actualizar ese enlace en el mismo commit.
+- `check_audit_refs.py` pasa hoy sobre ambos (108 referencias, 0 errores); el
+  cambio a símbolos es por convención (§3), no para reparar errores.
+
+#### Fase 6.1 — Rutinas: qué es, catálogo, armado, asignación y ejecución
+
+Documento:
+
+- `AUDITORIA-RUTINAS.md`, secciones 1–5.
 
 Tareas:
 
-1. Documentar qué es una rutina y qué no.
-2. Documentar catálogo de ejercicios, armado, asignación y ejecución.
-3. Documentar progreso, registro y permisos.
-4. Documentar soft delete, unicidad de rutina activa y endpoint público.
-5. Documentar comunidad: modelo, feature toggle, gestión y tarjeta pública.
-6. Documentar soft delete, unicidad y estados de comunidad.
-7. Revisar cambios posteriores al 20/10.
-8. Actualizar problemas y decisiones de negocio.
+1. Recorrer `backend/routines` (models → serializers → views → urls) y el
+   frontend (`Routines.jsx`, `components/routines/*`,
+   `member/MemberWorkout.jsx`).
+2. §1 "Qué es una rutina (y qué no)": mantener la tabla de cinco piezas
+   (`Exercise`, `RoutineTemplate`, `RoutineExercise`, `RoutineAssignment`,
+   `WorkoutSet`) y las desambiguaciones (PT, recuperación, trampa
+   `PublicRoutine.jsx` vs `MemberWorkout.jsx`). **Corregir** la afirmación
+   "el ejercicio es único por gimnasio": hoy no hay restricción de unicidad
+   sobre `Exercise.name` ni sobre `RoutineTemplate.name`.
+3. §2–§3 (catálogo y armado): revalidar campos, categorías, `reps`/`weight`
+   texto libre y modos de descanso; verificar RUT-05 (`RoutineExercise` sin
+   campo `gym`, "no se reproduce"); documentar la falta de unicidad de
+   nombres como **Limitación**.
+4. §4 "Cómo se asigna" (reescritura de fondo): el `bulk-assign` con
+   `require_routine_manager`, `transaction.atomic()` y unicidad **en la
+   base** (ya no "convención de la interfaz"); la baja como
+   `PATCH active=false` (soft delete, sin DELETE); el filtrado de socios
+   eliminados (ACC-20); que el `bulk-assign` **descarta en silencio** los IDs
+   inválidos, ajenos o eliminados y responde 200 con el conteo de encontrados;
+   y que el alta directa `POST /api/routines/assignments/` (o un PATCH que
+   reactive) **no captura el `IntegrityError` y devuelve 500**.
+5. §5 "Qué hace el socio" (ejecución): revalidar portal por token, toggles de
+   series, temporizadores, barra de progreso y bloqueo por deuda; agregar el
+   armado del mensaje de WhatsApp desde la ficha de socios
+   (`Members.jsx` → `member/<id>/whatsapp/`); documentar la gracia de un token
+   anterior (ACC-18) y que el token de un socio eliminado da 404 (ACC-20).
 
 Criterio de cierre:
 
-- Ambos documentos revalidados contra el código actual.
+- Secciones 1–5 reescritas con referencias híbridas válidas y sin afirmaciones
+  pre-Fase H.
+- Sin cambios de código ni de tests.
+
+#### Fase 6.2 — Rutinas: progreso, permisos y cierre del documento
+
+Documento:
+
+- `AUDITORIA-RUTINAS.md`, secciones 6–10 y cabecera.
+
+Tareas:
+
+1. §6 "Progreso y registro": revalidar `WorkoutSet`, la unicidad
+   `(asignación, ejercicio, serie, fecha)` y la regla "sólo se registra hoy"
+   como **Decisión** (RUT-08).
+2. §7 "Permisos y accesos" (reescritura): distinguir **cuatro** niveles
+   post-Fase H — (a) gestión con rol (`require_routine_manager` en los cuatro
+   ViewSets y en `bulk-assign`; dueño/staff/profesor, trainer 403);
+   (b) **lectura autenticada sin rol** (`member/<id>/`, `active/` y
+   `member/<id>/whatsapp/` sólo piden `IsAuthenticated`, así que un trainer
+   lee la rutina, las asignaciones activas y el teléfono del socio);
+   (c) frontend con `RoutineManagerRoute`; (d) público por token (confirmar el
+   payload actual de `public/<token>/`; su amplitud es **Decisión**, RUT-06),
+   más el admin Django gym-scoped (REF-08), la gracia de un token anterior
+   (ACC-18) y el 404 del token de un socio eliminado (ACC-20). El acceso del
+   trainer al WhatsApp se marca como **Limitación** (no se arregla acá).
+3. §8 "Posibles bugs / desajustes" → renombrar "Problemas que pueden pasar"
+   con títulos numerados en negrita; dejar sólo los vigentes (los cerrados
+   por Fase H salen del documento; quedan en `BUGS.md`) y agregar el **500 del
+   alta directa de asignaciones** y el **descarte silencioso del
+   `bulk-assign`**.
+4. §9 → "Lo que el sistema NO hace hoy (para no prometerlo en el manual)"
+   con marcado **Decisión:**/**Limitación:** (RUT-06, RUT-08, la falta de
+   unicidad de nombres y la lectura sin rol del trainer, entre otras).
+5. §10 "Notas de entorno": migraciones 0001–0010, `tests_phase_h.py`, admin
+   scoped, seed de ejercicios/rutinas y ausencia de `services.py`/
+   `permissions.py` propios (el gate vive en `backend/core/permissions.py`).
+6. Cabecera canónica de 6 campos más
+   `Tests: backend/routines/tests_phase_h.py` y `Estado: verificado`;
+   `Verificado contra: f5b4b07`. Fijar `Documentos relacionados`
+   (miembros, recuperación, pagos, suscripciones, núcleo y comunidad) y
+   `Código cubierto` (app, permisos, portal y dev flow).
+
+Criterio de cierre:
+
+- Documento completo: marcado de decisiones, sin afirmaciones de bugs ya
+  cerrados, cabecera canónica.
+- Sin cambios de código ni de tests.
+
+#### Fase 6.3 — Comunidad: pase completo
+
+Documento:
+
+- `AUDITORIA-COMUNIDAD.md`, completo.
+
+Tareas:
+
+1. Recorrer `backend/community` y las pantallas (`CommunityPanel.jsx`,
+   `member/MemberCommunity.jsx`, `member/CommunityPublicPage.jsx` y la pestaña
+   "Comunidad" de `Settings.jsx`).
+2. Normalizar la cabecera (6 campos más
+   `Tests: backend/community/tests.py` y `Estado: verificado`) y reemplazar
+   refs numéricas por símbolos.
+3. §4.2/§6: distinguir socio **inactivo** (sigue viendo la tarjeta, COM-01)
+   de socio **eliminado** (token → 404 tras ACC-20). Conservar la sección
+   **4.2** "Tarjeta pública": `BUGS.md` (ficha COM-05) enlaza a
+   `AUDITORIA-COMUNIDAD.md §4.2`; si se renombra, actualizar ese enlace en el
+   mismo commit.
+4. §5: documentar el admin Django gym-scoped (REF-08).
+5. Agregar "Lo que el sistema NO hace hoy" con COM-01/COM-02 marcadas como
+   **Decisión:** (sin cupones ni códigos; `discount` informativo) y
+   **Limitación:** (el `discount` es texto libre, el QR viejo caduca tras una
+   rotación) y "Problemas que pueden pasar" corto con lo vigente.
+6. Mantener el "Resumen en una frase" como cierre del documento (puede pasar
+   a §9 si las secciones nuevas se numeran antes) y fijar en la cabecera
+   `Documentos relacionados` (núcleo, miembros, usuarios y accesos, rutinas) y
+   `Código cubierto` (app, pantallas y admin).
+7. Agregar notas de entorno equivalentes a rutinas §10: migraciones 0001–0002,
+   `tests.py`, admin gym-scoped y dependencia del feature flag.
+
+Criterio de cierre:
+
+- Documento completo con referencias híbridas válidas y cabecera canónica.
+- Sin cambios de código ni de tests.
+
+#### Fase 6.4 — Dev flow de rutinas
+
+Documento:
+
+- `frontend/src/dev/RoutinesFlow.jsx` (sólo contenido, sin lógica).
+
+Tareas:
+
+1. Bloque `PERMISOS`: reescribir "Staff sin filtro de rol" como rol de gestor
+   de rutinas (dueño/staff/profesor; trainer 403 para gestionar) y el "gating
+   visual" como `RoutineManagerRoute`; agregar que la **lectura** de
+   `member/<id>/`, `active/` y `whatsapp/` sólo pide login y que un trainer
+   puede leer la rutina y el teléfono del socio.
+2. Bloque `BUGS`: recortar a los problemas vigentes de la §8 nueva (500 del
+   alta directa, descarte silencioso del `bulk-assign` y lo que quede).
+3. Bloque `NO_HACE`: quitar "no exige rol", "no garantiza unicidad en la
+   base" y "no tiene tests"; agregar la lectura sin rol y la falta de unicidad
+   de nombres.
+4. Bloque "Cómo se asigna" (`AsignarRutina`): reemplazar el aviso de
+   "convención de la interfaz"/"alta no atómica" por la regla real (índice
+   único parcial + `transaction.atomic()`), y mencionar que el `bulk-assign`
+   ignora IDs inválidos sin avisar.
+5. Pase completo de las 830 líneas contra el documento reescrito.
+
+Criterio de cierre:
+
+- Flow coherente con la auditoría reescrita, sin cambios de lógica.
+
+#### Fase 6.5 — Cierre global (índice, mapa y validación)
+
+Tareas:
+
+1. `AUDITORIA-INDEX.md`: filas 16–17 → `Verificado` con resúmenes ajustados a
+   la terminología de los cuerpos; actualizar `Fecha:` de la cabecera a la
+   fecha de cierre de la fase (el `Verificado contra: f5b4b07` sigue vigente).
+2. `AUDITORIA-MAPA-COBERTURA.md`: verificar las filas 46–47 contra el estado
+   real; en rutinas faltan endpoints (`routine-exercises/`, `active/`,
+   `bulk-assign/`, `member/<id>/whatsapp/`, `public/<token>/progress/`);
+   confirmar pantallas y tests; editar sólo lo desactualizado.
+3. Validación:
+   - `python3 scripts/check_audit_refs.py AUDITORIA-RUTINAS.md
+     AUDITORIA-COMUNIDAD.md AUDITORIA-INDEX.md`;
+   - confirmar que no quedan referencias `archivo:línea` en los dos cuerpos;
+   - confirmar que `BUGS.md` (ficha COM-05) sigue resolviendo a
+     `AUDITORIA-COMUNIDAD.md §4.2` o que el enlace se actualizó;
+   - `git diff` para confirmar que no hay cambios de código ni tests.
+4. Commits por subfase (6.4 y 6.5 pueden ir juntos si quedan chicos), estilo
+   `docs(auditorias): … (fase 6.N)`, con push a `development`.
+
+Verificación:
+
+1. Validador global de referencias (comando arriba).
+2. Sin referencias numéricas en los dos documentos.
+3. `git diff` acotado a los documentos de la fase (más índice, mapa y dev
+   flow).
+4. CI ejecuta `backend-tests.yml` (incluye `routines` y `community`),
+   `pnpm lint` y `pnpm build`; no correr tests localmente.
+5. Lectura final de los dos documentos contra el listado de afirmaciones
+   pre-Fase H del contexto, para confirmar que ninguna quedó viva.
+
+Criterio de cierre:
+
+- Ambos documentos revalidados contra `f5b4b07`: sin afirmaciones de bugs ya
+  cerrados por Fase H/I, con ACC-18, ACC-20 y REF-08 cubiertos.
+- La distinción gestión-con-rol / lectura-autenticada queda explícita, y el
+  500 del alta directa y el descarte silencioso del `bulk-assign` quedan como
+  problemas vigentes.
+- Corregida la afirmación de unicidad de `Exercise`/`RoutineTemplate`.
+- `BUGS.md` sigue enlazando a una sección existente de comunidad (§4.2) o el
+  enlace se actualizó en el mismo commit.
+- Decisiones de negocio y limitaciones marcadas con el formato de la fase 5.
+- Cabeceras canónicas completas; índice filas 16–17 `Verificado`.
 - Referencias válidas.
-- Tests de `routines` y `community` verdes.
+- Tests de `routines` y `community` verdes en CI.
+- Sin cambios de código ni de tests.
 
 ---
 

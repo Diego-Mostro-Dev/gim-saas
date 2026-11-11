@@ -1,7 +1,7 @@
 # Índice de auditorías
 
 > Verificado contra: `f5b4b07`
-> Fecha: 2026-11-10
+> Fecha: 2026-11-11
 > Alcance: estado, ubicación y cobertura de las 18 auditorías del sistema.
 > Documentos relacionados: `AUDITORIA-MAPA-COBERTURA.md`, `AUDITORIA-PLANTILLA.md`,
 > `Actualizacion de auditorias.md`
@@ -49,8 +49,8 @@ Estados posibles:
 | 13 | `AUDITORIA-ACTIVIDADES.md` | 5.1–5.2 | Actividades, horarios, inscripciones, cobro, sesiones y faltas | `backend/activities` | `Verificado` |
 | 14 | `AUDITORIA-SALIDAS.md` | 5.3–5.4 | Salidas, horarios, inscripciones, solicitudes, sesiones y cobro | `backend/outings` | `Verificado` |
 | 15 | `AUDITORIA-PERSONAL-TRAINING.md` | 5.5–5.7 | Oferta, trainers, asignaciones, cobro, sesiones, faltas, solicitudes, agenda y asistencia | `backend/personal_training` | `Verificado` |
-| 16 | `AUDITORIA-RUTINAS.md` | 6 | Ejercicios, plantillas, asignación, ejecución y progreso | `backend/routines` | `Pendiente Fase 6` |
-| 17 | `AUDITORIA-COMUNIDAD.md` | 6 | Locales adheridos, feature toggle y tarjeta pública | `backend/community` | `Pendiente Fase 6` |
+| 16 | `AUDITORIA-RUTINAS.md` | 6 | Catálogo, armado, asignación en lote, portal y progreso; permisos y límites | `backend/routines` | `Verificado` |
+| 17 | `AUDITORIA-COMUNIDAD.md` | 6 | Locales adheridos, baja lógica, feature y tarjeta pública; socio inactivo vs eliminado | `backend/community` | `Verificado` |
 | 18 | `AUDITORIA-CONFIGURACION.md` | 7 | Datos del gimnasio, pagos, horarios, recuperación, features, SEO y PWA | `backend/gyms`, `backend/config` | `Pendiente Fase 7` |
 
 ---
