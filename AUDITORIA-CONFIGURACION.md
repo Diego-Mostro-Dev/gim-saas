@@ -143,76 +143,118 @@ La configuración de pagos define **cuándo vence** la cuota y **desde cuándo**
 socio queda bloqueado. No crea suscripciones ni cobra: sólo mueve las fechas que
 usan Pagos, Suscripciones y el control de acceso.
 
-- **`payment_due_day`** (default `10`): día del mes hasta el cual el socio sigue
-  "pendiente de pago" pero puede entrenar.
-- **`access_block_day`** (default `16`): día desde el cual pasa a bloqueado.
-- Ambos se validan entre 1 y 31 en el modelo, y la regla
-  `access_block_day > payment_due_day` se valida en el modelo, en el serializer y
-  en la pantalla antes de enviar.
+| Campo | Default | Validación | Efecto |
+|---|---|---|---|
+| `payment_due_day` | `10` | entero 1–31 | Hasta ese día el socio sigue `pending` pero puede entrenar |
+| `access_block_day` | `16` | entero 1–31 y **mayor** que `payment_due_day` | Desde ese día pasa a `blocked` |
+
+La regla `access_block_day > payment_due_day` se valida en tres capas:
+
+- **modelo:** `Gym.clean` levanta `ValidationError` con los dos valores en el
+  mensaje;
+- **serializer del gimnasio:** `GymSerializer.validate` corta el `PATCH` con un
+  `400` claro;
+- **admin central:** `AdminGymUpdateSerializer.validate` repite la regla para el
+  wizard/edición de plataforma;
+- **pantalla:** `Settings.validate` muestra el error antes de enviar y no permite
+  guardar.
+
+Efectos (sin repetir las reglas de cada módulo):
+
+- El estado de pago (`paid`, `initial_pending`, `pending`, `overdue`, `blocked`) y
+  el bloqueo de acceso se calculan con estos días. Ver `AUDITORIA-PAGOS.md`.
+- Un socio nuevo sin primer pago queda en `initial_pending` y bloqueado desde el
+  día 1, aunque el alta ocurra después del vencimiento (CFG-03).
+- Si estaba bloqueado al cierre del mes, no se renueva solo hasta regularizar. Ver
+  `AUDITORIA-SUSCRIPCIONES.md`.
 - El bloqueo es **sólo por saldo de suscripción mensual**: nunca por sesiones,
   paquetes o sellados. La cortesía no se bloquea por pago.
-- Un socio nuevo sin primer pago queda en `initial_pending` y bloqueado desde el
-  día 1, aunque el alta ocurra después del día de vencimiento (CFG-03).
-- Si el socio estaba bloqueado al cierre del mes, no se renueva solo hasta
-  regularizar.
-
-El detalle de estados, deuda y renovación vive en `AUDITORIA-PAGOS.md` y
-`AUDITORIA-SUSCRIPCIONES.md`; acá sólo se documenta el valor configurable y su
-efecto.
+- La recuperación de clases no se habilita ni se bloquea por estos días; depende de
+  `allow_session_recovery` (§5) y del estado del socio en
+  `AUDITORIA-RECUPERACION.md`.
 
 ### Referencias
 - `backend/gyms/models.py · Gym`
 - `backend/gyms/serializers.py · GymSerializer`
+- `backend/admins/serializers.py · AdminGymUpdateSerializer`
 - `frontend/src/pages/Settings.jsx · validate`
+- `frontend/src/pages/Settings.jsx · buildFormDataFromGym`
 
 ---
 
 ## 4. Planes y horarios
 
 Desde Configuración se gobiernan los **permisos y límites** de los cambios, no el
-catálogo de planes:
+catálogo de planes ni la grilla de actividades.
 
-- **`allow_plan_changes`** (default `true`): habilita el pedido de cambio de plan
-  del portal y el flujo de staff.
-- **`allow_schedule_changes`** (default `true`): habilita los cambios permanentes y
-  los intercambios de horario.
-- **`schedule_change_cooldown_hours`** (default `168`): espera mínima entre cambios,
-  en horas.
-- **`max_schedule_changes_per_month`** (default `4`): límite mensual combinado de
-  cambios permanentes e intercambios.
-- **`schedule_change_notice_hours`** (default `24`): anticipación mínima para pedir
-  un cambio.
-- **`allow_member_schedule_changes`** (default `false`): campo legacy que ya no
-  gobierna ninguna regla (CFG-02).
+| Campo | Default | Unidad | Efecto |
+|---|---|---|---|
+| `allow_plan_changes` | `true` | booleano | Habilita el pedido de cambio de plan del portal y el flujo de staff |
+| `allow_schedule_changes` | `true` | booleano | Habilita cambios permanentes e intercambios de horario |
+| `schedule_change_cooldown_hours` | `168` | horas | Espera mínima entre cambios |
+| `max_schedule_changes_per_month` | `4` | cambios/mes | Límite mensual **combinado** de permanentes e intercambios |
+| `schedule_change_notice_hours` | `24` | horas | Anticipación mínima para pedir un cambio |
+| `allow_member_schedule_changes` | `false` | booleano | Campo legacy que ya no gobierna ninguna regla (CFG-02) |
 
-El alta de planes y precios vive en `Plans.jsx`; los horarios disponibles (slots) y
-su capacidad se gestionan en la pestaña **Planes & Horarios** de Settings y en el
-módulo de horarios. El detalle de las reglas de cambio —cooldown, anticipación,
-cupo y conteo combinado— está en `AUDITORIA-HORARIOS.md`.
+Qué se edita en cada pantalla:
+
+- **Settings → Información**: `default_schedule_capacity`, la capacidad propuesta
+  para los slots nuevos.
+- **Settings → Planes & Horarios**: los flags y límites de arriba, más el alta,
+  edición y borrado de los horarios del gimnasio (slots) con su capacidad.
+- **`Plans.jsx`**: catálogo de planes, precios, visitas semanales y servicios. No se
+  edita desde Configuración.
+- **`Activities.jsx` y `ActivitySchedules.jsx`**: actividades y sus horarios. No se
+  editan desde Configuración.
+- **`ScheduleChangeRequests.jsx` y `ScheduleSwapRequests.jsx`**: aprobación y
+  rechazo de los pedidos; usan los límites configurados acá.
+
+Los límites se aplican igual al socio y al staff: cooldown, anticipación, cupo y
+conteo combinado de permanentes (`pending`/`approved`/`executed`) más intercambios
+(`pending`/`approved`) del mes calendario. El detalle de las reglas y el conteo
+compartido están en `AUDITORIA-HORARIOS.md`; el efecto sobre el cobro y el cambio de
+plan, en `AUDITORIA-PLANES.md` y `AUDITORIA-SUSCRIPCIONES.md`.
 
 ### Referencias
 - `backend/gyms/models.py · Gym`
 - `backend/gyms/serializers.py · GymSerializer`
-- `frontend/src/pages/Settings.jsx · Settings`
+- `backend/attendance/utils.py · check_schedule_change_limits`
+- `backend/attendance/utils.py · count_schedule_changes_used_this_month`
+- `frontend/src/pages/Settings.jsx · validate`
+- `frontend/src/pages/Settings.jsx · TABS`
 
 ---
 
 ## 5. Recuperación de clases
 
-La recuperación permite que un socio compensa una clase perdida dentro del mismo
+La recuperación permite que un socio compense una clase perdida dentro del mismo
 mes, según cupo disponible. Configuración sólo define si está habilitada y cuántas
 veces por mes:
 
-- **`allow_session_recovery`** (default `false`): habilita el pedido de recuperación.
-- **`max_session_recoveries_per_month`** (default `2`): máximo de recuperaciones por
-  mes calendario.
+| Campo | Default | Unidad | Efecto |
+|---|---|---|---|
+| `allow_session_recovery` | `false` | booleano | Habilita el pedido y la ejecución de recuperaciones |
+| `max_session_recoveries_per_month` | `2` | recuperaciones/mes | Tope por socio y mes calendario |
 
-La regla de negocio —qué faltas son recuperables, cómo se aplica el cupo y qué pasa
-con el no-show— vive en `AUDITORIA-RECUPERACION.md` y en
-`AUDITORIA-ASISTENCIAS.md`. Configuración no otorga ni ejecuta recuperaciones.
+Reglas que se aplican al ejecutar:
+
+- Si `allow_session_recovery` está apagado, el servicio rechaza la recuperación con
+  un mensaje de dominio, aunque el socio tenga una falta recuperable.
+- El tope mensual se cuenta sobre las recuperaciones ya otorgadas en el mes; al
+  llegar al límite, el pedido se rechaza.
+- La recuperación consume cupo del horario de destino y no puede caer en una fecha
+  cerrada ni superponerse con otra clase del socio.
+- Los cupos y la grilla de destinos son los de los horarios del gimnasio; su
+  administración está en la pestaña **Planes & Horarios**.
+
+El detalle de qué falta es recuperable, cómo se otorga y qué pasa con el no-show
+vive en `AUDITORIA-RECUPERACION.md` y `AUDITORIA-ASISTENCIAS.md`. Configuración no
+otorga ni ejecuta recuperaciones.
 
 ### Referencias
 - `backend/gyms/models.py · Gym`
+- `backend/attendance/recovery_service.py · grant_scheduled`
+- `backend/attendance/recovery_service.py · use_recovery`
 - `frontend/src/pages/Settings.jsx · Settings`
 
 ---
@@ -220,27 +262,37 @@ con el no-show— vive en `AUDITORIA-RECUPERACION.md` y en
 ## 6. Descuentos
 
 Un **descuento** es un porcentaje que el gimnasio asigna a un socio para que pague
-menos en su suscripción. Se gestiona desde la pestaña **Pagos**.
+menos en su suscripción. Se gestiona desde la pestaña **Pagos**: listar, crear,
+editar y borrar.
 
-- **`name`**: nombre visible del descuento.
-- **`discount_percent`**: entero entre 1 y 100; se valida en el modelo y en el
-  serializer.
-- **`active`**: si se inactiva, deja de aplicarse a los socios asignados y éstos
-  vuelven a pagar el precio completo. Los períodos ya emitidos conservan el
-  porcentaje con el que se facturaron (cada suscripción guarda su snapshot).
+| Campo | Default | Validación | Efecto |
+|---|---|---|---|
+| `name` | — | obligatorio, hasta 100 caracteres | Nombre visible del descuento |
+| `discount_percent` | — | entero 1–100 (modelo y serializer) | Porcentaje que se resta al precio del socio |
+| `active` | `true` | booleano | Si se inactiva, se desvincula de los socios asignados |
 
-El descuento no se aplica solo: hay que asignarlo en la ficha del socio. El cálculo
-del cobro y el snapshot viven en `AUDITORIA-PAGOS.md` y
-`AUDITORIA-SUSCRIPCIONES.md`.
+Cómo se usa en el cobro:
+
+- El descuento no se aplica solo: hay que asignarlo en la ficha del socio.
+- El porcentaje vigente se lee al emitir el período y se guarda como
+  `discount_percent_snapshot` en la suscripción. Por eso, inactivar o cambiar el
+  porcentaje **no reescribe** los períodos ya emitidos.
+- Al inactivar, los socios asignados vuelven a pagar el precio completo en el
+  próximo período; los períodos anteriores conservan su snapshot.
+- El descuento aplica sobre el total de la suscripción (incluido el prorrateo).
+  El detalle de cálculo y deuda está en `AUDITORIA-PAGOS.md` y
+  `AUDITORIA-SUSCRIPCIONES.md`.
 
 **Problema vigente (CFG-16):** la pantalla es owner-only, pero el
-`DiscountViewSet` sólo exige autenticación. Cualquier usuario del gimnasio podría
-hacer CRUD por API. Se documenta en §18 y se da de alta en `BUGS.md`.
+`DiscountViewSet` sólo exige autenticación (el filtro por gimnasio lo pone
+`GymQuerysetMixin`). Cualquier usuario del gimnasio podría hacer CRUD por API. Se
+documenta en §18 y se da de alta en `BUGS.md`.
 
 ### Referencias
 - `backend/gyms/models.py · Discount`
 - `backend/gyms/serializers.py · DiscountSerializer`
 - `backend/gyms/views.py · DiscountViewSet`
+- `backend/subscriptions/services.py · member_discount_percent`
 - `frontend/src/pages/Settings.jsx · Settings`
 
 ---
@@ -249,18 +301,27 @@ hacer CRUD por API. Se documenta en §18 y se da de alta en `BUGS.md`.
 
 Una **obra social** (o seguro médico) define cuánto paga el socio por sesión y si
 hay un sellado único al inscribirse en un paquete. Se gestiona desde la pestaña
-**Obras sociales**.
+**Obras sociales**: listar, crear, editar y borrar.
 
-- **`name`**: nombre de la obra social; único por gimnasio.
-- **`session_price`**: coseguro por sesión; `0` significa que la obra social cubre
-  la sesión.
-- **`sellado_amount`**: monto único opcional al inscribirse en un paquete.
-- **`active`**: al inactivarla, se oculta de los selectores y se desvincula al
-  volver a cargar la ficha del socio.
+| Campo | Default | Validación | Efecto |
+|---|---|---|---|
+| `name` | — | obligatorio, hasta 120 caracteres, **único por gimnasio** | Nombre que se muestra y se enlaza en la ficha del socio |
+| `session_price` | `0` | decimal ≥ 0 | Coseguro que paga el socio por cada sesión |
+| `sellado_amount` | vacío | decimal ≥ 0 opcional | Monto único al inscribirse en un paquete de sesiones |
+| `active` | `true` | booleano | Al inactivarla se oculta de los selectores y se desvincula |
 
-En el alta del socio, la obra social se enlaza por nombre; si no hay coincidencia,
-queda sin obra social (ver `AUDITORIA-MIEMBROS.md`). El uso en el cobro de sesiones
-está en `AUDITORIA-PAGOS.md` y `AUDITORIA-PERSONAL-TRAINING.md`.
+Cómo se usa:
+
+- El alta del socio guarda el **nombre** de la obra social en el campo de texto
+  `Member.health_insurance`; el vínculo con el catálogo es por nombre normalizado.
+- Si el nombre no coincide con ninguna obra social activa, el socio queda con el
+  texto cargado pero sin obra social vinculada.
+- Al renombrar una obra social, una señal actualiza el texto de los socios que
+  tenían el nombre anterior; al inactivarla, los socios se desvinculan al volver a
+  guardar su ficha.
+- `session_price` y `sellado_amount` se usan en el cobro de actividades y paquetes
+  en modo sesiones (incluido personal training). El detalle de precios y sellados
+  está en `AUDITORIA-PAGOS.md` y `AUDITORIA-PERSONAL-TRAINING.md`.
 
 **Problema vigente (CFG-16):** igual que en descuentos, el
 `HealthInsuranceViewSet` sólo exige autenticación. La restricción de dueño vive
@@ -268,7 +329,10 @@ sólo en la UI.
 
 ### Referencias
 - `backend/members/models.py · HealthInsurance`
+- `backend/members/serializers.py · HealthInsuranceSerializer`
 - `backend/members/views.py · HealthInsuranceViewSet`
+- `backend/members/insurance.py · relink_members_for_insurance`
+- `backend/members/signals.py · _relink_members_on_insurance_save`
 - `frontend/src/pages/Settings.jsx · Settings`
 
 ---

@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
 Estado: **2026-10-29** — Fases A a J hechas; **Fase K: K0 a K9 hechas (release cerrado)**.
-Total: **107 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 51 `MEDIO`, 20 `BAJO`.
-De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **0 abiertos**
+Total: **108 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 52 `MEDIO`, 20 `BAJO`.
+De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **1 abiertos**
 y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -37,13 +37,13 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones | Abiertos |
 |---|---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 3 | 14 | 3 | 1 |
-| Configuración (`CFG`) | 1 | 2 | 4 | 5 | 10 | 2 | 0 |
+| Configuración (`CFG`) | 1 | 2 | 5 | 5 | 10 | 2 | 1 |
 | Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 24 | 3 | 2 |
 | Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 23 | 1 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **51** | **20** | **90** | **13** | **4** |
+| **Total** | **5** | **31** | **52** | **20** | **90** | **13** | **5** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -84,6 +84,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | CFG-13 | BAJO | 🟢 | PT en modo sesiones fuerza `monthly_price = 0` | Ya cubierto por validación + tests |
 | CFG-14 | CRÍTICO | 🟢 | Actividades y salidas en modo sesiones **no** fuerzan `monthly_price = 0` | Cerrado Fase C: `BillingPriceMixin` fuerza `monthly_price = 0` en modo sesiones |
 | CFG-15 | MEDIO | 🟢 | Cargar feriados sin `year` devuelve 400 en vez de usar el año actual | Cerrado Fase C: default = año actual (`gyms/views.py`); detectado por el gate de Fase C |
+| CFG-16 | MEDIO | 🔴 | Descuentos y obras sociales sin gate de rol en el backend | La UI es owner-only, pero por API cualquier autenticado del gimnasio puede hacer CRUD |
 | ADD-01 | CRÍTICO | 🟢 | Desactivar una actividad no corta el cobro | Cerrado Fase D: la baja corta inscripciones y cancela los ítems del período en curso/futuros |
 | ADD-09 | CRÍTICO | 🟢 | Desactivar una salida no corta el cobro | Cerrado Fase D: idem actividades (`cut_outing_billing`) |
 | ADD-02 | MEDIO | 🟢 | Huérfanas: el portal muestra la actividad/horario desactivado | Cerrado Fase D: el portal filtra `schedule.active` y `activity.active` |
@@ -387,6 +388,23 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Resolución Fase C:** si `year` falta o viene vacío, se usa `timezone.localdate().year`;
   un valor no numérico sigue dando 400.
 - **Dónde:** `backend/gyms/views.py:248-256`.
+
+### CFG-16 · Descuentos y obras sociales sin gate de rol en el backend
+- **Severidad:** MEDIO · **Estado:** 🔴 (abierto)
+- **Explicación:** la pantalla de Configuración es owner-only por construcción (redirige
+  a cualquier rol que no sea dueño), pero los endpoints que administran los catálogos no
+  verifican el rol. `DiscountViewSet` usa sólo `GymQuerysetMixin` para filtrar por
+  gimnasio y `HealthInsuranceViewSet` hereda de `GymModelViewSet` con la permisión global
+  de autenticación. Cualquier usuario autenticado del gimnasio (staff, profesor,
+  entrenador) puede listar, crear, editar y borrar descuentos y obras sociales por API.
+- **Ejemplo de impacto:** un profesor con credenciales del gimnasio puede inactivar el
+  descuento de un socio o cambiar el coseguro de una obra social sin ser dueño; el
+  cambio impacta en el próximo período facturado.
+- **Dónde:** `backend/gyms/views.py` · `DiscountViewSet`; `backend/members/views.py` ·
+  `HealthInsuranceViewSet`; `backend/core/mixins.py` · `GymQuerysetMixin`.
+- **Criterio de aceptación:** las acciones de escritura de ambos viewsets exigen
+  `require_owner` y devuelven 403 con mensaje de dominio a roles que no son dueño;
+  la lectura puede seguir disponible para el gimnasio si la UI la necesita.
 
 ---
 
