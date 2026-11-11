@@ -269,8 +269,7 @@ function AsignarRutina() {
         <h2 className="text-lg font-bold text-text-primary">Cómo se asigna</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Es una asignación en lote: una plantilla para varios socios. El servidor lo hace por cada
-        socio, uno por uno.
+        Es una asignación en lote: una plantilla para varios socios, en una sola transacción.
       </p>
 
       <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -290,9 +289,12 @@ function AsignarRutina() {
       <div className="mt-4 flex items-start gap-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning-text dark:bg-warning/15 dark:text-warning">
         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
         <span>
-          La regla "una rutina activa por socio" es una <span className="font-medium">convención de la
-          interfaz</span>: la base no la exige y el alta no es atómica. Un doble envío puede dejar
-          estados intermedios.
+          La regla "una rutina activa por socio" está garantizada en la{" "}
+          <span className="font-medium">base</span> con un índice único parcial
+          <span className="font-medium"> (gym, member) WHERE active = true</span>, y el lote corre en
+          una transacción atómica. Ojo: si un ID es de otro gimnasio, no existe o es de un socio
+          eliminado, el servidor lo descarta <span className="font-medium">sin avisar</span> y
+          responde 200 con el conteo de los encontrados.
         </span>
       </div>
     </Card>
@@ -567,20 +569,28 @@ function SimuladorAccesoSocio() {
 
 const PERMISOS = [
   {
-    key: "rol",
-    titulo: "Staff sin filtro de rol",
+    key: "gestion",
+    titulo: "Gestión con rol",
     icono: Wrench,
-    color: "danger",
+    color: "success",
     detalle:
-      "Los endpoints piden sólo estar logueado. Cualquier usuario del gimnasio puede administrar rutinas: no se usa require_owner.",
+      "Los cuatro ViewSets y el bulk-assign pasan por require_routine_manager: dueño, staff y profesor gestionan; el trainer recibe 403.",
+  },
+  {
+    key: "lectura",
+    titulo: "Lectura autenticada sin rol",
+    icono: EyeOff,
+    color: "warning",
+    detalle:
+      "member/<id>/, active/ y whatsapp/ sólo piden login: un trainer puede leer la rutina de un socio, todas las asignaciones activas y su teléfono. Es una limitación.",
   },
   {
     key: "visual",
     titulo: "Gating visual del frontend",
-    icono: EyeOff,
-    color: "warning",
+    icono: ShieldAlert,
+    color: "info",
     detalle:
-      "Que un usuario no vea la pantalla no es una barrera: /routines no está envuelta en ProfessorRoute.",
+      "/routines está envuelta en RoutineManagerRoute: el trainer va a su agenda y los roles fuera de dueño/staff/profesor van al dashboard.",
   },
   {
     key: "publico",
@@ -588,7 +598,7 @@ const PERMISOS = [
     icono: Link2,
     color: "info",
     detalle:
-      "public/<token>/ abre la rutina y el portal sin login; el token es la única credencial.",
+      "public/<token>/ y su progreso abren la rutina y el portal sin login; el token es la única credencial. Acepta el token anterior una generación.",
   },
 ];
 
@@ -600,10 +610,10 @@ function PermisosAccesos() {
         <h2 className="text-lg font-bold text-text-primary">Permisos y accesos</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Tres niveles distintos, que conviene no confundir.
+        Cuatro niveles distintos, que conviene no confundir.
       </p>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {PERMISOS.map((p) => {
           const Icon = p.icono;
           return (
@@ -623,84 +633,44 @@ function PermisosAccesos() {
 
 const BUGS = [
   {
-    key: "rol",
+    key: "alta",
     color: "danger",
-    titulo: "Sin control de rol en el backend",
+    titulo: "El alta directa da 500 si ya hay rutina activa",
     detalle:
-      "Cualquier usuario autenticado del gym puede crear/editar/borrar ejercicios y plantillas, y asignar rutinas.",
-    ref: "views.py:53-80 · :272-337",
+      "POST /api/routines/assignments/ (y un PATCH que reactive) no captura el IntegrityError del índice único: el cliente recibe 500 en vez de un 400 legible. El bulk-assign sí lo maneja.",
+    ref: "views.py · RoutineAssignmentViewSet · models.py · RoutineAssignment",
   },
   {
-    key: "delete",
-    color: "danger",
-    titulo: "Asignación con DELETE duro",
-    detalle:
-      "RoutineAssignment no tiene borrado lógico y el ViewSet expone DELETE. La UI no lo usa, pero existe.",
-    ref: "models.py:212-245 · views.py:65-67",
-  },
-  {
-    key: "unique",
-    color: "danger",
-    titulo: "Sin unicidad de rutina activa",
-    detalle:
-      "Nada impide dos asignaciones activas para el mismo socio, y el alta en lote no es atómica ni bloquea: un doble envío puede dejar estados intermedios.",
-    ref: "models.py:212-245 · views.py:313-332",
-  },
-  {
-    key: "inactive",
+    key: "bulk",
     color: "warning",
-    titulo: "Ejercicios borrados que igual aparecen",
+    titulo: "El lote descarta socios en silencio",
     detalle:
-      "MemberRoutineSerializer.get_exercises no filtra is_active, así que un ejercicio desactivado puede seguir viéndose en la rutina del socio.",
-    ref: "serializers.py:132-148",
+      "Si un ID es de otro gimnasio, no existe o es de un socio eliminado, no se asigna y la respuesta sigue siendo 200 con assigned_members contando sólo los encontrados.",
+    ref: "views.py · BulkAssignRoutineView",
   },
   {
-    key: "viewset",
+    key: "lectura",
     color: "warning",
-    titulo: "RoutineExerciseViewSet no inyecta el gym",
+    titulo: "El trainer puede leer rutina y WhatsApp (limitación)",
     detalle:
-      "A diferencia de los otros tres ViewSets, hereda de ModelViewSet y no usa GymModelViewSet: depende sólo de la validación del serializer.",
-    ref: "views.py:70-80",
+      "member/<id>/, active/ y whatsapp/ sólo piden login: un trainer lee la rutina de un socio, todas las asignaciones activas y su teléfono. La gestión sí está bloqueada con 403.",
+    ref: "views.py · MemberRoutineView · ActiveRoutinesView · MemberRoutineWhatsappView",
   },
   {
-    key: "public",
-    color: "warning",
-    titulo: "Endpoints públicos sin autenticación",
-    detalle:
-      "public/<token>/ y su progreso no piden login (sólo throttle); el payload incluye rutina, pagos, deuda y acceso.",
-    ref: "views.py:340-412 · :425-831",
-  },
-  {
-    key: "tests",
+    key: "nombres",
     color: "muted",
-    titulo: "Sin tests de rutinas",
+    titulo: "Ejercicios y plantillas pueden repetir nombre (limitación)",
     detalle:
-      "No existe backend/routines/tests.py (sólo un .pyc viejo). Es una de las pocas apps sin cobertura.",
-    ref: "backend/routines/",
+      "No hay unicidad de name en Exercise ni en RoutineTemplate, y los serializers no validan duplicados: dos filas del mismo gimnasio pueden llamarse igual.",
+    ref: "models.py · Exercise · RoutineTemplate",
   },
   {
-    key: "hoy",
-    color: "warning",
-    titulo: "Registro sólo de hoy",
-    detalle:
-      "El progreso usa siempre la fecha actual: no hay historial de entrenamientos.",
-    ref: "views.py:365-369 · models.py:272-275",
-  },
-  {
-    key: "route",
-    color: "warning",
-    titulo: "Ruta /routines sin ProfessorRoute",
-    detalle:
-      "Cualquier rol autenticado puede abrir la pantalla de rutinas.",
-    ref: "App.jsx:189",
-  },
-  {
-    key: "naming",
+    key: "orden",
     color: "muted",
-    titulo: "Trampa de nombres (no es un bug)",
+    titulo: "Dos filas pueden compartir order (limitación)",
     detalle:
-      "PublicRoutine.jsx es la página de horarios, no el workout. El entrenamiento real es member/MemberWorkout.jsx.",
-    ref: "pages/PublicRoutine.jsx · member/MemberWorkout.jsx",
+      "RoutineExercise no tiene unicidad de order dentro de la plantilla; el orden visual puede no ser el que el staff esperaba.",
+    ref: "models.py · RoutineExercise",
   },
 ];
 
@@ -709,11 +679,11 @@ function BugsConocidos() {
     <Card>
       <div className="flex items-center gap-2">
         <AlertTriangle size={18} className="text-warning-text dark:text-warning" />
-        <h2 className="text-lg font-bold text-text-primary">Posibles bugs / desajustes</h2>
+        <h2 className="text-lg font-bold text-text-primary">Problemas que pueden pasar</h2>
       </div>
       <p className="mt-1 text-sm text-text-secondary">
-        Puntos donde el comportamiento real puede sorprender. Para documentar, no necesariamente
-        para arreglar.
+        Comportamiento real que puede sorprender. Los dos primeros son problemas vigentes; el
+        resto, limitaciones documentadas.
       </p>
 
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
@@ -735,14 +705,15 @@ function BugsConocidos() {
 }
 
 const NO_HACE = [
-  "No exige un rol para crear/editar/asignar rutinas.",
-  "No garantiza en la base una sola rutina activa por socio.",
+  "No exige rol para leer rutinas: member/<id>/, active/ y whatsapp/ sólo piden login.",
+  "No garantiza nombres únicos de ejercicios ni de plantillas.",
+  "No garantiza un order único dentro de una plantilla.",
   "No guarda historial de entrenamientos (sólo de hoy).",
   "No guarda el peso ni las reps reales que hizo el socio.",
   "No valida que reps y peso sean números (son texto libre).",
-  "No tiene tests automáticos.",
   "No está gated por feature (gyms/features.py no incluye rutinas).",
   "No notifica al socio: sólo el link de WhatsApp que arma el staff.",
+  "No autoasigna rutinas: todo se carga desde el panel.",
 ];
 
 function LoQueNoHace() {
