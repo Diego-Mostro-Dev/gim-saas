@@ -340,16 +340,35 @@ sólo en la UI.
 ## 8. Fechas cerradas y feriados
 
 Una **fecha cerrada** es un día en el que el gimnasio no abre. Se usa para bloquear
-asistencia, recuperaciones e intercambios y para mostrar avisos en el portal.
+asistencia, recuperaciones e intercambios y para mostrar avisos en el portal. Se
+gestiona desde la pestaña **Fechas cerradas**.
 
-- La unicidad es `(gym, date)`: no se puede cargar dos veces la misma fecha.
-- Se pueden cargar fechas puntuales con un motivo libre.
-- La carga masiva de **feriados de Argentina** trae el año pedido (o el actual si no
-  se envía), agrega sólo fechas **futuras**, saltea las que ya existen y devuelve
-  `502` si la API externa falla. La respuesta informa cuántas se crearon y cuántas
-  se saltearon por pasadas o duplicadas.
-- Los días cerrados se excluyen de la asistencia y de la recuperación; el portal
-  muestra el próximo cierre con labels por gimnasio.
+Qué garantiza el modelo y la API:
+
+- La unicidad es `(gym, date)`: no se puede cargar dos veces la misma fecha. La API
+  de alta devuelve error de validación si se repite.
+- Cada fecha tiene un motivo libre de hasta 200 caracteres.
+- El listado viene ordenado por fecha ascendente.
+- Sólo el dueño puede crear y borrar fechas (`require_owner`); la lectura está
+  disponible para cualquier autenticado del gimnasio.
+- Borrar una fecha no toca asistencias ni recuperaciones ya registradas.
+
+Carga masiva de feriados de Argentina:
+
+- Toma el año pedido; si no se envía, usa el año actual.
+- Trae los feriados desde una API pública y agrega **sólo fechas futuras o de hoy**.
+- Saltea las que ya existen y devuelve cuántas se crearon, cuántas quedaron
+  pasadas y cuántas ya estaban cargadas.
+- Si la API externa falla, responde `502` con mensaje y no crea nada.
+- No borra ni pisa fechas cargadas a mano.
+
+Efectos:
+
+- En una fecha cerrada no se puede registrar asistencia ni pedir un intercambio.
+- La recuperación rechaza una fecha de destino cerrada.
+- El cálculo de no-show saltea los días cerrados.
+- El portal muestra el próximo cierre con los labels del gimnasio.
+- El panel de asistencia expone las fechas cerradas del rango consultado.
 
 ### Referencias
 - `backend/gyms/models.py · GymClosedDate`
@@ -357,6 +376,8 @@ asistencia, recuperaciones e intercambios y para mostrar avisos en el portal.
 - `backend/gyms/views.py · GymClosedDateDetailView`
 - `backend/gyms/views.py · GymClosedDateHolidaysView`
 - `backend/gyms/holidays.py · fetch_argentina_holidays`
+- `backend/attendance/recovery_service.py · grant_scheduled`
+- `backend/activities/no_show_service.py`
 - `frontend/src/pages/Settings.jsx · Settings`
 
 ---
@@ -364,17 +385,46 @@ asistencia, recuperaciones e intercambios y para mostrar avisos en el portal.
 ## 9. Horarios del gimnasio y cupos
 
 Los **horarios del gimnasio** (slots) son los bloques semanales a los que el socio
-se anota para asistir. Se gestionan en la pestaña **Planes & Horarios** y en la
-pantalla de asistencia.
+se anota para asistir. Se gestionan en la pestaña **Planes & Horarios** y se usan
+desde Asistencias.
 
-- Cada slot tiene día, hora, duración y capacidad opcional.
-- **`default_schedule_capacity`** (default vacío): capacidad que se propone al crear
-  un slot; si queda vacía, el slot no tiene cupo definido.
-- El cupo real se controla al asignar horarios, al cambiar de horario y al registrar
-  asistencia.
-- Los slots no tienen un gate de rol propio: los endpoints de `ScheduleSlot` sólo
-  exigen autenticación. El detalle y el hueco de permisos están en
-  `AUDITORIA-HORARIOS.md` §4.
+Cómo está armado un slot:
+
+- **Día y hora**: la combinación `(gym, day, hour)` es única; no se puede repetir.
+- **Duración**: `duration_minutes`, por defecto `60`; se usa para calcular el fin
+  del bloque y detectar choques con actividades.
+- **Capacidad**: `capacity` opcional; si es `null`, el slot no tiene cupo definido.
+- **`default_schedule_capacity`** (default vacío, en Settings → Información): valor
+  que la pantalla propone al crear un slot. No es un cupo global retroactivo: los
+  slots ya creados conservan su propio `capacity`.
+
+Alta masiva:
+
+- Se eligen uno o varios días, un rango de horas y un paso de 30 o 60 minutos.
+- La hora de inicio debe ser anterior a la de fin.
+- La duración por bloque se valida entre 15 y 480 minutos.
+- El lote tiene un máximo de 336 slots por envío.
+- Las combinaciones que ya existen se saltean y se informan en la respuesta.
+- Las altas se hacen con un `bulk_create`, en un solo insert.
+
+Borrado:
+
+- Si el slot tiene socios asignados, la API responde `400` y no lo elimina
+  (`ProtectedError`).
+- Si no tiene asignaciones, se borra.
+
+Permisos:
+
+- Los endpoints de slots (`ScheduleSlotListCreateView`,
+  `ScheduleSlotDetailView` y `ScheduleSlotBulkCreateView`) sólo exigen
+  autenticación: no llaman a `require_owner`. Cualquier usuario del gimnasio puede
+  crear, editar o borrar slots por API aunque la UI sea del panel.
+- El caso está documentado en `AUDITORIA-HORARIOS.md` §4; acá se enlaza, no se
+  duplica.
+
+El cupo real se controla al asignar horarios, al cambiar de horario y al registrar
+asistencia. Las reglas de asignación y de conteo están en `AUDITORIA-HORARIOS.md` y
+`AUDITORIA-ASISTENCIAS.md`.
 
 ### Referencias
 - `backend/gyms/models.py · Gym`
@@ -442,30 +492,49 @@ El detalle de plataforma está en `AUDITORIA-ADMIN-SAAS.md`.
 ## 12. Features
 
 Las **features** son banderas de negocio por gimnasio que habilitan o deshabilitan
-módulos completos. El catálogo y la regla de comunidad viven en
-`backend/gyms/features.py`.
+módulos completos. Se guardan como un diccionario JSON en `Gym.features`.
 
-- `FEATURE_CATALOG` define las features disponibles.
-- `require_community` protege las acciones de comunidad cuando la feature está
-  apagada.
-- Las features condicionan rutas, pestañas y avisos del frontend, además de los
-  manifiestos y labels.
+Catálogo (`FEATURE_CATALOG`):
 
-**Importante:** `GymSerializer.features` es **read-only**. El dueño no puede
-cambiarlas desde Settings ni desde el panel del gimnasio: sólo las modifica el admin
-central a través de `AdminGymUpdateSerializer` y el wizard de gimnasios. La pestaña
-**Comunidad** aparece sólo cuando `gym.features.community` es verdadero.
+| Clave | Etiqueta | Default | Qué habilita |
+|---|---|---|---|
+| `activities` | Actividades | `false` | Actividades con horarios, profesores y cobro mensual o por sesión |
+| `personal_training` | Entrenamiento personal | `false` | Trainers, horarios fijos y paquetes de sesiones |
+| `community` | Comunidad | `false` | Locales adheridos y tarjeta de beneficios del socio |
+| `salidas` | Running grupal | `false` | Salidas grupales con horarios y punto de encuentro |
+
+Cómo se aplican:
+
+- El backend expone helpers `activities_enabled`, `personal_training_enabled`,
+  `community_enabled` y `outings_enabled`.
+- Cada módulo llama a su `require_*` (`require_activities`,
+  `require_personal_training`, `require_community`, `require_outings`). Si la
+  feature está apagada, la API responde `403` con `code: FEATURE_DISABLED` y la
+  clave de la feature, para que el frontend sepa qué módulo deshabilitar.
+- El frontend usa `ProtectedFeature` para las rutas y condiciona pestañas y avisos.
+  La pestaña **Comunidad** de Settings sólo aparece con `community` activa.
+
+Quién las cambia:
+
+- **`GymSerializer.features` es read-only.** El dueño no puede cambiarlas desde
+  Settings ni desde el panel del gimnasio.
+- Sólo el admin central las modifica con `AdminGymUpdateSerializer` (que redefine
+  `features` como `DictField` escribible) y el wizard de gimnasios.
+- El catálogo es data-driven: el admin lo consume para renderizar las opciones.
 
 Las **labels** (`DEFAULT_LABELS` + `SINKRO_LABELS`) son textos visibles calculados
-por gimnasio; tampoco se editan desde Settings.
+por gimnasio; tampoco se editan desde Settings. Ver §1 y §20.
 
 ### Referencias
 - `backend/gyms/features.py · FEATURE_CATALOG`
+- `backend/gyms/features.py · feature_catalog`
+- `backend/gyms/features.py · FeatureDisabled`
 - `backend/gyms/features.py · require_community`
 - `backend/gyms/labels.py · DEFAULT_LABELS`
 - `backend/gyms/labels.py · SINKRO_LABELS`
 - `backend/gyms/labels.py · get_gym_labels`
 - `backend/gyms/serializers.py · GymSerializer`
+- `backend/admins/serializers.py · AdminGymUpdateSerializer`
 - `frontend/src/pages/Settings.jsx · TABS`
 
 ---
@@ -533,29 +602,45 @@ Si la feature se apaga, la pestaña desaparece y un acceso directo con
 
 ## 16. Efectos cruzados
 
-| Valor de Configuración | Módulo afectado | Efecto |
-|---|---|---|
-| `payment_due_day`, `access_block_day` | Pagos, Suscripciones, Asistencias | Definen `pending`/`blocked`, el bloqueo de acceso y el corte de renovación |
-| `allow_plan_changes` | Planes, Suscripciones, portal | Habilita el pedido de cambio de plan y su aprobación |
-| `allow_schedule_changes`, `schedule_change_*`, `max_schedule_changes_per_month` | Horarios, Asistencias | Habilitan y limitan cambios permanentes e intercambios |
-| `allow_session_recovery`, `max_session_recoveries_per_month` | Recuperación, Asistencias | Habilitan y limitan recuperaciones |
-| `default_schedule_capacity` | Horarios, Asistencias | Capacidad propuesta y control de cupo |
-| `Discount` | Pagos, Suscripciones | Porcentaje que se aplica al precio de la suscripción |
-| `HealthInsurance` | Pagos, Personal Training | Coseguro por sesión y sellado del paquete |
-| `GymClosedDate` | Asistencias, Recuperación, portal | Bloquea asistencia, intercambios y avisos de cierre |
-| `features` | Rutinas, Actividades, PT, Salidas, Comunidad | Habilitan o apagan módulos, rutas y pestañas |
-| `labels` | Todo el frontend | Vocabulario visible por gimnasio |
-| `seo_*` | SEO público | HTML indexable y vista previa al compartir |
-| `logo`, `app_icon`, `name` | PWA, SEO, panel, portal | Identidad visual e íconos de instalación |
-| `qr_*_message` | Asistencia QR, Registro | Texto de los carteles imprimibles |
+La configuración del gimnasio es un insumo transversal: casi todos los módulos leen
+algún valor de `Gym` en el momento de operar. Esta tabla resume el sentido del
+efecto; las reglas completas viven en cada auditoría enlazada.
 
-Las reglas completas de cada destino están en las auditorías enlazadas en la
-cabecera; esta tabla sólo resume qué valor toca qué módulo.
+| Valor de Configuración | Módulo afectado | Efecto y momento |
+|---|---|---|
+| `payment_due_day`, `access_block_day` | Pagos, Suscripciones, Asistencias | Definen `pending`/`blocked`, el bloqueo de acceso y el corte de renovación; se leen al calcular el estado y al cerrar el mes |
+| `allow_plan_changes` | Planes, Suscripciones, portal | Habilita el pedido de cambio de plan; se valida al crear y al aprobar |
+| `allow_schedule_changes`, `schedule_change_*`, `max_schedule_changes_per_month` | Horarios, Asistencias | Habilitan y limitan cambios permanentes e intercambios; se aplican en cada pedido |
+| `allow_session_recovery`, `max_session_recoveries_per_month` | Recuperación, Asistencias | Habilitan y limitan recuperaciones; se validan al otorgar y al usar |
+| `default_schedule_capacity` | Horarios, Asistencias | Capacidad propuesta al crear slots; no cambia los cupos ya guardados |
+| `Discount` | Pagos, Suscripciones | Porcentaje que se resta al precio; se guarda como snapshot al emitir el período |
+| `HealthInsurance` | Pagos, Personal Training | Coseguro por sesión y sellado del paquete; se leen al inscribir y al cobrar |
+| `GymClosedDate` | Asistencias, Recuperación, portal | Bloquea asistencia, intercambios y recuperaciones; se consulta por fecha |
+| `features` | Rutinas, Actividades, PT, Salidas, Comunidad | Habilitan o apagan módulos, rutas y pestañas; se chequean en cada request y en el frontend |
+| `labels` | Todo el frontend | Vocabulario visible por gimnasio; se calcula al leer la configuración |
+| `seo_*` | SEO público | HTML indexable y vista previa al compartir; se lee en el endpoint público |
+| `logo`, `app_icon`, `name` | PWA, SEO, panel, portal | Identidad visual e íconos de instalación; se leen al servir manifiestos y pantallas |
+| `qr_*_message` | Asistencia QR, Registro | Texto de los carteles imprimibles; se lee al abrir cada pantalla |
+
+Notas de alcance:
+
+- **No hay copia ni cache de negocio**: cada módulo lee el valor actual del gimnasio.
+  El frontend sí cachea la respuesta de `GET /api/gyms/me/` durante 10 minutos y la
+  refresca con la respuesta del guardado.
+- **Los cambios de dinero no reescriben el pasado**: descuentos y obras sociales
+  impactan en el próximo período o inscripción, no en lo ya facturado.
+- **Las features no se auto-habilitan**: un gimnasio no puede activar un módulo por
+  API; depende del admin central.
+- **Las fechas cerradas son por gimnasio**: no hay un calendario global de
+  plataforma.
 
 ### Referencias
 - `backend/gyms/models.py · Gym`
 - `backend/gyms/features.py · FEATURE_CATALOG`
 - `backend/gyms/labels.py · get_gym_labels`
+- `backend/subscriptions/services.py · member_discount_percent`
+- `backend/attendance/recovery_service.py · grant_scheduled`
+- `frontend/src/hooks/useGym.js · useGym`
 
 ---
 
