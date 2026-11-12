@@ -398,6 +398,7 @@ explicación, ejemplo de impacto y criterio de aceptación.
   gimnasio y `HealthInsuranceViewSet` hereda de `GymModelViewSet` con la permisión global
   de autenticación. Cualquier usuario autenticado del gimnasio (staff, profesor,
   entrenador) puede listar, crear, editar y borrar descuentos y obras sociales por API.
+  Se documenta en `AUDITORIA-CONFIGURACION.md` §18.
 - **Ejemplo de impacto:** un profesor con credenciales del gimnasio puede inactivar el
   descuento de un socio o cambiar el coseguro de una obra social sin ser dueño; el
   cambio impacta en el próximo período facturado.
@@ -412,7 +413,8 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Explicación:** `GymSerializer` expone `active` y `slug` como campos escribibles:
   `read_only_fields` sólo incluye `features`. `GymMeView.patch` exige `require_owner`,
   pero la pantalla de Configuración no muestra ninguno de los dos, así que el dueño
-  puede cambiarlos con un cliente o por API sin pasar por la UI.
+  puede cambiarlos con un cliente o por API sin pasar por la UI. Se documenta en
+  `AUDITORIA-CONFIGURACION.md` §18.
 - **Ejemplo de impacto:** un cliente con la sesión del dueño manda `active: false` y
   corta el registro, el portal y el SEO; o cambia el slug y deja rotas las URLs
   públicas y el manifiesto PWA de staff, que se resuelve por slug.

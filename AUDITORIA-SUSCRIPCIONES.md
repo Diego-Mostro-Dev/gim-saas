@@ -62,7 +62,7 @@ Hay cinco caminos, y no todos los hace la misma persona:
 | **Inscripción del propio socio** (portal público) | El socio | Igual: nace sin pagar; además no puede elegir cortesía ni descuento |
 | **Renovación automática** | El sistema, el 1° del mes | Ciclo nuevo con el mismo plan y los mismos ítems, pendiente de pago |
 | **Cambio de plan** | Lo pide el socio o el staff; aprueba el staff | Ciclo nuevo con el plan nuevo (sección 3) |
-| **Recuperación** | El staff, desde "Recuperar socios" | Ciclo nuevo desde hoy hasta fin de mes (ver AUDITORIA-PAGOS §6) |
+| **Recuperación** | El staff, desde "Recuperar socios" | Ciclo nuevo desde hoy hasta fin de mes (ver AUDITORIA-PAGOS.md §6) |
 
 Detalles:
 
@@ -241,8 +241,8 @@ Detalles:
 - **Ese no es el único prorrateo.** También se prorratea el **primer ciclo de
   un alta posterior al día de vencimiento** del gimnasio: los ítems del
   período (plan, actividades, PT mensual y salidas mensuales) se emiten con el
-  precio de los días que quedan (ver AUDITORIA-PAGOS §1). No se prorratea al
-  cambiar de plan ni en las renovaciones (AUDITORIA-PAGOS §7).
+  precio de los días que quedan (ver AUDITORIA-PAGOS.md §1). No se prorratea al
+  cambiar de plan ni en las renovaciones (AUDITORIA-PAGOS.md §7).
 - **Descuentos:** el gimnasio crea descuentos porcentuales desde
   Configuración y se los asigna a un socio. El porcentaje **se congela al
   emitir cada período**: desactivar el descuento después **no cambia** lo ya
@@ -266,7 +266,7 @@ Detalles:
   período) y
   `backend/subscriptions/services.py:312-331` (`member_discount_percent`);
   ayuda del campo `backend/subscriptions/models.py:46-55`.
-- CRUD de descuentos: `backend/gyms/views.py:599` (`DiscountViewSet`, ruta
+- CRUD de descuentos: `backend/gyms/views.py` · `DiscountViewSet` (ruta
   `/api/gyms/me/discounts/`).
 - En pantalla: checkbox "Pase de cortesía"
   `frontend/src/components/members/MemberForm.jsx:441-459` (al desactivarlo
@@ -290,7 +290,7 @@ Detalles:
 | **Cambios de plan** | Los pedidos de cambio, con sus estados | Aprobar o rechazar (con notas) |
 | **Planes** | El catálogo de planes | Crear, editar y eliminar planes (nombre, descripción, precio, duración en días, visitas semanales, activo) |
 | **Recuperar socios** | Socios con deuda | Ver el desglose, cobrar y "Recuperar socio" |
-| **Pagos** | El cobro del día a día | Registrar, editar y borrar pagos (AUDITORIA-PAGOS §4) |
+| **Pagos** | El cobro del día a día | Registrar, editar y borrar pagos (AUDITORIA-PAGOS.md §4) |
 
 **Socio (portal)**
 
@@ -338,7 +338,7 @@ Detalles:
   pantalla (por API es de solo lectura).
 - **No prorratea** al cambiar de plan ni en las renovaciones. Además de la
   cortesía, lo único proporcional es el primer ciclo de un alta posterior al
-  día de vencimiento (AUDITORIA-PAGOS §1).
+  día de vencimiento (AUDITORIA-PAGOS.md §1).
 - **No permite elegir la fecha** en que rige un cambio de plan: es hoy o el 1°
   del mes, nada intermedio.
 - **No admite dos pedidos de cambio de plan** a la vez, ni cambiar al mismo plan
@@ -349,7 +349,7 @@ Detalles:
   diferencia": la plata se acomoda en la facturación del ciclo.
 - **No permite prórrogas ni vencimientos por socio**: todos los ciclos terminan
   el último día del mes; lo único configurable por gimnasio son los días de pago
-  y de bloqueo (AUDITORIA-PAGOS §2).
+  y de bloqueo (AUDITORIA-PAGOS.md §2).
 
 ---
 
@@ -365,7 +365,7 @@ prometer estos comportamientos en el manual.
 2. **El botón "recuperable" a veces no coincide con lo que pasa al recuperar**
    (P24): la lista de socios calcula las condiciones en un lugar y la acción de
    recuperar en otro, así que puede ofrecer recuperar y el sistema rechazar.
-   (AUDITORIA-PAGOS §6 dice que son las mismas condiciones; hoy no lo son.)
+   (AUDITORIA-PAGOS.md §6 dice que son las mismas condiciones; hoy no lo son.)
 3. **La etiqueta "Pagado/Pendiente" de la pantalla del staff puede estar
    desactualizada** (P22/P23): es una copia que en algunos caminos se escribe a
    mano. La deuda real es la que calcula el sistema.

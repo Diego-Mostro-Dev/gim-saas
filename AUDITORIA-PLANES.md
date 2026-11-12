@@ -141,7 +141,7 @@ Detalles:
   obligatorio** (salvo cortesía): no se puede abrir un ciclo sin plan.
 - El primer ciclo va **desde el día del alta hasta fin de mes**. Si el alta cae
   después del día de vencimiento del gimnasio, se prorratea (ver
-  AUDITORIA-PAGOS §1). El socio de cortesía nace con el plan base **ya pagado**.
+  AUDITORIA-PAGOS.md §1). El socio de cortesía nace con el plan base **ya pagado**.
 - El límite de **visitas semanales** del plan elegido acota cuántos horarios se
   pueden anotar en esa misma inscripción.
 - En la autoinscripción, el socio **no puede autoasignarse cortesía ni
@@ -170,7 +170,7 @@ Detalles:
 Un socio puede **cambiarse de plan**, pero no "a cualquier momento": el cambio
 es un pedido con estado que aprueba el staff y que rige en la **frontera del
 mes**. (El detalle de la facturación y la renovación relacionada está en
-AUDITORIA-SUSCRIPCIONES §3; acá va el recorrido del pedido.)
+AUDITORIA-SUSCRIPCIONES.md §3; acá va el recorrido del pedido.)
 
 **Quién lo pide.** El socio desde su portal, o el staff a nombre del socio. El
 gimnasio puede deshabilitar los cambios en Configuración (por defecto están
@@ -265,7 +265,7 @@ cancelarlo desde su portal.
   todo se factura por mes calendario.
 - **No prorratea cambios de plan ni renovaciones**; el único prorrateo es el
   primer ciclo de un alta posterior al día de vencimiento y la cortesía
-  (AUDITORIA-PAGOS §1 y §7, AUDITORIA-SUSCRIPCIONES §5).
+  (AUDITORIA-PAGOS.md §1 y §7, AUDITORIA-SUSCRIPCIONES.md §5).
 - **No permite elegir la fecha** en que rige un cambio de plan: es hoy (sin
   ciclo vigente) o el 1° del mes siguiente.
 - **No admite dos pedidos de cambio de plan** a la vez, ni cambiar al mismo
@@ -277,7 +277,7 @@ cancelarlo desde su portal.
   cada período emitido, no en el plan.
 - **No cobra el cambio de plan en el momento** ni tiene botón para "pagar la
   diferencia": la plata se acomoda en la facturación del ciclo (ver el caveat del
-  saldo a favor en AUDITORIA-SUSCRIPCIONES §8, problema P21).
+  saldo a favor en AUDITORIA-SUSCRIPCIONES.md §8, problema P21).
 - **No manda avisos por email ni WhatsApp** cuando un plan se crea, se
   desactiva o cuando se aprueba un cambio.
 - **No bloquea la renovación** de un socio cuyo plan quedó desactivado: el plan

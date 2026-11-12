@@ -51,7 +51,7 @@ Estados posibles:
 | 15 | `AUDITORIA-PERSONAL-TRAINING.md` | 5.5–5.7 | Oferta, trainers, asignaciones, cobro, sesiones, faltas, solicitudes, agenda y asistencia | `backend/personal_training` | `Verificado` |
 | 16 | `AUDITORIA-RUTINAS.md` | 6 | Catálogo, armado, asignación en lote, portal y progreso; permisos y límites | `backend/routines` | `Verificado` |
 | 17 | `AUDITORIA-COMUNIDAD.md` | 6 | Locales adheridos, baja lógica, feature y tarjeta pública; socio inactivo vs eliminado | `backend/community` | `Verificado` |
-| 18 | `AUDITORIA-CONFIGURACION.md` | 7 | Datos del gimnasio, pagos, horarios, recuperación, features, SEO y PWA | `backend/gyms`, `backend/config` | `Pendiente Fase 7` |
+| 18 | `AUDITORIA-CONFIGURACION.md` | 7 | Datos básicos, pagos, planes y horarios, recuperación, descuentos, obras sociales, cierres, QR, features, labels, SEO, PWA, staff y comunidad | `backend/gyms`, `backend/config` | `Verificado` |
 
 ---
 

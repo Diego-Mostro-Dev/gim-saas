@@ -1,7 +1,7 @@
 # Mapa de cobertura de auditorías
 
 > Verificado contra: `f5b4b07`
-> Fecha: 2026-10-30
+> Fecha: 2026-11-11
 > Alcance: relaciona cada auditoría con sus apps, endpoints, pantallas y tests.
 > Documentos relacionados: `AUDITORIA-INDEX.md`, `AUDITORIA-PLANTILLA.md`,
 > `Actualizacion de auditorias.md`
@@ -45,7 +45,7 @@ Leyenda de estado:
 | `AUDITORIA-PERSONAL-TRAINING.md` | 5 | `backend/personal_training` | `/api/personal-training/services/`, `/trainers/`, `/assignments/`, `/change-requests/`, `/attendance/`, endpoints públicos | `frontend/src/pages/PersonalTrainingSettings.jsx`, `PersonalTrainingAttendance.jsx`, `TrainerAgenda.jsx`, `MemberPersonalTraining.jsx`, `dev/PersonalTrainingFlow.jsx` | `backend/personal_training/tests.py`, `tests_deactivation.py`, `tests_phase_k2.py`, `tests_phase_k3.py`, `tests_phase_k7.py` |
 | `AUDITORIA-RUTINAS.md` | 6 | `backend/routines` | `/api/routines/exercises/`, `/templates/`, `/assignments/`, `/routine-exercises/`, `/member/<id>/`, `/member/<id>/whatsapp/`, `/active/`, `/bulk-assign/`, `/public/<token>/`, `/public/<token>/progress/` | `frontend/src/pages/Routines.jsx`, `member/MemberWorkout.jsx`, `components/routines/*`, `dev/RoutinesFlow.jsx` | `backend/routines/tests_phase_h.py` |
 | `AUDITORIA-COMUNIDAD.md` | 6 | `backend/community` | `/api/community/businesses/`, `/api/community/public/<token>/` | `frontend/src/pages/CommunityPanel.jsx`, `member/CommunityPublicPage.jsx`, `member/MemberCommunity.jsx` | `backend/community/tests.py` |
-| `AUDITORIA-CONFIGURACION.md` | 7 | `backend/gyms`, `backend/config` | `/api/gyms/me/`, `/api/gyms/me/closed-dates/`, `/api/gyms/me/discounts/`, `/api/gyms/staff/`, `/api/gyms/public/...`, `/api/gyms/pwa/...` | `frontend/src/pages/Settings.jsx`, `dev/SettingsFlow.jsx`, `pages/admin/*` | `backend/gyms/tests.py`, `backend/gyms/tests_restore.py` |
+| `AUDITORIA-CONFIGURACION.md` | 7 | `backend/gyms`, `backend/config` | `/api/gyms/me/`, `/api/gyms/me/closed-dates/`, `/api/gyms/me/discounts/`, `/api/gyms/staff/`, `/api/health-insurances/`, `/api/attendance/slots/`, `/api/gyms/public/seo/<gym_code>/`, `/api/gyms/pwa/...`, `/api/pwa/manifest/...` | `frontend/src/pages/Settings.jsx`, `CommunityPanel.jsx`, `dev/SettingsFlow.jsx`, `pages/admin/*`, `frontend/api/pwa/manifest/*/*.js`, `frontend/api/seo/register/*.js` | `backend/gyms/tests.py`, `backend/gyms/tests_restore.py`, `backend/members/tests_phase_k5.py`, `backend/attendance/tests_phase_e.py` |
 
 ---
 
@@ -124,8 +124,8 @@ sea una regla central, desde `AUDITORIA-NUCLEO-REGLAS.md`.
   `backend/personal_training/overlap.py` tenían referencias con líneas fuera de
   rango en las auditorías viejas. Al migrar a símbolos, esas referencias deben
   dejar de depender del número de línea.
-- `AUDITORIA-CONFIGURACION.md` sigue incompleta: el contenido se reescribe en
-  Fase 7.
+- `AUDITORIA-CONFIGURACION.md` quedó reescrita y verificada en Fase 7; sus
+  referencias usan símbolos canónicos y no números de línea.
 
 ---
 
