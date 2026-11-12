@@ -12,6 +12,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Store,
   Users,
   XCircle,
 } from "lucide-react";
@@ -46,15 +47,16 @@ const SECCIONES = {
   },
   banderas: {
     key: "banderas",
-    nombre: "Banderas por defecto",
+    nombre: "Banderas y defaults",
     icono: Info,
-    descripcion: "Valores típicos desde modelo/migraciones.",
+    descripcion:
+      "Defaults reales, features read-only, campos legacy y campos fuera de UI.",
   },
   api: {
     key: "api",
     nombre: "API, permisos y cache",
     icono: Sparkles,
-    descripcion: "Endpoints, owner-only, PWA manifests y cache gym.",
+    descripcion: "Endpoints reales, permisos, PWA y cache del gimnasio.",
   },
   noHace: {
     key: "noHace",
@@ -64,9 +66,9 @@ const SECCIONES = {
   },
   bugs: {
     key: "bugs",
-    nombre: "Bugs/edge cases a vigilar",
+    nombre: "Problemas vigentes",
     icono: FileWarning,
-    descripcion: "Detalles prácticos para evitar confusiones.",
+    descripcion: "CFG-02, CFG-03, CFG-16, CFG-17 y el hueco de horarios.",
   },
 };
 
@@ -87,38 +89,43 @@ const SettingsFlow = () => {
                 <div className="rounded-xl border border-border bg-surface-input p-4">
                   <h3 className="mb-2 font-medium text-text-primary">Gym</h3>
                   <p className="text-sm text-text-secondary">
-                    Config global por gimnasio: pagos (due/block day), cambios plan/horario,
-                    recuperación, QR, SEO, features, branding/PWA.
+                    Configuración global del gimnasio: identidad, pagos, cambios de
+                    plan y horario, recuperación, cupos, QR, SEO, features, labels y PWA.{" "}
+                    <strong>GymSerializer.features es read-only</strong>: el gimnasio
+                    no activa módulos desde Settings.
                   </p>
                   <p className="mt-2 text-xs text-text-secondary">
-                    backend/gyms/models.py:8-256
+                    backend/gyms/models.py · Gym
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-4">
                   <h3 className="mb-2 font-medium text-text-primary">Discount</h3>
                   <p className="text-sm text-text-secondary">
-                    Descuentos porcentuales CRUD por gimnasio (owner).
+                    Porcentaje 1–100 por gimnasio. La UI es owner-only, pero el
+                    backend sólo exige autenticación (CFG-16).
                   </p>
                   <p className="mt-2 text-xs text-text-secondary">
-                    backend/gyms/models.py:210-256 · views.py:70-140
+                    backend/gyms/models.py · Discount
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-4">
                   <h3 className="mb-2 font-medium text-text-primary">GymClosedDate</h3>
                   <p className="text-sm text-text-secondary">
-                    Fechas cerradas + carga masiva feriados AR (solo futuros, sin duplicados).
+                    Una fecha por gimnasio; feriados AR futuros sin duplicados. Si
+                    falla la API externa, responde 502 y no crea nada.
                   </p>
                   <p className="mt-2 text-xs text-text-secondary">
-                    backend/gyms/models.py:193-208 · views.py:175-250
+                    backend/gyms/models.py · GymClosedDate
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-4">
                   <h3 className="mb-2 font-medium text-text-primary">HealthInsurance</h3>
                   <p className="text-sm text-text-secondary">
-                    Obras sociales: coseguro por sesión + sellado único (opcional), activo.
+                    Obra social: coseguro por sesión y sellado opcional. UI
+                    owner-only; backend sin gate de rol (CFG-16).
                   </p>
                   <p className="mt-2 text-xs text-text-secondary">
-                    backend/members/models.py
+                    backend/members/models.py · HealthInsurance
                   </p>
                 </div>
               </div>
@@ -127,7 +134,7 @@ const SettingsFlow = () => {
                 <ArrowRight className="h-4 w-4" />
                 <span>gym.service.js (updateGym/getGym)</span>
                 <ArrowRight className="h-4 w-4" />
-                <span>PATCH /api/gyms/me/</span>
+                <span>PATCH /api/gyms/me/ (owner)</span>
               </div>
             </div>
           </div>
@@ -144,9 +151,10 @@ const SettingsFlow = () => {
                 <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-input p-3">
                   <Info className="mt-0.5 h-4 w-4 text-text-secondary" />
                   <div>
-                    <p className="font-medium text-text-primary">Info / Básicos</p>
+                    <p className="font-medium text-text-primary">Información</p>
                     <p className="text-text-secondary">
-                      Nombre, WhatsApp/teléfono/email, logo/ícono app, branding.
+                      Nombre, WhatsApp/teléfono/email, logo e ícono de app, y la
+                      capacidad por defecto de slots. slug y active no se muestran.
                     </p>
                   </div>
                 </div>
@@ -155,7 +163,9 @@ const SettingsFlow = () => {
                   <div>
                     <p className="font-medium text-text-primary">Pagos</p>
                     <p className="text-text-secondary">
-                      payment_due_day / access_block_day. Validación: access_block_day &gt; payment_due_day.
+                      payment_due_day (10) y access_block_day (16), con
+                      access_block_day &gt; payment_due_day. Incluye el catálogo de
+                      descuentos.
                     </p>
                   </div>
                 </div>
@@ -164,7 +174,9 @@ const SettingsFlow = () => {
                   <div>
                     <p className="font-medium text-text-primary">Planes &amp; Horarios</p>
                     <p className="text-text-secondary">
-                      allow_plan_changes, allow_schedule_changes, cooldown (días/h), notice (días/h), max cambios/mes, allow_member_schedule_changes (legacy). Gestión de slots/capacidades.
+                      allow_plan_changes y allow_schedule_changes; cooldown de 168 h,
+                      aviso de 24 h y máximo 4 cambios/mes. CRUD de slots con su
+                      capacidad.
                     </p>
                   </div>
                 </div>
@@ -173,25 +185,28 @@ const SettingsFlow = () => {
                   <div>
                     <p className="font-medium text-text-primary">Obras sociales</p>
                     <p className="text-text-secondary">
-                      CRUD HealthInsurance: nombre, coseguro por sesión, sellado único.
+                      CRUD de HealthInsurance: nombre, coseguro por sesión
+                      (session_price) y sellado (sellado_amount).
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-input p-3">
                   <Shield className="mt-0.5 h-4 w-4 text-text-secondary" />
                   <div>
-                    <p className="font-medium text-text-primary">Staff / Comunidad / Características</p>
+                    <p className="font-medium text-text-primary">Staff</p>
                     <p className="text-text-secondary">
-                      Gestión staff, features (activities/PT/community/salidas), labels context.
+                      Alta, cambio de rol y baja de staff, profesor y entrenador. El
+                      owner no se elimina ni se le cambia el rol.
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-input p-3">
                   <FileWarning className="mt-0.5 h-4 w-4 text-text-secondary" />
                   <div>
-                    <p className="font-medium text-text-primary">Cierres / Feriados</p>
+                    <p className="font-medium text-text-primary">Fechas cerradas</p>
                     <p className="text-text-secondary">
-                      GymClosedDate CRUD + POST /me/closed-dates/holidays/ (AR).
+                      CRUD de fechas únicas por gimnasio y carga masiva de feriados AR
+                      (sólo futuras, sin duplicados).
                     </p>
                   </div>
                 </div>
@@ -200,7 +215,18 @@ const SettingsFlow = () => {
                   <div>
                     <p className="font-medium text-text-primary">QR</p>
                     <p className="text-text-secondary">
-                      qr_attendance_message, qr_registration_message (carteles A4).
+                      qr_attendance_message y qr_registration_message de los carteles
+                      imprimibles.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-input p-3">
+                  <Store className="mt-0.5 h-4 w-4 text-text-secondary" />
+                  <div>
+                    <p className="font-medium text-text-primary">Comunidad (condicional)</p>
+                    <p className="text-text-secondary">
+                      Sólo aparece si gym.features.community está activa. CRUD de locales
+                      adheridos; si se apaga, ?tab=comunidad vuelve a Información.
                     </p>
                   </div>
                 </div>
@@ -209,7 +235,8 @@ const SettingsFlow = () => {
                   <div>
                     <p className="font-medium text-text-primary">SEO</p>
                     <p className="text-text-secondary">
-                      seo_title/description/keywords/city/address/hours + contexto manifests.
+                      seo_title/description/keywords/city/address/hours; alimentan la
+                      vista previa y el HTML indexable.
                     </p>
                   </div>
                 </div>
@@ -227,34 +254,57 @@ const SettingsFlow = () => {
               </h2>
               <div className="space-y-3 text-sm">
                 <div className="rounded-xl border border-border bg-surface-input p-3">
-                  <p className="font-medium text-text-primary">Vencimiento vs Bloqueo</p>
+                  <p className="font-medium text-text-primary">Vencimiento vs bloqueo</p>
                   <p className="mt-1 text-text-secondary">
-                    payment_due_day (default 10) → hasta ahí pendiente pero <strong>puede entrenar</strong>.
-                    access_block_day (default 16) → desde ahí <strong>bloqueado</strong>. Bloqueo <strong>solo por saldo de suscripción mensual</strong>. Cortesía nunca bloqueado por pago. initial_pending → bloqueado desde día 1.
+                    payment_due_day (10) → hasta ahí el socio sigue pendiente pero{" "}
+                    <strong>puede entrenar</strong>. access_block_day (16) → desde ahí
+                    queda <strong>bloqueado</strong>. Se valida en modelo, serializer,
+                    admin y pantalla. El bloqueo es <strong>sólo por saldo de suscripción
+                    mensual</strong>; la cortesía no se bloquea por pago.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Cambios de horario (permanentes + swaps)</p>
                   <p className="mt-1 text-text-secondary">
-                    Requiere allow_schedule_changes. Respetan cooldown_hours, schedule_change_notice_hours. Límite <strong>mensual combinado</strong>: permanentes (pending/approved/executed) + swaps (pending/approved). Conteo por mes calendario.
+                    Requiere allow_schedule_changes. Cooldown de 168 h, aviso previo de
+                    24 h y máximo de 4 cambios/mes. El límite es{" "}
+                    <strong>mensual combinado</strong>: permanentes (pending/approved/executed)
+                    + swaps (pending/approved), por mes calendario. Aplica igual al socio y
+                    al staff. El campo allow_member_schedule_changes es legacy y no
+                    gobierna ninguna regla (CFG-02).
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Cambios de plan</p>
                   <p className="mt-1 text-text-secondary">
-                    Gated por allow_plan_changes. Efecto: hoy si no hay ciclo vigente; else 1º mes siguiente.
+                    Gated por allow_plan_changes (true por defecto). Efecto: inmediato si
+                    no hay ciclo vigente; si hay, rige desde el 1º del mes siguiente.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Recuperación</p>
                   <p className="mt-1 text-text-secondary">
-                    allow_session_recovery + max_session_recoveries_per_month.
+                    allow_session_recovery (false por defecto) y
+                    max_session_recoveries_per_month (2). Consume cupo del horario destino
+                    y no puede caer en una fecha cerrada.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface-input p-3">
+                  <p className="font-medium text-text-primary">Reglas de plataforma (fuera de la UI)</p>
+                  <p className="mt-1 text-text-secondary">
+                    allow_activity_without_membership (true): control de plataforma que
+                    renueva socios solo-actividad; se gestiona desde el admin central.
+                    checkin_window_minutes (0): ventana de check-in, 0–1440 minutos; sólo
+                    se edita por API/admin.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Validaciones</p>
                   <p className="mt-1 text-text-secondary">
-                    access_block_day &gt; payment_due_day. cooldown/notice/max &gt;= 0. Unicidades/consistencias según modelo.
+                    access_block_day &gt; payment_due_day, ambos 1–31. Cooldown, aviso y
+                    máximo por mes son enteros ≥ 0. checkin_window_minutes entre 0 y 1440.
+                    La capacidad por defecto admite vacío; cada slot conserva su propio
+                    cupo.
                   </p>
                 </div>
               </div>
@@ -272,17 +322,20 @@ const SettingsFlow = () => {
               <div className="flex flex-col items-center gap-3 py-4 text-sm md:flex-row md:justify-center">
                 <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Configuración (Gym)</div>
                 <ArrowDown className="h-4 w-4 rotate-90 md:rotate-0" />
-                <div className="flex flex-col gap-2 md:flex-row">
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Pagos y suscripciones</div>
                   <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Cambios de plan</div>
-                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Cambios horario</div>
-                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Acceso/Estado</div>
-                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Renovación</div>
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Cambios de horario</div>
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Acceso y renovación</div>
                   <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Recuperación</div>
-                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">UI/Features</div>
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Asistencias y cierres</div>
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Descuentos y obras sociales</div>
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">Features y labels</div>
+                  <div className="rounded-xl border border-border bg-surface-input px-4 py-2">SEO y PWA</div>
                 </div>
               </div>
               <p className="text-center text-xs text-text-secondary">
-                allow_plan_changes / allow_schedule_changes + límites / payment_due_day-access_block_day / allow_session_recovery / features/labels
+                payment_due_day/access_block_day · allow_plan_changes · allow_schedule_changes + límites · allow_session_recovery · GymClosedDate · Discount · HealthInsurance · features/labels · seo_* · logo/app_icon/name · qr_*_message
               </p>
             </div>
           </div>
@@ -293,32 +346,62 @@ const SettingsFlow = () => {
             <div className="rounded-2xl border border-border bg-surface-elevated p-6 shadow-sm">
               <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
                 <Info className="h-5 w-5 text-primary" />
-                Banderas por defecto (típicos)
+                Defaults verificados y campos especiales
               </h2>
               <div className="grid gap-3 text-sm md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Pagos</p>
-                  <p className="text-text-secondary">payment_due_day=10, access_block_day=16</p>
+                  <p className="text-text-secondary">payment_due_day = 10, access_block_day = 16</p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
-                  <p className="font-medium text-text-primary">Cambios plan</p>
-                  <p className="text-text-secondary">allow_plan_changes = True (por defecto)</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface-input p-3">
-                  <p className="font-medium text-text-primary">Cambios horario</p>
-                  <p className="text-text-secondary">allow_schedule_changes (según config). cooldown/notice/max según valores guardados (horas en backend).</p>
+                  <p className="font-medium text-text-primary">Cambios</p>
+                  <p className="text-text-secondary">
+                    allow_plan_changes = true, allow_schedule_changes = true, cooldown =
+                    168 h, aviso = 24 h, máximo = 4/mes
+                  </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Recuperación</p>
-                  <p className="text-text-secondary">allow_session_recovery (flag) + max_session_recoveries_per_month</p>
+                  <p className="text-text-secondary">
+                    allow_session_recovery = false, máximo = 2/mes
+                  </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
-                  <p className="font-medium text-text-primary">Features</p>
-                  <p className="text-text-secondary">activities/personal_training/community/salidas (gestionados desde Settings + Admin)</p>
+                  <p className="font-medium text-text-primary">Capacidad</p>
+                  <p className="text-text-secondary">
+                    default_schedule_capacity vacío (null). Cada slot conserva su cupo;
+                    la duración por defecto es 60 minutos.
+                  </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
-                  <p className="font-medium text-text-primary">Legacy</p>
-                  <p className="text-text-secondary">allow_member_schedule_changes (presente histórico)</p>
+                  <p className="font-medium text-text-primary">Features (read-only)</p>
+                  <p className="text-text-secondary">
+                    activities / personal_training / community / salidas, todas false.
+                    Sólo el admin central las activa; el gimnasio no puede hacerlo desde
+                    Settings ni por API.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface-input p-3">
+                  <p className="font-medium text-text-primary">Legacy (CFG-02)</p>
+                  <p className="text-text-secondary">
+                    allow_member_schedule_changes = false. Sigue en modelo/API pero no
+                    gobierna ninguna regla ni aparece en la UI.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface-input p-3">
+                  <p className="font-medium text-text-primary">Fuera de la UI</p>
+                  <p className="text-text-secondary">
+                    allow_activity_without_membership = true (plataforma) y
+                    checkin_window_minutes = 0 (API/admin). active y slug no se muestran,
+                    pero son escribibles por API (CFG-17).
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface-input p-3">
+                  <p className="font-medium text-text-primary">Labels</p>
+                  <p className="text-text-secondary">
+                    DEFAULT_LABELS + SINKRO_LABELS calculados por gimnasio; no se editan
+                    desde Settings.
+                  </p>
                 </div>
               </div>
             </div>
@@ -336,25 +419,42 @@ const SettingsFlow = () => {
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Endpoints</p>
                   <p className="mt-1 text-text-secondary">
-                    GET/PATCH /api/gyms/me/ (GymMeView). Descuentos: /api/gyms/me/discounts/ (router). Closed dates: /api/gyms/me/closed-dates/ (GET/POST), /api/gyms/me/closed-dates/&lt;id&gt;/ (DELETE), /api/gyms/me/closed-dates/holidays/ (POST). Manifests PWA: /api/pwa/manifest/member/&lt;token&gt;, /api/pwa/manifest/staff/&lt;slug&gt;.
+                    GET/PATCH /api/gyms/me/ (GymMeView). Descuentos: /api/gyms/me/discounts/.
+                    Obras sociales: /api/health-insurances/. Fechas cerradas:
+                    /api/gyms/me/closed-dates/ (GET/POST), /api/gyms/me/closed-dates/&lt;id&gt;/
+                    (DELETE) y /api/gyms/me/closed-dates/holidays/ (POST). Staff:
+                    /api/gyms/staff/ (GET/POST) y /api/gyms/staff/&lt;id&gt;/ (PATCH/DELETE).
+                    SEO público: /api/gyms/public/seo/&lt;onboarding_code&gt;/. PWA: el frontend
+                    usa /api/pwa/manifest/member/&lt;token&gt; y /api/pwa/manifest/staff/&lt;slug&gt;;
+                    el proxy los reenvía a /api/gyms/pwa/member/&lt;token&gt;/ y
+                    /api/gyms/pwa/staff/&lt;slug&gt;/.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Permisos</p>
                   <p className="mt-1 text-text-secondary">
-                    GymMeView requiere auth (owner para mutaciones sensibles vía require_owner en views específicas: closed-dates/discounts según implementación). Front exige role === "owner" para acceder a Settings.
+                    GymMeView.get: cualquier autenticado del gimnasio; GymMeView.patch:
+                    owner. Fechas cerradas y staff: owner en escritura. Descuentos y obras
+                    sociales: sólo autenticación, sin require_owner (CFG-16). Slots: sólo
+                    autenticación (AUDITORIA-HORARIOS.md §4). SEO y PWA: públicos. El front
+                    exige role === "owner" para abrir Settings.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">Cache &amp; eventos</p>
                   <p className="mt-1 text-text-secondary">
-                    updateGym refresca cache gym + dispatch "features:updated". useGym comparte in-flight request, TTL 10min + focus/visibility refresh vía FeatureProvider.
+                    updateGym refresca el cache gym y dispara "features:updated". useGym
+                    comparte el request en vuelo, con TTL de 10 minutos y refresco por
+                    focus/visibility a través de FeatureProvider.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-surface-input p-3">
                   <p className="font-medium text-text-primary">PWA manifests</p>
                   <p className="mt-1 text-text-secondary">
-                    resolveManifestHref valida JSON OK antes de usar dynamic href; fallback a estático si falla.
+                    resolveManifestHref valida que la respuesta sea 2xx y JSON antes de
+                    usar el href dinámico; si falla, cae a /member-manifest.json o
+                    /manifest.json. El manifiesto de socio no declara start_url; el de
+                    staff usa "/".
                   </p>
                 </div>
               </div>
@@ -373,10 +473,13 @@ const SettingsFlow = () => {
                 <li>• No gestiona planes/precios (módulo Planes)</li>
                 <li>• No gestiona suscripciones/cobros (Pagos/Suscripciones)</li>
                 <li>• No gestiona asistencia/check-in (Asistencias)</li>
-                <li>• No gestiona actividades/salidas/PT agenda (módulos específicos)</li>
-                <li>• No es configuración global app – es por gimnasio</li>
-                <li>• No bloquea por sesiones/paquetes/sellados – solo por saldo de suscripción mensual</li>
-                <li>• No crea suscripciones – solo flags/reglas que las afectan</li>
+                <li>• No crea socios (Miembros/Registro)</li>
+                <li>• No gestiona actividades/salidas/PT (módulos específicos)</li>
+                <li>• No es configuración global de plataforma: las features sólo las activa el admin central y los labels no se editan</li>
+                <li>• No bloquea por sesiones/paquetes/sellados – sólo por saldo de suscripción mensual</li>
+                <li>• No crea suscripciones – sólo define reglas que las afectan</li>
+                <li>• Descuentos y obras sociales son owner-only sólo en la UI; el backend no valida el rol (CFG-16)</li>
+                <li>• active y slug no se editan desde Settings, pero siguen siendo escribibles por API (CFG-17)</li>
               </ul>
             </div>
           </div>
@@ -387,17 +490,14 @@ const SettingsFlow = () => {
             <div className="rounded-2xl border border-border bg-surface-elevated p-6 shadow-sm">
               <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
                 <FileWarning className="h-5 w-5 text-primary" />
-                Bugs/edge cases a vigilar
+                Problemas vigentes
               </h2>
               <ul className="space-y-2 text-sm text-text-secondary">
-                <li>• <strong>Unidades mixtas:</strong> UI días vs backend horas (cooldown/notice). Ver mapeo Settings.jsx.</li>
-                <li>• <strong>Legacy:</strong> allow_member_schedule_changes presente histórico – documentado tal cual.</li>
-                <li>• <strong>initial_pending:</strong> bloqueado desde día 1 aunque ingrese después de payment_due_day.</li>
-                <li>• <strong>Conteo combinado:</strong> permanentes+swaps comparten límite (usar count_schedule_changes_used_this_month).</li>
-                <li>• <strong>Feriados:</strong> solo futuros, evita duplicados; falla API externa posible.</li>
-                <li>• <strong>PWA:</strong> resolveManifestHref cae a fallback si no OK/JSON inválido.</li>
-                <li>• <strong>Cache:</strong> tras PATCH se refresca gym + features:updated.</li>
-                <li>• <strong>Validación:</strong> access_block_day &gt; payment_due_day debe mantenerse.</li>
+                <li>• <strong>CFG-02 (Decisión):</strong> allow_member_schedule_changes es legacy y no gobierna ninguna regla.</li>
+                <li>• <strong>CFG-03 (Decisión):</strong> initial_pending bloquea desde el día 1 aunque el socio pague después del vencimiento.</li>
+                <li>• <strong>CFG-16 (MEDIO, abierto):</strong> descuentos y obras sociales no validan rol en el backend; la UI es owner-only.</li>
+                <li>• <strong>CFG-17 (BAJO, abierto):</strong> active y slug son escribibles por API; pueden romper las URLs públicas y el manifiesto PWA de staff.</li>
+                <li>• <strong>Horarios:</strong> los endpoints de slots sólo exigen autenticación; ver AUDITORIA-HORARIOS.md §4.</li>
               </ul>
             </div>
           </div>
