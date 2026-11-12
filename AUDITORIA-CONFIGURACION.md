@@ -286,7 +286,7 @@ Cómo se usa en el cobro:
 **Problema vigente (CFG-16):** la pantalla es owner-only, pero el
 `DiscountViewSet` sólo exige autenticación (el filtro por gimnasio lo pone
 `GymQuerysetMixin`). Cualquier usuario del gimnasio podría hacer CRUD por API. Se
-documenta en §18 y se da de alta en `BUGS.md`.
+documenta en §18 y se enlaza con **CFG-16** en `BUGS.md`.
 
 ### Referencias
 - `backend/gyms/models.py · Discount`
@@ -486,6 +486,7 @@ El detalle de plataforma está en `AUDITORIA-ADMIN-SAAS.md`.
 - `backend/gyms/models.py · Gym`
 - `backend/gyms/views.py · GymSeoView`
 - `frontend/src/pages/Settings.jsx · Settings`
+- `frontend/api/seo/register/*.js`
 
 ---
 
@@ -523,7 +524,12 @@ Quién las cambia:
 - El catálogo es data-driven: el admin lo consume para renderizar las opciones.
 
 Las **labels** (`DEFAULT_LABELS` + `SINKRO_LABELS`) son textos visibles calculados
-por gimnasio; tampoco se editan desde Settings. Ver §1 y §20.
+por gimnasio; tampoco se editan desde Settings. `get_gym_labels` parte de
+`DEFAULT_LABELS` y, si el gimnasio es SINKRO (por `slug` o `name`), aplica
+`SINKRO_LABELS` encima: por eso el portal habla de "entrenamiento" en vez de
+"gimnasio". Los textos aceptan los placeholders `{gym}`, `{fecha}`, `{fecha1}` y
+`{fecha2}`, que interpola el frontend. El backend usa la misma función para los
+mensajes de error de la API (`msg`). Ver §1.
 
 ### Referencias
 - `backend/gyms/features.py · FEATURE_CATALOG`
@@ -533,6 +539,7 @@ por gimnasio; tampoco se editan desde Settings. Ver §1 y §20.
 - `backend/gyms/labels.py · DEFAULT_LABELS`
 - `backend/gyms/labels.py · SINKRO_LABELS`
 - `backend/gyms/labels.py · get_gym_labels`
+- `backend/gyms/labels.py · msg`
 - `backend/gyms/serializers.py · GymSerializer`
 - `backend/admins/serializers.py · AdminGymUpdateSerializer`
 - `frontend/src/pages/Settings.jsx · TABS`
@@ -541,24 +548,40 @@ por gimnasio; tampoco se editan desde Settings. Ver §1 y §20.
 
 ## 13. PWA
 
-El gimnasio tiene dos manifiestos de aplicación instalable:
+El gimnasio tiene dos manifiestos de aplicación instalable. Las rutas reales del
+backend son:
 
-- **Socio:** `GET /api/gyms/pwa/member/<token>/manifest/`. Usa el nombre del
-  gimnasio, un `short_name` recortado, la descripción "Portal del socio de …" y el
-  ícono del gimnasio (o los íconos genéricos de la plataforma).
-- **Staff:** `GET /api/gyms/pwa/staff/<slug>/manifest/`. Usa el nombre del gimnasio,
-  la descripción "Sistema de gestión para gimnasios" y `start_url` en `/`.
+- **Socio:** `GET /api/gyms/pwa/member/<token>/`, donde `<token>` es el
+  `access_token` del socio. Usa el nombre del gimnasio, un `short_name` recortado
+  a 10 caracteres, la descripción "Portal del socio de …" y el ícono del gimnasio
+  (o los íconos genéricos de la plataforma). El `id` es `/routine/` y **no** declara
+  `start_url`: al instalar, el navegador aplica su valor por defecto.
+- **Staff:** `GET /api/gyms/pwa/staff/<slug>/`, donde `<slug>` identifica al
+  gimnasio. Usa el nombre, un `short_name` recortado a 12 caracteres, la
+  descripción "Sistema de gestión para gimnasios", el `id` en `/` y `start_url` en
+  `/`.
+
+El frontend no llama al backend directo: `utils/manifest.js` arma
+`/api/pwa/manifest/member/<token>` y `/api/pwa/manifest/staff/<slug>`, y la función
+serverless en `frontend/api/pwa/manifest/*/*.js` los reenvía a las rutas de
+`/api/gyms/pwa/...`. Si la respuesta no es 2xx o no es JSON, el frontend vuelve a
+los manifiestos estáticos (`/member-manifest.json` y `/manifest.json`).
 
 Ambos son públicos, devuelven `application/manifest+json`, comparten scope `/`,
-`display: standalone`, colores y orientación. El ícono se recorta a 192×192 y
-512×512; si el gimnasio no cargó `app_icon`, se usan los PNG genéricos de la
-plataforma.
+`display: standalone`, `orientation: portrait-primary`, `theme_color` y
+`background_color`. El ícono se recorta a 192×192 y 512×512; si el gimnasio no
+cargó `app_icon`, se usan los PNG genéricos de la plataforma.
 
 ### Referencias
 - `backend/gyms/views.py · PwaMemberManifestView`
 - `backend/gyms/views.py · PwaStaffManifestView`
 - `backend/gyms/views.py · _build_pwa_manifest`
+- `backend/gyms/views.py · _build_manifest_icons`
 - `backend/gyms/urls.py · urlpatterns`
+- `frontend/src/utils/manifest.js · memberManifestHref`
+- `frontend/src/utils/manifest.js · staffManifestHref`
+- `frontend/src/utils/manifest.js · resolveManifestHref`
+- `frontend/api/pwa/manifest/*/*.js`
 
 ---
 
@@ -590,11 +613,14 @@ ahí el owner gestiona los locales adheridos y sus beneficios. Configuración no
 define el beneficio ni lo aplica a un cobro: eso vive en el módulo de comunidad.
 
 Si la feature se apaga, la pestaña desaparece y un acceso directo con
-`?tab=comunidad` vuelve a `Información`. El backend protege las acciones con
-`require_community`.
+`?tab=comunidad` vuelve a `Información`. El backend exige dos condiciones: la
+feature activa (`require_community`) y el rol dueño (`require_owner`) para crear,
+editar y borrar locales. La lectura del listado queda disponible para cualquier
+autenticado del gimnasio.
 
 ### Referencias
 - `backend/gyms/features.py · require_community`
+- `backend/community/views.py · CommunityBusinessView`
 - `frontend/src/pages/Settings.jsx · TABS`
 - `frontend/src/pages/CommunityPanel.jsx · CommunityPanel`
 
@@ -667,12 +693,12 @@ Problemas vigentes que se documentan sin arreglar en esta fase:
 
 - **CFG-16 (MEDIO): descuentos y obras sociales sin gate de rol en el backend.**
   La UI es owner-only, pero `DiscountViewSet` y `HealthInsuranceViewSet` sólo exigen
-  autenticación. Cualquier usuario del gimnasio podría hacer CRUD por API. Se da de
-  alta en `BUGS.md`.
+  autenticación. Cualquier usuario del gimnasio podría hacer CRUD por API. Ver ficha
+  CFG-16 en `BUGS.md`.
 - **CFG-17 (BAJO): `active` y `slug` son escribibles por API.** `GymSerializer` no
   los marca como `read_only`. La UI no los envía, pero un cliente podría
   auto-desactivar el gimnasio o cambiar el slug y romper URLs públicas y el
-  manifiesto PWA de staff. Se da de alta en `BUGS.md`.
+  manifiesto PWA de staff. Ver ficha CFG-17 en `BUGS.md`.
 - **Campos fuera de la UI.** `allow_activity_without_membership` es un control de
   plataforma que el owner igual podría cambiar por API vía `GymMeView.patch`;
   `checkin_window_minutes` sólo se edita por API/admin.
