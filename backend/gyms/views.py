@@ -13,7 +13,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.mixins import GymQuerysetMixin
-from core.permissions import require_owner
+from core.permissions import OwnerWriteMixin, require_owner
 from members.models import portal_member_or_404
 from profiles.models import UserProfile
 from .holidays import HolidaysAPIError, fetch_argentina_holidays
@@ -599,7 +599,8 @@ class PublicGymView(APIView):
         )
 
 
-class DiscountViewSet(GymQuerysetMixin, viewsets.ModelViewSet):
+class DiscountViewSet(OwnerWriteMixin, GymQuerysetMixin, viewsets.ModelViewSet):
     queryset = Discount.objects.all()
     serializer_class = DiscountSerializer
     pagination_class = None
+    owner_write_label = "errors.owner_only_discounts"

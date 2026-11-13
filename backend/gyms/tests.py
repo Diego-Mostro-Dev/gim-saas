@@ -14,7 +14,7 @@ from gyms.features import (
     require_outings,
 )
 from gyms.holidays import fetch_argentina_holidays
-from gyms.models import Gym, GymClosedDate
+from gyms.models import Discount, Gym, GymClosedDate
 from profiles.models import UserProfile
 from core.testing import BaseAPITest
 
@@ -54,6 +54,47 @@ class GymRolePermissionTests(BaseAPITest):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["name"], "Renombrada")
+
+    def test_owner_cannot_change_active_by_api(self):
+        self.client.credentials(**self.credentials(self.owner))
+
+        resp = self.client.patch(
+            "/api/gyms/me/",
+            {"active": False},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.gym.refresh_from_db()
+        self.assertTrue(self.gym.active)
+
+    def test_owner_cannot_change_slug_by_api(self):
+        self.client.credentials(**self.credentials(self.owner))
+        original_slug = self.gym.slug
+
+        resp = self.client.patch(
+            "/api/gyms/me/",
+            {"slug": "slug-cambiado"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.gym.refresh_from_db()
+        self.assertEqual(self.gym.slug, original_slug)
+
+    def test_owner_can_still_patch_other_fields_with_read_only_fields(self):
+        self.client.credentials(**self.credentials(self.owner))
+
+        resp = self.client.patch(
+            "/api/gyms/me/",
+            {"name": "Renombrada", "active": False},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.gym.refresh_from_db()
+        self.assertEqual(self.gym.name, "Renombrada")
+        self.assertTrue(self.gym.active)
 
     def test_staff_cannot_create_staff(self):
         self.client.credentials(**self.credentials(self.staff))
@@ -408,3 +449,98 @@ class FrontendUrlMissingTests(BaseAPITest):
         )
 
         self.assertEqual(resp.status_code, 200, resp.content)
+
+
+class DiscountOwnerGateTests(BaseAPITest):
+    """CFG-16: el catálogo se lee con cualquier rol, pero sólo lo escribe el dueño."""
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.owner = self.create_user(self.gym, username="owner_discounts")
+        self.staff = self.create_user(
+            self.gym,
+            username="staff_discounts",
+            role=UserProfile.ROLE_STAFF,
+        )
+        self.professor = self.create_user(
+            self.gym,
+            username="professor_discounts",
+            role=UserProfile.ROLE_PROFESSOR,
+        )
+        self.discount = Discount.objects.create(
+            gym=self.gym,
+            name="Promo",
+            discount_percent=10,
+        )
+        self.list_url = "/api/gyms/me/discounts/"
+        self.detail_url = f"{self.list_url}{self.discount.id}/"
+
+    def _auth(self, user):
+        self.client.force_authenticate(user=user)
+
+    def test_staff_cannot_create_discount(self):
+        self._auth(self.staff)
+
+        resp = self.client.post(
+            self.list_url,
+            {"name": "Promo staff", "discount_percent": 15},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 403, resp.data)
+        self.assertEqual(
+            resp.data["detail"],
+            "Solo el dueño puede gestionar los descuentos.",
+        )
+        self.assertFalse(Discount.objects.filter(name="Promo staff").exists())
+
+    def test_professor_cannot_edit_or_delete_discount(self):
+        self._auth(self.professor)
+
+        with self.subTest(action="patch"):
+            resp = self.client.patch(
+                self.detail_url,
+                {"discount_percent": 20},
+                format="json",
+            )
+            self.assertEqual(resp.status_code, 403, resp.data)
+
+        with self.subTest(action="delete"):
+            resp = self.client.delete(self.detail_url)
+            self.assertEqual(resp.status_code, 403, resp.data)
+
+        self.discount.refresh_from_db()
+        self.assertEqual(self.discount.discount_percent, 10)
+
+    def test_owner_can_create_edit_and_delete_discount(self):
+        self._auth(self.owner)
+
+        resp = self.client.post(
+            self.list_url,
+            {"name": "Promo dueño", "discount_percent": 15},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        discount = Discount.objects.get(pk=resp.data["id"])
+
+        resp = self.client.patch(
+            f"{self.list_url}{discount.id}/",
+            {"discount_percent": 25},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        discount.refresh_from_db()
+        self.assertEqual(discount.discount_percent, 25)
+
+        resp = self.client.delete(f"{self.list_url}{discount.id}/")
+        self.assertEqual(resp.status_code, 204, resp.data)
+        self.assertFalse(Discount.objects.filter(pk=discount.id).exists())
+
+    def test_staff_can_list_discounts(self):
+        self._auth(self.staff)
+
+        resp = self.client.get(self.list_url)
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data), 1)

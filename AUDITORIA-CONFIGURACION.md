@@ -283,10 +283,11 @@ Cómo se usa en el cobro:
   El detalle de cálculo y deuda está en `AUDITORIA-PAGOS.md` y
   `AUDITORIA-SUSCRIPCIONES.md`.
 
-**Problema vigente (CFG-16):** la pantalla es owner-only, pero el
-`DiscountViewSet` sólo exige autenticación (el filtro por gimnasio lo pone
-`GymQuerysetMixin`). Cualquier usuario del gimnasio podría hacer CRUD por API. Se
-documenta en §18 y se enlaza con **CFG-16** en `BUGS.md`.
+**Gate de rol (CFG-16, cerrado en Fase 9):** la pantalla es owner-only y el
+backend lo replica con `OwnerWriteMixin`: la lectura del catálogo queda abierta al
+gimnasio (la usan otras pantallas) y las escrituras exigen `require_owner`. Los
+roles que no son dueño reciben 403 con mensaje de dominio. Ver §18 y la ficha
+**CFG-16** en `BUGS.md`.
 
 ### Referencias
 - `backend/gyms/models.py · Discount`
@@ -323,9 +324,10 @@ Cómo se usa:
   en modo sesiones (incluido personal training). El detalle de precios y sellados
   está en `AUDITORIA-PAGOS.md` y `AUDITORIA-PERSONAL-TRAINING.md`.
 
-**Problema vigente (CFG-16):** igual que en descuentos, el
-`HealthInsuranceViewSet` sólo exige autenticación. La restricción de dueño vive
-sólo en la UI.
+**Gate de rol (CFG-16, cerrado en Fase 9):** igual que en descuentos,
+`HealthInsuranceViewSet` usa `OwnerWriteMixin`: la lectura queda abierta y la
+escritura exige `require_owner`. Los roles que no son dueño reciben 403 con
+mensaje de dominio.
 
 ### Referencias
 - `backend/members/models.py · HealthInsurance`
@@ -689,16 +691,16 @@ Notas de alcance:
 
 ## 18. Problemas y limitaciones
 
-Problemas vigentes que se documentan sin arreglar en esta fase:
+**Cerrado en Fase 9 (CFG-16 y CFG-17).** La escritura de descuentos y obras
+sociales ya exige ser dueño (`OwnerWriteMixin` en `DiscountViewSet` y
+`HealthInsuranceViewSet`), con lectura abierta para el gimnasio. `active` y
+`slug` pasaron a `read_only_fields` de `GymSerializer`, así que la API del
+gimnasio ya no puede desactivarlo ni cambiar el slug; el admin central los
+sigue escribiendo vía `AdminGymUpdateSerializer`. El estado queda en las fichas
+`CFG-16` y `CFG-17` de `BUGS.md`.
 
-- **CFG-16 (MEDIO): descuentos y obras sociales sin gate de rol en el backend.**
-  La UI es owner-only, pero `DiscountViewSet` y `HealthInsuranceViewSet` sólo exigen
-  autenticación. Cualquier usuario del gimnasio podría hacer CRUD por API. Ver ficha
-  CFG-16 en `BUGS.md`.
-- **CFG-17 (BAJO): `active` y `slug` son escribibles por API.** `GymSerializer` no
-  los marca como `read_only`. La UI no los envía, pero un cliente podría
-  auto-desactivar el gimnasio o cambiar el slug y romper URLs públicas y el
-  manifiesto PWA de staff. Ver ficha CFG-17 en `BUGS.md`.
+Limitaciones vigentes que se documentan sin arreglar en esta fase:
+
 - **Campos fuera de la UI.** `allow_activity_without_membership` es un control de
   plataforma que el owner igual podría cambiar por API vía `GymMeView.patch`;
   `checkin_window_minutes` sólo se edita por API/admin.

@@ -20,6 +20,7 @@ from django.utils import timezone
 from activities.models import Activity, ActivitySchedule, Enrollment
 from activities.overlap import validate_gym_activity_overlap
 from attendance.models import ScheduleSlot
+from core.permissions import OwnerWriteMixin
 from core.viewsets import GymModelViewSet
 from outings.models import OutingEnrollment
 from personal_training.models import PersonalTrainingAssignment
@@ -581,10 +582,11 @@ class PublicMemberPhotoView(APIView):
         return Response(serializer.data)
 
 
-class HealthInsuranceViewSet(GymModelViewSet):
+class HealthInsuranceViewSet(OwnerWriteMixin, GymModelViewSet):
     queryset = HealthInsurance.objects.all()
     serializer_class = HealthInsuranceSerializer
     pagination_class = None
+    owner_write_label = "errors.owner_only_health_insurances"
 
     def perform_destroy(self, instance):
         instance.delete()

@@ -12,10 +12,11 @@ from core.testing import BaseAPITest
 
 from attendance.models import AttendanceSchedule
 from gyms.models import Discount
-from members.models import Member
+from members.models import HealthInsurance, Member
 from members.serializers import MemberSerializer
 from outings.models import Outing, OutingEnrollment, OutingSchedule
 from plans.models import MembershipPlan, Service
+from profiles.models import UserProfile
 from subscriptions.models import PlanChangeRequest, Subscription
 from subscriptions.services import get_first_day_of_next_month, get_last_day_of_month
 
@@ -766,3 +767,100 @@ class MemberWeeklyVisitsValidationTests(BaseAPITest):
         self.assertEqual(
             AttendanceSchedule.objects.filter(member=member).count(), 1
         )
+
+
+class HealthInsuranceOwnerGateTests(BaseAPITest):
+    """CFG-16: el catálogo se lee con cualquier rol, pero sólo lo escribe el dueño."""
+
+    def setUp(self):
+        super().setUp()
+        self.gym = self.create_gym()
+        self.owner = self.create_user(self.gym, username="owner_insurance")
+        self.staff = self.create_user(
+            self.gym,
+            username="staff_insurance",
+            role=UserProfile.ROLE_STAFF,
+        )
+        self.professor = self.create_user(
+            self.gym,
+            username="professor_insurance",
+            role=UserProfile.ROLE_PROFESSOR,
+        )
+        self.insurance = HealthInsurance.objects.create(
+            gym=self.gym,
+            name="IAPOS",
+            session_price=Decimal("6000.00"),
+        )
+        self.list_url = "/api/health-insurances/"
+        self.detail_url = f"{self.list_url}{self.insurance.id}/"
+
+    def _auth(self, user):
+        self.client.force_authenticate(user=user)
+
+    def test_staff_cannot_create_health_insurance(self):
+        self._auth(self.staff)
+
+        resp = self.client.post(
+            self.list_url,
+            {"name": "OSDE", "session_price": "5000.00"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 403, resp.data)
+        self.assertEqual(
+            resp.data["detail"],
+            "Solo el dueño puede gestionar las obras sociales.",
+        )
+        self.assertFalse(HealthInsurance.objects.filter(name="OSDE").exists())
+
+    def test_professor_cannot_edit_or_delete_health_insurance(self):
+        self._auth(self.professor)
+
+        with self.subTest(action="patch"):
+            resp = self.client.patch(
+                self.detail_url,
+                {"session_price": "7000.00"},
+                format="json",
+            )
+            self.assertEqual(resp.status_code, 403, resp.data)
+
+        with self.subTest(action="delete"):
+            resp = self.client.delete(self.detail_url)
+            self.assertEqual(resp.status_code, 403, resp.data)
+
+        self.insurance.refresh_from_db()
+        self.assertEqual(self.insurance.session_price, Decimal("6000.00"))
+
+    def test_owner_can_create_edit_and_delete_health_insurance(self):
+        self._auth(self.owner)
+
+        resp = self.client.post(
+            self.list_url,
+            {"name": "OSDE", "session_price": "5000.00"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        insurance = HealthInsurance.objects.get(pk=resp.data["id"])
+
+        resp = self.client.patch(
+            f"{self.list_url}{insurance.id}/",
+            {"session_price": "5500.00"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        insurance.refresh_from_db()
+        self.assertEqual(insurance.session_price, Decimal("5500.00"))
+
+        resp = self.client.delete(f"{self.list_url}{insurance.id}/")
+        self.assertEqual(resp.status_code, 204, resp.data)
+        self.assertFalse(
+            HealthInsurance.objects.filter(pk=insurance.id).exists()
+        )
+
+    def test_staff_can_list_health_insurances(self):
+        self._auth(self.staff)
+
+        resp = self.client.get(self.list_url)
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data), 1)

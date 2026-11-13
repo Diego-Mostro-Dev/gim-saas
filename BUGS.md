@@ -2,9 +2,9 @@
 
 Estado: **2026-10-29** — Fases A a J hechas; **Fase K: K0 a K9 hechas (release cerrado)**.
 Total: **109 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 52 `MEDIO`, 21 `BAJO`.
-De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **2 abiertos**
-y **0 a verificar**. Fichas de los abiertos con
-explicación, ejemplo de impacto y criterio de aceptación.
+De ellos **96 ya están cerrados**, **13 son decisiones de negocio** y quedan **0 abiertos**
+y **0 a verificar**. **Fase 9 cerrada:** `CFG-16` y `CFG-17` pasaron a 🟢, así que el
+registro no tiene bugs abiertos.
 
 > Documento de registro. **Fuente de verdad** de bugs/riesgos. Las `AUDITORIA-*.md` son el
 > manual descriptivo ("cómo funciona hoy"); esto es "qué está mal y qué hacemos".
@@ -37,13 +37,13 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones | Abiertos |
 |---|---|---|---|---|---|---|---|
 | Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 3 | 15 | 3 | 0 |
-| Configuración (`CFG`) | 1 | 2 | 5 | 6 | 10 | 2 | 2 |
+| Configuración (`CFG`) | 1 | 2 | 5 | 6 | 12 | 2 | 0 |
 | Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 26 | 3 | 0 |
 | Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 23 | 1 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
 | Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 9 | 0 | 0 |
-| **Total** | **5** | **31** | **52** | **21** | **94** | **13** | **2** |
+| **Total** | **5** | **31** | **52** | **21** | **96** | **13** | **0** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.
@@ -84,8 +84,8 @@ explicación, ejemplo de impacto y criterio de aceptación.
 | CFG-13 | BAJO | 🟢 | PT en modo sesiones fuerza `monthly_price = 0` | Ya cubierto por validación + tests |
 | CFG-14 | CRÍTICO | 🟢 | Actividades y salidas en modo sesiones **no** fuerzan `monthly_price = 0` | Cerrado Fase C: `BillingPriceMixin` fuerza `monthly_price = 0` en modo sesiones |
 | CFG-15 | MEDIO | 🟢 | Cargar feriados sin `year` devuelve 400 en vez de usar el año actual | Cerrado Fase C: default = año actual (`gyms/views.py`); detectado por el gate de Fase C |
-| CFG-16 | MEDIO | 🔴 | Descuentos y obras sociales sin gate de rol en el backend | La UI es owner-only, pero por API cualquier autenticado del gimnasio puede hacer CRUD |
-| CFG-17 | BAJO | 🔴 | `active` y `slug` escribibles por API | Un cliente con la sesión del owner puede desactivar el gimnasio o cambiar el slug vía `GymMeView.patch` |
+| CFG-16 | MEDIO | 🟢 | Descuentos y obras sociales sin gate de rol en el backend | Cerrado Fase 9: lectura abierta al gimnasio y escritura sólo del dueño (`OwnerWriteMixin`) |
+| CFG-17 | BAJO | 🟢 | `active` y `slug` escribibles por API | Cerrado Fase 9: `read_only_fields` en `GymSerializer`; el admin central los sigue escribiendo |
 | ADD-01 | CRÍTICO | 🟢 | Desactivar una actividad no corta el cobro | Cerrado Fase D: la baja corta inscripciones y cancela los ítems del período en curso/futuros |
 | ADD-09 | CRÍTICO | 🟢 | Desactivar una salida no corta el cobro | Cerrado Fase D: idem actividades (`cut_outing_billing`) |
 | ADD-02 | MEDIO | 🟢 | Huérfanas: el portal muestra la actividad/horario desactivado | Cerrado Fase D: el portal filtra `schedule.active` y `activity.active` |
@@ -391,13 +391,13 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Dónde:** `backend/gyms/views.py:248-256`.
 
 ### CFG-16 · Descuentos y obras sociales sin gate de rol en el backend
-- **Severidad:** MEDIO · **Estado:** 🔴 (abierto)
+- **Severidad:** MEDIO · **Estado:** 🟢 (cerrado Fase 9)
 - **Explicación:** la pantalla de Configuración es owner-only por construcción (redirige
   a cualquier rol que no sea dueño), pero los endpoints que administran los catálogos no
-  verifican el rol. `DiscountViewSet` usa sólo `GymQuerysetMixin` para filtrar por
-  gimnasio y `HealthInsuranceViewSet` hereda de `GymModelViewSet` con la permisión global
+  verificaban el rol. `DiscountViewSet` usaba sólo `GymQuerysetMixin` para filtrar por
+  gimnasio y `HealthInsuranceViewSet` heredaba de `GymModelViewSet` con la permisión global
   de autenticación. Cualquier usuario autenticado del gimnasio (staff, profesor,
-  entrenador) puede listar, crear, editar y borrar descuentos y obras sociales por API.
+  entrenador) podía listar, crear, editar y borrar descuentos y obras sociales por API.
   Se documenta en `AUDITORIA-CONFIGURACION.md` §18.
 - **Ejemplo de impacto:** un profesor con credenciales del gimnasio puede inactivar el
   descuento de un socio o cambiar el coseguro de una obra social sin ser dueño; el
@@ -407,13 +407,19 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Criterio de aceptación:** las acciones de escritura de ambos viewsets exigen
   `require_owner` y devuelven 403 con mensaje de dominio a roles que no son dueño;
   la lectura puede seguir disponible para el gimnasio si la UI la necesita.
+- **Resolución Fase 9:** `OwnerWriteMixin` (`backend/core/permissions.py`) deja pasar
+  los métodos seguros y exige `require_owner` en las escrituras. `DiscountViewSet` usa
+  el label `errors.owner_only_discounts` y `HealthInsuranceViewSet` el label
+  `errors.owner_only_health_insurances`. Tests: `gyms/tests.py ·
+  DiscountOwnerGateTests` y `members/tests.py · HealthInsuranceOwnerGateTests`
+  (staff/profesor reciben 403, el dueño hace CRUD y el staff puede listar).
 
 ### CFG-17 · `active` y `slug` escribibles por API
-- **Severidad:** BAJO · **Estado:** 🔴 (abierto)
-- **Explicación:** `GymSerializer` expone `active` y `slug` como campos escribibles:
-  `read_only_fields` sólo incluye `features`. `GymMeView.patch` exige `require_owner`,
+- **Severidad:** BAJO · **Estado:** 🟢 (cerrado Fase 9)
+- **Explicación:** `GymSerializer` exponía `active` y `slug` como campos escribibles:
+  `read_only_fields` sólo incluía `features`. `GymMeView.patch` exige `require_owner`,
   pero la pantalla de Configuración no muestra ninguno de los dos, así que el dueño
-  puede cambiarlos con un cliente o por API sin pasar por la UI. Se documenta en
+  podía cambiarlos con un cliente o por API sin pasar por la UI. Se documenta en
   `AUDITORIA-CONFIGURACION.md` §18.
 - **Ejemplo de impacto:** un cliente con la sesión del dueño manda `active: false` y
   corta el registro, el portal y el SEO; o cambia el slug y deja rotas las URLs
@@ -423,6 +429,12 @@ explicación, ejemplo de impacto y criterio de aceptación.
 - **Criterio de aceptación:** `active` y `slug` pasan a `read_only_fields` de
   `GymSerializer`; `active` se sigue cambiando desde el admin central
   (`AdminGymUpdateSerializer`) y el slug no se edita por la API del gimnasio.
+- **Resolución Fase 9:** `GymSerializer.Meta.read_only_fields` incluye `features`,
+  `active` y `slug`. El admin central conserva la escritura porque
+  `AdminGymUpdateSerializer` redefine `Meta.read_only_fields = []`. Tests:
+  `gyms/tests.py · GymRolePermissionTests.test_owner_cannot_change_active_by_api`,
+  `test_owner_cannot_change_slug_by_api` y
+  `test_owner_can_still_patch_other_fields_with_read_only_fields`.
 
 ---
 

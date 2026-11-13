@@ -134,8 +134,7 @@ corrigieron en sus fases; el validador estricto ya no reporta advertencias.
 - [x] Enlaces entre documentos revisados (`AUDITORIA-PAGOS.md`,
   `AUDITORIA-COMUNIDAD.md`).
 - [x] `BUGS.md` cuadrado: **109 hallazgos** (5 `CRÍTICO`, 31 `ALTO`,
-  52 `MEDIO`, 21 `BAJO`), **94 cerrados**, **13 decisiones** y **2 abiertos**
-  (`CFG-16`, `CFG-17`).
+  52 `MEDIO`, 21 `BAJO`), **96 cerrados**, **13 decisiones** y **0 abiertos**.
 - [x] Validador estricto: **1252 referencias, 0 errores, 0 advertencias**.
 - [x] `makemigrations --check --dry-run`: sin cambios pendientes.
 - [x] Frontend: `pnpm lint` sin errores y `pnpm build` verde.
@@ -148,3 +147,20 @@ queda cubierta por CI).
 
 El código de producto no cambió durante la actualización: el commit de
 verificación sigue siendo **`f5b4b07`**.
+
+---
+
+## 8. Estado de Fase 9 — Cierre de bugs abiertos
+
+- [x] `CFG-16` cerrado: `OwnerWriteMixin` exige dueño en la escritura de
+  descuentos y obras sociales, con lectura abierta al gimnasio.
+- [x] `CFG-17` cerrado: `active` y `slug` son `read_only_fields` de
+  `GymSerializer`; el admin central los sigue escribiendo.
+- [x] `BUGS.md`: **96 cerrados**, **13 decisiones** y **0 abiertos**.
+- [x] `PLAN-dinero.md`: deuda `P8–P16` reconciliada (cerrada o decidida; `P9`
+  queda como `ADD-11`).
+- [ ] Gate completo (backend, migraciones, frontend y validador de referencias):
+  lo corre el CI después del commit y push en `development`.
+
+**Fase 9: CERRADA** en lo documental y de código; la verificación de la suite
+queda en CI.

@@ -9,8 +9,10 @@ Alcance:
 - Actualizar **in-place** las 13 auditorías existentes.
 - Crear **5 auditorías nuevas** para módulos sin cobertura.
 - Crear un **índice general** de auditorías.
-- No modificar código de producto.
+- No modificar código de producto en las fases 0–8.
 - No convertir las auditorías en un registro de bugs: los bugs siguen en `BUGS.md`.
+- Las fases 9 y 10 son de implementación: ejecutan la deuda que las auditorías
+  dejaron registrada y sí tocan código, con tests y gate propio por subfase.
 
 Baseline inicial: commit **`f5b4b07`** (29/10/2026), rama actual. Fecha de verificación: **30/10/2026**.
 
@@ -1355,27 +1357,370 @@ Criterio de cierre:
 
 ---
 
-### Fase 7 — Configuración e integración
+### Fase 7 — Configuración e integración (dividida en subfases)
+
+La fase original tiene 7 tareas y un solo documento. Se divide en seis subfases
+por el mismo motivo que las fases 5 y 6: cada bloque se ejecuta en una sesión
+separada y no agota el contexto. El alcance se amplía con el dev flow y con el
+cierre de índice/mapa para mantener la paridad con 5.4 y 6.4–6.5.
+
+Cobertura de las 7 tareas originales:
+
+- tarea 1 (reescribir el documento y corregir el salto de secciones) → 7.1;
+- tarea 2 (documentar datos básicos, pagos, planes, recuperación, descuentos,
+  obras sociales, fechas cerradas, horarios, QR, SEO, features y PWA) →
+  7.1–7.4;
+- tarea 3 (qué configura el dueño/staff y qué impacto tiene cada valor) →
+  7.2–7.4;
+- tarea 4 (efectos cruzados entre módulos) → 7.3;
+- tarea 5 (eliminar referencias a bugs cerrados y marcar decisiones de negocio)
+  → 7.1–7.4;
+- tarea 6 (coherencia con las fases 1–6) → 7.6;
+- tarea 7 (enlaces cruzados entre auditorías) → 7.6.
+
+Documentos:
+
+- `AUDITORIA-CONFIGURACION.md`
+- `frontend/src/dev/SettingsFlow.jsx` (sólo contenido, en 7.5).
+- `AUDITORIA-INDEX.md` (fila 18, en 7.6).
+- `AUDITORIA-MAPA-COBERTURA.md` (fila 48 y nota de pendiente, en 7.6).
+- `BUGS.md` (alta de CFG-16 en 7.2 y CFG-17 en 7.4).
+
+Alcance:
+
+- Un solo módulo de producto (`backend/gyms` + `backend/config`), pero con
+  muchos efectos cruzados: pagos, suscripciones, recuperación, asistencia,
+  horarios, actividades, comunidad, SEO y PWA.
+- No tocar código de producto ni tests. El dev flow sólo cambia contenido, sin
+  lógica.
+- No ejecutar tests localmente: validar con CI, igual que en 5.3–5.8 y 6.1–6.5.
+- Los bugs nuevos se documentan como problema y se dan de alta en `BUGS.md`;
+  no se arregla código.
+- Las decisiones de negocio se marcan como tales, no como bugs.
+- `backend/config` no tiene tests propios: el criterio “tests de `gyms` y
+  `config`” se interpreta como `gyms.tests` + `gyms.tests_restore`; `config` es
+  no-op en la suite.
+
+Contexto detectado antes de empezar (commit `3ac7127`, cierre de 6.5):
+
+- El código sigue en `f5b4b07`: todos los commits posteriores son de
+  documentación.
+- **`AUDITORIA-CONFIGURACION.md` está incompleto, no sólo desfasado.** Tiene
+  108 líneas y salta de la sección 2 a la 19; las secciones 3–18 no existen.
+  Además usa referencias numéricas (`archivo:línea`) en vez de símbolos.
+- El documento afirma que las **features** se gestionan desde Settings/Admin.
+  Es falso: `GymSerializer.features` es `read_only`; sólo se editan desde
+  `AdminGymUpdateSerializer` y el wizard del panel central.
+- `frontend/src/dev/SettingsFlow.jsx` (460 líneas) repite esa afirmación y
+  tiene rutas PWA incorrectas: usa `/api/pwa/manifest/...` en vez de
+  `/api/gyms/pwa/...`. También presenta descuentos y obras sociales como
+  owner-only cuando esa restricción vive sólo en la UI.
+- `frontend/src/pages/Settings.jsx` es owner-only de hecho: `ProfessorRoute`
+  deja pasar owner/staff, pero la pantalla redirige a `dashboard` si
+  `role !== "owner"`. Las pestañas son `info`, `pagos`, `planes`,
+  `obras-sociales`, `staff`, `cierres`, `qr`, `comunidad` (condicional por
+  feature) y `seo`.
+- **Hueco de permisos en descuentos y obras sociales.** `DiscountViewSet`
+  (`backend/gyms/views.py`) y `HealthInsuranceViewSet`
+  (`backend/members/views.py`) no llaman a `require_owner`: cualquier usuario
+  autenticado del gimnasio podría hacer CRUD por API aunque la UI sea
+  owner-only. Se documenta y se da de alta como **CFG-16** (MEDIO).
+- **Endpoints de horarios sin gate de rol.** `ScheduleSlotListCreateView`,
+  `ScheduleSlotDetailView` y `ScheduleSlotBulkCreateView`
+  (`backend/attendance/views.py`) sólo exigen autenticación.
+  `AUDITORIA-HORARIOS.md` §4 ya lo documenta: corresponde enlazar, no
+  duplicar.
+- **Campos que no están en la UI.** `allow_activity_without_membership` y
+  `checkin_window_minutes` no aparecen en `Settings.jsx`. El primero es un
+  control de plataforma que el owner igual podría cambiar por API vía
+  `GymMeView.patch`; el segundo sólo se edita por API/admin. Se documentan
+  como limitación.
+- **`GymSerializer` permite escribir `active` y `slug`.** Ninguno está en
+  `read_only_fields`; la UI no los envía, pero un cliente podría
+  auto-desactivar el gimnasio o cambiar el slug y romper las URLs públicas.
+  Se documenta y se da de alta como **CFG-17** (BAJO).
+- **CFG-02 y CFG-03 siguen abiertos.** `allow_member_schedule_changes` es un
+  campo legacy que ya no gobierna ninguna regla y `initial_pending` bloquea
+  desde el día 1. Se enlazan, no se reabren.
+- `GymMeView.get` devuelve toda la configuración a cualquier autenticado del
+  gimnasio; `GymMeView.patch` exige owner.
+- `GymClosedDate` tiene unicidad `(gym, date)`; la carga de feriados sólo
+  agrega fechas futuras, evita duplicados y devuelve 502 si falla la API
+  externa.
+
+#### Fase 7.1 — Estructura, datos básicos y lectura de la configuración
 
 Documento:
 
-- `AUDITORIA-CONFIGURACION.md`
+- `AUDITORIA-CONFIGURACION.md`: cabecera y reescritura base. El contenido se
+  completa en 7.2–7.4, pero la estructura y los datos básicos quedan cerrados
+  acá.
+- `frontend/src/pages/Settings.jsx` (lectura; pestañas `info` y `qr`).
 
 Tareas:
 
-1. Reescribir el documento completo, corrigiendo el salto de secciones.
-2. Documentar datos básicos, pagos, planes y horarios, recuperación de clases, descuentos, obras sociales, fechas cerradas, horarios del gimnasio, QR, SEO, features y PWA.
-3. Documentar qué configura el dueño/staff y qué impacto tiene cada valor.
-4. Actualizar efectos cruzados entre módulos.
-5. Eliminar referencias a bugs ya cerrados y marcar decisiones de negocio.
-6. Revisar coherencia con las fases 1–6.
-7. Verificar enlaces cruzados entre todas las auditorías.
+1. Reemplazar la cabecera por la canónica de la plantilla, con `Verificado
+   contra: f5b4b07`, fecha de ejecución, alcance, código cubierto, tests y
+   estado.
+2. Fijar una estructura completa y continua de secciones, corrigiendo el salto
+   de 2 a 19:
+   1. Idea general y alcance
+   2. Datos básicos del gimnasio
+   3. Pagos: vencimiento y bloqueo
+   4. Planes y horarios
+   5. Recuperación de clases
+   6. Descuentos
+   7. Obras sociales
+   8. Fechas cerradas y feriados
+   9. Horarios del gimnasio y cupos
+   10. QR y mensajes
+   11. SEO
+   12. Features
+   13. PWA
+   14. Staff
+   15. Comunidad
+   16. Efectos cruzados
+   17. Lo que el sistema NO hace
+   18. Problemas y limitaciones
+   19. Decisiones de negocio
+   20. Notas de entorno
+3. Documentar `Gym`: `name`, `slug`, `active`, `whatsapp`, `phone`, `email`,
+   logo, ícono de app, `onboarding_code` y labels.
+4. Documentar la diferencia entre lectura y escritura: `GymMeView.get`
+   devuelve la configuración a cualquier autenticado del gimnasio;
+   `GymMeView.patch` exige owner con `require_owner`.
+5. Documentar `onboarding_url`, `register_url`, `logo_url`, `app_icon_url` y
+   `app_icon_favicon_url` como campos derivados.
+6. Documentar `get_gym_labels` (`DEFAULT_LABELS` + `SINKRO_LABELS`) y aclarar
+   que las labels no se editan desde Settings.
+7. Documentar la pestaña **Información** y el bloque QR de `Settings.jsx`.
+8. Reemplazar todas las referencias `archivo:línea` por símbolos
+   (`archivo · Símbolo`) y dejar un snapshot de líneas sólo si aporta
+   precisión.
+9. Quitar referencias a bugs ya cerrados (CFG-01, CFG-04, CFG-05, CFG-09,
+   CFG-10, CFG-11, CFG-12, CFG-13, CFG-14, CFG-15) y enlazar CFG-02/CFG-03
+   como pendientes.
+
+Detalle de cambios:
+
+- **§1**: explicar qué es Configuración, quién la usa de verdad (owner; el
+  staff no entra porque la pantalla redirige) y qué valores se aplican de
+  inmediato.
+- **§2**: tabla de campos básicos con default, validación y efecto. Aclarar
+  que `slug` y `active` son editables por API aunque la UI no los muestre
+  (queda como problema en §18 y como CFG-17 en 7.4).
+- **§10**: documentar los dos mensajes de QR (`qr_attendance_message`,
+  `qr_registration_message`) y su uso en pantallas de asistencia/registro.
+- **§20**: migraciones de `gyms` (hasta la última), `tests.py` y
+  `tests_restore.py`, y ausencia de tests en `config`.
+
+Commit: `docs(auditorias): reescribir estructura y datos básicos de configuración (fase 7.1)`
 
 Criterio de cierre:
 
-- Documento completo y sin contradicciones.
-- Referencias válidas.
-- Tests de `gyms` y `config` verdes.
+- Documento con estructura completa y numeración continua.
+- Datos básicos, lectura/escritura y QR documentados con referencias por
+  símbolo.
+- Sin cambios de código ni de tests.
+
+#### Fase 7.2 — Pagos, planes, descuentos y obras sociales
+
+Documento:
+
+- `AUDITORIA-CONFIGURACION.md`, secciones 3–7.
+- `BUGS.md`: alta de CFG-16.
+
+Tareas:
+
+1. Documentar `payment_due_day` y `access_block_day`: default, validación
+   `access_block_day > payment_due_day` en modelo, serializer y wizard, y
+   efecto en deuda, bloqueo de acceso y renovación.
+2. Enlazar los efectos con `AUDITORIA-PAGOS.md`, `AUDITORIA-SUSCRIPCIONES.md` y
+   `AUDITORIA-RECUPERACION.md`; no repetir sus reglas.
+3. Documentar planes y horarios desde Configuración: qué se edita en esta
+   pantalla y qué vive en `Plans.jsx`, `Activities.jsx`,
+   `ActivitySchedules.jsx` y `Settings.jsx` pestaña `planes`.
+4. Documentar recuperación de clases: `schedule_change_*`, cupos y vínculo con
+   `AUDITORIA-HORARIOS.md`.
+5. Documentar descuentos (`Discount`): nombre, `discount_percent` validado
+   1–100, `active`, uso en pagos y CRUD desde la pestaña `pagos`.
+6. Documentar obras sociales (`HealthInsurance`): nombre, `session_price`,
+   `sellado_amount`, `active`, enlace automático por nombre en el alta y uso
+   en pagos.
+7. Documentar el hueco de permisos de `DiscountViewSet` y
+   `HealthInsuranceViewSet`: la UI es owner-only, el backend sólo exige
+   autenticación. Enlazar `AUDITORIA-HORARIOS.md` §4 para el caso equivalente
+   de `ScheduleSlot`.
+8. Dar de alta **CFG-16** (MEDIO): agregar fila en la tabla maestra, ficha en
+   `Fichas — Configuración (CFG)` y ajustar el resumen (Configuración pasa a
+   5 medios y 1 abierto total).
+
+Commit: `docs(auditorias): documentar pagos, descuentos y obras sociales (fase 7.2)`
+
+Criterio de cierre:
+
+- Secciones 3–7 completas y sin duplicar reglas de pagos/suscripciones.
+- CFG-16 dado de alta en `BUGS.md` con referencia al código.
+- Sin cambios de código ni de tests.
+
+#### Fase 7.3 — Reglas operativas y efectos cruzados
+
+Documento:
+
+- `AUDITORIA-CONFIGURACION.md`, secciones 4, 8, 9, 12 y 16.
+- `BUGS.md`: sólo enlaces a CFG-02/CFG-03 y CFG-16.
+
+Tareas:
+
+1. Documentar `allow_plan_changes`, `allow_schedule_changes`,
+   `schedule_change_cooldown_hours`, `max_schedule_changes_per_month` y
+   `schedule_change_notice_hours`: default, unidad, validación y efecto real.
+2. Documentar `allow_member_schedule_changes` como campo legacy que ya no
+   gobierna ninguna regla (CFG-02), sin presentarlo como funcionalidad.
+3. Documentar `default_schedule_capacity` y el cupo por slot; enlazar
+   `AUDITORIA-HORARIOS.md` y `AUDITORIA-ASISTENCIAS.md`.
+4. Documentar `allow_activity_without_membership` y
+   `checkin_window_minutes` como campos fuera de la UI: el primero es control
+   de plataforma modificable por API; el segundo sólo se edita por API/admin.
+5. Documentar features: catálogo `FEATURE_CATALOG`, `require_community` y
+   reglas por feature. Aclarar que `GymSerializer.features` es `read_only` y
+   que sólo `AdminGymUpdateSerializer`/wizard central las modifican.
+6. Documentar fechas cerradas y feriados: unicidad `(gym, date)`, sólo fechas
+   futuras, default de año actual, 502 si falla la API externa y exclusión de
+   días cerrados en asistencia/recuperación.
+7. Armar la tabla de efectos cruzados: Configuración → pagos, suscripciones,
+   recuperación, asistencia, horarios, actividades, comunidad, SEO y PWA.
+8. Marcar como **Decisión:** los casos de negocio (CFG-02, CFG-03) y como
+   **Limitación:** los campos fuera de UI y la lectura amplia de
+   `GymMeView.get`.
+
+Commit: `docs(auditorias): documentar reglas operativas y efectos cruzados (fase 7.3)`
+
+Criterio de cierre:
+
+- Reglas operativas y efectos cruzados completos, con enlaces a las auditorías
+  de destino.
+- Features descriptas como read-only desde Settings.
+- Sin cambios de código ni de tests.
+
+#### Fase 7.4 — Features, SEO, PWA, staff y comunidad
+
+Documento:
+
+- `AUDITORIA-CONFIGURACION.md`, secciones 11–15 y 18.
+- `BUGS.md`: alta de CFG-17.
+
+Tareas:
+
+1. Documentar `FEATURE_CATALOG`, `feature_catalog()` y `require_community`;
+   explicar qué features existen, cuáles condicionan pantallas y cuáles son
+   sólo banderas de negocio.
+2. Documentar las labels por gimnasio: `DEFAULT_LABELS`, `SINKRO_LABELS` y el
+   merge de `get_gym_labels`; aclarar que no se editan desde Settings.
+3. Documentar SEO: `GymSeoView`, datos públicos del gimnasio y campos que
+   expone; enlazar `AUDITORIA-ADMIN-SAAS.md` si corresponde.
+4. Documentar PWA: manifiestos de socio y staff, rutas reales
+   `/api/gyms/pwa/member/<token>/manifest/` y
+   `/api/gyms/pwa/staff/<slug>/manifest/`, y `start_url` según contexto.
+5. Documentar staff: alta, baja, cambio de rol y protección del owner;
+   `GymStaffListCreateView`, `GymStaffDetailView` y `require_owner`.
+6. Documentar la pestaña Comunidad: visible sólo si
+   `gym.features.community`; enlazar `AUDITORIA-COMUNIDAD.md`.
+7. Documentar el problema de `GymSerializer`: `active` y `slug` son
+   escribibles por API. Explicar el riesgo (auto-desactivación, ruptura de
+   URLs públicas/PWA) y que la UI no los envía.
+8. Dar de alta **CFG-17** (BAJO): fila en la tabla maestra, ficha en
+   `Fichas — Configuración (CFG)` y ajuste del resumen (Configuración pasa a
+   5 medios, 6 bajos y 2 abiertos).
+
+Commit: `docs(auditorias): documentar features, SEO, PWA y staff (fase 7.4)`
+
+Criterio de cierre:
+
+- Features, SEO, PWA, staff y comunidad documentados con las rutas reales.
+- CFG-17 dado de alta en `BUGS.md`.
+- Sin cambios de código ni de tests.
+
+#### Fase 7.5 — Dev flow de configuración
+
+Documento:
+
+- `frontend/src/dev/SettingsFlow.jsx` (sólo contenido, sin lógica).
+
+Tareas:
+
+1. Bloque `ANATOMIA`: corregir entidades y relaciones; aclarar que
+   `GymSerializer.features` es read-only.
+2. Bloque `TABS`: mapear las nueve pestañas reales (`info`, `pagos`, `planes`,
+   `obras-sociales`, `staff`, `cierres`, `qr`, `comunidad`, `seo`) y la
+   condición de `comunidad`.
+3. Bloque `REGLAS`: corregir unidades, defaults y validaciones; distinguir
+   reglas de plataforma (`allow_activity_without_membership`) de reglas del
+   gimnasio.
+4. Bloque `EFECTOS`: actualizar la tabla de impactos cruzados contra la §16
+   reescrita.
+5. Bloque `BANDERAS`: separar features reales de campos legacy y de campos
+   fuera de UI.
+6. Bloque `API`: corregir las rutas PWA a `/api/gyms/pwa/...`; listar
+   `GymMeView`, fechas cerradas, feriados, staff, descuentos, obras sociales,
+   SEO y PWA.
+7. Bloque `NO_HACE`: quitar afirmaciones obsoletas; agregar que descuentos y
+   obras sociales son owner-only sólo en la UI, que features se activan desde
+   el panel central y que `active`/`slug` son escribibles por API.
+8. Bloque `BUGS`: recortar a los problemas vigentes (CFG-02, CFG-03, CFG-16,
+   CFG-17 y el enlace a horarios) y eliminar los cerrados.
+9. Pase completo de las 460 líneas contra el documento reescrito.
+
+Commit: `docs(auditorias): actualizar el dev flow de configuración (fase 7.5)`
+
+Criterio de cierre:
+
+- Flow coherente con la auditoría reescrita, sin cambios de lógica.
+- Rutas PWA y permisos correctos.
+
+#### Fase 7.6 — Cierre global (índice, mapa, enlaces y validación)
+
+Tareas:
+
+1. `AUDITORIA-INDEX.md`: fila 18 → `Verificado`, resumen ajustado a la
+   terminología del cuerpo y `Fecha:` actualizada al cierre de la fase
+   (`Verificado contra: f5b4b07` sigue vigente).
+2. `AUDITORIA-MAPA-COBERTURA.md`: verificar la fila 48 contra el estado real
+   (endpoints, pantallas y tests); quitar la nota de “`AUDITORIA-CONFIGURACION.md`
+   sigue incompleta” y actualizar la fecha.
+3. Normalizar enlaces cruzados a `AUDITORIA-X.md` §N; corregir la referencia
+   numérica de `AUDITORIA-SUSCRIPCIONES.md` a `backend/gyms/views.py`.
+4. Confirmar que `BUGS.md` resuelve a las fichas CFG-16/CFG-17 y que las
+   fichas enlazan al código correcto.
+5. Validación:
+   - `python3 scripts/check_audit_refs.py AUDITORIA-*.md`;
+   - confirmar que no quedan referencias `archivo:línea` en el cuerpo;
+   - `git diff` acotado a documentos, índice, mapa, dev flow y `BUGS.md`.
+6. Commits por subfase, estilo `docs(auditorias): … (fase 7.N)`, con push a
+   `development`.
+
+Verificación:
+
+1. Validador global de referencias en 0 errores.
+2. Sin referencias numéricas en `AUDITORIA-CONFIGURACION.md`.
+3. `git diff` sin cambios de código ni tests.
+4. CI ejecuta `backend-tests.yml` (incluye `gyms`) y
+   `gyms.tests_restore`; no correr tests localmente.
+5. Lectura final contra el contexto detectado, para confirmar que ninguna
+   afirmación obsoleta quedó viva.
+
+Criterio de cierre:
+
+- Documento completo, con las 20 secciones y sin el salto 2 → 19.
+- Features descriptas como read-only desde Settings.
+- Permisos de descuentos/obras sociales y escritura de `active`/`slug`
+  documentados, con CFG-16 y CFG-17 dados de alta.
+- Hueco de roles de horarios enlazado a `AUDITORIA-HORARIOS.md` §4, sin
+  duplicar.
+- `SettingsFlow.jsx` sin rutas PWA incorrectas ni afirmaciones obsoletas.
+- Índice fila 18 `Verificado`; mapa fila 48 actualizado.
+- Referencias válidas; tests de `gyms` y `gyms.tests_restore` verdes en CI.
+- Sin cambios de código ni de tests.
 
 ---
 
@@ -1416,6 +1761,411 @@ Criterio de cierre:
 - Suite backend verde.
 - Lint y build de frontend verdes.
 - Índice completo y actualizado.
+
+---
+
+### Fase 9 — Cierre de deuda pendiente (código)
+
+> **Cambio de naturaleza.** Las fases 0–8 fueron descriptivas y no tocaron
+> código. La Fase 9 ejecuta la deuda que esas auditorías dejaron registrada.
+> Baseline de código: `82efffd` (HEAD al planificar); el producto no cambió
+> desde `f5b4b07`. Antes de tocar cada ítem, re-verificarlo: si el código ya lo
+> resolvió, se documenta y no se reabre.
+
+Documentos:
+
+- `BUGS.md`.
+- `PLAN-dinero.md`.
+- `AUDITORIA-CONFIGURACION.md` §18.
+- `AUDITORIA-INDEX.md`.
+
+Objetivo: dejar `BUGS.md` con **0 bugs abiertos** y `PLAN-dinero.md` sin deuda
+`P8–P16` pendiente. Sólo dos ítems requieren código: **CFG-16** y **CFG-17**; el
+resto ya está resuelto por las fases K y sólo necesita reconciliación
+documental.
+
+#### Triage de entrada (verificado contra `82efffd`)
+
+| Ítem | Estado real | Resolución |
+|---|---|---|
+| **P8** · la recuperación perdona dos faltas | ✅ cerrado | `ADD-27`: `attendance/models.py · SessionRecovery.forgiven_date`, `activities/no_show_service.py · cancel_recovered_no_show` y `_bind_pending_recoveries`; test `activities/tests_phase_k3.py` |
+| **P9** · las salidas no descuentan faltas | ⚪ decisión de negocio | `ADD-11`; documentado en `AUDITORIA-SALIDAS.md` §9.1. No se implementa |
+| **P10** · la baja de un horario cancela el ítem completo | ✅ cerrado | `ADD-28`: `activities/enrollment_service.py · _cancel_activity_items` y `outings/enrollment_service.py · _cancel_outing_items`; tests `tests_phase_k2.py` |
+| **P11** · el check-in de staff no descuenta el paquete | ✅ cerrado | `ACC-08`: `attendance/serializers.py · AttendanceSerializer.create` |
+| **P12** · borrar una suscripción deja pagos huérfanos | ✅ cerrado | `DIN-07`: `payments/models.py · Payment.subscription` (`PROTECT`) y `subscriptions/admin.py · SubscriptionAdmin.has_delete_permission` |
+| **P13** · fallback de precio | ✅ cerrado | `DIN-17` (K5): `subscriptions/services.py · _report_missing_plan_item`; migración `subscriptions/0024` |
+| **P14** · reprice sin `sync_subscription_paid` | ✅ cerrado | `_open_period_with_credit`, `apply_plan_change` y `SubscriptionDomain.mutate_membership` |
+| **P15** · el tope de faltas descarta las que sobran | ✅ cerrado | `ADD-29`: watermark `pending` en `_deduct_activity_enrollment` y `_deduct_pt_assignment` |
+| **P16** · un crédito abierto desbloquea la renovación | ✅ cerrado | `consumed_credit_by_subscription` en `_collect_renewal_candidates`; regresión en `subscriptions/test_money_bugs.py` |
+| **CFG-16** · descuentos y obras sociales sin gate de rol | 🔴 **abierto** | Ver 9.1 |
+| **CFG-17** · `active` y `slug` escribibles por API | 🔴 **abierto** | Ver 9.2 |
+
+#### Fase 9.0 — Reconciliación de `PLAN-dinero.md` (sólo texto)
+
+Tareas:
+
+1. Renombrar el encabezado "Lo que queda para la Fase 8 (MEDIO y BAJO, no de la
+   Fase 7)" a "Deuda cerrada en la Fase 9", sin reescribir el contenido
+   histórico.
+2. En la tabla `P8–P16`, agregar la resolución de cada fila con el commit, la
+   fase K o el test que la respalda, según el triage de arriba.
+3. Marcar `P9` como **⚪ decisión de negocio** (`ADD-11`), no como pendiente.
+4. Verificar que las decisiones de negocio de la sección 2 y los pendientes
+   `11–16` sigan marcados como tales; no tocarlos.
+5. Confirmar que no queda ninguna fila `P8–P16` sin estado.
+
+Criterio de cierre:
+
+- Cada fila `P8–P16` tiene estado `cerrado` o `decisión`, con referencia.
+- Sin cambios de código ni de tests.
+
+Commit: `docs(dinero): reconciliar la deuda P8–P16 con las fases K (fase 9.0)`
+
+#### Fase 9.1 — CFG-16: gate de dueño en descuentos y obras sociales
+
+Problema: cualquier usuario autenticado del gimnasio (staff, profesor, trainer)
+puede crear, editar y borrar descuentos y obras sociales por API, aunque la
+pantalla de Configuración sea owner-only.
+
+Diseño: un mixin reutilizable en `core`, no un `if` repetido por viewset. La
+lectura queda abierta porque `Members.jsx` carga ambos catálogos para el alta y
+la edición de socios.
+
+`backend/core/permissions.py`:
+
+```python
+from rest_framework.permissions import SAFE_METHODS
+
+class OwnerWriteMixin:
+    """Lectura abierta al gimnasio; escritura sólo para el dueño."""
+
+    owner_write_label = "errors.owner_only"
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.method not in SAFE_METHODS:
+            require_owner(request, self.owner_write_label)
+```
+
+`backend/gyms/labels.py` (`DEFAULT_LABELS`; `SINKRO_LABELS` sólo define
+overrides y hereda estos):
+
+```python
+"errors.owner_only_discounts": "Solo el dueño puede gestionar los descuentos.",
+"errors.owner_only_health_insurances": "Solo el dueño puede gestionar las obras sociales.",
+```
+
+Vistas:
+
+- `backend/gyms/views.py · DiscountViewSet`: pasar a
+  `OwnerWriteMixin, GymQuerysetMixin, viewsets.ModelViewSet` y fijar
+  `owner_write_label = "errors.owner_only_discounts"`.
+- `backend/members/views.py · HealthInsuranceViewSet`: pasar a
+  `OwnerWriteMixin, GymModelViewSet` y fijar
+  `owner_write_label = "errors.owner_only_health_insurances"`.
+
+El orden de los mixins importa: `OwnerWriteMixin` va primero para que su
+`initial()` corra antes de la resolución del gimnasio y pueda usar
+`request.user.profile`.
+
+Tests:
+
+- `backend/gyms/tests.py` → `DiscountOwnerGateTests(BaseAPITest)`:
+  - staff no puede crear (`403` + mensaje de dominio);
+  - profesor no puede editar ni borrar (subTest por rol);
+  - el dueño crea, edita y borra (`201/200/204`);
+  - staff sí puede listar (`200`).
+- `backend/members/tests.py` → `HealthInsuranceOwnerGateTests(BaseAPITest)`:
+  espejo de los cuatro casos sobre `/api/health-insurances/`.
+
+Comandos de verificación:
+
+```bash
+cd backend && .venv/bin/python manage.py test gyms members core
+```
+
+Criterio de cierre:
+
+- Toda escritura a `/api/gyms/me/discounts/` y `/api/health-insurances/`
+  exige dueño y devuelve `403` con el mensaje de dominio.
+- La lectura sigue disponible para cualquier rol del gimnasio.
+- Sin migraciones ni cambios de frontend.
+
+Commit: `fix(config): exigir dueño para escribir descuentos y obras sociales (CFG-16)`
+
+#### Fase 9.2 — CFG-17: `active` y `slug` de sólo lectura
+
+Cambio: `backend/gyms/serializers.py · GymSerializer.Meta`:
+
+```python
+read_only_fields = ["features", "active", "slug"]
+```
+
+Por qué no rompe el panel central: `AdminGymUpdateSerializer` redefine
+`read_only_fields = []` (`backend/admins/serializers.py`), así que el admin
+sigue pudiendo escribir `active` y `slug`. `GymSerializer` sólo se usa en
+`GymMeView` (GET/PATCH) y en los GET del admin.
+
+Comportamiento esperado: DRF **ignora** los campos read-only en el input, así
+que un `PATCH` con `active: false` responde `200` pero no cambia el valor. El
+test debe afirmar eso, no un `400`.
+
+Tests en `backend/gyms/tests.py`:
+
+- el dueño no puede cambiar `active` por API (`200`, valor intacto);
+- el dueño no puede cambiar `slug` por API (`200`, valor intacto);
+- el dueño sigue pudiendo cambiar `name` en el mismo PATCH (garantiza que el
+  update parcial no se rompió);
+- `backend/admins/tests.py · test_admin_update_gym_fields` ya manda
+  `active: False` y verifica el cambio: sirve de guardia de regresión, no se
+  toca.
+
+Comandos de verificación:
+
+```bash
+cd backend && .venv/bin/python manage.py test gyms admins
+```
+
+Criterio de cierre:
+
+- `active` y `slug` no se modifican desde la API del gimnasio.
+- El admin central sigue escribiendo `active` y `slug`.
+- Sin migraciones ni cambios de frontend.
+
+Commit: `fix(config): impedir que el gym edite active y slug por API (CFG-17)`
+
+#### Fase 9.3 — Cierre documental y gate final
+
+Tareas:
+
+1. `BUGS.md`:
+   - `CFG-16` y `CFG-17` → 🟢 con "Resolución Fase 9" y enlace a los tests.
+   - Resumen: `CFG` pasa a **12 cerrados / 0 abiertos**; total **96 cerrados /
+     0 abiertos**.
+2. `AUDITORIA-CONFIGURACION.md` §18: reemplazar los dos bullets de `CFG-16` y
+   `CFG-17` por un párrafo de cierre; conservar los bullets vigentes ("campos
+   fuera de la UI", "lectura amplia").
+3. `AUDITORIA-INDEX.md`: actualizar el bloque de estado (`2 abiertos` → `0
+   abiertos`) y registrar el cierre de la Fase 9.
+4. `AUDITORIA-MAPA-COBERTURA.md`: si la fila de configuración listaba
+   `CFG-16`/`CFG-17` como abiertos, actualizarla.
+5. Ejecutar el gate completo.
+
+Comandos de verificación:
+
+```bash
+python scripts/check_audit_refs.py AUDITORIA-*.md
+cd backend && .venv/bin/python manage.py test
+cd backend && .venv/bin/python manage.py makemigrations --check --dry-run
+cd frontend && pnpm lint && pnpm build
+```
+
+Criterio de cierre:
+
+- `BUGS.md` sin bugs abiertos.
+- `PLAN-dinero.md` sin deuda `P8–P16` pendiente.
+- Suite backend verde y `pnpm lint`/`pnpm build` verdes.
+- Sin migraciones nuevas.
+- Referencias de auditorías válidas.
+
+Commit: `docs(auditorias): cerrar CFG-16/CFG-17 y reconciliar la deuda de dinero (fase 9)`
+
+---
+
+### Fase 10 — Hallazgos sin registrar (auditoría → bugs)
+
+> Los problemas de esta fase ya están descritos en las auditorías como
+> "Problemas vigentes", pero **ninguno tiene ficha en `BUGS.md`**. La Fase 10
+> los da de alta, decide el comportamiento esperado y los corrige. No se mezcla
+> con la Fase 9: cada subfase tiene su gate y su commit.
+
+Documentos:
+
+- `BUGS.md` (fichas nuevas).
+- `AUDITORIA-ACTIVIDADES.md` §8.
+- `AUDITORIA-SALIDAS.md` §9.
+- `AUDITORIA-PERSONAL-TRAINING.md` §13.
+- `AUDITORIA-RUTINAS.md` §8.
+- `AUDITORIA-INDEX.md` (estado final).
+
+#### Fase 10.0 — Triage y alta en `BUGS.md` (sólo texto)
+
+Tareas:
+
+1. Asignar ID y severidad a cada hallazgo con la tabla de áreas de `BUGS.md`.
+   IDs propuestos: `ADD-30` a `ADD-36`, `RUT-10` y `RUT-11`.
+2. Reproducir cada uno contra `82efffd`. Si ya no se reproduce, cerrarlo con
+   evidencia y no abrir ficha.
+3. Completar la ficha: severidad, explicación, impacto, dónde y criterio de
+   aceptación.
+4. Marcar como **decisión de negocio** los que dependan de una regla (por
+   ejemplo, qué hacer al desactivar un horario suelto).
+5. Actualizar el resumen de `BUGS.md`.
+
+Criterio de cierre:
+
+- Cada hallazgo tiene ficha con repro o cierre documentado.
+- 0 hallazgos sin clasificar.
+- Sin cambios de código ni de tests.
+
+Commit: `docs(bugs): registrar los hallazgos de actividades, salidas, PT y rutinas (fase 10.0)`
+
+#### Fase 10.1 — Actividades: desactivar un horario suelto
+
+- **Bug propuesto:** `ADD-30` · **Severidad:** ALTO.
+- **Hoy:** `ActivityScheduleViewSet.destroy` apaga el horario; la inscripción y
+  el ítem mensual siguen activos, y el portal oculta la inscripción porque
+  filtra por `schedule.active`. El socio no ve el aviso de "horarios no
+  disponibles" ni puede reasignarse.
+- **Decisión tomada (13/11/2026):** al apagar el **último** horario activo de
+  una oferta se da de baja la inscripción y se corta el cobro (como `ADD-01`),
+  **y además** el portal avisa al socio. No se conserva una inscripción activa
+  sin horario.
+- **Implementación:** reutilizar el corte de `ADD-01` cuando no queden horarios
+  activos de la oferta; si quedan, mantener la inscripción y el ítem. El aviso
+  del portal debe mostrarse al socio aunque la inscripción ya no aparezca en
+  la lista filtrada por horario activo.
+- **Archivos:** `backend/activities/views.py · ActivityScheduleViewSet.destroy`,
+  `backend/activities/public_views.py · PublicMemberEnrollmentsView.get`.
+- **Tests:** apagar un horario con otro activo no corta el cobro ni oculta la
+  inscripción; apagar el último corta el cobro y el portal muestra el aviso
+  acordado al socio.
+- **Gate:** `cd backend && .venv/bin/python manage.py test activities`.
+
+#### Fase 10.2 — Salidas: cuatro desajustes
+
+1. **`ADD-31` · Mezclar modalidades deja la cuota mensual viva** (ALTO).
+   `_cancel_outing_items` no distingue modalidad: si queda otra inscripción
+   activa de la misma salida (por ejemplo, de sesiones), el ítem mensual no se
+   cancela aunque ya no corresponda. **Criterio:** la baja por oferta cancela el
+   ítem mensual sólo si no queda ninguna inscripción activa que lo justifique;
+   si queda una de sesiones, el ítem mensual se corta igual.
+   **Archivos:** `backend/outings/enrollment_service.py · _cancel_outing_items`.
+   **Tests:** `outings/tests_phase_k2.py` (extender `Add28OutingItemTests`) con
+   dos inscripciones de distinta modalidad.
+2. **`ADD-32` · La baja aprobada se ejecuta contra el horario, no contra la
+   inscripción guardada** (ALTO). Si el socio se reinscribió o cambió de
+   horario, la aprobación puede dar de baja la inscripción nueva o responder
+   `404`. **Criterio:** aprobar usa el `enrollment` guardado en la solicitud y
+   responde `409` con mensaje de dominio si ya no está activo, sin tocar otras
+   inscripciones.
+   **Archivos:** `backend/outings/enrollment_request_service.py · approve_request`.
+   **Tests:** baja aprobada tras reinscripción y tras cambio de horario.
+3. **`ADD-33` · Los cupos del portal cuentan socios eliminados** (MEDIO).
+   `available_spots` suma inscripciones activas sin filtrar `deleted_at`; la
+   validación al inscribir sí los excluye. **Criterio:** el cálculo usa el mismo
+   filtro que la validación (`member__deleted_at__isnull=True`).
+   **Archivos:** `backend/outings/public_views.py · _available_outings`.
+   **Tests:** cupo con un socio eliminado y con uno activo.
+4. **`ADD-34` · Reactivar puede dejar la salida activa sin horarios** (MEDIO).
+   La acción no reutiliza la validación del serializer: con
+   `restore_schedules=false`, o si no había horarios auto-desactivados, la
+   salida queda activa sin horarios. **Criterio:** reactivar exige al menos un
+   horario activo o restaura los auto-desactivados; si no, responde `400` con
+   mensaje de dominio.
+   **Archivos:** `backend/outings/views.py · OutingViewSet.reactivate`.
+   **Tests:** reactivar sin horarios, con `restore_schedules=false` y con
+   horarios restaurables.
+
+Gate de la subfase: `cd backend && .venv/bin/python manage.py test outings`.
+
+#### Fase 10.3 — Personal Training: renovación y solape
+
+1. **`ADD-35` · Renovar tras desvincular cobra las faltas del período
+   inactivo** (ALTO). Mientras la asignación está desvinculada, la tarea de
+   faltas la saltea y `no_show_scan_until` no avanza; al renovarla, el barrido
+   crea `no_show` por fechas en que el socio no estaba asignado. La pantalla de
+   asistencia también las lista como pendientes. **Criterio:** al renovar, la
+   marca de agua se reancla a la fecha de renovación y no se generan faltas de
+   fechas anteriores a la reactivación. Misma regla en `_expected_dates`.
+   **Archivos:** `backend/activities/no_show_service.py ·
+   _deduct_pt_assignment`, `backend/personal_training/views.py ·
+   _expected_dates`.
+   **Tests:** desvincular, renovar y correr el barrido: 0 faltas del período
+   inactivo.
+2. **`ADD-36` · El solape del trainer se valida sólo dentro del mismo día**
+   (MEDIO). Cargar la asignación en otro día no dispara el conflicto; un error
+   de día no se detecta. **Criterio:** el chequeo compara día + rango horario
+   contra todas las asignaciones del trainer, no sólo las del mismo día.
+   **Archivos:** `backend/personal_training/overlap.py ·
+   _check_trainer_pt_overlap`.
+   **Tests:** solape en día distinto con el mismo horario; no falso positivo
+   con horarios disjuntos.
+
+Gate de la subfase: `cd backend && .venv/bin/python manage.py test
+personal_training activities attendance`.
+
+#### Fase 10.4 — Rutinas: alta directa y bulk-assign
+
+1. **`RUT-10` · El alta directa devuelve `500` con rutina activa duplicada**
+   (ALTO). `POST /api/routines/assignments/` (y un `PATCH` que reactive) no
+   captura el `IntegrityError` de `uniq_active_routine_per_member`.
+   **Criterio:** responde `400` con mensaje de dominio, igual que el
+   `bulk-assign`; no se crea una segunda asignación activa.
+   **Archivos:** `backend/routines/views.py · RoutineAssignmentViewSet`,
+   `backend/routines/serializers.py · RoutineAssignmentSerializer`.
+   **Tests:** alta directa duplicada y reactivación duplicada.
+2. **`RUT-11` · El `bulk-assign` descarta socios en silencio** (MEDIO). IDs de
+   otro gimnasio, inexistentes o de socios eliminados no se asignan, pero la
+   respuesta sigue siendo `200` y `assigned_members` sólo cuenta los
+   encontrados. **Criterio:** la respuesta separa `assigned`, `skipped` y
+   `not_found` (o `400` si corresponde), para que el cliente sepa qué quedó
+   afuera.
+   **Archivos:** `backend/routines/views.py · BulkAssignRoutineView`.
+   **Tests:** payload mixto con un ID válido, uno de otro gimnasio y uno
+   inexistente.
+
+Gate de la subfase: `cd backend && .venv/bin/python manage.py test routines`.
+
+#### Fase 10.5 — Cierre documental y gate final
+
+Tareas:
+
+1. `BUGS.md`: fichas `ADD-30`–`ADD-36`, `RUT-10` y `RUT-11` con su resolución;
+   resumen actualizado.
+2. `AUDITORIA-ACTIVIDADES.md` §8: quitar el bullet del horario suelto.
+3. `AUDITORIA-SALIDAS.md` §9: quitar los bullets 3, 4, 5 y 6 (los que se
+   arreglaron); conservar las decisiones (`ADD-11`, `ADD-17`, override de
+   deuda).
+4. `AUDITORIA-PERSONAL-TRAINING.md` §13: quitar los bullets 4 y 5.
+5. `AUDITORIA-RUTINAS.md` §8: quitar los bullets 1 y 2; conservar las
+   limitaciones 3–5.
+6. `AUDITORIA-INDEX.md`: registrar el cierre de la Fase 10.
+7. Ejecutar el gate completo.
+
+Comandos de verificación:
+
+```bash
+python scripts/check_audit_refs.py AUDITORIA-*.md
+cd backend && .venv/bin/python manage.py test
+cd backend && .venv/bin/python manage.py makemigrations --check --dry-run
+cd frontend && pnpm lint && pnpm build
+```
+
+Criterio de cierre:
+
+- Los 9 hallazgos tienen ficha y resolución (o decisión documentada).
+- Las auditorías ya no listan como vigente lo que se arregló.
+- Suite backend, lint y build verdes.
+- Sin migraciones nuevas salvo que una decisión de negocio lo exija (se
+  documenta en la ficha).
+
+Commit: `docs(auditorias): cerrar los hallazgos de actividades, salidas, PT y rutinas (fase 10)`
+
+#### Orden sugerido y estimación
+
+| Subfase | Alcance | Estimación |
+|---|---|---|
+| 10.0 | Triage y fichas | 2–3 h |
+| 10.1 | Actividades (1 fix + decisión) | 4–6 h |
+| 10.2 | Salidas (4 fixes) | 1 día |
+| 10.3 | PT (2 fixes) | 4–6 h |
+| 10.4 | Rutinas (2 fixes) | 3–4 h |
+| 10.5 | Cierre y gate | 2–3 h |
+
+La Fase 10 no bloquea el release de la Fase 9: se puede publicar 9 y dejar 10
+para después. `ADD-30`, `ADD-31`, `ADD-32` y `ADD-35` son los de mayor impacto
+económico y deberían ir primero si hay que cortar el alcance.
 
 ---
 
@@ -1462,7 +2212,8 @@ Criterio de cierre:
 - El validador de referencias pasa sin errores.
 - La suite completa del backend pasa.
 - `pnpm lint` y `pnpm build` pasan.
-- No se modificó código de producto.
+- Las fases 0–8 no modificaron código de producto; las fases 9 y 10 sólo tocan
+  los fixes listados, cada uno con sus tests y su gate.
 - No se hicieron commits sin pedido explícito.
 
 ---
@@ -1472,6 +2223,7 @@ Criterio de cierre:
 - Se actualiza in-place.
 - Se usa referencia híbrida por símbolo + snapshot opcional de líneas.
 - Se incluyen las 5 auditorías nuevas y el índice.
-- El alcance es descriptivo: no se corrigen bugs en esta tarea.
+- Las fases 0–8 son descriptivas: no corrigen bugs. Las fases 9 y 10 sí
+  implementan fixes, con tests y gate propio por subfase.
 - Los hallazgos nuevos se documentan y, si corresponde, se propone su alta en `BUGS.md`.
 - Cada fase se cierra antes de empezar la siguiente.

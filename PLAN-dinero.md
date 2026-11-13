@@ -20,8 +20,9 @@ estaban en el alcance original, P17 y P18, que aparecieron al escribir la matriz
 toggle de cortesía (detalle en "P17 en detalle" y "P18 en detalle").
 
 > **Los bugs post-Fase 7 (P19-P28) viven en `BUG-Pagos.md`** (registro agregado 2026-10-06).
-> De esta lista, **P16 está cerrado** (`35262ad`), **P14 escaló a P21** de ese registro y P13
-> quedó diferido a su Fase 7. Todo lo demás sigue abierto allá.
+> De esta lista, **P8, P10, P11, P12, P14, P15 y P16 están cerrados**, **P13 → `DIN-17`** (K5) y
+> **P9 → `ADD-11`** (decisión de negocio). El detalle y las referencias están en "Deuda cerrada
+> en la Fase 9" (sección 3).
 
 **El gate cambió de base el 2026-10-01** (`ab56e53`). Antes era SQLite; ahora el gate de la Fase 7
 corre contra **Postgres real**, que es lo que hace CI (`.github/workflows/backend-tests.yml`
@@ -140,10 +141,12 @@ gate quedó pendiente. Tampoco la hay desde los 8 tests que CI no corre — ver 
 |---|---|---|---|
 | 16 | **Los 8 números `#32, #30, #35, #18, #40, #38, #33, #37`** | No existen en el código (0 resultados). El audit sólo implementa `#1, #2, #4, #5, #6, #19, #48`. Hace falta el listado original para saber a qué se refieren | ⬜ **unknowable**. Sección 6 |
 
-### Fase 8 — mapeada, sin fecha
+### Fase 8 — absorbida por la Fase 9 (cerrada)
 
-Los 9 bugs MEDIO y BAJO (P8-P16) están documentados uno por uno en la tabla al final de la
-sección 3, con ubicación y severidad. **Ninguno entra en la Fase 7.** Cuando se retome:
+La Fase 8 no se ejecutó como fase separada: su deuda quedó resuelta por las fases K y por la
+Fase 9 de `Actualizacion de auditorias.md`. Los 9 bugs MEDIO y BAJO (P8-P16) están documentados
+uno por uno en la tabla al final de la sección 3, con ubicación, severidad y cierre. Se conserva
+el plan original como registro histórico:
 
 1. **8.0** — métricas propias primero, igual que la 7.0, con el mismo esquema de
    `confirmados`/`armados` (sección 1.9).
@@ -1655,28 +1658,32 @@ tocando. No requiere código ni tests.
 
 ---
 
-#### Lo que queda para la Fase 8 (MEDIO y BAJO, no de la Fase 7)
+#### Deuda cerrada en la Fase 9 (ex Fase 8, MEDIO y BAJO)
 
-| | Bug | Ubicación | Sev |
-|---|---|---|---|
-| P8 | Una **recuperación de sesión perdona dos faltas**: al otorgan borra el no_show ya descontado, y el cron siguiente `_pending_recovery_credits` suprime la falta más reciente otra vez. El filtro es por `(member, activity)`, no por enrollment → con 2 inscripciones a la misma actividad perdona N | `attendance/recovery_service.py:475-479` + `activities/no_show_service.py:88-92` | MEDIO |
-| P9 | **Running no tiene descuento por no-asistencia ni recuperación.** `no_show_service.py:235-256` recorre actividades y PT; `recovery_service.py:188-190` rechaza todo `kind` fuera de `("training","activity")` | `activities/no_show_service.py:235-256` | MEDIO |
-| P10 | Darse de baja de **un horario cancela el ítem compartido de otro**: el ítem es por outing/actividad, no por horario. PT tiene el guard `other_active` (`personal_training/assignment_service.py:345-352`); outings y actividades no | `outings/enrollment_service.py:283-300`, `activities/enrollment_service.py:299-317` | MEDIO |
-| P11 | La **asistencia de staff no consume la sesión** del paquete de salida: sólo lo hace el check-in por QR | `attendance/serializers.py:307-322` | MEDIO |
-| P12 | Borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` (`SET_NULL`): no computan en ningún saldo pero siguen en la caja; si el período se reabre, doble cobro | `payments/models.py:31-38`, `subscriptions/admin.py:5-25` | MEDIO |
-| P13 | El fallback `total += subscription.plan.price` reintroduce el **precio vigente** —que el propio docstring prohíbe— cuando falta el ítem de plan | `subscriptions/services.py:255-256` | BAJO |
-| P14 | `subscription.paid` queda desincronizado cuando el total cambia por ítems: nadie llama `sync_subscription_paid` desde `apply_plan_change` ni desde `mutate_membership` | `subscriptions/services.py:298-323` | BAJO |
-| P15 | El watermark `no_show_scan_until` avanza aunque el cap trunque las faltas: si el socio amplía el paquete, esas faltas nunca se descuentan | `activities/no_show_service.py:83-95, 189-190` | BAJO |
-| P16 | El bulk de créditos de la renovación **no filtra `applied_to__isnull=False`**, al revés de `credit_realized_for`: cuenta como ya pagado en el período los créditos **abiertos** que ese mismo período generó. `payment_blocked` ve `remaining = 0` donde debería ver `> 0`, y la renovación no cobra un saldo real | `subscriptions/services.py:1440-1447` (contra `credit_realized_for`, `:355-379`) | MEDIO |
+La tabla conserva el diagnóstico original. La última columna registra cómo se cerró cada ítem,
+con el commit, la fase K o el test que lo respalda.
 
-**Regla de la Fase 8**: 8.0 de métricas propias primero, igual que la 7.0. Los MEDIO son
-feature work (P9, P10 y P11 son de running, no de dinero) y probablemente merecen su propio
-plan.
+| | Bug | Ubicación | Sev | Estado y resolución |
+|---|---|---|---|---|
+| P8 | Una **recuperación de sesión perdona dos faltas**: al otorgan borra el no_show ya descontado, y el cron siguiente `_pending_recovery_credits` suprime la falta más reciente otra vez. El filtro es por `(member, activity)`, no por enrollment → con 2 inscripciones a la misma actividad perdona N | `attendance/recovery_service.py:475-479` + `activities/no_show_service.py:88-92` | MEDIO | ✅ **Cerrado** · `ADD-27` (K3) · `1b2acff` · tests `activities/tests_phase_k3.py` y `personal_training/tests_phase_k3.py` |
+| P9 | **Running no tiene descuento por no-asistencia ni recuperación.** `no_show_service.py:235-256` recorre actividades y PT; `recovery_service.py:188-190` rechaza todo `kind` fuera de `("training","activity")` | `activities/no_show_service.py:235-256` | MEDIO | ⚪ **Decisión de negocio** · `ADD-11` · no se implementa; ver `AUDITORIA-SALIDAS.md` §9 |
+| P10 | Darse de baja de **un horario cancela el ítem compartido de otro**: el ítem es por outing/actividad, no por horario. PT tiene el guard `other_active` (`personal_training/assignment_service.py:345-352`); outings y actividades no | `outings/enrollment_service.py:283-300`, `activities/enrollment_service.py:299-317` | MEDIO | ✅ **Cerrado** · `ADD-28` (K2) · `8b838b1` · tests `activities/tests_phase_k2.py` y `outings/tests_phase_k2.py` |
+| P11 | La **asistencia de staff no consume la sesión** del paquete de salida: sólo lo hace el check-in por QR | `attendance/serializers.py:307-322` | MEDIO | ✅ **Cerrado** · `ACC-08` (Fase G) · `51f1ca1` · test `activities/tests_phase_g.py · Acc08DiscountOutsideWindowTests` |
+| P12 | Borrar una suscripción en el admin deja sus `Payment` con `subscription=NULL` (`SET_NULL`): no computan en ningún saldo pero siguen en la caja; si el período se reabre, doble cobro | `payments/models.py:31-38`, `subscriptions/admin.py:5-25` | MEDIO | ✅ **Cerrado** · `DIN-07` (`PROTECT` + 409) · `7053638` · test `payments/tests.py · PaymentSubscriptionProtectionTests` |
+| P13 | El fallback `total += subscription.plan.price` reintroduce el **precio vigente** —que el propio docstring prohíbe— cuando falta el ítem de plan | `subscriptions/services.py:255-256` | BAJO | ✅ **Cerrado** · `DIN-17` (K5) · `2498e33` · migración `subscriptions/0024` · tests `subscriptions/tests_phase_k5.py` |
+| P14 | `subscription.paid` queda desincronizado cuando el total cambia por ítems: nadie llama `sync_subscription_paid` desde `apply_plan_change` ni desde `mutate_membership` | `subscriptions/services.py:298-323` | BAJO | ✅ **Cerrado** · `DIN-01`/P21 · `1d7c847` y `56f348e` · tests `subscriptions/test_money_bugs.py · PlanChangeRepricingTests` y `PaidFlagDerivationTests` |
+| P15 | El watermark `no_show_scan_until` avanza aunque el cap trunque las faltas: si el socio amplía el paquete, esas faltas nunca se descuentan | `activities/no_show_service.py:83-95, 189-190` | BAJO | ✅ **Cerrado** · `ADD-29` (K3) · `1b2acff` · test `activities/tests_phase_k3.py · Add29WatermarkDoesNotSkipUnchargedAbsencesTests` |
+| P16 | El bulk de créditos de la renovación **no filtra `applied_to__isnull=False`**, al revés de `credit_realized_for`: cuenta como ya pagado en el período los créditos **abiertos** que ese mismo período generó. `payment_blocked` ve `remaining = 0` donde debería ver `> 0`, y la renovación no cobra un saldo real | `subscriptions/services.py:1440-1447` (contra `credit_realized_for`, `:355-379`) | MEDIO | ✅ **Cerrado** · `35262ad` · test `subscriptions/test_money_bugs.py · MoneyBugRenewalTests.test_open_credit_does_not_unblock_a_renewal_that_owes_money` |
+
+**Regla de la Fase 8 (histórica)**: 8.0 de métricas propias primero, igual que la 7.0. Los MEDIO
+son feature work (P9, P10 y P11 son de running, no de dinero) y probablemente merecen su propio
+plan. La deuda terminó ejecutándose en las fases K y en la Fase 9.
 
 #### P16 en detalle — el bulk que no replica el filtro de `credit_realized_for`
 
-**Registrado el 2026-09-30. No corregido. Es el bug más difícil de ver de todos los del plan,
-porque la línea que lo causa es la que la Fase 2 escribió bien.**
+**Registrado el 2026-09-30. Corregido en `35262ad` (ver la tabla de cierre en la sección 3).
+Es el bug más difícil de ver de todos los del plan, porque la línea que lo causa es la que la
+Fase 2 escribió bien.**
 
 La Fase 2 eliminó un N+1 en `_collect_renewal_candidates` y, de paso, escribió el patrón que hoy
 se usa en todas partes: precalcular los pagos en bulk y pasar el saldo ya hecho con
@@ -1691,10 +1698,10 @@ Payment.objects.filter(
     applied_to__isnull=False,     # <-- sólo créditos CONSUMIDOS
 )
 
-# bulk de _collect_renewal_candidates (services.py:1440-1447) — el que falta
+# bulk de _collect_renewal_candidates (services.py:1440-1447) — el que tenía el bug
 Payment.objects.filter(
     subscription_id__in=sub_ids,
-    concept="credit",             # <-- sin el applied_to
+    concept="credit",             # <-- sin el applied_to (corregido en 35262ad)
 )
 ```
 
@@ -1971,7 +1978,8 @@ No se toca:
   requieren migración.
 - No se resuelve la deuda de los bloqueados (38 bajo el orden de guards vigente): es decisión
   de negocio (decisión 2 de la sección 2).
-- Los bugs MEDIO y BAJO P8-P15: van a la **Fase 8**, ver la tabla al final de la sección 3.
+- Los bugs MEDIO y BAJO P8-P16: quedaron cerrados en la **Fase 9** (salvo P9, decisión de
+  negocio), ver "Deuda cerrada en la Fase 9" al final de la sección 3.
 
 ### Los números `#32, #30, #35, #18, #40, #38, #33, #37` — sin fuente
 

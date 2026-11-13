@@ -1,7 +1,7 @@
 """Permisos por rol sobre el gimnasio del usuario autenticado."""
 
 from django.core.exceptions import PermissionDenied
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from gyms.labels import msg
 from profiles.models import UserProfile
@@ -29,6 +29,17 @@ def require_owner(request, label="errors.owner_only"):
     if not is_owner(request):
         gym = profile.gym if profile else None
         raise PermissionDenied(msg(gym, label))
+
+
+class OwnerWriteMixin:
+    """Lectura abierta al gimnasio; escritura sólo para el dueño."""
+
+    owner_write_label = "errors.owner_only"
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.method not in SAFE_METHODS:
+            require_owner(request, self.owner_write_label)
 
 
 ROUTINE_MANAGER_ROLES = {

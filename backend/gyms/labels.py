@@ -106,6 +106,8 @@ DEFAULT_LABELS = {
     "errors.owner_only_closed_dates": "Solo el dueño puede gestionar las fechas cerradas.",
     "errors.owner_only_staff": "Solo el dueño puede gestionar el staff.",
     "errors.owner_only_community": "Solo el dueño puede gestionar los locales adheridos.",
+    "errors.owner_only_discounts": "Solo el dueño puede gestionar los descuentos.",
+    "errors.owner_only_health_insurances": "Solo el dueño puede gestionar las obras sociales.",
     "errors.routine_role_required": "No tenés permiso para gestionar las rutinas.",
     "errors.cannot_remove_owner": "No se puede eliminar al dueño del gimnasio.",
     "staff.settings.closed_dates_desc": "Feriados o días puntuales en los que el gimnasio no abre. En esas fechas los socios no podrán registrar asistencia ni pedir intercambios, y el panel no mostrará actividad.",

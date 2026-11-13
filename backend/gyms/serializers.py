@@ -107,6 +107,8 @@ class GymSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "features",
+            "active",
+            "slug",
         ]
 
     def validate(self, attrs):
