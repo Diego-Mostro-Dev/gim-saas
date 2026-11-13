@@ -400,7 +400,7 @@ Detalles:
 
 ---
 
-## 8. Problemas que pueden pasar
+## 8. Problemas y decisiones vigentes
 
 Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
 
@@ -410,36 +410,19 @@ Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
    cobrándose**. Además, el portal filtra las inscripciones por horario y
    actividad activos, así que esa inscripción desaparece de la lista: el socio
    no ve el aviso de "Horarios no disponibles" ni puede reasignarse desde esa
-   pantalla. Desactivar la actividad completa sí corta el cobro (ADD-01); la
-   baja de un horario suelto no.
-2. **Cambiar de horario puede dejar al socio sin ninguno.** El cambio hace
-   primero la baja y después la inscripción al horario nuevo. Si la inscripción
-   falla (cupo lleno, choque horario), el frontend intenta restaurar el horario
-   anterior; si esa restauración también falla, el socio queda sin ese horario
-   hasta reasignarse.
-3. **Las faltas descuentan aunque el socio nunca haya ido.** La tarea de
-   no-asistencia toma como faltada cualquier fecha de clase sin registro; un
-   feriado no cargado o una clase caída descuentan igual una sesión del paquete.
-4. **El saldo del paquete se puede desincronizar por pagos generales.** El tope
-   de cobro vive en `record_package_payment`; si un pago se carga por otra vía
-   (pago general de suscripción), ese pago no queda asociado a la inscripción y
-   no descuenta `amount_paid`, así que la sección de "saldo pendiente" del
-   paquete puede quedar desincronizada.
+   pantalla. Desactivar la actividad completa sí corta el cobro (ADD-01);
+   apagar un horario suelto no toca la inscripción ni el ítem de la oferta.
+
+Los demás desajustes de esta área ya están cerrados: **ADD-03** (cambio de
+horario sin rollback garantizado), **ADD-07** (faltas en fechas sin clase) y
+**ADD-08** (sobre-cobro de paquetes fuera de `record_package_payment`). El
+detalle de cada resolución vive en `BUGS.md`.
 
 ### Referencia
 - Horario suelto sin corte de cobro y oculto en el portal:
   `backend/activities/views.py · ActivityScheduleViewSet.destroy`,
   `backend/activities/public_views.py · PublicMemberEnrollmentsView.get` y
   `backend/activities/tests_deactivation.py · ActivityPortalOrphanTests`.
-- Baja-antes-de-alta con rollback:
-  `frontend/src/pages/MemberActivities.jsx · handleSelectSchedule`.
-- Faltas por fechas sin registro:
-  `backend/activities/no_show_service.py · deduct_missed_activity_enrollments`
-  y `backend/activities/no_show_service.py · _deduct_activity_enrollment`.
-- Saldo desincronizado por pagos generales:
-  `backend/activities/enrollment_service.py · EnrollmentService.record_package_payment`,
-  `backend/payments/services.py · enrollment_sessions_paid` y
-  `backend/payments/services.py · sync_enrollment_paid`.
 
 ---
 

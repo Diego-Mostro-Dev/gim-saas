@@ -685,7 +685,7 @@ un flujo que use la UI.
 
 ---
 
-## 13. Problemas que pueden pasar
+## 13. Problemas y decisiones vigentes
 
 Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
 

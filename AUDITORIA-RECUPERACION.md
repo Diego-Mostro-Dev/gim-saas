@@ -175,72 +175,46 @@ con `{ member_id }` → `recover_member`.
 
 ---
 
-## 7. Posibles bugs / desajustes
+## 7. Problemas y decisiones vigentes
 
-Estos son puntos donde **el badge, la validación y la acción real no siempre
-coinciden**, o donde el comportamiento puede sorprender. Están para documentar,
-no necesariamente para arreglar.
+El badge, la validación y la acción real ya usan la misma regla (DIN-08, DIN-09,
+DIN-10). Lo que sigue son las **decisiones de negocio** que todavía pueden
+sorprender y una nota de mantenimiento sobre cómo se calcula el badge.
 
-1. **La deuda de salidas no la ve el badge, pero sí la validación.**
-   `member_total_outstanding_debt` incluye `member_outing_package_debt`
-   (`services.py:1100-1102`), pero `get_is_recoverable` sólo mira inscripciones de
-   actividades y de PT, **no las de salidas** (`serializers.py:280-324`). Un socio
-   con deuda de *salidas* aparece como **"Recuperable"** con su botón, y al
-   tocarlo el servidor responde **400 "deuda pendiente"**. Revisar también los
-   sellados de salidas.
+- **Recuperar no aplica el saldo a favor (DIN-11).** `recover_member` no llama a
+  `consume_member_credit` (sólo lo hace `create_next_subscription`). Un socio con
+  crédito abierto y deuda $0 es recuperable, pero su ciclo nuevo nace impago; el
+  crédito se aplica recién en la renovación siguiente.
+- **La deuda se valida antes que el ciclo vigente (DIN-13).** Un socio inactivo
+  con un ciclo que cubre hoy pero con deuda residual no puede reactivarse por
+  esta vía: recibe el error de deuda aunque la reactivación no cobre nada.
+- **Recuperar no prorratea (DIN-16).** El período nuevo va de hoy al último día
+  del mes y se cobra completo: recuperar el día 25 cobra el mes entero por los
+  pocos días que restan.
 
-2. **El badge ignora un cambio de plan aprobado y vigente.**
-   `recover_member` resuelve el plan con `_resolve_plan` (`services.py:1434`,
-   `:1732`), que **sí** honra un `PlanChangeRequest` aprobado; `is_recoverable`
-   rechaza de plano si `latest_sub.plan.is_base` (`serializers.py:407`) sin mirar
-   ese cambio. Un socio en plan base con un cambio aprobado a plan pago — que el
-   backend **sí** recuperaría — queda **oculto** en la UI (falso negativo).
+Comportamientos que conviene conocer:
 
-3. **El badge rechaza a socios de cortesía, la acción no.**
-   `is_recoverable` devuelve `False` para `is_comp` (`serializers.py:277-278`),
-   pero `recover_member` **no** excluye a los socios de cortesía. Desajuste
-   (probablemente benigno, pero real).
-
-4. **La recuperación no aplica el saldo a favor.**
-   `create_next_subscription` llama `consume_member_credit` (`services.py:1354`),
-   pero `recover_member` **no** (`:1441-1456`). Un socio con crédito abierto y
-   deuda $0 es recuperable; su ciclo nuevo queda **100% impago** aunque el crédito
-   podría cubrirlo. El crédito se aplicará recién en la próxima renovación.
-
-5. **El endpoint responde siempre `201 Created`.**
-   En el Caso A (reactivar) **no se crea ninguna suscripción**, pero `reopen`
-   igual devuelve `201` (`views.py:174-177`). El código de estado no distingue
-   reactivar de crear.
-
-6. **El chequeo de deuda va antes que el de "ciclo vigente".**
-   `recover_member` valida la deuda (`services.py:1417`) antes de buscar el ciclo
-   vigente (`:1422`). Un socio **inactivo con ciclo vigente pero con deuda
-   residual** no puede "reactivarse" por esta vía: recibe el error de deuda. Si la
-   reactivación no cobrara nada, tal vez debería permitirse.
-
-7. **`is_recoverable` es una reimplementación manual y frágil.**
-   `serializers.py:258-410` reproduce el total facturado, el descuento congelado y
-   el crédito ya consumido **en memoria**, para no hacer queries de más. Cualquier
-   cambio futuro en esos helpers puede volver a desincronizarlo (ya ocurrió con el
-   crédito; ver el test de regresión `backend/members/tests.py:103-162`).
-
-8. **Sin bloqueo explícito en `recover_member`.**
-   Lee las precondiciones sin `select_for_update` (`services.py:1408-1434`). Un
-   doble clic concurrente tiende a resolverse por el solapamiento que detecta
-   `open_subscription` (`domain.py:49+`), pero no es una garantía propia del flujo.
-
-9. **La recuperación no prorratea.** (Repetido de §4, listado acá por su efecto en
-   el cobro.) Recuperar a mitad o fin de mes cobra el **mes completo** por los
-   pocos días que restan.
+- **El endpoint distingue reactivar de crear.** El Caso A (ya hay un ciclo que
+  cubre hoy) responde **200** y no crea nada; el Caso B (período nuevo) responde
+  **201** (DIN-12).
+- **La carrera de dos recuperaciones se resuelve con 400.** Si dos pedidos
+  concurrentes abren el mismo período, el `IntegrityError` de
+  `unique_subscription_member_period` se traduce a `SubscriptionConflictError`
+  y no a un 500 (DIN-15).
+- **`get_is_recoverable` reimplementa la regla en memoria.** Reproduce el total
+  facturado, el descuento congelado y el crédito consumido para resolver la lista
+  sin N+1. Cualquier cambio en esos helpers debe replicarse acá; hay un test de
+  regresión del crédito en `backend/members/tests.py`.
 
 ### Referencia
-- Deuda de salidas: `backend/subscriptions/services.py:849`, `:1100-1102` vs `backend/members/serializers.py:280-324`.
-- Cambio de plan: `backend/subscriptions/services.py:1434` / `:1725-1740` vs `backend/members/serializers.py:407`.
-- Cortesía: `backend/members/serializers.py:277-278`.
-- Crédito: `backend/subscriptions/services.py:1354` vs `:1441-1456`.
-- Estado de respuesta: `backend/subscriptions/views.py:174-177`.
-- Orden de validaciones: `backend/subscriptions/services.py:1417-1427`.
-- Reimplementación: `backend/members/serializers.py:258-410`; regresión en `backend/members/tests.py:103-162`.
+- Regla del badge: `backend/members/serializers.py` · `get_is_recoverable`.
+- Acción de recuperar: `backend/subscriptions/services.py` · `recover_member`.
+- Resolución del plan: `backend/subscriptions/services.py` · `_resolve_plan`.
+- Deuda total: `backend/subscriptions/services.py` · `member_total_outstanding_debt`.
+- Respuesta del endpoint: `backend/subscriptions/views.py` · `reopen`.
+- Constraint del período: `backend/subscriptions/models.py` ·
+  `unique_subscription_member_period`.
+- Test de regresión del crédito: `backend/members/tests.py` (clase del badge).
 
 ---
 
@@ -249,7 +223,7 @@ no necesariamente para arreglar.
 - **No prorratea la recuperación**: cobra el mes completo aunque se recupere sobre
   el final del mes.
 - **No aplica el saldo a favor en la recuperación**: el crédito espera a la
-  renovación siguiente (ver §7.4).
+  renovación siguiente (ver §7).
 - **No avisa al socio** por ningún canal: recuperar es una acción interna del staff.
 - **No revive la ficha**: "recuperar" es del ciclo de cobro. La ficha del socio se
   crea/edita/borra en Miembros; no existe una baja lógica ni una reactivación de

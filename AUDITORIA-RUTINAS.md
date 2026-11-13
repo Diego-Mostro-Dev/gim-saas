@@ -332,7 +332,7 @@ de su gimnasio; el superusuario central ve todo.
 
 ---
 
-## 8. Problemas que pueden pasar
+## 8. Problemas y decisiones vigentes
 
 1. **El alta directa de asignaciones devuelve 500 si el socio ya tiene una
    rutina activa.** `POST /api/routines/assignments/` (y un `PATCH` que reactive)

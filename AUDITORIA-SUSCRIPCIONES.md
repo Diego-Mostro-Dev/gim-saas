@@ -231,10 +231,10 @@ Detalles:
   favor. En las pantallas se lo marca con la etiqueta "Pase de cortesía".
 - Se activa y desactiva desde el **formulario de edición del socio** (checkbox),
   no desde la pantalla de suscripciones.
-  - Al **activarla**, el sistema pasa el ciclo actual al plan base,
-    **prorratea por los días que ya pasaron** (solo se cobra lo servido) y
-    **vuelve a prender la renovación automática**, aunque el socio la hubiera
-    apagado.
+  - Al **activarla**, el sistema pasa el ciclo actual al plan base y
+    **prorratea por los días que ya pasaron** (solo se cobra lo servido). **No
+    toca la renovación automática**: si el socio ya tenía una suscripción,
+    conserva su elección; si no tenía, queda apagada (DIN-05).
   - Al **desactivarla** hay que elegir un plan, y se prorratea **por los días
     que quedan** del mes: el socio queda debiendo justo lo que falta del
     período.
@@ -259,9 +259,10 @@ Detalles:
   `backend/subscriptions/services.py:551-553`.
 - Toggle: `backend/members/serializers.py:609-652` →
   `backend/subscriptions/domain.py:133-301` (`mutate_membership`), prorrateo
-  `backend/subscriptions/domain.py:304-337` y `backend/subscriptions/domain.py:371-385`,
-  re-prende la renovación `backend/subscriptions/domain.py:193-194`, y hay que
-  elegir plan para quitarla `backend/subscriptions/domain.py:221-225`.
+  `backend/subscriptions/domain.py:304-337` y `backend/subscriptions/domain.py:371-385`;
+  la renovación se hereda sin reencenderse (`backend/subscriptions/domain.py` ·
+  `_inherit_auto_renew`) y hay que elegir plan para quitarla
+  (`backend/subscriptions/domain.py:221-225`).
 - Descuento congelado: `backend/subscriptions/domain.py:109-122` (al crear el
   período) y
   `backend/subscriptions/services.py:312-331` (`member_discount_percent`);
@@ -353,48 +354,25 @@ Detalles:
 
 ---
 
-## 8. Problemas que pueden pasar hoy
+## 8. Problemas y decisiones vigentes
 
-Fallos conocidos, registrados en `BUG-Pagos.md`. Conviene conocerlos antes de
-prometer estos comportamientos en el manual.
+No quedan problemas abiertos en esta área: **DIN-01 a DIN-07, DIN-10, DIN-12 y
+DIN-15 están cerrados** (ver `BUGS.md` y `BUG-Pagos.md`). Los desajustes de dinero
+que siguen vigentes son **decisiones de negocio** y se detallan en
+`AUDITORIA-RECUPERACION.md` §7:
 
-1. **Un cambio de plan puede no reflejar el saldo a favor.** Si el cambio
-   reprecia un período que ya estaba pagado, el sistema no vuelve a calcular el
-   pago ni genera el crédito correspondiente (P21). Hoy no conviene prometer que
-   "la diferencia queda a favor" por el camino del cambio de plan.
-2. **El botón "recuperable" a veces no coincide con lo que pasa al recuperar**
-   (P24): la lista de socios calcula las condiciones en un lugar y la acción de
-   recuperar en otro, así que puede ofrecer recuperar y el sistema rechazar.
-   (AUDITORIA-PAGOS.md §6 dice que son las mismas condiciones; hoy no lo son.)
-3. **La etiqueta "Pagado/Pendiente" de la pantalla del staff puede estar
-   desactualizada** (P22/P23): es una copia que en algunos caminos se escribe a
-   mano. La deuda real es la que calcula el sistema.
-4. **Aprobar un cambio con efecto hoy no arrastra el entrenamiento personal**
-   ni consume el saldo a favor, mientras que el camino del 1° del mes sí lo
-   hace. Un socio con PT mensual aprobado hoy puede no ver esa línea ese mes.
-5. **Dar una cortesía re-prende la renovación automática**, aunque el socio la
-   hubiera apagado.
-6. **Un socio que nunca pagó su primer mes igual se renueva**: su estado al
-   cierre es "pago inicial pendiente", que no corta la renovación, así que el
-   mes siguiente nace un ciclo nuevo deudor.
-7. **Borrar una suscripción desde el admin de Django deja sus pagos huérfanos**
-   (P12): siguen existiendo, pero dejan de contar en la deuda.
+- **Recuperar no aplica el saldo a favor** (DIN-11): el crédito espera a la
+  renovación siguiente.
+- **La deuda se valida antes que el ciclo vigente** (DIN-13): un socio inactivo
+  con ciclo vigente y deuda residual no puede reactivarse por esa vía.
+- **Recuperar no prorratea** (DIN-16): a fin de mes cobra el mes completo.
+- **Quitar la cortesía exige elegir un plan de pago** (ACC-22).
 
 ### Referencia
-- P21: `backend/subscriptions/services.py:1804-1814` (reprecio sin
-  `sync_subscription_paid`).
-- P24: `backend/members/serializers.py:258-410` vs
-  `backend/subscriptions/services.py:1333-1432`.
-- P22/P23: `backend/subscriptions/services.py:1314` y
-  `backend/subscriptions/services.py:1418` (escritura manual de `paid`), más
-  `backend/subscriptions/serializers.py:286`.
-- Efecto inmediato sin PT: `backend/subscriptions/views.py:362-364` vs
-  `backend/subscriptions/services.py:1800-1803`.
-- Cortesía re-prende la renovación: `backend/subscriptions/domain.py:193-194`.
-- Primera renovación sin pago: `backend/subscriptions/services.py:1176-1183`
-  (estado `initial_pending`) con `backend/subscriptions/services.py:1540-1554`
-  (el corte solo mira `blocked`).
-- Registro completo de los bugs: `BUG-Pagos.md`.
+- Fichas y resoluciones: `BUGS.md` (DIN-11, DIN-13, DIN-16, ACC-22).
+- Detalle del flujo y del badge: `AUDITORIA-RECUPERACION.md` §7.
+- Acción de recuperar: `backend/subscriptions/services.py` · `recover_member`.
+- Lectura del badge: `backend/members/serializers.py` · `get_is_recoverable`.
 
 ---
 

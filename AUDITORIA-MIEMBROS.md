@@ -304,22 +304,29 @@ Son dos cosas **completamente distintas**:
 
 ---
 
-## 9. Problemas que pueden pasar
+## 9. Problemas y decisiones vigentes
 
-- **El link público fuerza `is_comp=False` y descarta el descuento**, pero si el
-  formulario venía con esos campos no se avisa: el dato simplemente se ignora.
-- **La rotación de token conserva solo una generación anterior**. Un link muy viejo
-  (dos rotaciones atrás) deja de funcionar, y los endpoints de foto/adjuntos/check-in
-  cortan apenas rota.
-- **El teléfono único por gimnasio** puede frenar un alta legítima si dos personas
-  comparten un mismo teléfono (ej. una familia).
-- **La baja lógica no borra datos**: la ficha queda archivada con `deleted_at`/`active=False` y puede reactivarse; `auto_renew` se apaga al dar de baja y no se reactiva automáticamente. El borrado real ya no está expuesto desde la API del staff.
-- **`is_recoverable` (lectura) no coincide del todo con `recover_member`** (acción):
-  la lista puede mostrar un socio como recuperable y luego rechazar la recuperación.
-- **Quitar la cortesía exige elegir un plan pago**: si el staff no lo elige, el cambio
-  falla (salvo socios "solo actividades").
-- **El enlace automático de obra social** depende de que el nombre coincida con una
-  obra social configurada; si no coincide, queda como texto libre sin precio asociado.
+No quedan problemas abiertos en esta área: **ACC-17 a ACC-20 y ACC-23 están cerrados**,
+y el desajuste del badge de recuperación (DIN-02) también (ver `BUGS.md`). Lo que sigue
+son comportamientos intencionales o decisiones de negocio que conviene conocer:
+
+- **El alta pública ignora `is_comp` y `discount_id`.** Son privilegios del staff y el
+  alta es anónima; el dato se descarta y queda un warning en los logs para asignarlo
+  desde el panel (ACC-17).
+- **La rotación de token conserva una generación anterior.** Un link de dos rotaciones
+  atrás deja de funcionar; los endpoints de foto, adjuntos y check-in se cortan apenas
+  rota el token (ACC-18, por diseño/TTL de 30 días).
+- **El teléfono es único por gimnasio.** Una familia con un solo teléfono no puede dar
+  de alta a dos socios en el mismo gimnasio; el sistema responde con un mensaje
+  explícito (ACC-19, decisión).
+- **La baja es lógica.** La ficha queda archivada con `deleted_at`/`active=False`, se
+  puede reactivar y `auto_renew` se apaga al dar de baja; el borrado real ya no está
+  expuesto desde la API del staff (ACC-20).
+- **Quitar la cortesía exige elegir un plan pago.** Si el staff no lo elige, el cambio
+  falla, salvo en socios "solo actividades" (ACC-22, decisión).
+- **La obra social sin match no bloquea el alta.** Queda marcada como "sin verificar",
+  con badge y acceso directo para enlazarla desde el panel; el alta pública ofrece la
+  lista de obras del gimnasio (ACC-23).
 
 ---
 

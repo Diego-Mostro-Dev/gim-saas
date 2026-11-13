@@ -1,8 +1,8 @@
 # BUGS — Registro general de bugs pre-lanzamiento
 
 Estado: **2026-10-29** — Fases A a J hechas; **Fase K: K0 a K9 hechas (release cerrado)**.
-Total: **108 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 52 `MEDIO`, 20 `BAJO`.
-De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **1 abiertos**
+Total: **109 hallazgos** — 5 `CRÍTICO`, 31 `ALTO`, 52 `MEDIO`, 21 `BAJO`.
+De ellos **94 ya están cerrados**, **13 son decisiones de negocio** y quedan **2 abiertos**
 y **0 a verificar**. Fichas de los abiertos con
 explicación, ejemplo de impacto y criterio de aceptación.
 
@@ -36,14 +36,14 @@ explicación, ejemplo de impacto y criterio de aceptación.
 
 | Área | Crítico | Alto | Medio | Bajo | Cerrados | Decisiones | Abiertos |
 |---|---|---|---|---|---|---|---|
-| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 3 | 14 | 3 | 1 |
+| Dinero/suscripción (`DIN`) | 0 | 7 | 8 | 3 | 15 | 3 | 0 |
 | Configuración (`CFG`) | 1 | 2 | 5 | 6 | 10 | 2 | 2 |
-| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 24 | 3 | 2 |
+| Add-ons (`ADD`) | 3 | 7 | 13 | 6 | 26 | 3 | 0 |
 | Acceso/portal (`ACC`) | 1 | 12 | 11 | 0 | 23 | 1 | 0 |
 | Rutinas (`RUT`) | 0 | 2 | 5 | 2 | 7 | 2 | 0 |
 | Comunidad (`COM`) | 0 | 0 | 5 | 1 | 4 | 2 | 0 |
-| Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 8 | 0 | 1 |
-| **Total** | **5** | **31** | **52** | **21** | **90** | **13** | **6** |
+| Robustez/CI (`REF`) | 0 | 1 | 5 | 3 | 9 | 0 | 0 |
+| **Total** | **5** | **31** | **52** | **21** | **94** | **13** | **2** |
 
 > Las columnas "Cerrados" y "Decisiones" se solapan con las de severidad (una fila cerrada
 > igual tiene severidad); sirven para leer el avance, no para sumar.

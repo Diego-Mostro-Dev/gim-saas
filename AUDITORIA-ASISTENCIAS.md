@@ -142,58 +142,49 @@ directo a su portal (ruta `/routine/<token>`).
 
 - **No marca ausencias**: no hay "no vino" ni "llegó tarde". La asistencia es solo
   positiva: o hay registro, o no hay nada. No hay tarea programada que marque faltas.
-- **No valida la hora** en el camino normal: se puede entrar a cualquier hora mientras
-  haya horario reservado y cupo (solo las recuperaciones tienen ventana).
-- **El staff no verifica** que el gimnasio esté abierto el día que marca.
-- **No permite walk-in por QR**: sin horario reservado hoy, el socio no entra (403).
-  (El staff, en cambio, sí puede marcarlo eligiendo un horario.)
-- **No blinda el doble registro del staff**: dos marcas a la vez pueden terminar en un
-  error 500 (ver problema 5).
-- **No informa al socio que "ya entró" como error**: devuelve un 200 que el front muestra
-  y de todas formas lo redirige al portal (ver problema 4).
+- **No permite walk-in por QR**: sin un horario reservado para hoy, el socio no entra
+  (403). El staff sí puede marcarlo eligiendo un horario.
+- **No exige exactamente el horario del bloque**: la ventana es configurable por
+  gimnasio (`checkin_window_minutes`); con `0` no hay restricción horaria. Cuando existe,
+  va desde el inicio menos N minutos hasta el fin real del bloque.
+- **No permite que el mismo QR registre dos horarios el mismo día**: el camino público
+  acepta una sola asistencia por (socio, fecha) y responde 409 al segundo escaneo. El
+  staff sí puede registrar una asistencia por cada horario.
 
 ---
 
-## 7. Problemas que pueden pasar
+## 7. Problemas y decisiones vigentes
 
-1. **El cupo cuenta al propio socio.** En el camino normal (socio y staff) la ocupación
-   del horario se calcula sobre los horarios activos del slot, que **incluyen al propio
-   socio** que está entrando. El intercambio, en cambio, sí lo excluye. Resultado: un
-   horario con capacidad igual a la cantidad de inscriptos queda "completo" para ellos
-   mismos ("El horario está completo.").
-2. **Sin ventana horaria.** Solo la recuperación valida la hora. Un socio puede hacer
-   check-in a cualquier hora (ej. las 03:00) y el staff marcar asistencias de un horario
-   del mediodía de madrugada.
-3. **El staff puede marcar un día de cierre.** El socio sí es rechazado si el gimnasio
-   figura cerrado; el serializer del staff no chequea `GymClosedDate`.
-4. **"Ya entró hoy" no es un error HTTP.** El socio que se escanea dos veces recibe
-   **200** con `success: false` (no un 404/403/400): el front lo muestra como mensaje y
-   redirige igual al portal. Difícil de distinguir del éxito por código.
-5. **Doble registro del staff → error 500.** El chequeo de "ya registrado" del staff no
-   usa bloqueo de fila (el camino público sí, con `select_for_update`). Dos clicks o dos
-   usuarios a la vez pueden superar el chequeo y chocar contra la restricción única de la
-   base → `IntegrityError` sin capturar → 500.
-6. **Límite público de 30 pedidos/hora por IP.** El check-in del socio está limitado a 30/h
-   **por IP** (una única conexión: router del gimnasio, totalizadora, compartiendo datos).
-   Varios socios + reintentos agotan el límite rápido y todos reciben un error 429
-   ("tiempo de espera"), mientras que el staff no tiene límite.
-7. **Un socio con dos horarios el mismo día entra una sola vez por QR.** El camino público
-   valida "una asistencia por (socio, fecha)"; la base de datos limita por
-   (gimnasio, horario, fecha). Así, con dos horarios el mismo día el QR lo rechaza a la
-   segunda entrada, pero el staff podría marcarlo dos veces (una por horario).
-8. **Las sesiones de paquete solo se descuentan dentro de la ventana.** Si el socio entra
-   fuera del horario de la actividad/salida tipo paquete, su sesión no se descuenta (y el
-   fallo es silencioso): entró al gimnasio pero el paquete quedó igual.
+No quedan problemas abiertos en esta área: **ACC-01 a ACC-08 están cerrados** y el
+detalle de cada resolución vive en `BUGS.md`. Lo que sigue son comportamientos
+intencionales que conviene conocer antes de escribir el manual:
+
+- **Un QR, una asistencia por día.** Si el socio tiene dos horarios el mismo día, el
+  segundo escaneo responde **409**; el staff puede marcarlo dos veces (una por horario).
+  Es la regla de ACC-07.
+- **El descuento del paquete es conservador cuando hay varias inscripciones.** Con una
+  sola inscripción de paquete activa ese día, la sesión se descuenta aunque el check-in
+  caiga fuera de la ventana. Con varias, sólo se descuentan las que caen dentro de la
+  ventana; si el check-in no tiene hora, no se descuenta ninguna y la sesión queda
+  pendiente de carga manual (ACC-08).
+- **La ventana de check-in es opcional.** Cada gimnasio decide cuántos minutos antes del
+  inicio se habilita el ingreso; `0` significa sin ventana (ACC-02).
+- **El cupo descuenta al socio que entra.** `compute_effective_occupancy` lo excluye, así
+  que un horario lleno no se le cierra a sus propios inscriptos (ACC-01).
 
 ### Referencia
-- Cupo sin excluir al socio: `backend/attendance/serializers.py:281` y `backend/attendance/public_views.py:315` vs `compute_effective_occupancy` (`utils.py:71-77`) y el swap que sí excluye (`public_views.py:231-246`).
-- Sin ventana en el camino normal: `backend/attendance/public_views.py:287-342` vs la ventana de recuperación `:149-194`; `serializers.py:219-306` sin hora.
-- Staff sin `GymClosedDate`: `backend/attendance/serializers.py:219-306` vs público `public_views.py:140-147`.
-- 200 con `success:false`: `backend/attendance/public_views.py:221-227` y `:279-285`; parseo en `frontend/src/pages/Checkin.jsx:62-91`.
-- Race staff sin lock: `backend/attendance/serializers.py:264-274` vs lock del público `public_views.py:110-117`; restricción única `unique_together = ("gym", "schedule", "date")` (`backend/attendance/models.py:154`).
-- Throttle: `backend/config/api/throttles.py:27-29` (`PublicAttendanceRateThrottle = 30/h`), aplicado en `public_views.py:107`.
-- Unicidad: público valida `(member, date)` (`public_views.py:270-277`) vs constraint `(gym, schedule, date)` (`models.py:154`).
-- Auto-conteo silencioso: `backend/attendance/public_views.py:54-77, 80-100, 332-335`.
+- Cupo: `backend/attendance/utils.py` · `compute_effective_occupancy`.
+- Ventana: `backend/attendance/utils.py` · `within_checkin_window` y
+  `checkin_window_bounds`; campo `backend/gyms/models.py` · `Gym.checkin_window_minutes`.
+- Día cerrado: `backend/attendance/serializers.py` · `AttendanceSerializer` y
+  `backend/attendance/public_views.py` · `PublicCheckinView`.
+- Duplicado: `backend/attendance/public_views.py` · `PublicCheckinView` (409) y
+  `backend/attendance/serializers.py` · `AttendanceSerializer` (400).
+- Descuento de paquete: `backend/attendance/checkin_discount.py` ·
+  `count_activity_sessions` y `count_outing_sessions`.
+- Unicidad de asistencia: `backend/attendance/models.py` · `Attendance.Meta`
+  (`unique_together = ("gym", "schedule", "date")`).
+- Throttle del portal: `backend/config/api/throttles.py` · `MemberPortalTokenThrottle`.
 
 ---
 

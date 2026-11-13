@@ -648,47 +648,43 @@ activo; la creación por API no aplica esa validación.
 
 ---
 
-## 9. Problemas que pueden pasar
+## 9. Problemas y decisiones vigentes
 
 Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
 
 1. **Faltar no descuenta sesión.** A diferencia de las actividades, un socio que
    nunca asiste a una salida **no consume el paquete**: no existe tarea de
    no-asistencia. El saldo del paquete queda intacto y el socio puede no agotarlo
-   nunca.
+   nunca (ADD-11, decisión).
 2. **El auto-conteo puede quedar ambiguo.** La regla ACC-08 descuenta una sola
    inscripción de paquete del día aunque el check-in caiga fuera de la ventana.
    Con **varias** inscripciones del mismo día sólo descuenta las que están
    dentro de la ventana; si el check-in no tiene hora, no descuenta ninguna. En
    esos casos la sesión queda pendiente hasta que el staff la cargue a mano.
-3. **El paquete se puede cobrar de más por fuera del flujo.** El tope de cobro
-   vive en `record_package_payment`; si un pago se carga por otra vía (pago
-   general de suscripción), la sección de "saldo pendiente" del paquete puede
-   quedar desincronizada.
-4. **Mezclar modalidades en la misma salida puede dejar la cuota viva.** La baja
+3. **Mezclar modalidades en la misma salida puede dejar la cuota viva.** La baja
    por oferta no distingue modalidad: si el socio mantiene otra inscripción
    activa de la misma salida (por ejemplo, una de sesiones), el ítem mensual no
    se cancela aunque ya no corresponda cobrarlo.
-5. **La baja aprobada se ejecuta contra el horario, no contra la inscripción
+4. **La baja aprobada se ejecuta contra el horario, no contra la inscripción
    guardada.** Al aprobar una solicitud de baja el sistema vuelve a buscar la
    inscripción activa por (socio, horario). Si el socio se reinscribió en ese
    horario o cambió de horario, la aprobación puede dar de baja la inscripción
    nueva o responder 404.
-6. **Los cupos del portal cuentan socios eliminados.** El cálculo de
+5. **Los cupos del portal cuentan socios eliminados.** El cálculo de
    `available_spots` suma inscripciones activas sin filtrar `deleted_at`, así
    que puede mostrar menos lugares de los que realmente hay. La validación al
    inscribir sí excluye a los socios eliminados.
-7. **Reactivar por API puede dejar la salida activa sin horarios.** La acción de
+6. **Reactivar por API puede dejar la salida activa sin horarios.** La acción de
    reactivación no reutiliza la validación del serializer: con
    `restore_schedules=false`, o si no había horarios auto-desactivados, la
    salida queda activa aunque no tenga ningún horario activo.
-8. **Renovar con deuda es posible con confirmación.** El bloqueo por sesiones
+7. **Renovar con deuda es posible con confirmación.** El bloqueo por sesiones
    sin cobrar sigue siendo el comportamiento por defecto, pero el staff puede
    forzarlo con `allow_unpaid=true`. La deuda no se cancela y puede crecer si se
    repite el override.
-9. **El portal no ofrece salidas por sesiones.** Las salidas `billing_mode="sessions"`
+8. **El portal no ofrece salidas por sesiones.** Las salidas `billing_mode="sessions"`
    se excluyen de las disponibles para solicitar; el socio sólo ve el aviso de
-   consultar en recepción.
+   consultar en recepción (ADD-17, decisión).
 
 ### Referencia
 - Sin tarea de faltas para salidas: `backend/activities/no_show_service.py ·
@@ -699,10 +695,6 @@ Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
   `backend/attendance/checkin_discount.py · count_outing_sessions`,
   `backend/attendance/public_views.py · PublicCheckinView.post` y
   `backend/attendance/serializers.py · AttendanceSerializer.create`.
-- Tope de cobro sólo en el flujo:
-  `backend/outings/enrollment_service.py ·
-  OutingEnrollmentService.record_package_payment` y
-  `backend/payments/services.py · sync_outing_paid`.
 - Baja por oferta sin distinguir modalidad:
   `backend/outings/enrollment_service.py · _cancel_outing_items`; test
   `backend/outings/tests_phase_k2.py ·

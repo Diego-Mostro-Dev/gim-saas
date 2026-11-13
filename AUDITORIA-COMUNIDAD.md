@@ -13,7 +13,7 @@
 > tarjeta pública del socio y sus accesos por token. No cubre cobros ni el
 > resto del portal, salvo cuando impactan en la tarjeta.
 > Documentos relacionados: `AUDITORIA-NUCLEO-REGLAS.md`,
-> `AUDITORIA-MIEMBROS.md`, `AUDITORIA-USUARIOS-ACCESOS.md`,
+> `AUDITORIA-MIEMBROS.md`, `AUDITORIA-USUARIOS-Y-ACCESOS.md`,
 > `AUDITORIA-RUTINAS.md`
 > Código cubierto: `backend/community`, `backend/core/permissions.py`,
 > `backend/core/admin.py`, `backend/gyms/features.py`,
@@ -262,7 +262,7 @@ teléfono, ni pagos, ni deuda.
 
 ---
 
-## 8. Problemas que pueden pasar
+## 8. Problemas y decisiones vigentes
 
 Hoy no hay un problema funcional abierto en este módulo. Los puntos que pueden
 sorprender son decisiones o limitaciones ya documentadas:

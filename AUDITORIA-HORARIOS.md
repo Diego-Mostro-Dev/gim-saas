@@ -121,30 +121,41 @@ Detalles que conviene saber:
 - **No respeta una fecha futura** para el cambio permanente: lo aplica apenas se aprueba.
 - **No distingue roles en el backend**: la seguridad por "staff" es solo de interfaz.
 - **No tiene un estado "Aprobado"** para los cambios permanentes: pasa directo de Pendiente a Ejecutado (el estado "approved" existe en el código pero no se usa en este flujo).
-- **No informa bien al staff** en el panel: al aprobar un cambio, los demás usuarios ven el aviso como "cambio cancelado" (bug de etiquetas, ver sección 7).
 - **No avisa al socio por mail/whatsapp**: los cambios se ven solo dentro del portal.
 
 ---
 
-## 7. Problemas que pueden pasar
+## 7. Problemas y decisiones vigentes
 
-Situaciones a tener en cuenta, porque el sistema hoy se comporta así:
+No quedan problemas abiertos en esta área: **ACC-09 a ACC-12, ACC-14, ACC-16 y CFG-04
+están cerrados** y el detalle de cada resolución vive en `BUGS.md`. Lo que sigue son
+comportamientos intencionales que conviene conocer antes de escribir el manual:
 
-1. **El panel marca mal las aprobadas.** Las solicitudes aprobadas muestran la etiqueta cruda "executed" y el filtro "Aprobadas" **nunca muestra nada**. Al aprobar una, los otros usuarios ven el aviso "Cambio permanente cancelado" (porque el sistema solo reconoce "approved/rejected/cancelled" como estados).
-2. **El socio pierde días de la semana actual.** La pantalla dice "Vigente: <fecha futura>", pero al aprobar el sistema desactiva el horario viejo **ya**: si el socio tenía clases esta misma semana, las pierde hasta su próxima clase en el horario nuevo.
-3. **La espera de 7 días cuenta hasta los rechazados.** Una solicitud rechazada o cancelada por el staff igual bloquea al socio 7 días antes de pedir otro. Los intercambios no disparan esta espera: es asimétrico.
-4. **Posible error del servidor por doble pedido.** No hay verificación previa de "ya hay una solicitud pendiente para ese horario" (solo una regla de base de datos sin manejo de error), así que en un caso límite el socio puede ver un error 500.
-5. **El staff puede crear cambios sin límites.** Del lado del personal no se validan ni la espera de 7 días ni el máximo mensual (aunque al aprobar sí se re-chequea la capacidad del horario).
-6. **El horario puede quedar duplicado.** Si el staff edita a mano los horarios del socio mientras hay una solicitud pendiente, al aprobar no se vuelve a verificar que el horario viejo siga activo: el socio puede quedar con dos horarios.
-7. **Demasiadas solicitudes desde la misma IP.** Los pedidos públicos del socio están limitados a 30/hora **por IP**: varios socios detrás de la misma conexión (gimnasio o datos móviles) pueden recibir un error de límite 429.
-8. **Un cambio de plan barre los cambios pendientes.** Si el socio tenía un cambio de horario pendiente y aprueban su cambio de plan, el cambio de horario se cancela en silencio (con nota en inglés) y el socio tiene que pedirlo de nuevo.
+- **El cambio permanente se aplica al aprobarlo, no en una fecha futura.** La UI ya no
+  promete "Vigente: <fecha>"; avisa que el cambio rige desde la aprobación (ACC-10).
+- **La espera de 7 días y el máximo mensual cuentan sólo los pedidos vigentes.** Las
+  solicitudes rechazadas no bloquean al socio, y el staff cumple los mismos límites
+  (ACC-11, CFG-04).
+- **Un pedido pendiente por horario.** Si ya hay una solicitud pendiente para ese
+  horario, el segundo pedido responde **409**, no 500 (ACC-12).
+- **Aprobar un cambio de plan cancela los pedidos de horario pendientes**, con una nota
+  en español; rechazar el cambio no los toca (ACC-16).
+- **Al aprobar se revalida el horario viejo y el límite de visitas.** Si el staff editó
+  la ficha mientras tanto, el cambio responde **400** y el socio debe pedirlo de nuevo
+  (ACC-14).
 
 ### Referencia
-- Etiquetas del panel (no cubren `executed`): `frontend/src/pages/ScheduleChangeRequests.jsx:16-21`; filtro "Aprobadas" que nunca matchea `:26`; toast invertido `frontend/src/hooks/useScheduleChangeWatcher.js:65-70`.
-- "Vigente" es solo informativo: `backend/attendance/serializers.py:517-524`.
-- Duplicado sin manejo de `IntegrityError`: `backend/attendance/models.py:227-233` (constraint) vs manejo en `backend/subscriptions/serializers.py:52-64`.
-- Sin validación staff de cooldown/límite: `backend/attendance/serializers.py:443-515`.
-- Throttle: `backend/config/api/throttles.py:27-29` (`PublicAttendanceRateThrottle = 30/h`).
+- Etiquetas y filtros del panel: `frontend/src/pages/ScheduleChangeRequests.jsx` y
+  `frontend/src/hooks/useScheduleChangeWatcher.js`.
+- Cambio inmediato al aprobar: `backend/attendance/views.py` ·
+  `ScheduleChangeRequestViewSet`.
+- Límites de la solicitud: `backend/attendance/utils.py` ·
+  `check_schedule_change_limits`.
+- Conflicto de pedido duplicado: `backend/attendance/serializers.py` ·
+  `ScheduleChangeConflict`.
+- Cancelación por cambio de plan: `backend/subscriptions/views.py` ·
+  `_cancel_pending_schedule_requests`.
+- Throttle del portal: `backend/config/api/throttles.py` · `MemberPortalTokenThrottle`.
 
 ---
 

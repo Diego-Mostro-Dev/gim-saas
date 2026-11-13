@@ -185,7 +185,7 @@ UI del socio bloqueado (pestañas ocultas y banner): `frontend/src/pages/member/
 - Sellado: `backend/activities/models.py:193-203`, cobro exacto y único en `backend/payments/serializers.py:185-197`; el sellado **vuelve a quedar pendiente al regenerar/agregar sesiones de un paquete** en `backend/activities/session_service.py:118` y `backend/personal_training/session_service.py:93`.
 - No se renueva un paquete con sesiones sin cobrar: `activities/session_service.py:112`, `personal_training/session_service.py:87`, `outings/session_service.py:111`.
 - Coseguro según obra social: `backend/members/models.py:22-33` (`HealthInsurance.session_price`).
-- Editar/borrar recalcula: `backend/payments/views.py:142-190` (`perform_destroy`) y `payments/serializers.py:600`.
+- Editar/borrar recalcula: `backend/payments/views.py` · `PaymentViewSet.perform_destroy` y `payments/serializers.py:600`.
 - Aviso de duplicado de efectivo: `frontend/src/utils/paymentAlerts.js` (ventana 24 h).
 - Export CSV mensual: `backend/payments/views.py:71-140`.
 - Donde el staff cobra: `frontend/src/pages/Payments.jsx` y `frontend/src/pages/RecoverMembers.jsx`.

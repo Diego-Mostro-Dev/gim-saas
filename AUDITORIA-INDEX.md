@@ -1,8 +1,8 @@
 # Índice de auditorías
 
 > Verificado contra: `f5b4b07`
-> Fecha: 2026-11-11
-> Alcance: estado, ubicación y cobertura de las 18 auditorías del sistema.
+> Fecha: 2026-11-13
+> Alcance: estado final, ubicación y cobertura de las 18 auditorías del sistema.
 > Documentos relacionados: `AUDITORIA-MAPA-COBERTURA.md`, `AUDITORIA-PLANTILLA.md`,
 > `Actualizacion de auditorias.md`
 
@@ -117,5 +117,34 @@ python3 scripts/check_audit_refs.py --strict-lines AUDITORIA-*.md
 
 **Fase 0: CERRADA**
 
-Validación global al cierre: 0 errores y 2 advertencias de snapshot en
-`AUDITORIA-PAGOS.md` y `AUDITORIA-PERSONAL-TRAINING.md`, a corregir en sus fases.
+Validación global al cierre: 0 errores. Las 2 advertencias de snapshot
+detectadas en `AUDITORIA-PAGOS.md` y `AUDITORIA-PERSONAL-TRAINING.md` se
+corrigieron en sus fases; el validador estricto ya no reporta advertencias.
+
+---
+
+## 7. Estado de Fase 8 — Cierre y publicación
+
+- [x] 18 de 18 auditorías con cabecera, alcance y fecha.
+- [x] Sin afirmaciones vigentes de bugs ya cerrados: las secciones de
+  "Problemas" se reescribieron como **"Problemas y decisiones vigentes"**.
+- [x] Decisiones de negocio marcadas como tales (`DIN-11`, `DIN-13`, `DIN-16`,
+  `ACC-22`, `ADD-11`, `ADD-17`, `ADD-23`, `RUT-06`, `RUT-08`, `COM-01`,
+  `COM-02`, `CFG-02`, `CFG-03`).
+- [x] Enlaces entre documentos revisados (`AUDITORIA-PAGOS.md`,
+  `AUDITORIA-COMUNIDAD.md`).
+- [x] `BUGS.md` cuadrado: **109 hallazgos** (5 `CRÍTICO`, 31 `ALTO`,
+  52 `MEDIO`, 21 `BAJO`), **94 cerrados**, **13 decisiones** y **2 abiertos**
+  (`CFG-16`, `CFG-17`).
+- [x] Validador estricto: **1252 referencias, 0 errores, 0 advertencias**.
+- [x] `makemigrations --check --dry-run`: sin cambios pendientes.
+- [x] Frontend: `pnpm lint` sin errores y `pnpm build` verde.
+- [ ] Suite backend completa: no se ejecutó localmente porque requiere el
+  Postgres 16 descartable de `/tmp/opencode/pgtest`; la corre el CI
+  (`backend-tests.yml`) en la PR/push.
+
+**Fase 8: CERRADA** (cierre documental y gates de frontend; la suite backend
+queda cubierta por CI).
+
+El código de producto no cambió durante la actualización: el commit de
+verificación sigue siendo **`f5b4b07`**.

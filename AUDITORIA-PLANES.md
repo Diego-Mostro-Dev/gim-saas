@@ -276,8 +276,7 @@ cancelarlo desde su portal.
 - **No versiona el catálogo**: no hay historial de precios; lo congelado vive en
   cada período emitido, no en el plan.
 - **No cobra el cambio de plan en el momento** ni tiene botón para "pagar la
-  diferencia": la plata se acomoda en la facturación del ciclo (ver el caveat del
-  saldo a favor en AUDITORIA-SUSCRIPCIONES.md §8, problema P21).
+  diferencia": la plata se acomoda en la facturación del ciclo.
 - **No manda avisos por email ni WhatsApp** cuando un plan se crea, se
   desactiva o cuando se aprueba un cambio.
 - **No bloquea la renovación** de un socio cuyo plan quedó desactivado: el plan
